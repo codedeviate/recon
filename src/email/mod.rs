@@ -189,7 +189,7 @@ fn cross_validate(results: &[CheckResult]) -> Vec<CheckResult> {
     let bimi = results.iter().find(|r| r.name == "BIMI");
     let mta_sts = results.iter().find(|r| r.name == "MTA-STS");
     let tls_rpt = results.iter().find(|r| r.name == "TLS-RPT");
-    let has_dkim = results.iter().any(|r| r.name.starts_with("DKIM("));
+    let has_dkim = results.iter().any(|r| r.name.starts_with("DKIM "));
 
     // BIMI requires DMARC with enforcement policy (p=quarantine or p=reject)
     if let (Some(bimi_r), Some(dmarc_r)) = (bimi, dmarc) {
