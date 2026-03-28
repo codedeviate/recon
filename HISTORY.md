@@ -498,6 +498,30 @@ When multiple checks run together: DMARC notes SPF/DKIM alignment, BIMI verifies
 
 ---
 
+### 18. HTTP/HTTPS File Server (`--serve`, `--serve-tls`)
+
+**Goal:** Serve the current directory over HTTP and/or HTTPS, like Python's `http.server` but with TLS support, HTTP/2, and access logging.
+
+**Architecture:** A new `src/serve/` module directory using `hyper` 1.x for the HTTP server and `tokio-rustls` for TLS. Both HTTP and HTTPS servers can run simultaneously as concurrent tokio tasks on a multi-threaded runtime.
+
+**HTTP version negotiation:** Plain HTTP uses HTTP/1.1. HTTPS negotiates HTTP/1.1 and HTTP/2 via ALPN by default. `--http-version 1.1` or `--http-version 2` forces a specific version on HTTPS.
+
+**Directory listing:** Content-negotiated — HTML table for browsers (Accept: text/html), plain text for CLI tools (curl, wget). Sorted directories-first, then alphabetical. Shows filename, size, and modification date.
+
+**Access logging:** Apache-style log printed to stderr (colour-coded by status: green for 2xx, yellow for 3xx, red for 4xx/5xx). Optionally mirrored to a file via `--serve-log` (plain text, no ANSI codes).
+
+**TLS certificates:** Default location `~/.recon/cert.pem` and `~/.recon/key.pem`. Override with `--serve-cert` and `--serve-key`. If files are missing, the error message includes an `openssl` command to generate self-signed certs.
+
+**Dispatch:** `--serve`/`--serve-tls` form their own exclusive group — they can combine with each other but not with any other recon feature.
+
+**New modules:** `src/serve/mod.rs`, `http.rs`, `https.rs`, `files.rs`
+
+**New dependencies:** `hyper`, `hyper-util`, `http-body-util`, `bytes`, `tokio-rustls`, `rustls-pemfile`, `mime_guess`
+
+**Modified:** `tokio` (added `rt-multi-thread`, `macros`, `signal`, `fs`, `io-util` features)
+
+---
+
 ### 14. Output Model Overhaul + New Flags
 
 Several output and request flags were added or reworked to align more closely with curl conventions:
