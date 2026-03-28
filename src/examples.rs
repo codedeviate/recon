@@ -275,6 +275,52 @@ pub fn print() {
         "recon scp://server/file.tgz --ssh-key ~/.ssh/custom_rsa --ssh-pubkey ~/.ssh/custom_rsa.pub",
     ]);
 
+    section("EMAIL PROTECTION");
+
+    example("Validate the SPF record for a domain (--spf)", &[
+        "recon example.com --spf",
+        "recon google.com --spf",
+    ]);
+    note("Recursively resolves include: and redirect= chains, enforces the 10-lookup limit.");
+    example("Validate the DMARC record and policy (--dmarc)", &[
+        "recon example.com --dmarc",
+        "recon google.com --dmarc",
+    ]);
+    note("Checks policy strength, alignment modes, reporting URIs, and external authorization.");
+    example("Validate DKIM records for specific selectors (--dkim, repeatable)", &[
+        "recon google.com --dkim google",
+        "recon google.com --dkim google --dkim default",
+        "recon example.com --dkim selector1 --dkim selector2",
+    ]);
+    note("Each selector is checked independently. Reports key type, size, hash, and flags.");
+    example("Validate MTA-STS DNS record and HTTPS policy (--mta-sts)", &[
+        "recon google.com --mta-sts",
+        "recon example.com --mta-sts",
+    ]);
+    note("Fetches the policy from https://mta-sts.<domain>/.well-known/mta-sts.txt and cross-checks MX patterns.");
+    example("Validate the BIMI record (--bimi, optional selector, default: \"default\")", &[
+        "recon google.com --bimi",
+        "recon cnn.com --bimi",
+        "recon example.com --bimi myselector",
+    ]);
+    note("Checks logo URL (must be SVG over HTTPS) and VMC certificate if present.");
+    example("Validate the TLS-RPT reporting record (--tls-rpt)", &[
+        "recon google.com --tls-rpt",
+        "recon example.com --tls-rpt",
+    ]);
+    note("Validates reporting URIs (mailto: and https:). Best used alongside --mta-sts.");
+    example("Run multiple email checks together", &[
+        "recon google.com --dmarc --spf",
+        "recon google.com --dmarc --spf --dkim google --mta-sts --tls-rpt",
+        "recon example.com --dmarc --spf --dkim default --bimi",
+    ]);
+    note("Checks cross-reference each other: DMARC notes SPF/DKIM alignment, BIMI checks DMARC policy strength, MTA-STS and TLS-RPT note co-presence.");
+    example("Combine email checks with cert and DNS inspection", &[
+        "recon google.com --cert --dns --dns-type A,AAAA,MX,TXT --dmarc --spf --dkim google",
+        "recon example.com --cert --dmarc --spf --mta-sts --tls-rpt",
+    ]);
+    note("All composable flags run sequentially in one invocation.");
+
     section("COMBINING FLAGS");
 
     example("POST JSON, follow redirects, prettify response", &[
