@@ -10,6 +10,7 @@ mod output;
 mod ping;
 mod prettify;
 mod scp;
+mod serve;
 mod tls_probe;
 mod traceroute;
 mod util;
