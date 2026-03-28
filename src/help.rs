@@ -86,7 +86,27 @@ static TOPIC_DNS: Topic = Topic {
                   Composes with --cert and all email-protection flags.",
     flags: &[
         FlagHelp { flags: "--dns", description: "Enable DNS lookup for the target host.\nShows common record types by default." },
-        FlagHelp { flags: "--dns-type <TYPE,...>", description: "Comma-separated DNS record types to query.\nSupported: A, AAAA, CNAME, MX, NS, TXT, SOA, PTR, SRV, CAA, and more." },
+        FlagHelp { flags: "--dns-type <TYPE,...>", description: "\
+Comma-separated DNS record types to query.\n\
+\n\
+  A          IPv4 address\n\
+  AAAA       IPv6 address\n\
+  CNAME      Canonical name (alias)\n\
+  MX         Mail exchange server and priority\n\
+  NS         Authoritative name server\n\
+  TXT        Text record (SPF, DKIM, verification, etc.)\n\
+  SOA        Start of authority (serial, refresh, retry, expire)\n\
+  PTR        Reverse DNS (IP to hostname)\n\
+  SRV        Service locator (priority, weight, port, target)\n\
+  CAA        Certificate authority authorization\n\
+  NAPTR      Naming authority pointer (ENUM, SIP routing)\n\
+  SSHFP      SSH public key fingerprint\n\
+  TLSA       DANE TLS certificate association\n\
+  HINFO      Host information (CPU, OS)\n\
+  ANAME      Alias for apex/root domain (provider-specific)\n\
+\n\
+When explicit types are given, empty results and errors are shown\n\
+(normally suppressed for default types)." },
     ],
     related: &["--cert", "--spf", "--dmarc"],
     examples: &[
