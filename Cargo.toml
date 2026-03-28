@@ -1,0 +1,27 @@
+[package]
+name = "recon"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "recon"
+path = "src/main.rs"
+
+[dependencies]
+reqwest = { version = "0.12", features = ["blocking", "json", "multipart", "rustls-tls"] }
+clap = { version = "4", features = ["derive"] }
+anyhow = "1"
+indicatif = "0.17"
+colored = "2"
+native-tls = "0.2"
+x509-parser = "0.16"
+url = "2"
+hickory-resolver = { version = "0.24", features = ["system-config"] }
+tokio = { version = "1", features = ["rt", "net"] }
+socket2 = "0.6"
+rusqlite = "0.32"
+serde_json = "1"
+serde_yaml = "0.9"
+quick-xml = "0.37"
+ssh2 = "0.9"
+rustls = { version = "0.23", features = ["ring"] }
