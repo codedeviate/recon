@@ -390,7 +390,13 @@ static TOPIC_SERVE_TLS: Topic = Topic {
                     ~/.recon/cert.pem    Certificate file\n\
                     ~/.recon/key.pem     Private key file\n\
                   \n\
-                  To generate a self-signed certificate for local development:\n\
+                  To generate certificates for local development:\n\
+                  \n\
+                  Option 1 — mkcert (recommended, browsers trust it automatically):\n\
+                    mkcert -install\n\
+                    mkcert -key-file ~/.recon/key.pem -cert-file ~/.recon/cert.pem localhost 127.0.0.1 ::1\n\
+                  \n\
+                  Option 2 — openssl (self-signed, browsers will show a warning):\n\
                     openssl req -x509 -newkey rsa:2048 -keyout ~/.recon/key.pem \\\n\
                       -out ~/.recon/cert.pem -days 365 -nodes -subj \"/CN=localhost\"",
     flags: &[
@@ -406,7 +412,8 @@ static TOPIC_SERVE_TLS: Topic = Topic {
         ExampleHelp { description: "Force HTTP/2", command: "recon --serve-tls 8443 --http-version 2" },
         ExampleHelp { description: "Use custom certificates", command: "recon --serve-tls 8443 --serve-cert ./cert.pem --serve-key ./key.pem" },
         ExampleHelp { description: "Serve HTTP and HTTPS together", command: "recon --serve 8080 --serve-tls 8443" },
-        ExampleHelp { description: "Generate a self-signed certificate", command: "openssl req -x509 -newkey rsa:2048 -keyout ~/.recon/key.pem -out ~/.recon/cert.pem -days 365 -nodes -subj \"/CN=localhost\"" },
+        ExampleHelp { description: "Generate trusted cert with mkcert (recommended)", command: "mkcert -install && mkcert -key-file ~/.recon/key.pem -cert-file ~/.recon/cert.pem localhost 127.0.0.1 ::1" },
+        ExampleHelp { description: "Generate self-signed cert with openssl", command: "openssl req -x509 -newkey rsa:2048 -keyout ~/.recon/key.pem -out ~/.recon/cert.pem -days 365 -nodes -subj \"/CN=localhost\"" },
     ],
 };
 
