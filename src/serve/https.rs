@@ -37,7 +37,10 @@ fn build_tls_config(
         .context("Failed to parse private key")?
         .context("No private key found in key file")?;
 
-    let mut config = ServerConfig::builder()
+    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    let mut config = ServerConfig::builder_with_provider(provider)
+        .with_safe_default_protocol_versions()
+        .context("Failed to configure TLS protocol versions")?
         .with_no_client_auth()
         .with_single_cert(certs, key)
         .context("Failed to build TLS server config")?;
