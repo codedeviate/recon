@@ -392,11 +392,8 @@ pub fn print_topic_footer() {
         "{}",
         "For detailed help on a specific topic: recon --help <topic>".dimmed()
     );
-    println!(
-        "{}",
-        "Topics: http, output, dns, cert, whois, ping, traceroute, spf, dmarc, dkim, mta-sts, bimi, tls-rpt, email, cookies, scp"
-            .dimmed()
-    );
+    let topics = topic_keys().join(", ");
+    println!("{}", format!("Topics: {topics}").dimmed());
 }
 
 /// Returns the 16 primary topic keys in display order.
