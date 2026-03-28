@@ -6,6 +6,16 @@
 
 ---
 
+## Versioning
+
+recon follows semantic versioning (`MAJOR.MINOR.PATCH`):
+
+- **MINOR** version is incremented when a new feature or flag is added, removed, or significantly changed.
+- **PATCH** version is incremented for bug fixes and minor changes that don't add or remove features or flags.
+- **MAJOR** version is reserved for breaking changes to existing behaviour.
+
+---
+
 ## Origins
 
 The project began with a simple goal: build a basic curl clone in Rust that supports HTTP and HTTPS requests, compatible with JetBrains RustRover.
