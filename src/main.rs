@@ -5,6 +5,7 @@ mod cookiejar;
 mod dns;
 mod email;
 mod examples;
+mod help;
 mod output;
 mod ping;
 mod prettify;
@@ -14,10 +15,33 @@ mod traceroute;
 mod util;
 mod whois;
 
-use clap::Parser;
+use clap::{CommandFactory, Parser};
 use cli::Args;
 
 fn main() {
+    // ── --help [topic] interception (before clap parses) ─────────────────────
+    {
+        let args: Vec<String> = std::env::args().collect();
+        if let Some(pos) = args.iter().position(|a| a == "--help" || a == "-h") {
+            let next = args.get(pos + 1);
+            match next {
+                Some(topic) if !topic.starts_with('-') => {
+                    if !help::print_topic(topic) {
+                        help::print_unknown_topic(topic);
+                    }
+                    return;
+                }
+                _ => {
+                    let mut cmd = Args::command();
+                    let _ = cmd.print_help();
+                    println!();
+                    help::print_topic_footer();
+                    return;
+                }
+            }
+        }
+    }
+
     // --examples doesn't require a URL; intercept before clap validates required args
     if std::env::args().any(|a| a == "--examples") {
         examples::print();
