@@ -11,7 +11,7 @@
 recon follows semantic versioning (`MAJOR.MINOR.PATCH`):
 
 - **MINOR** version is incremented when a new feature or flag is added, removed, or significantly changed.
-- **PATCH** version is incremented for bug fixes and minor changes that don't add or remove features or flags.
+- **PATCH** version is incremented for bug fixes, documentation/help text updates, and other minor changes that don't add or remove features or flags.
 - **MAJOR** version is reserved for breaking changes to existing behaviour.
 
 ---
