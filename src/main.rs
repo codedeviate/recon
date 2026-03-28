@@ -217,6 +217,8 @@ fn friendly_message(err: &anyhow::Error) -> String {
         || msg.starts_with("All SSH authentication")
         || msg.starts_with("SCP failed")
         || msg.starts_with("SCP URL")
+        || msg.starts_with("TLS certificate not found")
+        || msg.starts_with("TLS private key not found")
     {
         return msg;
     }
