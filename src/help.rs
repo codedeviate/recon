@@ -362,6 +362,54 @@ static TOPIC_SCP: Topic = Topic {
     ],
 };
 
+static TOPIC_SERVE: Topic = Topic {
+    title: "HTTP Server",
+    description: "Start a static file server serving the current directory over HTTP. Directory\n\
+                  listings are returned as HTML for browsers and plain text for curl. Files are\n\
+                  served with MIME type detection. Access is logged to the terminal and optionally\n\
+                  to a file with --serve-log.",
+    flags: &[
+        FlagHelp { flags: "--serve [PORT]", description: "Start an HTTP server on the given port (default: 80).\nServes the current directory. Directory listings are auto-generated." },
+        FlagHelp { flags: "--serve-log <PATH>", description: "Write access log entries to the given file path in addition to stdout." },
+    ],
+    related: &["--serve-tls"],
+    examples: &[
+        ExampleHelp { description: "Serve on port 8080", command: "recon --serve 8080" },
+        ExampleHelp { description: "Serve on default port 80", command: "recon --serve" },
+        ExampleHelp { description: "Serve with a log file", command: "recon --serve 8080 --serve-log access.log" },
+        ExampleHelp { description: "Serve HTTP and HTTPS together", command: "recon --serve 8080 --serve-tls 8443" },
+    ],
+};
+
+static TOPIC_SERVE_TLS: Topic = Topic {
+    title: "HTTPS Server",
+    description: "Start a static file server over HTTPS with TLS. Supports HTTP/1.1 and HTTP/2\n\
+                  via ALPN negotiation. Requires a certificate and private key in PEM format.\n\
+                  \n\
+                  recon looks for TLS certificates in ~/.recon/ by default:\n\
+                    ~/.recon/cert.pem    Certificate file\n\
+                    ~/.recon/key.pem     Private key file\n\
+                  \n\
+                  To generate a self-signed certificate for local development:\n\
+                    openssl req -x509 -newkey rsa:2048 -keyout ~/.recon/key.pem \\\n\
+                      -out ~/.recon/cert.pem -days 365 -nodes -subj \"/CN=localhost\"",
+    flags: &[
+        FlagHelp { flags: "--serve-tls [PORT]", description: "Start an HTTPS server on the given port (default: 443).\nServes the current directory with TLS." },
+        FlagHelp { flags: "--http-version <VERSION>", description: "HTTP protocol version to advertise via ALPN: 1.1 or 2.\nDefaults to auto (negotiates the best version with the client)." },
+        FlagHelp { flags: "--serve-cert <PATH>", description: "Path to the TLS certificate PEM file (default: ~/.recon/cert.pem)." },
+        FlagHelp { flags: "--serve-key <PATH>", description: "Path to the TLS private key PEM file (default: ~/.recon/key.pem)." },
+        FlagHelp { flags: "--serve-log <PATH>", description: "Write access log entries to the given file path in addition to stdout." },
+    ],
+    related: &["--serve"],
+    examples: &[
+        ExampleHelp { description: "Serve HTTPS on port 8443", command: "recon --serve-tls 8443" },
+        ExampleHelp { description: "Force HTTP/2", command: "recon --serve-tls 8443 --http-version 2" },
+        ExampleHelp { description: "Use custom certificates", command: "recon --serve-tls 8443 --serve-cert ./cert.pem --serve-key ./key.pem" },
+        ExampleHelp { description: "Serve HTTP and HTTPS together", command: "recon --serve 8080 --serve-tls 8443" },
+        ExampleHelp { description: "Generate a self-signed certificate", command: "openssl req -x509 -newkey rsa:2048 -keyout ~/.recon/key.pem -out ~/.recon/cert.pem -days 365 -nodes -subj \"/CN=localhost\"" },
+    ],
+};
+
 // ── Topic resolution ─────────────────────────────────────────────────────────
 
 fn resolve_topic(key: &str) -> Option<&'static Topic> {
@@ -382,6 +430,8 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "email" | "email-protection" => Some(&TOPIC_EMAIL),
         "cookies" | "cookiejar" | "cookie" => Some(&TOPIC_COOKIES),
         "scp" | "ssh" => Some(&TOPIC_SCP),
+        "serve" | "server" => Some(&TOPIC_SERVE),
+        "serve-tls" | "serve-https" | "https-server" => Some(&TOPIC_SERVE_TLS),
         _ => None,
     }
 }
@@ -416,7 +466,7 @@ pub fn print_topic_footer() {
     println!("{}", format!("Topics: {topics}").dimmed());
 }
 
-/// Returns the 16 primary topic keys in display order.
+/// Returns the primary topic keys in display order.
 pub fn topic_keys() -> Vec<&'static str> {
     vec![
         "http",
@@ -435,6 +485,8 @@ pub fn topic_keys() -> Vec<&'static str> {
         "email",
         "cookies",
         "scp",
+        "serve",
+        "serve-tls",
     ]
 }
 
