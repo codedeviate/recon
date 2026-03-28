@@ -480,6 +480,24 @@ When multiple checks run together: DMARC notes SPF/DKIM alignment, BIMI verifies
 
 ---
 
+### 17. Per-Topic Help (`--help <topic>`)
+
+**Goal:** Provide detailed, man-page-style help for each feature area without losing the concise overview of `--help`.
+
+**Invocation:** `recon --help <topic>` displays in-depth help for that topic — description, flags with full explanations, related flags, and examples. Plain `--help` is unchanged except for a footer listing available topics.
+
+**Implementation:** Pre-clap argv interception in `main.rs` (same pattern as `--examples`). Scans for `--help`/`-h` before clap parses, checks if the next argument is a topic name. If so, dispatches to `help::print_topic()`. If no topic, calls clap's `print_help()` manually and appends the topic footer.
+
+**Topics (16):** http, output, dns, cert, whois, ping, traceroute, spf, dmarc, dkim, mta-sts, bimi, tls-rpt, email, cookies, scp
+
+**Aliases:** `https` → http, `tls`/`certificate` → cert, `trace` → traceroute, `mtasts` → mta-sts, `tlsrpt` → tls-rpt, `email-protection` → email, `cookiejar`/`cookie` → cookies, `ssh` → scp. Case-insensitive.
+
+**Unknown topic handling:** Prints "Unknown topic: X" and lists all available topics.
+
+**Module introduced:** `help.rs`
+
+---
+
 ### 14. Output Model Overhaul + New Flags
 
 Several output and request flags were added or reworked to align more closely with curl conventions:
