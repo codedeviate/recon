@@ -69,6 +69,41 @@ fn main() {
         return;
     }
 
+    // ── Serve mode ───────────────────────────────────────────────────────────
+    if args.has_serve() {
+        if args.has_exclusive() || args.has_composable() {
+            eprintln!("error: --serve and --serve-tls cannot be combined with other features");
+            std::process::exit(1);
+        }
+
+        let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+        let recon_dir = std::path::PathBuf::from(&home).join(".recon");
+
+        let http_port = args.serve.as_ref().and_then(|p| p.parse::<u16>().ok());
+        let https_port = args.serve_tls.as_ref().and_then(|p| p.parse::<u16>().ok());
+
+        let config = serve::ServeConfig {
+            http_port,
+            https_port,
+            http_version: args.http_version.clone(),
+            cert_path: args.serve_cert.clone().unwrap_or_else(|| recon_dir.join("cert.pem")),
+            key_path: args.serve_key.clone().unwrap_or_else(|| recon_dir.join("key.pem")),
+            log_file: args.serve_log.clone(),
+            root_dir: std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
+        };
+
+        let result = serve::run(&config);
+        if let Err(err) = result {
+            if args.full_errors {
+                eprintln!("error: {err:#}");
+            } else {
+                eprintln!("error: {}", friendly_message(&err));
+            }
+            std::process::exit(1);
+        }
+        return;
+    }
+
     // ── Validate flag combinations ────────────────────────────────────────────
     if args.exclusive_count() > 1 {
         eprintln!("error: --ping, --traceroute, and --whois are mutually exclusive");
