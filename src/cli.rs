@@ -9,7 +9,7 @@ use std::path::PathBuf;
 )]
 pub struct Args {
     /// URL to request (or use --url)
-    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set"])]
+    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt"])]
     pub url: Option<String>,
 
     /// URL to request — curl-compatible alternative to the positional argument
@@ -148,6 +148,30 @@ pub struct Args {
     #[arg(long = "whois")]
     pub whois: bool,
 
+    /// Validate the SPF record (recursive include/redirect resolution, lookup limits)
+    #[arg(long = "spf")]
+    pub spf: bool,
+
+    /// Validate the DMARC record and policy
+    #[arg(long = "dmarc")]
+    pub dmarc: bool,
+
+    /// Validate the DKIM record for the given selector (repeatable: --dkim sel1 --dkim sel2)
+    #[arg(long = "dkim", value_name = "SELECTOR", action = clap::ArgAction::Append)]
+    pub dkim: Vec<String>,
+
+    /// Validate MTA-STS DNS record and HTTPS policy
+    #[arg(long = "mta-sts")]
+    pub mta_sts: bool,
+
+    /// Validate the BIMI record (default selector: "default")
+    #[arg(long = "bimi", value_name = "SELECTOR", num_args = 0..=1, default_missing_value = "default")]
+    pub bimi: Option<String>,
+
+    /// Validate the TLS-RPT reporting record
+    #[arg(long = "tls-rpt")]
+    pub tls_rpt: bool,
+
     /// Cookie jar to use for this request (name or path to a .db file).
     /// Omit the value to use the default jar.
     #[arg(long = "cookiejar", value_name = "NAME", num_args = 0..=1, default_missing_value = "default")]
@@ -178,5 +202,25 @@ impl Args {
             .as_deref()
             .or(self.url.as_deref())
             .unwrap_or_default()
+    }
+
+    /// Returns true if any email protection check flag is set.
+    pub fn has_email_checks(&self) -> bool {
+        self.spf || self.dmarc || !self.dkim.is_empty() || self.mta_sts || self.bimi.is_some() || self.tls_rpt
+    }
+
+    /// Returns true if any composable domain-inspection flag is set.
+    pub fn has_composable(&self) -> bool {
+        self.cert || self.dns || self.has_email_checks()
+    }
+
+    /// Returns true if any exclusive network-tool flag is set.
+    pub fn has_exclusive(&self) -> bool {
+        self.ping || self.traceroute || self.whois
+    }
+
+    /// Returns the count of exclusive flags set (for mutual exclusion check).
+    pub fn exclusive_count(&self) -> usize {
+        [self.ping, self.traceroute, self.whois].iter().filter(|&&f| f).count()
     }
 }
