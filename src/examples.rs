@@ -321,6 +321,37 @@ pub fn print() {
     ]);
     note("All composable flags run sequentially in one invocation.");
 
+    section("WEB SERVER");
+
+    example("Serve the current directory over HTTP (--serve)", &[
+        "recon --serve 8080",
+        "recon --serve",
+    ]);
+    note("Default port is 80. Serves files and directory listings from the current directory.");
+    example("Serve over HTTPS (--serve-tls)", &[
+        "recon --serve-tls 8443",
+        "recon --serve-tls",
+    ]);
+    note("Default port is 443. Requires ~/.recon/cert.pem and ~/.recon/key.pem (or --serve-cert/--serve-key).");
+    example("Run both HTTP and HTTPS simultaneously", &[
+        "recon --serve 8080 --serve-tls 8443",
+    ]);
+    example("Force HTTP/2 only on HTTPS (--http-version)", &[
+        "recon --serve-tls 8443 --http-version 2",
+    ]);
+    example("Write access log to a file (--serve-log)", &[
+        "recon --serve 8080 --serve-log access.log",
+        "recon --serve 8080 --serve-tls 8443 --serve-log server.log",
+    ]);
+    note("Log is always printed to the terminal. --serve-log adds a plain-text copy to a file.");
+    example("Use custom TLS certificate files (--serve-cert, --serve-key)", &[
+        "recon --serve-tls 8443 --serve-cert ./my-cert.pem --serve-key ./my-key.pem",
+    ]);
+    example("Generate a self-signed certificate for local development", &[
+        "openssl req -x509 -newkey rsa:2048 -keyout ~/.recon/key.pem -out ~/.recon/cert.pem -days 365 -nodes -subj \"/CN=localhost\"",
+    ]);
+    note("Run this once. recon will use these files by default for --serve-tls.");
+
     section("COMBINING FLAGS");
 
     example("POST JSON, follow redirects, prettify response", &[
