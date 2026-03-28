@@ -9,7 +9,7 @@ use std::path::PathBuf;
 )]
 pub struct Args {
     /// URL to request (or use --url)
-    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt"])]
+    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls"])]
     pub url: Option<String>,
 
     /// URL to request — curl-compatible alternative to the positional argument
@@ -172,6 +172,30 @@ pub struct Args {
     #[arg(long = "tls-rpt")]
     pub tls_rpt: bool,
 
+    /// Start an HTTP file server on the given port (default: 80)
+    #[arg(long = "serve", value_name = "PORT", num_args = 0..=1, default_missing_value = "80")]
+    pub serve: Option<String>,
+
+    /// Start an HTTPS file server on the given port (default: 443)
+    #[arg(long = "serve-tls", value_name = "PORT", num_args = 0..=1, default_missing_value = "443")]
+    pub serve_tls: Option<String>,
+
+    /// Force HTTP version for the server: 1.1 or 2 (default: auto-negotiate)
+    #[arg(long = "http-version", value_name = "VERSION")]
+    pub http_version: Option<String>,
+
+    /// Path to TLS certificate PEM file (default: ~/.recon/cert.pem)
+    #[arg(long = "serve-cert", value_name = "PATH")]
+    pub serve_cert: Option<std::path::PathBuf>,
+
+    /// Path to TLS private key PEM file (default: ~/.recon/key.pem)
+    #[arg(long = "serve-key", value_name = "PATH")]
+    pub serve_key: Option<std::path::PathBuf>,
+
+    /// Write access log to this file (in addition to terminal output)
+    #[arg(long = "serve-log", value_name = "PATH")]
+    pub serve_log: Option<std::path::PathBuf>,
+
     /// Cookie jar to use for this request (name or path to a .db file).
     /// Omit the value to use the default jar.
     #[arg(long = "cookiejar", value_name = "NAME", num_args = 0..=1, default_missing_value = "default")]
@@ -217,6 +241,10 @@ impl Args {
     /// Returns true if any exclusive network-tool flag is set.
     pub fn has_exclusive(&self) -> bool {
         self.ping || self.traceroute || self.whois
+    }
+
+    pub fn has_serve(&self) -> bool {
+        self.serve.is_some() || self.serve_tls.is_some()
     }
 
     /// Returns the count of exclusive flags set (for mutual exclusion check).
