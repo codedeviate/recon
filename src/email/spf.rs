@@ -233,13 +233,25 @@ fn evaluate_spf<'a>(
                         warnings.push((Verdict::Warn, format!("{}+all — Dangerously permissive — allows any sender", prefix)));
                     }
                     Qualifier::SoftFail => {
-                        warnings.push((Verdict::Pass, format!("{}~all — soft fail (common, recommended)", prefix)));
+                        tree.push(TreeLine {
+                            indent: depth + 1,
+                            text: format!("{}~all — soft fail (common, recommended)", prefix),
+                            verdict: None,
+                        });
                     }
                     Qualifier::Fail => {
-                        warnings.push((Verdict::Pass, format!("{}-all — hard fail (strict)", prefix)));
+                        tree.push(TreeLine {
+                            indent: depth + 1,
+                            text: format!("{}-all — hard fail (strict)", prefix),
+                            verdict: None,
+                        });
                     }
                     Qualifier::Neutral => {
-                        warnings.push((Verdict::Warn, format!("{}?all — neutral (no opinion on unauthorized senders)", prefix)));
+                        tree.push(TreeLine {
+                            indent: depth + 1,
+                            text: format!("{}?all — neutral (no opinion on unauthorized senders)", prefix),
+                            verdict: None,
+                        });
                     }
                 }
             }
@@ -363,7 +375,7 @@ pub async fn check(resolver: &TokioAsyncResolver, host: &str) -> Result<CheckRes
         lookup_verdict.clone(),
         format!("DNS lookups: {}/10", dns_count),
     ));
-    if dns_count >= 8 && dns_count <= 10 {
+    if (8..=10).contains(&dns_count) {
         details.push(Detail::with_verdict(
             Verdict::Warn,
             format!("Approaching DNS lookup limit ({}/10)", dns_count),

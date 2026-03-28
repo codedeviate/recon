@@ -79,7 +79,7 @@ pub fn write_response(mut response: Response, args: &Args) -> Result<()> {
             .to_string();
         let body = response.text().context("Failed to read response body")?;
         let format = crate::prettify::detect(&content_type_str, &body);
-        let out = crate::prettify::run(&body, format).unwrap_or_else(|_| body);
+        let out = crate::prettify::run(&body, format).unwrap_or(body);
         if let Some(path) = &args.output {
             let mut file = File::create(path)?;
             write!(file, "{out}")?;

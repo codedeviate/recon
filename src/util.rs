@@ -9,7 +9,7 @@ pub fn parse_target(input: &str) -> (String, Option<u16>) {
     };
     // Strip path, query, fragment
     let s = s
-        .split(|c| c == '/' || c == '?' || c == '#')
+        .split(['/', '?', '#'])
         .next()
         .unwrap_or(s);
     // IPv6 [::1]:port

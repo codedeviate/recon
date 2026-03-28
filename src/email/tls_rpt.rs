@@ -104,8 +104,7 @@ pub async fn check(resolver: &TokioAsyncResolver, host: &str) -> Result<CheckRes
             details.push(Detail::new(format!("rua={}", rua)));
             for uri in rua.split(',') {
                 let uri = uri.trim();
-                if uri.starts_with("mailto:") {
-                    let addr = &uri["mailto:".len()..];
+                if let Some(addr) = uri.strip_prefix("mailto:") {
                     if addr.contains('@') {
                         details.push(Detail::with_verdict(
                             Verdict::Pass,

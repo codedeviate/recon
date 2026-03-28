@@ -85,36 +85,43 @@ pub async fn check(resolver: &TokioAsyncResolver, host: &str, selector: &str, in
                 overall = overall.merge(Verdict::Fail);
                 details.push(Detail::with_verdict(Verdict::Fail, format!("l= URL is not HTTPS: {}", l)));
             } else {
-                // HEAD request to check Content-Type
-                match build_client(insecure) {
+                // HEAD request to check Content-Type (blocking, matching mta_sts pattern)
+                let logo_url = l.clone();
+                let head_result = tokio::task::spawn_blocking(move || {
+                    reqwest::blocking::Client::builder()
+                        .danger_accept_invalid_certs(insecure)
+                        .timeout(std::time::Duration::from_secs(10))
+                        .build()
+                        .and_then(|client| client.head(&logo_url).send())
+                        .map(|resp| {
+                            resp.headers()
+                                .get("content-type")
+                                .and_then(|v| v.to_str().ok())
+                                .unwrap_or("")
+                                .to_string()
+                        })
+                })
+                .await
+                .map_err(|e| anyhow::anyhow!("spawn_blocking join error: {}", e));
+
+                match head_result {
                     Err(e) => {
                         overall = overall.merge(Verdict::Warn);
-                        details.push(Detail::with_verdict(Verdict::Warn, format!("Could not build HTTP client: {}", e)));
+                        details.push(Detail::with_verdict(Verdict::Warn, format!("Logo HEAD request failed: {}", e)));
                     }
-                    Ok(client) => {
-                        match client.head(l.as_str()).send().await {
-                            Err(e) => {
-                                overall = overall.merge(Verdict::Warn);
-                                details.push(Detail::with_verdict(Verdict::Warn, format!("Logo URL unreachable: {}", e)));
-                            }
-                            Ok(resp) => {
-                                let ct = resp
-                                    .headers()
-                                    .get("content-type")
-                                    .and_then(|v| v.to_str().ok())
-                                    .unwrap_or("")
-                                    .to_string();
-
-                                if ct.starts_with("image/svg+xml") {
-                                    details.push(Detail::with_verdict(Verdict::Pass, format!("Logo Content-Type: {} — OK", ct)));
-                                } else {
-                                    overall = overall.merge(Verdict::Warn);
-                                    details.push(Detail::with_verdict(
-                                        Verdict::Warn,
-                                        format!("Logo Content-Type: {} — expected image/svg+xml", ct),
-                                    ));
-                                }
-                            }
+                    Ok(Err(e)) => {
+                        overall = overall.merge(Verdict::Warn);
+                        details.push(Detail::with_verdict(Verdict::Warn, format!("Logo URL unreachable: {}", e)));
+                    }
+                    Ok(Ok(ct)) => {
+                        if ct.starts_with("image/svg+xml") {
+                            details.push(Detail::with_verdict(Verdict::Pass, format!("Logo Content-Type: {} — OK", ct)));
+                        } else {
+                            overall = overall.merge(Verdict::Warn);
+                            details.push(Detail::with_verdict(
+                                Verdict::Warn,
+                                format!("Logo Content-Type: {} — expected image/svg+xml", ct),
+                            ));
                         }
                     }
                 }
@@ -216,16 +223,6 @@ pub async fn check(resolver: &TokioAsyncResolver, host: &str, selector: &str, in
     })
 }
 
-// ── HTTP client ───────────────────────────────────────────────────────────────
-
-fn build_client(insecure: bool) -> Result<reqwest::Client> {
-    let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(insecure)
-        .timeout(std::time::Duration::from_secs(10))
-        .build()?;
-    Ok(client)
-}
-
 // ── VMC info ──────────────────────────────────────────────────────────────────
 
 struct VmcInfo {
@@ -236,9 +233,17 @@ struct VmcInfo {
 }
 
 async fn fetch_vmc(url: &str, insecure: bool) -> Result<VmcInfo> {
-    let client = build_client(insecure)?;
-    let resp = client.get(url).send().await?;
-    let pem_text = resp.text().await?;
+    let url = url.to_string();
+    let pem_text = tokio::task::spawn_blocking(move || {
+        reqwest::blocking::Client::builder()
+            .danger_accept_invalid_certs(insecure)
+            .timeout(std::time::Duration::from_secs(10))
+            .build()
+            .and_then(|client| client.get(&url).send())
+            .and_then(|resp| resp.text())
+    })
+    .await?
+    .map_err(|e| anyhow::anyhow!("VMC fetch failed: {}", e))?;
 
     // Parse PEM
     let pem_data = ::pem::parse(&pem_text).map_err(|e| anyhow::anyhow!("PEM parse error: {e}"))?;

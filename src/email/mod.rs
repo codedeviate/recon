@@ -23,9 +23,9 @@ pub enum Verdict {
 impl Verdict {
     pub fn badge(&self) -> colored::ColoredString {
         match self {
-            Verdict::Pass => "PASS".green().bold(),
-            Verdict::Warn => "WARN".yellow().bold(),
-            Verdict::Fail => "FAIL".red().bold(),
+            Verdict::Pass => "✓ PASS".green().bold(),
+            Verdict::Warn => "⚠ WARN".yellow().bold(),
+            Verdict::Fail => "✗ FAIL".red().bold(),
         }
     }
 
@@ -193,13 +193,38 @@ fn cross_validate(results: &[CheckResult]) -> Vec<CheckResult> {
 
     // BIMI requires DMARC with enforcement policy (p=quarantine or p=reject)
     if let (Some(bimi_r), Some(dmarc_r)) = (bimi, dmarc) {
-        if bimi_r.verdict != Verdict::Fail && dmarc_r.verdict == Verdict::Fail {
-            notes.push(CheckResult {
-                name: "Cross: BIMI+DMARC".to_string(),
-                verdict: Verdict::Warn,
-                summary: "BIMI is present but DMARC failed — BIMI requires a valid DMARC record with p=quarantine or p=reject".to_string(),
-                details: vec![],
+        if bimi_r.verdict != Verdict::Fail {
+            // Extract the DMARC policy value from its detail lines (e.g. "p=none — …")
+            let dmarc_policy = dmarc_r.details.iter().find_map(|d| {
+                let text = &d.text;
+                if let Some(rest) = text.strip_prefix("p=") {
+                    // Extract the policy token: "p=none — …" → "none"
+                    let end = rest.find(|c: char| !c.is_ascii_alphanumeric()).unwrap_or(rest.len());
+                    Some(rest[..end].to_string())
+                } else {
+                    None
+                }
             });
+
+            match dmarc_policy.as_deref() {
+                Some("none") => {
+                    notes.push(CheckResult {
+                        name: "Cross: BIMI+DMARC".to_string(),
+                        verdict: Verdict::Warn,
+                        summary: "BIMI is present but DMARC policy is p=none — BIMI requires p=quarantine or p=reject".to_string(),
+                        details: vec![],
+                    });
+                }
+                None if dmarc_r.verdict == Verdict::Fail => {
+                    notes.push(CheckResult {
+                        name: "Cross: BIMI+DMARC".to_string(),
+                        verdict: Verdict::Warn,
+                        summary: "BIMI is present but DMARC failed — BIMI requires a valid DMARC record with p=quarantine or p=reject".to_string(),
+                        details: vec![],
+                    });
+                }
+                _ => {} // p=quarantine or p=reject — good
+            }
         }
     }
 
