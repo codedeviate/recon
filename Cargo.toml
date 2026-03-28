@@ -25,3 +25,5 @@ serde_yaml = "0.9"
 quick-xml = "0.37"
 ssh2 = "0.9"
 rustls = { version = "0.23", features = ["ring"] }
+base64 = "0.22"
+pem = "3"
