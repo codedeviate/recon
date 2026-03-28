@@ -3,6 +3,7 @@ mod cli;
 mod client;
 mod cookiejar;
 mod dns;
+mod email;
 mod examples;
 mod output;
 mod ping;
