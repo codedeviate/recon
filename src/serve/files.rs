@@ -3,7 +3,7 @@ use bytes::Bytes;
 use http_body_util::Full;
 use hyper::body::Incoming;
 use hyper::{Request, Response, StatusCode};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::SystemTime;
 
 /// The result of handling a file-serve request.
@@ -181,7 +181,7 @@ fn render_html(entries: &[DirEntry], base: &str, uri_path: &str) -> String {
         };
         let modified = e
             .modified
-            .map(|t| format_time(t))
+            .map(format_time)
             .unwrap_or_else(|| "-".to_string());
         html.push_str(&format!(
             "<tr><td><a href=\"{}\">{}</a></td><td class=\"size\">{}</td><td class=\"modified\">{}</td></tr>\n",
@@ -201,7 +201,7 @@ fn render_text(entries: &[DirEntry], base: &str) -> String {
 
     // Header
     lines.push(format!("{:<40} {:>10}  {}", "Name", "Size", "Modified"));
-    lines.push(format!("{}", "-".repeat(70)));
+    lines.push("-".repeat(70).to_string());
 
     // Parent
     if base != "/" {
@@ -221,7 +221,7 @@ fn render_text(entries: &[DirEntry], base: &str) -> String {
         };
         let modified = e
             .modified
-            .map(|t| format_time(t))
+            .map(format_time)
             .unwrap_or_else(|| "-".to_string());
         lines.push(format!("{:<40} {:>10}  {}", display, size, modified));
     }

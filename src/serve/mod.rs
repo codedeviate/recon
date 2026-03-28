@@ -7,7 +7,7 @@ use colored::Colorize;
 use std::fs;
 use std::io::Write;
 use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -136,7 +136,7 @@ pub fn run(config: &ServeConfig) -> Result<()> {
     Ok(())
 }
 
-fn print_banner(config: &ServeConfig, root: &PathBuf) {
+fn print_banner(config: &ServeConfig, root: &Path) {
     eprintln!(
         "\n{}  {}",
         "Serving".green().bold(),
