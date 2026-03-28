@@ -44,16 +44,25 @@ fn main() {
         return;
     }
 
-    let result = if args.cert {
-        cert::fetch_and_print(args.target_url())
-    } else if args.traceroute {
+    // ── Validate flag combinations ────────────────────────────────────────────
+    if args.exclusive_count() > 1 {
+        eprintln!("error: --ping, --traceroute, and --whois are mutually exclusive");
+        std::process::exit(1);
+    }
+    if args.has_exclusive() && args.has_composable() {
+        eprintln!("error: --ping, --traceroute, and --whois cannot be combined with domain-inspection flags");
+        std::process::exit(1);
+    }
+
+    // ── Dispatch ──────────────────────────────────────────────────────────────
+    let result = if args.traceroute {
         traceroute::run(args.target_url(), args.max_hops)
     } else if args.ping {
         ping::run(args.target_url(), args.ping_count)
-    } else if args.dns {
-        dns::run(args.target_url(), &args.dns_type)
     } else if args.whois {
         whois::run(args.target_url())
+    } else if args.has_composable() {
+        run_composable(&args)
     } else if args.target_url().starts_with("scp://") {
         scp::download(args.target_url(), &args)
     } else {
@@ -74,6 +83,32 @@ fn main() {
         }
         std::process::exit(1);
     }
+}
+
+fn run_composable(args: &Args) -> anyhow::Result<()> {
+    if args.cert {
+        cert::fetch_and_print(args.target_url())?;
+    }
+
+    if args.dns {
+        dns::run(args.target_url(), &args.dns_type)?;
+    }
+
+    if args.has_email_checks() {
+        let (host, _port) = util::parse_target(args.target_url());
+        let checks = email::EmailChecks {
+            spf: args.spf,
+            dmarc: args.dmarc,
+            dkim_selectors: args.dkim.clone(),
+            mta_sts: args.mta_sts,
+            bimi: args.bimi.clone(),
+            tls_rpt: args.tls_rpt,
+            insecure: args.insecure,
+        };
+        email::run(&host, checks)?;
+    }
+
+    Ok(())
 }
 
 fn run_cookie_mgmt(args: &Args, jar_name: &str) -> anyhow::Result<()> {
