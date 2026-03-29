@@ -405,6 +405,19 @@ static TOPIC_SERVE_TLS: Topic = Topic {
         FlagHelp { flags: "--serve-cert <PATH>", description: "Path to the TLS certificate PEM file (default: ~/.recon/cert.pem)." },
         FlagHelp { flags: "--serve-key <PATH>", description: "Path to the TLS private key PEM file (default: ~/.recon/key.pem)." },
         FlagHelp { flags: "--serve-log <PATH>", description: "Write access log entries to the given file path in addition to stdout." },
+        FlagHelp { flags: "--serve-sni <MAPPING>", description: "\
+SNI hostname-to-certificate mapping (repeatable).\n\
+Three formats are auto-detected:\n\
+\n\
+  Inline:     --serve-sni \"myapp.local:cert.pem:key.pem\"\n\
+  Directory:  --serve-sni ~/.recon/sni/\n\
+              (files named <hostname>-cert.pem and <hostname>-key.pem)\n\
+  Config:     --serve-sni sni.conf\n\
+              (lines: hostname cert.pem key.pem)\n\
+\n\
+Implies --serve-tls (port 443) if not explicitly given.\n\
+Multiple values can be mixed. Unmatched hostnames use the\n\
+default cert or reject the connection." },
     ],
     related: &["--serve"],
     examples: &[
@@ -414,6 +427,8 @@ static TOPIC_SERVE_TLS: Topic = Topic {
         ExampleHelp { description: "Serve HTTP and HTTPS together", command: "recon --serve 8080 --serve-tls 8443" },
         ExampleHelp { description: "Generate trusted cert with mkcert (recommended)", command: "mkcert -install && mkcert -key-file ~/.recon/key.pem -cert-file ~/.recon/cert.pem localhost 127.0.0.1 ::1" },
         ExampleHelp { description: "Generate self-signed cert with openssl", command: "openssl req -x509 -newkey rsa:2048 -keyout ~/.recon/key.pem -out ~/.recon/cert.pem -days 365 -nodes -subj \"/CN=localhost\"" },
+        ExampleHelp { description: "SNI: different certs per hostname", command: "recon --serve-sni \"myapp.local:certs/myapp.pem:certs/myapp-key.pem\" --serve-sni \"api.local:certs/api.pem:certs/api-key.pem\"" },
+        ExampleHelp { description: "SNI: from a certificate directory", command: "recon --serve-sni ~/.recon/sni/" },
     ],
 };
 

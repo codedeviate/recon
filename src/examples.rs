@@ -352,6 +352,13 @@ pub fn print() {
     ]);
     note("Run this once. recon will use these files by default for --serve-tls.");
 
+    example("SNI: different certificates per hostname (--serve-sni)", &[
+        "recon --serve-sni \"myapp.local:certs/myapp.pem:certs/myapp-key.pem\" --serve-sni \"api.local:certs/api.pem:certs/api-key.pem\"",
+        "recon --serve-tls 8443 --serve-sni ~/.recon/sni/",
+        "recon --serve-sni sni.conf",
+    ]);
+    note("Three formats: inline host:cert:key, directory with <host>-cert.pem/<host>-key.pem files, or a config file.");
+
     section("COMBINING FLAGS");
 
     example("POST JSON, follow redirects, prettify response", &[

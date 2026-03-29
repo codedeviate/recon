@@ -532,6 +532,23 @@ When multiple checks run together: DMARC notes SPF/DKIM alignment, BIMI verifies
 
 ---
 
+### 19. SNI Multi-Certificate Support (`--serve-sni`)
+
+**Goal:** Allow the HTTPS server to present different certificates based on the hostname the client requests (Server Name Indication).
+
+**Flag:** `--serve-sni <MAPPING>` — repeatable, auto-detects three formats:
+- **Inline:** `hostname:cert.pem:key.pem` (contains `:`)
+- **Directory:** path to a directory containing `<hostname>-cert.pem` and `<hostname>-key.pem` files
+- **Config file:** path to a file with `hostname cert.pem key.pem` lines
+
+**Behaviour:** Implies `--serve-tls` with default port 443. Multiple values can be mixed. Unmatched hostnames use the default cert (`~/.recon/cert.pem`) if it exists, otherwise the TLS handshake fails.
+
+**Implementation:** Custom `ResolvesServerCert` trait implementation with a hostname→CertifiedKey HashMap and optional default fallback. Uses `rustls::crypto::ring::sign::any_supported_type` for key loading.
+
+**Module introduced:** `src/serve/sni.rs`
+
+---
+
 ### 14. Output Model Overhaul + New Flags
 
 Several output and request flags were added or reworked to align more closely with curl conventions:
