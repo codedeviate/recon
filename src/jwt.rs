@@ -5,7 +5,7 @@ use jsonwebtoken::{
     decode, decode_header, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation,
 };
 use serde_json::{Map, Value};
-use std::io::{IsTerminal, Read};
+use std::io::{IsTerminal, Read, Write};
 
 use crate::cli::Args;
 
@@ -114,9 +114,65 @@ pub fn resolve_input(data: Option<&str>, url: &str) -> Result<String> {
     ))
 }
 
+// ── View ─────────────────────────────────────────────────────────────────────
+
+/// Core view logic, writing to any `Write`. Used by `view()` and tests.
+pub fn view_to_writer(token: &str, json_report: bool, out: &mut dyn Write) -> Result<()> {
+    let parts: Vec<&str> = token.split('.').collect();
+    if parts.len() < 2 {
+        return Err(anyhow!(
+            "Input must be a JWT with at least header.payload"
+        ));
+    }
+
+    let header_bytes = URL_SAFE_NO_PAD
+        .decode(parts[0])
+        .context("Failed to decode JWT header")?;
+    let payload_bytes = URL_SAFE_NO_PAD
+        .decode(parts[1])
+        .context("Failed to decode JWT payload")?;
+
+    let header: Value =
+        serde_json::from_slice(&header_bytes).context("JWT header is not valid JSON")?;
+    let payload: Value =
+        serde_json::from_slice(&payload_bytes).context("JWT payload is not valid JSON")?;
+
+    if json_report {
+        let report = serde_json::json!({ "header": header, "payload": payload });
+        writeln!(out, "{}", serde_json::to_string_pretty(&report)?)?;
+    } else {
+        writeln!(out, "--- header ---")?;
+        writeln!(out, "{}", serde_json::to_string_pretty(&header)?)?;
+        writeln!(out)?;
+        writeln!(out, "--- payload ---")?;
+        writeln!(out, "{}", serde_json::to_string_pretty(&payload)?)?;
+    }
+    Ok(())
+}
+
+pub fn view(args: &Args) -> Result<()> {
+    let raw = resolve_input(args.data.as_deref(), args.target_url())?;
+    let kind = parse_input(&raw)?;
+
+    let display_token = match kind {
+        InputKind::FullToken { token } => token,
+        InputKind::PartialToken { ref header, ref payload } => {
+            let h = URL_SAFE_NO_PAD.encode(serde_json::to_string(header)?);
+            let p = URL_SAFE_NO_PAD.encode(serde_json::to_string(payload)?);
+            format!("{}.{}", h, p)
+        }
+        InputKind::Json(ref map) | InputKind::PayloadOnly(ref map) => {
+            // No header available — synthesise empty header for display
+            let p = URL_SAFE_NO_PAD.encode(serde_json::to_string(map)?);
+            format!("e30.{}", p) // e30 = base64url({})
+        }
+    };
+
+    view_to_writer(&display_token, args.jwt_json_report, &mut std::io::stdout())
+}
+
 // ── Stub public functions (filled in later tasks) ────────────────────────────
 
-pub fn view(_args: &Args) -> Result<()> { todo!() }
 pub fn sign(_args: &Args) -> Result<()> { todo!() }
 pub fn validate(_args: &Args) -> Result<()> { todo!() }
 
@@ -174,5 +230,55 @@ mod tests {
     #[test]
     fn parse_invalid_returns_error() {
         assert!(parse_input("not-valid!!!").is_err());
+    }
+
+    mod view_tests {
+        use super::*;
+
+        fn make_token(claims: &Value) -> String {
+            let key = EncodingKey::from_secret(b"secret");
+            encode(&Header::new(Algorithm::HS256), claims, &key).unwrap()
+        }
+
+        #[test]
+        fn view_labeled_sections() {
+            let token = make_token(&serde_json::json!({"sub": "alice"}));
+            let mut out = Vec::<u8>::new();
+            view_to_writer(&token, false, &mut out).unwrap();
+            let s = String::from_utf8(out).unwrap();
+            assert!(s.contains("--- header ---"), "missing header section");
+            assert!(s.contains("--- payload ---"), "missing payload section");
+            assert!(s.contains("alice"), "payload content missing");
+        }
+
+        #[test]
+        fn view_json_report() {
+            let token = make_token(&serde_json::json!({"sub": "alice"}));
+            let mut out = Vec::<u8>::new();
+            view_to_writer(&token, true, &mut out).unwrap();
+            let s = String::from_utf8(out).unwrap();
+            let parsed: Value = serde_json::from_str(&s).unwrap();
+            assert!(parsed["header"].is_object());
+            assert_eq!(parsed["payload"]["sub"], Value::String("alice".into()));
+        }
+
+        #[test]
+        fn view_partial_token_shows_available_parts() {
+            let partial = format!("{}.{}", HEADER_B64, PAYLOAD_B64);
+            let kind = parse_input(&partial).unwrap();
+            // Reconstruct a display string and pass to view_to_writer
+            if let InputKind::PartialToken { header, payload } = kind {
+                let h = URL_SAFE_NO_PAD.encode(serde_json::to_string(&header).unwrap());
+                let p = URL_SAFE_NO_PAD.encode(serde_json::to_string(&payload).unwrap());
+                let display = format!("{}.{}", h, p);
+                let mut out = Vec::<u8>::new();
+                view_to_writer(&display, false, &mut out).unwrap();
+                let s = String::from_utf8(out).unwrap();
+                assert!(s.contains("--- header ---"));
+                assert!(s.contains("--- payload ---"));
+            } else {
+                panic!("Expected PartialToken");
+            }
+        }
     }
 }
