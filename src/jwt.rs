@@ -299,9 +299,242 @@ pub fn sign(args: &Args) -> Result<()> {
     Ok(())
 }
 
-// ── Stub public functions (filled in later tasks) ────────────────────────────
+/// Configuration for which checks `check_token` should perform.
+#[derive(Debug, Default)]
+pub struct CheckConfig {
+    pub check_exp: bool,
+    pub check_nbf: bool,
+    pub check_iat: bool,
+    pub check_iss: Option<String>,
+    pub check_sub: Option<String>,
+    pub check_aud: Option<String>,
+    pub check_jti: Option<String>,
+    /// Override "now" for time-based checks (Unix seconds). `None` = real current time.
+    pub reference_time: Option<u64>,
+}
 
-pub fn validate(_args: &Args) -> Result<()> { todo!() }
+impl CheckConfig {
+    pub fn from_args(args: &Args) -> Result<Self> {
+        let full = args.jwt_validate_full;
+
+        // Claim-matching checks require a value when explicitly requested (not via --full)
+        if args.jwt_validate_iss && !full && args.jwt_iss.is_none() {
+            return Err(anyhow!("--jwt-validate-iss requires --jwt-iss <value>"));
+        }
+        if args.jwt_validate_sub && !full && args.jwt_sub.is_none() {
+            return Err(anyhow!("--jwt-validate-sub requires --jwt-sub <value>"));
+        }
+        if args.jwt_validate_aud && !full && args.jwt_aud.is_none() {
+            return Err(anyhow!("--jwt-validate-aud requires --jwt-aud <value>"));
+        }
+        if args.jwt_validate_jti && !full && args.jwt_jti.is_none() {
+            return Err(anyhow!("--jwt-validate-jti requires --jwt-jti <value>"));
+        }
+
+        Ok(CheckConfig {
+            check_exp: args.jwt_validate_exp || full,
+            check_nbf: args.jwt_validate_nbf || full,
+            check_iat: args.jwt_validate_iat || full,
+            // --jwt-validate-full enables claim checks only when a value is provided
+            check_iss: if args.jwt_validate_iss || full { args.jwt_iss.clone() } else { None },
+            check_sub: if args.jwt_validate_sub || full { args.jwt_sub.clone() } else { None },
+            check_aud: if args.jwt_validate_aud || full { args.jwt_aud.clone() } else { None },
+            check_jti: if args.jwt_validate_jti || full { args.jwt_jti.clone() } else { None },
+            reference_time: args.jwt_exp.as_deref().and_then(|v| parse_ts(v).ok()),
+        })
+    }
+}
+
+/// Result of a single validation check.
+#[derive(Debug)]
+pub struct CheckResult {
+    pub name: &'static str,
+    pub passed: bool,
+    pub detail: Option<String>,
+}
+
+/// Run all configured checks. Always runs signature check first; skips claim
+/// checks if the signature fails.
+pub fn check_token(token: &str, secret: &str, config: &CheckConfig) -> Result<Vec<CheckResult>> {
+    let mut results = Vec::new();
+
+    // ── Signature ─────────────────────────────────────────────────────────────
+    let alg = decode_header(token)
+        .map(|h| h.alg)
+        .unwrap_or(Algorithm::HS256);
+
+    let mut validation = Validation::new(alg);
+    validation.validate_exp = false;
+    validation.validate_nbf = false;
+    validation.required_spec_claims = std::collections::HashSet::new();
+
+    let key = DecodingKey::from_secret(secret.as_bytes());
+    let claims = match decode::<Value>(token, &key, &validation) {
+        Ok(data) => {
+            results.push(CheckResult { name: "signature", passed: true, detail: None });
+            data.claims
+        }
+        Err(e) => {
+            results.push(CheckResult {
+                name: "signature",
+                passed: false,
+                detail: Some(format!("invalid: {}", e)),
+            });
+            return Ok(results); // no point checking claims
+        }
+    };
+
+    let now = config.reference_time.unwrap_or_else(now_ts);
+
+    // ── Time-based checks ─────────────────────────────────────────────────────
+    if config.check_exp {
+        match claims.get("exp").and_then(|v| v.as_u64()) {
+            Some(exp) if exp > now => results.push(CheckResult {
+                name: "exp",
+                passed: true,
+                detail: Some(format!("expires in {}s", exp - now)),
+            }),
+            Some(exp) => results.push(CheckResult {
+                name: "exp",
+                passed: false,
+                detail: Some(format!("expired {}s ago", now - exp)),
+            }),
+            None => results.push(CheckResult {
+                name: "exp",
+                passed: false,
+                detail: Some("missing exp claim".into()),
+            }),
+        }
+    }
+
+    if config.check_nbf {
+        match claims.get("nbf").and_then(|v| v.as_u64()) {
+            Some(nbf) if nbf <= now => {
+                results.push(CheckResult { name: "nbf", passed: true, detail: None })
+            }
+            Some(nbf) => results.push(CheckResult {
+                name: "nbf",
+                passed: false,
+                detail: Some(format!("not valid for another {}s", nbf - now)),
+            }),
+            None => results.push(CheckResult {
+                name: "nbf",
+                passed: false,
+                detail: Some("missing nbf claim".into()),
+            }),
+        }
+    }
+
+    if config.check_iat {
+        match claims.get("iat").and_then(|v| v.as_u64()) {
+            Some(iat) if iat <= now => {
+                results.push(CheckResult { name: "iat", passed: true, detail: None })
+            }
+            Some(_) => results.push(CheckResult {
+                name: "iat",
+                passed: false,
+                detail: Some("iat is in the future".into()),
+            }),
+            None => results.push(CheckResult {
+                name: "iat",
+                passed: false,
+                detail: Some("missing iat claim".into()),
+            }),
+        }
+    }
+
+    // ── Claim equality checks ─────────────────────────────────────────────────
+    fn check_str_claim(
+        results: &mut Vec<CheckResult>,
+        claims: &Value,
+        name: &'static str,
+        expected: &str,
+    ) {
+        match claims.get(name).and_then(|v| v.as_str()) {
+            Some(got) if got == expected => {
+                results.push(CheckResult { name, passed: true, detail: None })
+            }
+            Some(got) => results.push(CheckResult {
+                name,
+                passed: false,
+                detail: Some(format!("expected {:?}, got {:?}", expected, got)),
+            }),
+            None => results.push(CheckResult {
+                name,
+                passed: false,
+                detail: Some(format!("missing {} claim", name)),
+            }),
+        }
+    }
+
+    if let Some(expected) = &config.check_iss {
+        check_str_claim(&mut results, &claims, "iss", expected);
+    }
+    if let Some(expected) = &config.check_sub {
+        check_str_claim(&mut results, &claims, "sub", expected);
+    }
+    if let Some(expected) = &config.check_aud {
+        check_str_claim(&mut results, &claims, "aud", expected);
+    }
+    if let Some(expected) = &config.check_jti {
+        check_str_claim(&mut results, &claims, "jti", expected);
+    }
+
+    Ok(results)
+}
+
+fn print_results(results: &[CheckResult], json_report: bool) {
+    if json_report {
+        let checks: Vec<Value> = results
+            .iter()
+            .map(|r| {
+                let mut obj = serde_json::Map::new();
+                obj.insert("check".into(), Value::String(r.name.into()));
+                obj.insert("passed".into(), Value::Bool(r.passed));
+                if let Some(d) = &r.detail {
+                    obj.insert("detail".into(), Value::String(d.clone()));
+                }
+                Value::Object(obj)
+            })
+            .collect();
+        let all_passed = results.iter().all(|r| r.passed);
+        let report = serde_json::json!({ "valid": all_passed, "checks": checks });
+        println!("{}", serde_json::to_string_pretty(&report).unwrap());
+    } else {
+        for r in results {
+            let icon = if r.passed { "✓" } else { "✗" };
+            match &r.detail {
+                Some(d) => println!("{} {}  ({})", icon, r.name, d),
+                None => println!("{} {}", icon, r.name),
+            }
+        }
+    }
+}
+
+pub fn validate(args: &Args) -> Result<()> {
+    let secret = args
+        .jwt_secret
+        .as_deref()
+        .ok_or_else(|| anyhow!("--jwt-secret is required for --jwt-validate"))?;
+
+    let raw = resolve_input(args.data.as_deref(), args.target_url())?;
+
+    let token = match parse_input(&raw)? {
+        InputKind::FullToken { token } => token,
+        _ => return Err(anyhow!(
+            "--jwt-validate requires a complete JWT (header.payload.signature)"
+        )),
+    };
+
+    let config = CheckConfig::from_args(args)?;
+    let results = check_token(&token, secret, &config)?;
+    print_results(&results, args.jwt_json_report);
+
+    if !results.iter().all(|r| r.passed) {
+        std::process::exit(1);
+    }
+    Ok(())
+}
 
 // ── Tests ────────────────────────────────────────────────────────────────────
 
@@ -475,6 +708,84 @@ mod tests {
             assert!(parse_algorithm("HS384").is_ok());
             assert!(parse_algorithm("HS512").is_ok());
             assert!(parse_algorithm("hs256").is_ok()); // case-insensitive
+        }
+    }
+
+    mod validate_tests {
+        use super::*;
+
+        fn make_token_with_claims(claims: &Value) -> String {
+            let key = EncodingKey::from_secret(b"secret");
+            encode(&Header::new(Algorithm::HS256), claims, &key).unwrap()
+        }
+
+        #[test]
+        fn good_signature_passes() {
+            let token = make_token_with_claims(&serde_json::json!({"sub": "alice"}));
+            let results = check_token(&token, "secret", &CheckConfig::default()).unwrap();
+            let sig = results.iter().find(|r| r.name == "signature").unwrap();
+            assert!(sig.passed);
+        }
+
+        #[test]
+        fn bad_signature_fails() {
+            let token = make_token_with_claims(&serde_json::json!({"sub": "alice"}));
+            let results = check_token(&token, "wrong", &CheckConfig::default()).unwrap();
+            let sig = results.iter().find(|r| r.name == "signature").unwrap();
+            assert!(!sig.passed);
+        }
+
+        #[test]
+        fn exp_check_passes_for_future() {
+            let token = make_token_with_claims(&serde_json::json!({"exp": now_ts() + 3600}));
+            let config = CheckConfig { check_exp: true, ..CheckConfig::default() };
+            let results = check_token(&token, "secret", &config).unwrap();
+            let exp = results.iter().find(|r| r.name == "exp").unwrap();
+            assert!(exp.passed);
+        }
+
+        #[test]
+        fn exp_check_fails_for_past() {
+            let token = make_token_with_claims(&serde_json::json!({"exp": 1000000000_u64}));
+            let config = CheckConfig { check_exp: true, ..CheckConfig::default() };
+            let results = check_token(&token, "secret", &config).unwrap();
+            let exp = results.iter().find(|r| r.name == "exp").unwrap();
+            assert!(!exp.passed);
+        }
+
+        #[test]
+        fn iss_check_passes_when_matching() {
+            let token = make_token_with_claims(&serde_json::json!({"iss": "acme"}));
+            let config = CheckConfig {
+                check_iss: Some("acme".into()),
+                ..CheckConfig::default()
+            };
+            let results = check_token(&token, "secret", &config).unwrap();
+            let iss = results.iter().find(|r| r.name == "iss").unwrap();
+            assert!(iss.passed);
+        }
+
+        #[test]
+        fn iss_check_fails_when_mismatched() {
+            let token = make_token_with_claims(&serde_json::json!({"iss": "other"}));
+            let config = CheckConfig {
+                check_iss: Some("acme".into()),
+                ..CheckConfig::default()
+            };
+            let results = check_token(&token, "secret", &config).unwrap();
+            let iss = results.iter().find(|r| r.name == "iss").unwrap();
+            assert!(!iss.passed);
+        }
+
+        #[test]
+        fn bad_signature_skips_claim_checks() {
+            let token = make_token_with_claims(&serde_json::json!({"exp": now_ts() + 3600}));
+            let config = CheckConfig { check_exp: true, ..CheckConfig::default() };
+            let results = check_token(&token, "wrong_secret", &config).unwrap();
+            // Only the signature check should appear
+            assert_eq!(results.len(), 1);
+            assert_eq!(results[0].name, "signature");
+            assert!(!results[0].passed);
         }
     }
 }
