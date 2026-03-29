@@ -6,6 +6,7 @@ mod dns;
 mod email;
 mod examples;
 mod help;
+mod jwt;
 mod output;
 mod ping;
 mod prettify;
