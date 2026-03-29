@@ -1,10 +1,11 @@
 use anyhow::{anyhow, Context, Result};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+#[allow(unused_imports)]
 use jsonwebtoken::{
     decode, decode_header, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation,
 };
 use serde_json::{Map, Value};
-use std::io::{IsTerminal, Read, Write};
+use std::io::{IsTerminal, Read};
 
 use crate::cli::Args;
 
@@ -86,7 +87,8 @@ pub fn resolve_input(data: Option<&str>, url: &str) -> Result<String> {
     if let Some(d) = data {
         if let Some(path) = d.strip_prefix('@') {
             return std::fs::read_to_string(path)
-                .with_context(|| format!("File not found: {}", path));
+                .with_context(|| format!("File not found: {}", path))
+                .map(|s| s.trim().to_string());
         }
         return Ok(d.to_string());
     }
