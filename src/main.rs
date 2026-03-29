@@ -73,6 +73,20 @@ fn main() {
         return;
     }
 
+    // ── JWT operations (no HTTP request needed) ───────────────────────────────
+    if args.has_jwt() {
+        let result = run_jwt(&args);
+        if let Err(err) = result {
+            if args.full_errors {
+                eprintln!("error: {err:#}");
+            } else {
+                eprintln!("error: {}", friendly_message(&err));
+            }
+            std::process::exit(1);
+        }
+        return;
+    }
+
     // ── Serve mode ───────────────────────────────────────────────────────────
     if args.has_serve() {
         if args.has_exclusive() || args.has_composable() {
@@ -233,6 +247,16 @@ fn friendly_message(err: &anyhow::Error) -> String {
         || msg.starts_with("Invalid Telnet URL")
         || msg.starts_with("TLS certificate not found")
         || msg.starts_with("TLS private key not found")
+        || msg.starts_with("--jwt-secret")
+        || msg.starts_with("--jwt-validate requires")
+        || msg.starts_with("--jwt-view, --jwt-sign")
+        || msg.starts_with("Unsupported algorithm")
+        || msg.starts_with("--jwt-validate-iss")
+        || msg.starts_with("--jwt-validate-sub")
+        || msg.starts_with("--jwt-validate-aud")
+        || msg.starts_with("--jwt-validate-jti")
+        || msg.starts_with("Could not parse input as")
+        || msg.starts_with("No input provided")
     {
         return msg;
     }
@@ -269,6 +293,23 @@ fn friendly_message(err: &anyhow::Error) -> String {
         .next()
         .unwrap_or("an unexpected error occurred")
         .to_string()
+}
+
+fn run_jwt(args: &Args) -> anyhow::Result<()> {
+    let ops = [args.jwt_view, args.jwt_sign, args.jwt_validate]
+        .iter()
+        .filter(|&&v| v)
+        .count();
+    if ops > 1 {
+        anyhow::bail!("--jwt-view, --jwt-sign, and --jwt-validate are mutually exclusive");
+    }
+    if args.jwt_view {
+        jwt::view(args)
+    } else if args.jwt_sign {
+        jwt::sign(args)
+    } else {
+        jwt::validate(args)
+    }
 }
 
 fn extract_host(msg: &str) -> &str {
