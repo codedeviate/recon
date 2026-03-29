@@ -24,7 +24,7 @@ pub fn connect(raw_url: &str, args: &Args) -> Result<()> {
     sess.set_tcp_stream(tcp);
     sess.handshake()
         .with_context(|| format!("SSH handshake failed with {}", host))?;
-    sess.set_timeout((args.timeout * 1000) as u32);
+    sess.set_timeout(args.timeout.saturating_mul(1000).min(u64::from(u32::MAX)) as u32);
 
     ssh_auth::verify_host_key(&sess, &host, port, args.insecure)?;
     ssh_auth::authenticate(&sess, &user, args, password.as_deref())?;
@@ -50,7 +50,7 @@ pub fn connect(raw_url: &str, args: &Args) -> Result<()> {
         let mut buf = [0u8; 4096];
         loop {
             match channel.read(&mut buf) {
-                Ok(0) => break,
+                Ok(0) => break, // ssh2 returns Ok(0) for EOF in non-blocking mode (WouldBlock = no data)
                 Ok(n) => {
                     stdout.write_all(&buf[..n])?;
                     stdout.flush()?;
@@ -65,10 +65,12 @@ pub fn connect(raw_url: &str, args: &Args) -> Result<()> {
             let mut stderr_stream = channel.stderr();
             loop {
                 match stderr_stream.read(&mut buf) {
-                    Ok(0) | Err(_) => break,
+                    Ok(0) => break,
                     Ok(n) => {
                         let _ = io::stderr().write_all(&buf[..n]);
                     }
+                    Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => break,
+                    Err(_) => break, // stderr errors are non-fatal; best-effort only
                 }
             }
         }
@@ -85,9 +87,9 @@ pub fn connect(raw_url: &str, args: &Args) -> Result<()> {
                     let bytes = key_event_to_bytes(&key);
                     if !bytes.is_empty() {
                         sess.set_blocking(true);
-                        channel.write_all(&bytes)?;
-                        channel.flush()?;
+                        let write_result = channel.write_all(&bytes).and_then(|_| channel.flush());
                         sess.set_blocking(false);
+                        write_result?;
                     }
                 }
                 Event::Resize(cols, rows) => {
@@ -128,7 +130,7 @@ fn parse_ssh_url(raw: &str) -> Result<(String, String, u16)> {
 // ── Key event → bytes ─────────────────────────────────────────────────────────
 
 /// Convert a crossterm KeyEvent to the byte sequence a terminal sends.
-pub fn key_event_to_bytes(key: &KeyEvent) -> Vec<u8> {
+pub(crate) fn key_event_to_bytes(key: &KeyEvent) -> Vec<u8> {
     match key.code {
         KeyCode::Char(c) => {
             if key.modifiers.contains(KeyModifiers::CONTROL) {
