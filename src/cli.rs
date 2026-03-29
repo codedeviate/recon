@@ -9,7 +9,7 @@ use std::path::PathBuf;
 )]
 pub struct Args {
     /// URL to request (or use --url)
-    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls"])]
+    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni"])]
     pub url: Option<String>,
 
     /// URL to request — curl-compatible alternative to the positional argument
@@ -196,6 +196,10 @@ pub struct Args {
     #[arg(long = "serve-log", value_name = "PATH")]
     pub serve_log: Option<std::path::PathBuf>,
 
+    /// SNI hostname-to-certificate mapping (repeatable: inline host:cert:key, directory, or config file)
+    #[arg(long = "serve-sni", value_name = "MAPPING", action = clap::ArgAction::Append)]
+    pub serve_sni: Vec<String>,
+
     /// Cookie jar to use for this request (name or path to a .db file).
     /// Omit the value to use the default jar.
     #[arg(long = "cookiejar", value_name = "NAME", num_args = 0..=1, default_missing_value = "default")]
@@ -244,7 +248,7 @@ impl Args {
     }
 
     pub fn has_serve(&self) -> bool {
-        self.serve.is_some() || self.serve_tls.is_some()
+        self.serve.is_some() || self.serve_tls.is_some() || !self.serve_sni.is_empty()
     }
 
     /// Returns the count of exclusive flags set (for mutual exclusion check).

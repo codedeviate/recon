@@ -1,6 +1,7 @@
 pub mod files;
 pub mod http;
 pub mod https;
+pub mod sni;
 
 use anyhow::{bail, Context, Result};
 use colored::Colorize;
@@ -23,6 +24,7 @@ pub struct ServeConfig {
     pub key_path: PathBuf,
     pub log_file: Option<PathBuf>,
     pub root_dir: PathBuf,
+    pub sni_mappings: Vec<String>,
 }
 
 /// Run the file server (blocking — creates its own tokio runtime).
@@ -36,8 +38,17 @@ pub fn run(config: &ServeConfig) -> Result<()> {
         bail!("Not a directory: {}", root.display());
     }
 
-    // Validate cert/key if HTTPS is requested
-    if config.https_port.is_some() {
+    // Parse SNI mappings
+    let mut sni_entries = Vec::new();
+    for mapping in &config.sni_mappings {
+        let entries = sni::parse_sni_mapping(mapping)
+            .with_context(|| format!("Failed to parse --serve-sni {mapping:?}"))?;
+        sni_entries.extend(entries);
+    }
+    let has_sni = !sni_entries.is_empty();
+
+    // Validate cert/key if HTTPS is requested (only required when no SNI mappings)
+    if config.https_port.is_some() && !has_sni {
         if !config.cert_path.exists() {
             bail!(
                 "TLS certificate not found: {}\n\
@@ -62,6 +73,21 @@ pub fn run(config: &ServeConfig) -> Result<()> {
         }
     }
 
+    // Build SNI resolver if we have entries
+    let sni_resolver = if has_sni {
+        let default_cert = if config.cert_path.exists() && config.key_path.exists() {
+            Some((config.cert_path.as_path(), config.key_path.as_path()))
+        } else {
+            None
+        };
+        Some(sni::build_sni_resolver(&sni_entries, default_cert)?)
+    } else {
+        None
+    };
+
+    // Collect SNI hostnames for the banner
+    let sni_hostnames: Vec<String> = sni_entries.iter().map(|e| e.hostname.clone()).collect();
+
     // Warn if --http-version 2 without --serve-tls
     if config.http_version.as_deref() == Some("2") && config.https_port.is_none() {
         eprintln!(
@@ -83,7 +109,7 @@ pub fn run(config: &ServeConfig) -> Result<()> {
         None => None,
     };
 
-    print_banner(config, &root);
+    print_banner(config, &root, &sni_hostnames);
 
     // Build multi-threaded tokio runtime
     let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -112,9 +138,10 @@ pub fn run(config: &ServeConfig) -> Result<()> {
             let cert = config.cert_path.clone();
             let key = config.key_path.clone();
             let hv = config.http_version.clone();
+            let resolver = sni_resolver.clone();
             tasks.push(tokio::spawn(async move {
                 if let Err(e) =
-                    https::serve(port, r, lf, &cert, &key, hv.as_deref()).await
+                    https::serve(port, r, lf, &cert, &key, hv.as_deref(), resolver).await
                 {
                     eprintln!("{} HTTPS server error: {e}", "error:".red().bold());
                 }
@@ -136,7 +163,7 @@ pub fn run(config: &ServeConfig) -> Result<()> {
     Ok(())
 }
 
-fn print_banner(config: &ServeConfig, root: &Path) {
+fn print_banner(config: &ServeConfig, root: &Path, sni_hostnames: &[String]) {
     eprintln!(
         "\n{}  {}",
         "Serving".green().bold(),
@@ -155,6 +182,13 @@ fn print_banner(config: &ServeConfig, root: &Path) {
             "  {} https://0.0.0.0:{}",
             "HTTPS".cyan().bold(),
             port
+        );
+    }
+    if !sni_hostnames.is_empty() {
+        eprintln!(
+            "  {}  {}",
+            "SNI  ".cyan().bold(),
+            sni_hostnames.join(", ")
         );
     }
     eprintln!();

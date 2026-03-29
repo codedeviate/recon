@@ -80,7 +80,8 @@ fn main() {
         let recon_dir = std::path::PathBuf::from(&home).join(".recon");
 
         let http_port = args.serve.as_ref().and_then(|p| p.parse::<u16>().ok());
-        let https_port = args.serve_tls.as_ref().and_then(|p| p.parse::<u16>().ok());
+        let https_port = args.serve_tls.as_ref().and_then(|p| p.parse::<u16>().ok())
+            .or_else(|| if !args.serve_sni.is_empty() { Some(443) } else { None });
 
         let config = serve::ServeConfig {
             http_port,
@@ -90,6 +91,7 @@ fn main() {
             key_path: args.serve_key.clone().unwrap_or_else(|| recon_dir.join("key.pem")),
             log_file: args.serve_log.clone(),
             root_dir: std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
+            sni_mappings: args.serve_sni.clone(),
         };
 
         let result = serve::run(&config);

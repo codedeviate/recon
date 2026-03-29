@@ -5,6 +5,7 @@ use hyper::body::Incoming;
 use hyper::service::service_fn;
 use hyper::{Request, Response};
 use hyper_util::rt::TokioIo;
+use rustls::server::ResolvesServerCert;
 use rustls::ServerConfig;
 use std::convert::Infallible;
 use std::fs;
@@ -22,28 +23,38 @@ fn build_tls_config(
     cert_path: &Path,
     key_path: &Path,
     http_version: Option<&str>,
+    sni_resolver: Option<Arc<dyn ResolvesServerCert>>,
 ) -> Result<ServerConfig> {
-    let cert_bytes = fs::read(cert_path)
-        .with_context(|| format!("Failed to read certificate: {}", cert_path.display()))?;
-    let key_bytes = fs::read(key_path)
-        .with_context(|| format!("Failed to read private key: {}", key_path.display()))?;
-
-    let certs: Vec<rustls::pki_types::CertificateDer<'static>> =
-        rustls_pemfile::certs(&mut BufReader::new(cert_bytes.as_slice()))
-            .collect::<std::result::Result<Vec<_>, _>>()
-            .context("Failed to parse TLS certificates")?;
-
-    let key = rustls_pemfile::private_key(&mut BufReader::new(key_bytes.as_slice()))
-        .context("Failed to parse private key")?
-        .context("No private key found in key file")?;
-
     let provider = Arc::new(rustls::crypto::ring::default_provider());
-    let mut config = ServerConfig::builder_with_provider(provider)
-        .with_safe_default_protocol_versions()
-        .context("Failed to configure TLS protocol versions")?
-        .with_no_client_auth()
-        .with_single_cert(certs, key)
-        .context("Failed to build TLS server config")?;
+
+    let mut config = if let Some(resolver) = sni_resolver {
+        ServerConfig::builder_with_provider(provider)
+            .with_safe_default_protocol_versions()
+            .context("Failed to configure TLS protocol versions")?
+            .with_no_client_auth()
+            .with_cert_resolver(resolver)
+    } else {
+        let cert_bytes = fs::read(cert_path)
+            .with_context(|| format!("Failed to read certificate: {}", cert_path.display()))?;
+        let key_bytes = fs::read(key_path)
+            .with_context(|| format!("Failed to read private key: {}", key_path.display()))?;
+
+        let certs: Vec<rustls::pki_types::CertificateDer<'static>> =
+            rustls_pemfile::certs(&mut BufReader::new(cert_bytes.as_slice()))
+                .collect::<std::result::Result<Vec<_>, _>>()
+                .context("Failed to parse TLS certificates")?;
+
+        let key = rustls_pemfile::private_key(&mut BufReader::new(key_bytes.as_slice()))
+            .context("Failed to parse private key")?
+            .context("No private key found in key file")?;
+
+        ServerConfig::builder_with_provider(provider)
+            .with_safe_default_protocol_versions()
+            .context("Failed to configure TLS protocol versions")?
+            .with_no_client_auth()
+            .with_single_cert(certs, key)
+            .context("Failed to build TLS server config")?
+    };
 
     config.alpn_protocols = match http_version {
         Some("1.1") => vec![b"http/1.1".to_vec()],
@@ -61,8 +72,9 @@ pub async fn serve(
     cert_path: &Path,
     key_path: &Path,
     http_version: Option<&str>,
+    sni_resolver: Option<Arc<dyn ResolvesServerCert>>,
 ) -> Result<()> {
-    let tls_config = build_tls_config(cert_path, key_path, http_version)?;
+    let tls_config = build_tls_config(cert_path, key_path, http_version, sni_resolver)?;
     let tls_acceptor = TlsAcceptor::from(Arc::new(tls_config));
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
