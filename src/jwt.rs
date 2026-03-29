@@ -179,7 +179,9 @@ pub fn extract_payload(kind: InputKind) -> Result<Map<String, Value>> {
         InputKind::PartialToken { payload, .. } => Ok(payload),
         InputKind::FullToken { token } => {
             let parts: Vec<&str> = token.split('.').collect();
-            decode_b64_json(parts[1])
+            let payload_part = parts.get(1)
+                .ok_or_else(|| anyhow!("Malformed JWT: missing payload segment"))?;
+            decode_b64_json(payload_part)
         }
     }
 }
@@ -256,11 +258,14 @@ pub fn sign(args: &Args) -> Result<()> {
         a.to_string()
     } else {
         match &kind {
-            InputKind::PartialToken { header, .. } => header
-                .get("alg")
-                .and_then(|v| v.as_str())
-                .unwrap_or("HS256")
-                .to_string(),
+            InputKind::PartialToken { header, .. } => {
+                let s = header
+                    .get("alg")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("HS256");
+                parse_algorithm(s)?;  // fail early on unsupported alg
+                s.to_string()
+            }
             InputKind::FullToken { token } => alg_from_token(token),
             _ => "HS256".to_string(),
         }
