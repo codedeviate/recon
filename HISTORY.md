@@ -49,6 +49,20 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 22. JWT Tokens (`--jwt-view`, `--jwt-sign`, `--jwt-validate`) (0.6.0)
+
+Sign, validate, and inspect JWT tokens without leaving the terminal.
+
+- `--jwt-view`: Decode and display JWT header and payload as pretty-printed JSON. No signature verification.
+- `--jwt-sign`: Sign a JWT from a JSON payload, partial token (header.payload), or bare base64 payload. Adds `iat` = now automatically if missing. Claim flags (`--jwt-iss`, `--jwt-sub`, `--jwt-aud`, `--jwt-exp`, `--jwt-nbf`, `--jwt-iat`, `--jwt-jti`) inject claims only when not already present.
+- `--jwt-validate`: Verify the JWT HMAC signature. Without extra flags: signature check only. Opt-in claim checks via `--jwt-validate-exp`, `--jwt-validate-nbf`, `--jwt-validate-iat`, `--jwt-validate-iss`, `--jwt-validate-sub`, `--jwt-validate-aud`, `--jwt-validate-jti`. `--jwt-validate-full` enables all checks. Exits non-zero if any check fails.
+- `--jwt-secret <SECRET>`: HMAC secret (required for sign and validate).
+- `--jwt-alg <ALG>`: Algorithm override: HS256 (default), HS384, HS512.
+- `--jwt-json-report`: Machine-readable JSON output for `--jwt-view` and `--jwt-validate`.
+- Input from `-d <string>`, `-d @file`, file path positional argument, or stdin.
+
+---
+
 ### 1. Basic HTTP/HTTPS (`initial`)
 
 Core HTTP client with:
