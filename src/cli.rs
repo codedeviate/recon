@@ -9,7 +9,7 @@ use std::path::PathBuf;
 )]
 pub struct Args {
     /// URL to request (or use --url)
-    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni"])]
+    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni", "jwt_view", "jwt_sign", "jwt_validate"])]
     pub url: Option<String>,
 
     /// URL to request — curl-compatible alternative to the positional argument
@@ -221,6 +221,92 @@ pub struct Args {
     /// Show detailed usage examples for all flags and commands
     #[arg(long = "examples")]
     pub examples: bool,
+
+    // ── JWT ──────────────────────────────────────────────────────────────────
+
+    /// Decode and display JWT header and payload without verification
+    #[arg(long = "jwt-view")]
+    pub jwt_view: bool,
+
+    /// Sign or complete a JWT token
+    #[arg(long = "jwt-sign")]
+    pub jwt_sign: bool,
+
+    /// Verify JWT signature and opt-in claim checks
+    #[arg(long = "jwt-validate")]
+    pub jwt_validate: bool,
+
+    /// HMAC secret for signing or validating (required for --jwt-sign and --jwt-validate)
+    #[arg(long = "jwt-secret", value_name = "SECRET")]
+    pub jwt_secret: Option<String>,
+
+    /// Algorithm: HS256 (default), HS384, HS512
+    #[arg(long = "jwt-alg", alias = "jwt-algorithm", value_name = "ALG")]
+    pub jwt_alg: Option<String>,
+
+    /// JWT issuer claim — set when signing (if absent); assert value when validating with --jwt-validate-iss
+    #[arg(long = "jwt-iss", value_name = "VALUE")]
+    pub jwt_iss: Option<String>,
+
+    /// JWT subject claim
+    #[arg(long = "jwt-sub", value_name = "VALUE")]
+    pub jwt_sub: Option<String>,
+
+    /// JWT audience claim
+    #[arg(long = "jwt-aud", value_name = "VALUE")]
+    pub jwt_aud: Option<String>,
+
+    /// JWT expiry (Unix timestamp). Omit value to use current time.
+    #[arg(long = "jwt-exp", value_name = "TIMESTAMP", num_args = 0..=1, default_missing_value = "now")]
+    pub jwt_exp: Option<String>,
+
+    /// JWT not-before (Unix timestamp). Omit value to use current time.
+    #[arg(long = "jwt-nbf", value_name = "TIMESTAMP", num_args = 0..=1, default_missing_value = "now")]
+    pub jwt_nbf: Option<String>,
+
+    /// JWT issued-at (Unix timestamp). Omit value to use current time.
+    #[arg(long = "jwt-iat", value_name = "TIMESTAMP", num_args = 0..=1, default_missing_value = "now")]
+    pub jwt_iat: Option<String>,
+
+    /// JWT ID claim
+    #[arg(long = "jwt-jti", value_name = "VALUE")]
+    pub jwt_jti: Option<String>,
+
+    /// Validate the exp claim (must not be expired)
+    #[arg(long = "jwt-validate-exp")]
+    pub jwt_validate_exp: bool,
+
+    /// Validate the nbf claim (must not be used before valid)
+    #[arg(long = "jwt-validate-nbf")]
+    pub jwt_validate_nbf: bool,
+
+    /// Validate the iat claim (must not be in the future)
+    #[arg(long = "jwt-validate-iat")]
+    pub jwt_validate_iat: bool,
+
+    /// Validate iss matches --jwt-iss
+    #[arg(long = "jwt-validate-iss")]
+    pub jwt_validate_iss: bool,
+
+    /// Validate sub matches --jwt-sub
+    #[arg(long = "jwt-validate-sub")]
+    pub jwt_validate_sub: bool,
+
+    /// Validate aud matches --jwt-aud
+    #[arg(long = "jwt-validate-aud")]
+    pub jwt_validate_aud: bool,
+
+    /// Validate jti matches --jwt-jti
+    #[arg(long = "jwt-validate-jti")]
+    pub jwt_validate_jti: bool,
+
+    /// Enable all claim validation checks
+    #[arg(long = "jwt-validate-full")]
+    pub jwt_validate_full: bool,
+
+    /// Output JWT results as a single JSON object instead of labeled sections
+    #[arg(long = "jwt-json-report")]
+    pub jwt_json_report: bool,
 }
 
 impl Args {
@@ -249,6 +335,11 @@ impl Args {
 
     pub fn has_serve(&self) -> bool {
         self.serve.is_some() || self.serve_tls.is_some() || !self.serve_sni.is_empty()
+    }
+
+    /// Returns true if any JWT operation flag is set.
+    pub fn has_jwt(&self) -> bool {
+        self.jwt_view || self.jwt_sign || self.jwt_validate
     }
 
     /// Returns the count of exclusive flags set (for mutual exclusion check).
