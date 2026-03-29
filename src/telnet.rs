@@ -1,5 +1,5 @@
 use std::io::{self, Read, Write};
-use std::net::TcpStream;
+use std::net::{TcpStream, ToSocketAddrs};
 use std::time::Duration;
 
 use anyhow::{anyhow, Context, Result};
@@ -26,7 +26,12 @@ pub fn connect(raw_url: &str, args: &Args) -> Result<()> {
 
     eprintln!("Connecting to {}:{} …", host, port);
 
-    let mut read_stream = TcpStream::connect(format!("{}:{}", host, port))
+    let addr = format!("{}:{}", host, port)
+        .to_socket_addrs()
+        .with_context(|| format!("Could not resolve {}:{}", host, port))?
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("Could not resolve {}:{}", host, port))?;
+    let mut read_stream = TcpStream::connect_timeout(&addr, Duration::from_secs(args.timeout))
         .with_context(|| format!("Could not connect to {}:{}", host, port))?;
     read_stream.set_nonblocking(true)?;
     let write_stream = read_stream.try_clone().context("Failed to clone TcpStream")?;
@@ -37,11 +42,13 @@ pub fn connect(raw_url: &str, args: &Args) -> Result<()> {
 
     let mut stdout = io::stdout();
     let mut read_buf = [0u8; 4096];
+    let mut display_buf = Vec::new();
+    let mut reply_buf = Vec::new();
 
     loop {
         // ── Drain incoming server data (non-blocking) ─────────────────────────
-        let mut reply_buf = Vec::new();
-        let mut display_buf = Vec::new();
+        display_buf.clear();
+        reply_buf.clear();
 
         loop {
             match read_stream.read(&mut read_buf) {
@@ -78,7 +85,7 @@ pub fn connect(raw_url: &str, args: &Args) -> Result<()> {
                     write_stream.write_all(&escaped)?;
                     write_stream.flush()?;
                 }
-                _ => {}
+                _ => {} // Telnet has no PTY resize mechanism (no NAWS negotiation implemented)
             }
         }
     }
