@@ -81,7 +81,7 @@ fn main() {
 
         let http_port = args.serve.as_ref().and_then(|p| p.parse::<u16>().ok());
         let https_port = args.serve_tls.as_ref().and_then(|p| p.parse::<u16>().ok())
-            .or_else(|| if !args.serve_sni.is_empty() { Some(443) } else { None });
+            .or(if !args.serve_sni.is_empty() { Some(443) } else { None });
 
         let config = serve::ServeConfig {
             http_port,
