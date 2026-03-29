@@ -417,6 +417,46 @@ pub fn print() {
         "recon https://example.com/release.tar.gz -o release.tar.gz --progress -s",
     ]);
 
+    section("JWT TOKENS");
+
+    example("Sign a JSON payload (HS256, iat added automatically)", &[
+        r#"recon --jwt-sign --jwt-secret mysecret -d '{"sub":"alice","iss":"acme"}'"#,
+    ]);
+    example("Sign with claim flags (added only if not already in payload)", &[
+        r#"recon --jwt-sign --jwt-secret mysecret --jwt-sub alice --jwt-iss acme -d '{"role":"admin"}'"#,
+        r#"recon --jwt-sign --jwt-secret mysecret --jwt-exp now --jwt-iss acme -d '{"sub":"alice"}'"#,
+    ]);
+    example("Sign with HS512 algorithm", &[
+        r#"recon --jwt-sign --jwt-secret mysecret --jwt-alg HS512 -d '{"sub":"alice"}'"#,
+    ]);
+    example("Complete a partial token (header.payload, missing signature)", &[
+        r#"recon --jwt-sign --jwt-secret mysecret -d 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhbGljZSJ9'"#,
+    ]);
+    example("Read token from a file", &[
+        r#"recon --jwt-view token.jwt"#,
+        r#"recon --jwt-validate --jwt-secret mysecret token.jwt"#,
+    ]);
+    example("View token contents (no verification)", &[
+        r#"echo $TOKEN | recon --jwt-view"#,
+        r#"recon --jwt-view --jwt-json-report -d <token>"#,
+    ]);
+    example("Validate signature only", &[
+        r#"echo $TOKEN | recon --jwt-validate --jwt-secret mysecret"#,
+    ]);
+    example("Validate with time-based checks", &[
+        r#"recon --jwt-validate --jwt-secret mysecret --jwt-validate-exp -d <token>"#,
+        r#"recon --jwt-validate --jwt-secret mysecret --jwt-validate-exp --jwt-validate-nbf -d <token>"#,
+    ]);
+    example("Full validation with issuer and audience checks", &[
+        r#"recon --jwt-validate --jwt-secret mysecret --jwt-validate-full --jwt-iss acme --jwt-aud api -d <token>"#,
+    ]);
+    example("Validate at a specific point in time (--jwt-exp as reference time)", &[
+        r#"recon --jwt-validate --jwt-secret mysecret --jwt-validate-exp --jwt-exp 1700000000 -d <token>"#,
+    ]);
+    example("JSON report for scripting", &[
+        r#"recon --jwt-validate --jwt-secret mysecret --jwt-validate-full --jwt-json-report -d <token> | jq .valid"#,
+    ]);
+
     println!();
 }
 

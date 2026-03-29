@@ -477,6 +477,38 @@ default cert or reject the connection." },
     ],
 };
 
+static TOPIC_JWT: Topic = Topic {
+    title: "JWT Tokens",
+    description: "Sign, validate, and inspect JWT tokens. Input can come from -d (inline string\n\
+                  or @file prefix for a file), a filename positional argument (no protocol = local\n\
+                  file), or stdin.\n\
+                  \n\
+                  --jwt-sign accepts JSON, a two-part base64 token (header.payload), or a single\n\
+                  base64 payload. --jwt-validate requires a full three-part token.",
+    flags: &[
+        FlagHelp { flags: "--jwt-view", description: "Decode and display the JWT header and payload as pretty-printed JSON.\nNo signature verification is performed." },
+        FlagHelp { flags: "--jwt-sign", description: "Sign or complete a JWT.\n  JSON input → treated as payload.\n  Two-part base64 (header.payload) → header preserved, signature added.\n  Single base64 → treated as bare payload.\nAdds iat = now if missing from payload." },
+        FlagHelp { flags: "--jwt-validate", description: "Verify the JWT signature. Without extra flags: signature check only.\nAdd --jwt-validate-* flags to check individual claims.\nExits non-zero if any check fails." },
+        FlagHelp { flags: "--jwt-secret <SECRET>", description: "HMAC secret. Required for --jwt-sign and --jwt-validate." },
+        FlagHelp { flags: "--jwt-alg <ALG>", description: "Signing algorithm: HS256 (default), HS384, HS512.\nOverrides the alg in an existing token header." },
+        FlagHelp { flags: "--jwt-iss/sub/aud/jti <VALUE>", description: "Set the claim when signing (only if not already in the payload).\nAssert the claim value when validating (with --jwt-validate-iss/sub/aud/jti)." },
+        FlagHelp { flags: "--jwt-exp/nbf/iat [TIMESTAMP]", description: "Set a timestamp claim when signing (only if absent from payload).\nOmit the value to use current time. When validating, used as the reference\ntime for time-based checks (defaults to now if omitted)." },
+        FlagHelp { flags: "--jwt-validate-exp/nbf/iat", description: "Enable time-based claim checks:\n  --jwt-validate-exp: exp must not be in the past.\n  --jwt-validate-nbf: nbf must not be in the future.\n  --jwt-validate-iat: iat must exist and not be in the future." },
+        FlagHelp { flags: "--jwt-validate-iss/sub/aud/jti", description: "Enable claim equality checks.\nEach requires the corresponding --jwt-iss/sub/aud/jti flag to supply the expected value." },
+        FlagHelp { flags: "--jwt-validate-full", description: "Enable all claim checks at once.\nClaim equality checks (iss, sub, aud, jti) are only run if the\ncorresponding value flag is also provided." },
+        FlagHelp { flags: "--jwt-json-report", description: "Output results as a JSON object.\n  --jwt-view → {\"header\":{...},\"payload\":{...}}\n  --jwt-validate → {\"valid\":true,\"checks\":[...]}" },
+    ],
+    related: &["-d / --data", "--prettify"],
+    examples: &[
+        ExampleHelp { description: "Sign a JSON payload (iat added automatically)", command: "recon --jwt-sign --jwt-secret mysecret -d '{\"sub\":\"alice\",\"iss\":\"acme\"}'" },
+        ExampleHelp { description: "Inspect a token without verification", command: "recon --jwt-view -d <token>" },
+        ExampleHelp { description: "Validate signature only", command: "recon --jwt-validate --jwt-secret mysecret -d <token>" },
+        ExampleHelp { description: "Validate signature and expiry", command: "recon --jwt-validate --jwt-secret mysecret --jwt-validate-exp -d <token>" },
+        ExampleHelp { description: "Full validation with issuer check", command: "recon --jwt-validate --jwt-secret mysecret --jwt-validate-full --jwt-iss acme -d <token>" },
+        ExampleHelp { description: "JSON output for scripting", command: "recon --jwt-validate --jwt-secret mysecret --jwt-validate-full --jwt-json-report -d <token>" },
+    ],
+};
+
 // ── Topic resolution ─────────────────────────────────────────────────────────
 
 fn resolve_topic(key: &str) -> Option<&'static Topic> {
@@ -499,6 +531,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "scp" => Some(&TOPIC_SCP),
         "ssh" | "ssh-shell" => Some(&TOPIC_SSH),
         "telnet" => Some(&TOPIC_TELNET),
+        "jwt" | "jwt-token" | "token" => Some(&TOPIC_JWT),
         "serve" | "server" => Some(&TOPIC_SERVE),
         "serve-tls" | "serve-https" | "https-server" => Some(&TOPIC_SERVE_TLS),
         _ => None,
@@ -556,6 +589,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "scp",
         "ssh",
         "telnet",
+        "jwt",
         "serve",
         "serve-tls",
     ]
