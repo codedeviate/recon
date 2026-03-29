@@ -1,6 +1,5 @@
 use anyhow::{anyhow, Context, Result};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
-#[allow(unused_imports)]
 use jsonwebtoken::{
     decode, decode_header, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation,
 };
@@ -171,9 +170,132 @@ pub fn view(args: &Args) -> Result<()> {
     view_to_writer(&display_token, args.jwt_json_report, &mut std::io::stdout())
 }
 
+// ── Sign helpers ──────────────────────────────────────────────────────────────
+
+/// Extract the payload map from any InputKind.
+pub fn extract_payload(kind: InputKind) -> Result<Map<String, Value>> {
+    match kind {
+        InputKind::Json(map) | InputKind::PayloadOnly(map) => Ok(map),
+        InputKind::PartialToken { payload, .. } => Ok(payload),
+        InputKind::FullToken { token } => {
+            let parts: Vec<&str> = token.split('.').collect();
+            decode_b64_json(parts[1])
+        }
+    }
+}
+
+/// Add `key`→`value` to `map` only if the key is not already present.
+pub fn merge_claim_if_absent(map: &mut Map<String, Value>, key: &str, value: Value) {
+    map.entry(key.to_string()).or_insert(value);
+}
+
+/// Parse an algorithm name (case-insensitive). Only HMAC variants supported.
+pub fn parse_algorithm(alg: &str) -> Result<Algorithm> {
+    match alg.to_uppercase().as_str() {
+        "HS256" => Ok(Algorithm::HS256),
+        "HS384" => Ok(Algorithm::HS384),
+        "HS512" => Ok(Algorithm::HS512),
+        other => Err(anyhow!(
+            "Unsupported algorithm '{}'. Valid: HS256, HS384, HS512",
+            other
+        )),
+    }
+}
+
+/// Sign a claims map and return the JWT string.
+pub fn sign_claims(claims: &Map<String, Value>, secret: &str, alg: &str) -> Result<String> {
+    let algorithm = parse_algorithm(alg)?;
+    let header = Header::new(algorithm);
+    let key = EncodingKey::from_secret(secret.as_bytes());
+    let val = Value::Object(claims.clone());
+    encode(&header, &val, &key).map_err(|e| anyhow!("Failed to sign token: {}", e))
+}
+
+/// Current Unix timestamp in seconds.
+fn now_ts() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
+
+/// Parse a timestamp string: `"now"` → current time, else parse as `u64`.
+fn parse_ts(s: &str) -> Result<u64> {
+    if s == "now" {
+        return Ok(now_ts());
+    }
+    s.parse::<u64>()
+        .map_err(|_| anyhow!("Invalid timestamp '{}': expected a Unix timestamp integer", s))
+}
+
+/// Read the algorithm from an existing token header, falling back to HS256.
+fn alg_from_token(token: &str) -> String {
+    decode_header(token)
+        .ok()
+        .and_then(|h| match h.alg {
+            Algorithm::HS256 => Some("HS256"),
+            Algorithm::HS384 => Some("HS384"),
+            Algorithm::HS512 => Some("HS512"),
+            _ => None,
+        })
+        .unwrap_or("HS256")
+        .to_string()
+}
+
+pub fn sign(args: &Args) -> Result<()> {
+    let secret = args
+        .jwt_secret
+        .as_deref()
+        .ok_or_else(|| anyhow!("--jwt-secret is required for --jwt-sign"))?;
+
+    let raw = resolve_input(args.data.as_deref(), args.target_url())?;
+    let kind = parse_input(&raw)?;
+
+    // Determine algorithm: --jwt-alg > existing header > HS256
+    let alg_str = if let Some(a) = args.jwt_alg.as_deref() {
+        a.to_string()
+    } else {
+        match &kind {
+            InputKind::PartialToken { header, .. } => header
+                .get("alg")
+                .and_then(|v| v.as_str())
+                .unwrap_or("HS256")
+                .to_string(),
+            InputKind::FullToken { token } => alg_from_token(token),
+            _ => "HS256".to_string(),
+        }
+    };
+
+    let mut claims = extract_payload(kind)?;
+
+    // Inject claim flags (only if not already present in payload)
+    if let Some(v) = &args.jwt_iss { merge_claim_if_absent(&mut claims, "iss", Value::String(v.clone())); }
+    if let Some(v) = &args.jwt_sub { merge_claim_if_absent(&mut claims, "sub", Value::String(v.clone())); }
+    if let Some(v) = &args.jwt_aud { merge_claim_if_absent(&mut claims, "aud", Value::String(v.clone())); }
+    if let Some(v) = &args.jwt_jti { merge_claim_if_absent(&mut claims, "jti", Value::String(v.clone())); }
+    if let Some(v) = &args.jwt_exp {
+        let ts = parse_ts(v)?;
+        merge_claim_if_absent(&mut claims, "exp", Value::Number(ts.into()));
+    }
+    if let Some(v) = &args.jwt_nbf {
+        let ts = parse_ts(v)?;
+        merge_claim_if_absent(&mut claims, "nbf", Value::Number(ts.into()));
+    }
+
+    // iat: always add if missing (use --jwt-iat value or current time)
+    let iat_ts = match &args.jwt_iat {
+        Some(v) => parse_ts(v)?,
+        None => now_ts(),
+    };
+    merge_claim_if_absent(&mut claims, "iat", Value::Number(iat_ts.into()));
+
+    let token = sign_claims(&claims, secret, &alg_str)?;
+    println!("{}", token);
+    Ok(())
+}
+
 // ── Stub public functions (filled in later tasks) ────────────────────────────
 
-pub fn sign(_args: &Args) -> Result<()> { todo!() }
 pub fn validate(_args: &Args) -> Result<()> { todo!() }
 
 // ── Tests ────────────────────────────────────────────────────────────────────
@@ -279,6 +401,75 @@ mod tests {
             } else {
                 panic!("Expected PartialToken");
             }
+        }
+    }
+
+    mod sign_tests {
+        use super::*;
+
+        #[test]
+        fn sign_json_payload_produces_verifiable_token() {
+            let kind = parse_input(r#"{"sub":"alice"}"#).unwrap();
+            let mut claims = extract_payload(kind).unwrap();
+            merge_claim_if_absent(&mut claims, "iat", serde_json::json!(1000000000_u64));
+
+            let token = sign_claims(&claims, "secret", "HS256").unwrap();
+
+            // Round-trip: verify with jsonwebtoken
+            let mut v = Validation::new(Algorithm::HS256);
+            v.validate_exp = false;
+            v.required_spec_claims = std::collections::HashSet::new();
+            let key = DecodingKey::from_secret(b"secret");
+            let data = decode::<Value>(&token, &key, &v).unwrap();
+            assert_eq!(data.claims["sub"], Value::String("alice".into()));
+        }
+
+        #[test]
+        fn sign_partial_token_preserves_header_alg() {
+            let header_json = r#"{"alg":"HS384","typ":"JWT"}"#;
+            let payload_json = r#"{"sub":"bob"}"#;
+            let h = URL_SAFE_NO_PAD.encode(header_json.as_bytes());
+            let p = URL_SAFE_NO_PAD.encode(payload_json.as_bytes());
+            let partial = format!("{}.{}", h, p);
+
+            let kind = parse_input(&partial).unwrap();
+            let alg_str = match &kind {
+                InputKind::PartialToken { header, .. } => {
+                    header.get("alg").and_then(|v| v.as_str()).unwrap_or("HS256").to_string()
+                }
+                _ => "HS256".to_string(),
+            };
+            let claims = extract_payload(kind).unwrap();
+            let token = sign_claims(&claims, "secret", &alg_str).unwrap();
+
+            let mut v = Validation::new(Algorithm::HS384);
+            v.validate_exp = false;
+            v.required_spec_claims = std::collections::HashSet::new();
+            let key = DecodingKey::from_secret(b"secret");
+            let data = decode::<Value>(&token, &key, &v).unwrap();
+            assert_eq!(data.claims["sub"], Value::String("bob".into()));
+        }
+
+        #[test]
+        fn merge_claim_does_not_overwrite_existing() {
+            let kind = parse_input(r#"{"iss":"original"}"#).unwrap();
+            let mut claims = extract_payload(kind).unwrap();
+            merge_claim_if_absent(&mut claims, "iss", serde_json::json!("injected"));
+            assert_eq!(claims["iss"], Value::String("original".into()));
+        }
+
+        #[test]
+        fn parse_algorithm_rejects_unknown() {
+            assert!(parse_algorithm("RS256").is_err());
+            assert!(parse_algorithm("XYZ").is_err());
+        }
+
+        #[test]
+        fn parse_algorithm_accepts_hs_variants() {
+            assert!(parse_algorithm("HS256").is_ok());
+            assert!(parse_algorithm("HS384").is_ok());
+            assert!(parse_algorithm("HS512").is_ok());
+            assert!(parse_algorithm("hs256").is_ok()); // case-insensitive
         }
     }
 }

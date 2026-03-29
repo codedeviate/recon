@@ -49,6 +49,15 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 22. JWT sign (`--jwt-sign`) (0.7.0)
+
+Sign a claims payload and produce a compact JWT string.
+- `--jwt-sign` signs JSON input (object, base64url payload, partial/full token) with a shared secret.
+- `--jwt-secret <secret>` supplies the HMAC signing key (required).
+- `--jwt-alg <alg>` overrides the algorithm (HS256/HS384/HS512; defaults to header alg or HS256).
+- Claim injection flags (`--jwt-iss`, `--jwt-sub`, `--jwt-aud`, `--jwt-jti`, `--jwt-exp`, `--jwt-nbf`, `--jwt-iat`) add claims if not already present in the payload.
+- `iat` is automatically stamped with the current time when absent.
+
 ### 21. JWT view (`--jwt-view`) (0.6.0)
 
 Decode and display a JWT's header and payload without verifying the signature.
