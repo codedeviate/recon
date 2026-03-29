@@ -13,6 +13,7 @@ mod scp;
 mod serve;
 mod ssh;
 mod ssh_auth;
+mod telnet;
 mod tls_probe;
 mod traceroute;
 mod util;
@@ -131,6 +132,8 @@ fn main() {
         scp::download(args.target_url(), &args)
     } else if args.target_url().starts_with("ssh://") {
         ssh::connect(args.target_url(), &args)
+    } else if args.target_url().starts_with("telnet://") {
+        telnet::connect(args.target_url(), &args)
     } else {
         let t0 = std::time::Instant::now();
         client::execute(&args).and_then(|response| {
@@ -225,6 +228,8 @@ fn friendly_message(err: &anyhow::Error) -> String {
         || msg.starts_with("SCP URL")
         || msg.starts_with("SSH URL missing")
         || msg.starts_with("Invalid SSH URL")
+        || msg.starts_with("Telnet URL missing")
+        || msg.starts_with("Invalid Telnet URL")
         || msg.starts_with("TLS certificate not found")
         || msg.starts_with("TLS private key not found")
     {
