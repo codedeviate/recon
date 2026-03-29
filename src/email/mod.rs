@@ -185,11 +185,9 @@ fn cross_validate(results: &[CheckResult]) -> Vec<CheckResult> {
     let mut notes: Vec<CheckResult> = Vec::new();
 
     let dmarc = results.iter().find(|r| r.name == "DMARC");
-    let spf = results.iter().find(|r| r.name == "SPF");
     let bimi = results.iter().find(|r| r.name == "BIMI");
     let mta_sts = results.iter().find(|r| r.name == "MTA-STS");
     let tls_rpt = results.iter().find(|r| r.name == "TLS-RPT");
-    let has_dkim = results.iter().any(|r| r.name.starts_with("DKIM "));
 
     // BIMI requires DMARC with enforcement policy (p=quarantine or p=reject)
     if let (Some(bimi_r), Some(dmarc_r)) = (bimi, dmarc) {
@@ -252,26 +250,6 @@ fn cross_validate(results: &[CheckResult]) -> Vec<CheckResult> {
             name: "Cross: BIMI suggestion".to_string(),
             verdict: Verdict::Warn,
             summary: "BIMI checked but DMARC was not — add --dmarc to verify the enforcement policy required by BIMI".to_string(),
-            details: vec![],
-        });
-    }
-
-    // DMARC without SPF
-    if dmarc.is_some() && spf.is_none() {
-        notes.push(CheckResult {
-            name: "Cross: DMARC+SPF alignment".to_string(),
-            verdict: Verdict::Warn,
-            summary: "DMARC checked but SPF was not — add --spf to verify SPF alignment".to_string(),
-            details: vec![],
-        });
-    }
-
-    // DMARC without DKIM
-    if dmarc.is_some() && !has_dkim {
-        notes.push(CheckResult {
-            name: "Cross: DMARC+DKIM alignment".to_string(),
-            verdict: Verdict::Warn,
-            summary: "DMARC checked but no DKIM selectors were checked — add --dkim <selector> to verify DKIM alignment".to_string(),
             details: vec![],
         });
     }

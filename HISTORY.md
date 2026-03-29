@@ -532,6 +532,14 @@ When multiple checks run together: DMARC notes SPF/DKIM alignment, BIMI verifies
 
 ---
 
+### 20. Bug fix: spurious cross-validation warnings when running `--dmarc` alone (0.4.1)
+
+Running `--dmarc` without `--spf` or `--dkim` previously produced `[⚠ WARN]` cross-validation entries suggesting the user add those flags. These were suggestions, not real findings, and cluttered the output when only DMARC was requested. The DMARC+SPF and DMARC+DKIM "not checked" notes have been removed from `cross_validate()`.
+
+Also added `CLAUDE.md` to the repository with versioning instructions so Claude Code applies the correct PATCH/MINOR/MAJOR bump automatically on each change.
+
+---
+
 ### 19. SNI Multi-Certificate Support (`--serve-sni`)
 
 **Goal:** Allow the HTTPS server to present different certificates based on the hostname the client requests (Server Name Indication).
