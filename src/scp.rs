@@ -3,7 +3,7 @@ use std::net::TcpStream;
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Context, Result};
-use ssh2::{CheckResult, KnownHostFileKind, Session};
+use ssh2::Session;
 
 use crate::cli::Args;
 
@@ -11,7 +11,7 @@ use crate::cli::Args;
 
 pub fn download(raw_url: &str, args: &Args) -> Result<()> {
     let target = parse_scp_url(raw_url)?;
-    let (user, password) = resolve_credentials(&target, args);
+    let (user, password) = crate::ssh_auth::resolve_credentials(&target.user, args);
 
     if !args.silent {
         eprintln!("Connecting to {}@{}:{} …", user, target.host, target.port);
@@ -26,8 +26,8 @@ pub fn download(raw_url: &str, args: &Args) -> Result<()> {
         .with_context(|| format!("SSH handshake failed with {}", target.host))?;
     sess.set_timeout((args.timeout * 1000) as u32);
 
-    verify_host_key(&sess, &target.host, target.port, args.insecure)?;
-    authenticate(&sess, &user, args, password.as_deref())?;
+    crate::ssh_auth::verify_host_key(&sess, &target.host, target.port, args.insecure)?;
+    crate::ssh_auth::authenticate(&sess, &user, args, password.as_deref())?;
     download_file(&sess, &target.path, args)?;
 
     Ok(())
@@ -66,159 +66,6 @@ fn parse_scp_url(raw: &str) -> Result<ScpTarget> {
         port,
         path: PathBuf::from(path_str),
     })
-}
-
-/// Returns (ssh_user, optional_password).
-/// Priority for user:  URL userinfo > -u flag > $USER / $LOGNAME
-/// Priority for pass:  --ssh-pass   > -u :pass suffix
-fn resolve_credentials(target: &ScpTarget, args: &Args) -> (String, Option<String>) {
-    let user = if !target.user.is_empty() {
-        target.user.clone()
-    } else if let Some(up) = &args.user {
-        up.split(':').next().unwrap_or(up).to_string()
-    } else {
-        std::env::var("USER")
-            .or_else(|_| std::env::var("LOGNAME"))
-            .unwrap_or_else(|_| "unknown".to_string())
-    };
-
-    let password = args.ssh_pass.clone().or_else(|| {
-        args.user
-            .as_ref()
-            .and_then(|up| up.split_once(':').map(|(_, p)| p.to_string()))
-    });
-
-    (user, password)
-}
-
-// ── Host key verification ─────────────────────────────────────────────────────
-
-fn verify_host_key(sess: &Session, host: &str, port: u16, insecure: bool) -> Result<()> {
-    let (key_bytes, _key_type) = sess
-        .host_key()
-        .ok_or_else(|| anyhow!("Server did not present a host key"))?;
-
-    if insecure {
-        return Ok(());
-    }
-
-    let known_hosts_path = home_dir().join(".ssh").join("known_hosts");
-    if !known_hosts_path.exists() {
-        eprintln!(
-            "warning: ~/.ssh/known_hosts not found — host key not verified.\n\
-             Run `ssh {}` once to accept the key, or pass --insecure to silence this.",
-            host
-        );
-        return Ok(());
-    }
-
-    let mut kh = sess
-        .known_hosts()
-        .context("Failed to initialise known_hosts")?;
-
-    kh.read_file(&known_hosts_path, KnownHostFileKind::OpenSSH)
-        .with_context(|| format!("Failed to read {}", known_hosts_path.display()))?;
-
-    match kh.check_port(host, port, key_bytes) {
-        CheckResult::Match => Ok(()),
-        CheckResult::Mismatch => Err(anyhow!(
-            "SSH host key MISMATCH for {host}:{port} — possible MITM attack.\n  \
-             If the server was reinstalled, remove the old entry from ~/.ssh/known_hosts.\n  \
-             Use --insecure to skip host key checking."
-        )),
-        CheckResult::NotFound => Err(anyhow!(
-            "SSH host key for {host}:{port} is not in ~/.ssh/known_hosts.\n  \
-             Connect once with `ssh {host}` to accept the key, or run:\n  \
-               ssh-keyscan -p {port} {host} >> ~/.ssh/known_hosts\n  \
-             Use --insecure to skip host key checking."
-        )),
-        CheckResult::Failure => Err(anyhow!(
-            "SSH host key check failed for {host}:{port} (libssh2 internal error)"
-        )),
-    }
-}
-
-// ── Authentication ────────────────────────────────────────────────────────────
-
-fn authenticate(
-    sess: &Session,
-    user: &str,
-    args: &Args,
-    password: Option<&str>,
-) -> Result<()> {
-    // 1. SSH agent
-    if try_agent_auth(sess, user) {
-        return Ok(());
-    }
-
-    // 2. Explicit key from --ssh-key
-    if let Some(key_path) = &args.ssh_key {
-        let pubkey = args.ssh_pubkey.as_deref();
-        let passphrase = args.ssh_pass.as_deref();
-        if sess
-            .userauth_pubkey_file(user, pubkey, key_path, passphrase)
-            .is_ok()
-            && sess.authenticated()
-        {
-            return Ok(());
-        }
-    }
-
-    // 3. Default key files
-    let ssh_dir = home_dir().join(".ssh");
-    for key_name in &["id_ed25519", "id_ecdsa", "id_rsa", "id_dsa"] {
-        let priv_path = ssh_dir.join(key_name);
-        if !priv_path.exists() {
-            continue;
-        }
-        let passphrase = args.ssh_pass.as_deref();
-        // pubkey: None — libssh2 derives it from the private key file
-        if sess
-            .userauth_pubkey_file(user, None, &priv_path, passphrase)
-            .is_ok()
-            && sess.authenticated()
-        {
-            return Ok(());
-        }
-    }
-
-    // 4. Password auth
-    if let Some(pass) = password {
-        sess.userauth_password(user, pass)
-            .context("SSH password authentication failed")?;
-        if sess.authenticated() {
-            return Ok(());
-        }
-    }
-
-    Err(anyhow!(
-        "All SSH authentication methods exhausted for user '{user}'.\n  \
-         Tried: agent, default key files (~/.ssh/id_ed25519 etc.), password.\n  \
-         Provide a key with --ssh-key or a password with --ssh-pass."
-    ))
-}
-
-fn try_agent_auth(sess: &Session, user: &str) -> bool {
-    let mut agent = match sess.agent() {
-        Ok(a) => a,
-        Err(_) => return false,
-    };
-    if agent.connect().is_err() {
-        return false;
-    }
-    if agent.list_identities().is_err() {
-        return false;
-    }
-    let identities = match agent.identities() {
-        Ok(ids) => ids,
-        Err(_) => return false,
-    };
-    for identity in &identities {
-        if agent.userauth(user, identity).is_ok() && sess.authenticated() {
-            return true;
-        }
-    }
-    false
 }
 
 // ── File download ─────────────────────────────────────────────────────────────
@@ -277,10 +124,3 @@ fn resolve_output_path(remote_path: &Path, args: &Args) -> Result<PathBuf> {
     }
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-fn home_dir() -> PathBuf {
-    std::env::var("HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("/tmp"))
-}

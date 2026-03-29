@@ -11,6 +11,7 @@ mod ping;
 mod prettify;
 mod scp;
 mod serve;
+mod ssh_auth;
 mod tls_probe;
 mod traceroute;
 mod util;
