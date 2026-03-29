@@ -275,6 +275,37 @@ pub fn print() {
         "recon scp://server/file.tgz --ssh-key ~/.ssh/custom_rsa --ssh-pubkey ~/.ssh/custom_rsa.pub",
     ]);
 
+    section("SSH INTERACTIVE SHELL");
+
+    example("Open an interactive SSH shell (ssh://)", &[
+        "recon ssh://myserver.example.com",
+        "recon ssh://alice@myserver.example.com",
+        "recon ssh://alice@myserver.example.com:2222",
+    ]);
+    example("Explicit SSH key file (--ssh-key)", &[
+        "recon ssh://myserver.example.com --ssh-key ~/.ssh/id_deploy",
+        "recon ssh://alice@myserver.example.com --ssh-key ~/.ssh/id_rsa --ssh-pass 'passphrase'",
+    ]);
+    example("Password authentication (-u / --user or --ssh-pass)", &[
+        "recon ssh://myserver.example.com -u alice:s3cr3t",
+        "recon ssh://alice@myserver.example.com --ssh-pass s3cr3t",
+    ]);
+    example("Skip host key verification (dev/test only, -k / --insecure)", &[
+        "recon ssh://dev.local --insecure",
+    ]);
+    note("SSH agent keys are tried first. Add your key with: ssh-add ~/.ssh/id_ed25519");
+
+    section("TELNET CLIENT");
+
+    example("Connect to a Telnet server (telnet://)", &[
+        "recon telnet://bbs.example.com",
+        "recon telnet://host:8023",
+    ]);
+    example("Short connection timeout", &[
+        "recon telnet://host --connect-timeout 5",
+    ]);
+    note("Authentication is interactive — type your credentials when prompted. Press Ctrl+D to disconnect.");
+
     section("EMAIL PROTECTION");
 
     example("Validate the SPF record for a domain (--spf)", &[

@@ -532,6 +532,18 @@ When multiple checks run together: DMARC notes SPF/DKIM alignment, BIMI verifies
 
 ---
 
+### 21. SSH Interactive Shell & Telnet Client (`ssh://`, `telnet://`) — 0.5.0
+
+**SSH:** `ssh://[user@]host[:port]` opens a fully interactive PTY shell on the remote server. Reuses the existing SCP auth stack (agent → key → password, host key verification via `~/.ssh/known_hosts`). Terminal resize is forwarded via SSH `window-change` requests. Shared auth helpers extracted into `src/ssh_auth.rs`.
+
+**Telnet:** `telnet://host[:port]` connects a Telnet client with full IAC option negotiation per RFC 854. Accepts `WILL ECHO` and `WILL SUPPRESS-GO-AHEAD` from the server; rejects all others with DONT/WONT. Subnegotiation blocks are discarded. `0xFF` bytes in input are escaped as `IAC IAC`.
+
+**Both** use a non-blocking single-threaded event loop driven by `crossterm` key and resize events. Raw terminal mode is restored via RAII guard even on panic. Connection timeout (`--connect-timeout`) is respected.
+
+**New dependency:** `crossterm = "0.28"` for raw terminal mode and event handling.
+
+---
+
 ### 20. Bug fix: spurious cross-validation warnings when running `--dmarc` alone (0.4.1)
 
 Running `--dmarc` without `--spf` or `--dkim` previously produced `[⚠ WARN]` cross-validation entries suggesting the user add those flags. These were suggestions, not real findings, and cluttered the output when only DMARC was requested. The DMARC+SPF and DMARC+DKIM "not checked" notes have been removed from `cross_validate()`.
