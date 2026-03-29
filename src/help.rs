@@ -362,6 +362,51 @@ static TOPIC_SCP: Topic = Topic {
     ],
 };
 
+static TOPIC_SSH: Topic = Topic {
+    title: "SSH Interactive Shell",
+    description: "Open an interactive SSH shell on a remote server. Authentication methods\n\
+                  tried in order: SSH agent, explicit key (--ssh-key), default key files\n\
+                  (~/.ssh/id_ed25519, id_rsa, etc.), and password (--ssh-pass or -u user:pass).\n\
+                  The remote terminal is fully interactive: colours, editors (vim, nano), and\n\
+                  TUI applications work correctly. Terminal resize is forwarded automatically.",
+    flags: &[
+        FlagHelp { flags: "ssh://[user@]host[:port]", description: "SSH URL. User and port are optional.\nDefault port: 22.\nExamples: ssh://server, ssh://alice@server:2222" },
+        FlagHelp { flags: "--ssh-key <PATH>", description: "Path to the SSH private key file for authentication." },
+        FlagHelp { flags: "--ssh-pubkey <PATH>", description: "Path to the SSH public key file. Optional;\nderived from --ssh-key by appending .pub if omitted." },
+        FlagHelp { flags: "--ssh-pass <PASS>", description: "Passphrase for the SSH private key, or the login password\nfor SSH password authentication." },
+        FlagHelp { flags: "-u, --user <USER:PASS>", description: "SSH username. Optionally include a password with user:pass.\nThe URL userinfo takes priority if both are given." },
+        FlagHelp { flags: "-k, --insecure", description: "Skip SSH host-key verification (~/.ssh/known_hosts).\nUse only on hosts you control or trust." },
+    ],
+    related: &["scp", "-u / --user"],
+    examples: &[
+        ExampleHelp { description: "Connect with SSH agent auth", command: "recon ssh://myserver.example.com" },
+        ExampleHelp { description: "Explicit user in URL", command: "recon ssh://alice@myserver.example.com" },
+        ExampleHelp { description: "Non-standard SSH port", command: "recon ssh://alice@myserver.example.com:2222" },
+        ExampleHelp { description: "Explicit key file", command: "recon ssh://myserver.example.com --ssh-key ~/.ssh/id_deploy" },
+        ExampleHelp { description: "Password auth", command: "recon ssh://myserver.example.com -u alice:s3cr3t" },
+        ExampleHelp { description: "Skip host key check (dev/test only)", command: "recon ssh://dev-server.local --insecure" },
+    ],
+};
+
+static TOPIC_TELNET: Topic = Topic {
+    title: "Telnet Client",
+    description: "Connect to a Telnet server with full IAC option negotiation. The client\n\
+                  accepts server ECHO and SUPPRESS-GO-AHEAD options (standard for interactive\n\
+                  sessions) and rejects all others. Subnegotiation blocks are discarded.\n\
+                  Authentication is interactive — the server prompts for credentials via the\n\
+                  text stream. Press Ctrl+D to close the connection.",
+    flags: &[
+        FlagHelp { flags: "telnet://host[:port]", description: "Telnet URL. Port is optional.\nDefault port: 23.\nExamples: telnet://bbs.example.com, telnet://host:8023" },
+        FlagHelp { flags: "--connect-timeout <SECS>", description: "TCP connection timeout in seconds (default: 30)." },
+    ],
+    related: &["ssh"],
+    examples: &[
+        ExampleHelp { description: "Connect to a Telnet server", command: "recon telnet://bbs.example.com" },
+        ExampleHelp { description: "Non-standard port", command: "recon telnet://host:8023" },
+        ExampleHelp { description: "Short connection timeout", command: "recon telnet://host --connect-timeout 5" },
+    ],
+};
+
 static TOPIC_SERVE: Topic = Topic {
     title: "HTTP Server",
     description: "Start a static file server serving the current directory over HTTP. Directory\n\
@@ -451,7 +496,9 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "tls-rpt" | "tlsrpt" => Some(&TOPIC_TLS_RPT),
         "email" | "email-protection" => Some(&TOPIC_EMAIL),
         "cookies" | "cookiejar" | "cookie" => Some(&TOPIC_COOKIES),
-        "scp" | "ssh" => Some(&TOPIC_SCP),
+        "scp" => Some(&TOPIC_SCP),
+        "ssh" | "ssh-shell" => Some(&TOPIC_SSH),
+        "telnet" => Some(&TOPIC_TELNET),
         "serve" | "server" => Some(&TOPIC_SERVE),
         "serve-tls" | "serve-https" | "https-server" => Some(&TOPIC_SERVE_TLS),
         _ => None,
@@ -507,6 +554,8 @@ pub fn topic_keys() -> Vec<&'static str> {
         "email",
         "cookies",
         "scp",
+        "ssh",
+        "telnet",
         "serve",
         "serve-tls",
     ]
