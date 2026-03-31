@@ -477,6 +477,42 @@ default cert or reject the connection." },
     ],
 };
 
+static TOPIC_NETSTATUS: Topic = Topic {
+    title: "Network Status",
+    description: "Check connectivity using a set of configurable probes defined in\n\
+                  ~/.recon/config.toml under [netstatus]. Probes run concurrently and\n\
+                  results are shown with pass/fail markers. Exits non-zero if any check\n\
+                  fails, making it suitable for scripting with --silent.",
+    flags: &[
+        FlagHelp {
+            flags: "--netstatus",
+            description: "Run all configured probes and display a connectivity report.\n\
+                          Reads probe list from ~/.recon/config.toml [netstatus] section.\n\
+                          Exit code: 0 = all passed (ONLINE), 1 = any failed (DEGRADED/OFFLINE).",
+        },
+        FlagHelp {
+            flags: "-s, --silent",
+            description: "Suppress all output. Only the exit code is set.\n\
+                          Useful in shell scripts: recon --netstatus --silent && deploy.sh",
+        },
+    ],
+    related: &["--ping", "--dns", "--cert"],
+    examples: &[
+        ExampleHelp {
+            description: "Check connectivity and show full report",
+            command: "recon --netstatus",
+        },
+        ExampleHelp {
+            description: "Use in a script (silent, exit code only)",
+            command: "recon --netstatus --silent && echo online || echo offline",
+        },
+        ExampleHelp {
+            description: "Check with DNS hijack detection in config",
+            command: "recon --netstatus  # requires [[netstatus.dns_hijack_checks]] in config",
+        },
+    ],
+};
+
 static TOPIC_JWT: Topic = Topic {
     title: "JWT Tokens",
     description: "Sign, validate, and inspect JWT tokens. Input can come from -d (inline string\n\
@@ -532,6 +568,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "ssh" | "ssh-shell" => Some(&TOPIC_SSH),
         "telnet" => Some(&TOPIC_TELNET),
         "jwt" | "jwt-token" | "token" => Some(&TOPIC_JWT),
+        "netstatus" => Some(&TOPIC_NETSTATUS),
         "serve" | "server" => Some(&TOPIC_SERVE),
         "serve-tls" | "serve-https" | "https-server" => Some(&TOPIC_SERVE_TLS),
         _ => None,

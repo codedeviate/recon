@@ -457,6 +457,35 @@ pub fn print() {
         r#"recon --jwt-validate --jwt-secret mysecret --jwt-validate-full --jwt-json-report -d <token> | jq .valid"#,
     ]);
 
+    section("NETWORK STATUS");
+
+    example("Check connectivity (requires ~/.recon/config.toml)", &[
+        "recon --netstatus",
+    ]);
+    example("Use in scripts — silent mode, exit code only", &[
+        "recon --netstatus --silent && deploy.sh",
+    ]);
+    note("The [netstatus] section in ~/.recon/config.toml defines the probes to run.");
+    example("Example ~/.recon/config.toml [netstatus] section", &[
+        "# [netstatus]",
+        "# ip_sources = [\"https://api.ipify.org\", \"https://ifconfig.me/ip\"]",
+        "# dns_lookup_domains = [\"example.com\"]",
+        "# probes = [",
+        "#   \"https://www.google.com\",",
+        "#   \"ping://8.8.8.8\",",
+        "#   \"dns://8.8.8.8\",",
+        "#   \"tcp://8.8.8.8:53\",",
+        "#   \"tls://www.google.com:443\",",
+        "#   \"ntp://pool.ntp.org\",",
+        "# ]",
+    ]);
+    example("DNS hijack detection (repeat block for multiple servers)", &[
+        "# [[netstatus.dns_hijack_checks]]",
+        "# server = \"8.8.8.8\"",
+        "# domain = \"example.com\"",
+        "# expected = \"93.184.216.34\"",
+    ]);
+
     println!();
 }
 
