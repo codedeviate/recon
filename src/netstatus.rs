@@ -314,6 +314,40 @@ fn probe_tls(host: &str, port: u16) -> ProbeResult {
     }
 }
 
+fn probe_ntp(host: &str) -> ProbeResult {
+    let label = format!("ntp://{}", host);
+    let result = (|| -> anyhow::Result<String> {
+        let socket = std::net::UdpSocket::bind("0.0.0.0:0")?;
+        socket.set_read_timeout(Some(Duration::from_secs(5)))?;
+        socket.connect(format!("{}:123", host))?;
+
+        // NTP v3 client request: LI=0, VN=3, Mode=3
+        let mut packet = [0u8; 48];
+        packet[0] = 0x1B;
+        socket.send(&packet)?;
+
+        let mut buf = [0u8; 48];
+        let n = socket.recv(&mut buf)?;
+        if n < 48 || (buf[0] & 0x07) != 4 {
+            anyhow::bail!("invalid NTP response (mode={})", buf[0] & 0x07);
+        }
+
+        // Transmit timestamp is at bytes 40–43 (seconds since 1900-01-01)
+        let ntp_secs = u32::from_be_bytes([buf[40], buf[41], buf[42], buf[43]]) as i64;
+        let unix_secs = ntp_secs - 2_208_988_800; // 70 years offset
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+        let offset = unix_secs - now;
+        Ok(format!("offset={:+}s", offset))
+    })();
+    match result {
+        Ok(detail) => ProbeResult { label, passed: true, detail },
+        Err(e) => ProbeResult { label, passed: false, detail: e.to_string() },
+    }
+}
+
 // ── Placeholder run() — will be fleshed out in Task 10 ───────────────────────
 
 pub fn run(_config: &crate::config::NetstatusConfig, _silent: bool) -> anyhow::Result<()> {
