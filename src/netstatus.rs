@@ -348,6 +348,53 @@ fn probe_ntp(host: &str) -> ProbeResult {
     }
 }
 
+// ── Public IP check ───────────────────────────────────────────────────────────
+
+struct IpCheckResult {
+    ips: Vec<(String, String)>, // (source_url, returned_ip)
+    agreed: bool,
+    agreed_ip: Option<String>,
+}
+
+async fn fetch_ip_from(source: &str) -> anyhow::Result<String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .build()?;
+    let text = client.get(source).send().await?.text().await?;
+    Ok(text.trim().to_string())
+}
+
+async fn check_public_ip(sources: &[String]) -> IpCheckResult {
+    let handles: Vec<_> = sources
+        .iter()
+        .map(|src| {
+            let src = src.clone();
+            tokio::spawn(async move {
+                let ip = fetch_ip_from(&src).await.unwrap_or_else(|e| format!("error: {e}"));
+                (src, ip)
+            })
+        })
+        .collect();
+
+    let mut ips = Vec::new();
+    for h in handles {
+        if let Ok(pair) = h.await {
+            ips.push(pair);
+        }
+    }
+
+    if ips.is_empty() {
+        return IpCheckResult { ips, agreed: false, agreed_ip: None };
+    }
+
+    let first_ip = &ips[0].1;
+    let agreed = ips.iter().all(|(_, ip)| ip == first_ip)
+        && !first_ip.starts_with("error:");
+    let agreed_ip = if agreed { Some(first_ip.clone()) } else { None };
+
+    IpCheckResult { ips, agreed, agreed_ip }
+}
+
 // ── Placeholder run() — will be fleshed out in Task 10 ───────────────────────
 
 pub fn run(_config: &crate::config::NetstatusConfig, _silent: bool) -> anyhow::Result<()> {
