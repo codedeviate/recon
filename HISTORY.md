@@ -16,6 +16,21 @@ recon follows semantic versioning (`MAJOR.MINOR.PATCH`):
 
 ---
 
+## Version Log
+
+### [0.7.0]
+
+#### Added
+- `--netstatus`: connectivity checker that runs configurable probes concurrently
+  and exits non-zero if any check fails (suitable for scripting with `--silent`).
+- `~/.recon/config.toml`: new general config file; `[netstatus]` is the first section.
+- Supported probe schemes: `http://`, `https://`, `ping://`, `tcp://`, `tls://`,
+  `dns://`, `ntp://`.
+- Public IP cross-check: fetches from multiple sources and flags disagreement.
+- `[[netstatus.dns_hijack_checks]]`: per-server DNS hijack detection with expected-IP assertion.
+
+---
+
 ## Origins
 
 The project began with a simple goal: build a basic curl clone in Rust that supports HTTP and HTTPS requests, compatible with JetBrains RustRover.
