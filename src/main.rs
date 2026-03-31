@@ -89,6 +89,36 @@ fn main() {
         return;
     }
 
+    // ── Network status ───────────────────────────────────────────────────────
+    if args.netstatus {
+        let cfg = config::load();
+        let cfg = match cfg {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("error: {e}");
+                std::process::exit(1);
+            }
+        };
+        let ns_config = match cfg.netstatus {
+            Some(c) => c,
+            None => {
+                eprintln!("error: no [netstatus] section found in ~/.recon/config.toml");
+                std::process::exit(1);
+            }
+        };
+        if let Err(e) = ns_config.validate() {
+            eprintln!("error: {e}");
+            std::process::exit(1);
+        }
+        if let Err(e) = netstatus::run(&ns_config, args.silent) {
+            if !args.silent {
+                eprintln!("error: {e}");
+            }
+            std::process::exit(1);
+        }
+        return;
+    }
+
     // ── Serve mode ───────────────────────────────────────────────────────────
     if args.has_serve() {
         if args.has_exclusive() || args.has_composable() {

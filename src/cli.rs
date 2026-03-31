@@ -9,7 +9,7 @@ use std::path::PathBuf;
 )]
 pub struct Args {
     /// URL to request (or use --url)
-    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni", "jwt_view", "jwt_sign", "jwt_validate"])]
+    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni", "jwt_view", "jwt_sign", "jwt_validate", "netstatus"])]
     pub url: Option<String>,
 
     /// URL to request — curl-compatible alternative to the positional argument
@@ -307,6 +307,12 @@ pub struct Args {
     /// Output JWT results as a single JSON object instead of labeled sections
     #[arg(long = "jwt-json-report")]
     pub jwt_json_report: bool,
+
+    // ── Network status ───────────────────────────────────────────────────────
+
+    /// Check connectivity using probes defined in ~/.recon/config.toml
+    #[arg(long = "netstatus")]
+    pub netstatus: bool,
 }
 
 impl Args {
