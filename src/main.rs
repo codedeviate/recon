@@ -8,6 +8,7 @@ mod email;
 mod examples;
 mod help;
 mod jwt;
+mod netstatus;
 mod output;
 mod ping;
 mod prettify;
