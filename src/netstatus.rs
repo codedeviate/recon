@@ -409,7 +409,7 @@ async fn check_public_ip(sources: &[String]) -> IpCheckResult {
     IpCheckResult { ips, agreed, agreed_ip }
 }
 
-// ── Placeholder run() — will be fleshed out in Task 10 ───────────────────────
+// ── Parallel execution and output ────────────────────────────────────────────
 
 pub fn run(config: &crate::config::NetstatusConfig, silent: bool) -> anyhow::Result<()> {
     // Parse all probe strings into typed Probes
