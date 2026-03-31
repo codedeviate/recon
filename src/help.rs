@@ -614,6 +614,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "cert",
         "whois",
         "ping",
+        "netstatus",
         "traceroute",
         "spf",
         "dmarc",
