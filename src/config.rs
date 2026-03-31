@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use serde::Deserialize;
 
 #[derive(Deserialize, Default)]
@@ -41,9 +41,9 @@ impl NetstatusConfig {
 /// Loads ~/.recon/config.toml. Returns an error if the file is missing or invalid.
 pub fn load() -> Result<ReconConfig> {
     let path = config_path();
-    let text = std::fs::read_to_string(&path).map_err(|_| {
-        anyhow!(
-            "Config file not found: {}\n\
+    let text = std::fs::read_to_string(&path).with_context(|| {
+        format!(
+            "Cannot read config file: {}\n\
              Create it with a [netstatus] section — see: recon --help netstatus",
             path.display()
         )
