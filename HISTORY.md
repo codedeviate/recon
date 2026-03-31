@@ -49,22 +49,6 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
-### 23. Network Status Probe Runners (`--netstatus`) (0.7.0)
-
-Added probe runner functions to `src/netstatus.rs` for all supported probe types:
-
-- `probe_http`: HEAD request via `reqwest::blocking`, 5s timeout, invalid-cert acceptance, up to 3 redirects.
-- `probe_tcp`: TCP connect with 5s timeout via `std::net::TcpStream::connect_timeout`.
-- `probe_ping` / `probe_ping_tcp` / `probe_ping_icmp`: TCP-connect ping (no privileges needed) or raw ICMP echo via `socket2` DGRAM socket (requires privileges; falls back with a clear error message).
-- `build_icmp_echo` / `icmp_checksum`: ICMP packet construction helpers.
-- `probe_dns`: DNS lookup against a specific resolver IP via `hickory-resolver` in a single-threaded Tokio runtime.
-- `probe_dns_hijack`: DNS lookup with expected-IP assertion (detects DNS hijacking).
-- `probe_tls`: TLS certificate check via existing `crate::tls_probe::probe`, reports expiry and days remaining.
-- `probe_ntp`: NTP v3 UDP exchange against port 123, reports clock offset in seconds.
-- `IpCheckResult` / `fetch_ip_from` / `check_public_ip`: Async multi-source public IP check with consensus agreement validation.
-
----
-
 ### 22. JWT Tokens (`--jwt-view`, `--jwt-sign`, `--jwt-validate`) (0.6.0)
 
 Sign, validate, and inspect JWT tokens without leaving the terminal.
