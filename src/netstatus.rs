@@ -1,5 +1,7 @@
 use anyhow::{anyhow, Result};
-use std::net::ToSocketAddrs;
+use socket2::{Domain, Protocol, Socket, Type};
+use std::mem::MaybeUninit;
+use std::net::{SocketAddr, ToSocketAddrs};
 use std::time::{Duration, Instant};
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -129,6 +131,100 @@ fn probe_tcp(host: &str, port: u16) -> ProbeResult {
         Ok(detail) => ProbeResult { label, passed: true, detail },
         Err(e) => ProbeResult { label, passed: false, detail: e.to_string() },
     }
+}
+
+fn probe_ping(host: &str, port: Option<u16>) -> ProbeResult {
+    if let Some(port) = port {
+        probe_ping_tcp(host, port)
+    } else {
+        probe_ping_icmp(host)
+    }
+}
+
+fn probe_ping_tcp(host: &str, port: u16) -> ProbeResult {
+    let label = format!("ping://{}:{}", host, port);
+    let result = (|| -> anyhow::Result<String> {
+        let start = Instant::now();
+        let addr = format!("{}:{}", host, port)
+            .to_socket_addrs()?
+            .next()
+            .ok_or_else(|| anyhow!("Could not resolve {}", host))?;
+        std::net::TcpStream::connect_timeout(&addr, Duration::from_secs(5))?;
+        Ok(format!("rtt={}ms", start.elapsed().as_millis()))
+    })();
+    match result {
+        Ok(detail) => ProbeResult { label, passed: true, detail },
+        Err(e) => ProbeResult { label, passed: false, detail: e.to_string() },
+    }
+}
+
+fn probe_ping_icmp(host: &str) -> ProbeResult {
+    let label = format!("ping://{}", host);
+    let result = (|| -> anyhow::Result<String> {
+        let addr: SocketAddr = format!("{}:0", host)
+            .to_socket_addrs()?
+            .next()
+            .ok_or_else(|| anyhow!("Could not resolve {}", host))?;
+        let ip = addr.ip();
+        let target = socket2::SockAddr::from(SocketAddr::new(ip, 0));
+
+        let socket = Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::ICMPV4))
+            .map_err(|e| {
+                if e.kind() == std::io::ErrorKind::PermissionDenied {
+                    anyhow!("ICMP requires elevated privileges; use ping://{}:<port> instead", host)
+                } else {
+                    anyhow!("Failed to create ICMP socket: {e}")
+                }
+            })?;
+        socket.set_read_timeout(Some(Duration::from_secs(5)))?;
+
+        let pid = (std::process::id() & 0xffff) as u16;
+        let packet = build_icmp_echo(pid, 0);
+        let start = Instant::now();
+        socket.send_to(&packet, &target)?;
+
+        let mut buf = [MaybeUninit::uninit(); 512];
+        let (n, _) = socket.recv_from(&mut buf)
+            .map_err(|e| anyhow!("No reply: {e}"))?;
+        let data: &[u8] = unsafe { std::slice::from_raw_parts(buf.as_ptr() as *const u8, n) };
+        let offset = if !data.is_empty() && (data[0] >> 4) == 4 { (data[0] & 0x0f) as usize * 4 } else { 0 };
+        let icmp = &data[offset..];
+        if icmp.len() < 8 || icmp[0] != 0 {
+            anyhow::bail!("Unexpected ICMP response");
+        }
+        Ok(format!("rtt={}ms", start.elapsed().as_millis()))
+    })();
+    match result {
+        Ok(detail) => ProbeResult { label, passed: true, detail },
+        Err(e) => ProbeResult { label, passed: false, detail: e.to_string() },
+    }
+}
+
+fn build_icmp_echo(id: u16, seq: u16) -> Vec<u8> {
+    let mut pkt = vec![
+        8u8, 0, 0, 0,
+        (id >> 8) as u8, id as u8,
+        (seq >> 8) as u8, seq as u8,
+        b'r', b'e', b'c', b'o', b'n', b'_', b'n', b's',
+    ];
+    let cs = icmp_checksum(&pkt);
+    pkt[2] = (cs >> 8) as u8;
+    pkt[3] = cs as u8;
+    pkt
+}
+
+fn icmp_checksum(data: &[u8]) -> u16 {
+    let mut sum = 0u32;
+    for chunk in data.chunks(2) {
+        let word = if chunk.len() == 2 {
+            u16::from_be_bytes([chunk[0], chunk[1]])
+        } else {
+            u16::from_be_bytes([chunk[0], 0])
+        };
+        sum += word as u32;
+    }
+    while sum >> 16 != 0 { sum = (sum & 0xffff) + (sum >> 16); }
+    !(sum as u16)
 }
 
 // ── Placeholder run() — will be fleshed out in Task 10 ───────────────────────
