@@ -490,10 +490,7 @@ pub fn run(config: &crate::config::NetstatusConfig, silent: bool) -> anyhow::Res
                 config.ip_sources.len()
             ))
         } else {
-            let parts: Vec<String> = ip_result.ips.iter()
-                .map(|(s, ip)| format!("{}: {}", s, ip))
-                .collect();
-            (false, format!("IP mismatch — {}", parts.join(", ")))
+            (false, "IP mismatch across sources:".to_string())
         };
         Some(ProbeResult { label: "Public IP".to_string(), passed, detail })
     } else {
