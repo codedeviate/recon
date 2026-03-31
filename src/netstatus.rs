@@ -1,4 +1,6 @@
 use anyhow::{anyhow, Result};
+use std::net::ToSocketAddrs;
+use std::time::{Duration, Instant};
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -89,6 +91,44 @@ pub fn overall_status(results: &[ProbeResult]) -> &'static str {
     if passed == total { "ONLINE" }
     else if passed == 0 { "OFFLINE" }
     else { "DEGRADED" }
+}
+
+// ── Probe runners ─────────────────────────────────────────────────────────────
+
+fn probe_http(url: &str) -> ProbeResult {
+    let label = url.to_string();
+    let result = (|| -> anyhow::Result<String> {
+        let client = reqwest::blocking::Client::builder()
+            .timeout(Duration::from_secs(5))
+            .danger_accept_invalid_certs(true)
+            .redirect(reqwest::redirect::Policy::limited(3))
+            .build()?;
+        let start = Instant::now();
+        let resp = client.head(url).send()?;
+        let elapsed = start.elapsed().as_millis();
+        Ok(format!("{} ({}ms)", resp.status(), elapsed))
+    })();
+    match result {
+        Ok(detail) => ProbeResult { label, passed: true, detail },
+        Err(e) => ProbeResult { label, passed: false, detail: e.to_string() },
+    }
+}
+
+fn probe_tcp(host: &str, port: u16) -> ProbeResult {
+    let label = format!("tcp://{}:{}", host, port);
+    let result = (|| -> anyhow::Result<String> {
+        let start = Instant::now();
+        let addr = format!("{}:{}", host, port)
+            .to_socket_addrs()?
+            .next()
+            .ok_or_else(|| anyhow!("Could not resolve {}", host))?;
+        std::net::TcpStream::connect_timeout(&addr, Duration::from_secs(5))?;
+        Ok(format!("connected ({}ms)", start.elapsed().as_millis()))
+    })();
+    match result {
+        Ok(detail) => ProbeResult { label, passed: true, detail },
+        Err(e) => ProbeResult { label, passed: false, detail: e.to_string() },
+    }
 }
 
 // ── Placeholder run() — will be fleshed out in Task 10 ───────────────────────
