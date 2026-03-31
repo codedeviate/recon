@@ -293,6 +293,27 @@ fn probe_dns_hijack(check: &crate::config::DnsHijackCheck) -> ProbeResult {
     }
 }
 
+fn probe_tls(host: &str, port: u16) -> ProbeResult {
+    let label = format!("tls://{}:{}", host, port);
+    match crate::tls_probe::probe(host, port) {
+        Ok(r) if r.is_expired => ProbeResult {
+            label,
+            passed: false,
+            detail: format!("certificate expired ({})", r.not_after),
+        },
+        Ok(r) => ProbeResult {
+            label,
+            passed: true,
+            detail: format!("{}, cert valid ({} days)", r.version, r.days_remaining),
+        },
+        Err(e) => ProbeResult {
+            label,
+            passed: false,
+            detail: e.to_string(),
+        },
+    }
+}
+
 // ── Placeholder run() — will be fleshed out in Task 10 ───────────────────────
 
 pub fn run(_config: &crate::config::NetstatusConfig, _silent: bool) -> anyhow::Result<()> {
