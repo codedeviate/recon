@@ -166,6 +166,9 @@ fn probe_ping_icmp(host: &str) -> ProbeResult {
             .next()
             .ok_or_else(|| anyhow!("Could not resolve {}", host))?;
         let ip = addr.ip();
+        if ip.is_ipv6() {
+            anyhow::bail!("ICMP ping does not support IPv6; use ping://{}:<port> for TCP ping", host);
+        }
         let target = socket2::SockAddr::from(SocketAddr::new(ip, 0));
 
         let socket = Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::ICMPV4))
@@ -186,6 +189,8 @@ fn probe_ping_icmp(host: &str) -> ProbeResult {
         let mut buf = [MaybeUninit::uninit(); 512];
         let (n, _) = socket.recv_from(&mut buf)
             .map_err(|e| anyhow!("No reply: {e}"))?;
+        // SAFETY: MaybeUninit<u8> has the same layout as u8, and recv_from
+        // confirmed that exactly `n` bytes were written into `buf`.
         let data: &[u8] = unsafe { std::slice::from_raw_parts(buf.as_ptr() as *const u8, n) };
         let offset = if !data.is_empty() && (data[0] >> 4) == 4 { (data[0] & 0x0f) as usize * 4 } else { 0 };
         let icmp = &data[offset..];
@@ -235,6 +240,10 @@ fn probe_dns(server: &str, domain: &str) -> ProbeResult {
         let server_ip: std::net::IpAddr = server
             .parse()
             .map_err(|_| anyhow!("Invalid DNS server IP: {}", server))?;
+        // A new current-thread runtime is safe here because probe_dns* is always
+        // called from spawn_blocking, which runs on a dedicated blocking-thread
+        // pool — not on a tokio executor thread. There is no outer async context
+        // on this thread, so block_on cannot deadlock.
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()?;
@@ -266,6 +275,10 @@ fn probe_dns_hijack(check: &crate::config::DnsHijackCheck) -> ProbeResult {
         let server_ip: std::net::IpAddr = server
             .parse()
             .map_err(|_| anyhow!("Invalid DNS server IP: {}", server))?;
+        // A new current-thread runtime is safe here because probe_dns* is always
+        // called from spawn_blocking, which runs on a dedicated blocking-thread
+        // pool — not on a tokio executor thread. There is no outer async context
+        // on this thread, so block_on cannot deadlock.
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()?;
