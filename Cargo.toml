@@ -27,6 +27,8 @@ ssh2 = "0.9"
 crossterm = "0.28"
 rustls = { version = "0.23", features = ["ring"] }
 base64 = "0.22"
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
 jsonwebtoken = "9"
 pem = "3"
 hyper = { version = "1", features = ["http1", "http2", "server"] }
