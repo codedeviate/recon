@@ -62,6 +62,17 @@ pub fn parse_probe(s: &str, dns_lookup_domains: &[String]) -> Result<Probe> {
 }
 
 fn split_host_port(s: &str) -> (String, Option<u16>) {
+    // IPv6 bracket notation: [::1]:53
+    if s.starts_with('[') {
+        if let Some(end) = s.find(']') {
+            let host = s[1..end].to_string();
+            let port = s[end + 1..]
+                .strip_prefix(':')
+                .and_then(|p| p.parse().ok());
+            return (host, port);
+        }
+    }
+    // Plain host or host:port
     if let Some(pos) = s.rfind(':') {
         if let Ok(port) = s[pos + 1..].parse::<u16>() {
             return (s[..pos].to_string(), Some(port));
