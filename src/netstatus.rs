@@ -227,6 +227,72 @@ fn icmp_checksum(data: &[u8]) -> u16 {
     !(sum as u16)
 }
 
+fn probe_dns(server: &str, domain: &str) -> ProbeResult {
+    let label = format!("dns://{}", server);
+    let server = server.to_string();
+    let domain = domain.to_string();
+    let result = (|| -> anyhow::Result<String> {
+        let server_ip: std::net::IpAddr = server
+            .parse()
+            .map_err(|_| anyhow!("Invalid DNS server IP: {}", server))?;
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?;
+        rt.block_on(async {
+            use hickory_resolver::config::{NameServerConfigGroup, ResolverConfig, ResolverOpts};
+            use hickory_resolver::TokioAsyncResolver;
+            let group = NameServerConfigGroup::from_ips_clear(&[server_ip], 53, true);
+            let config = ResolverConfig::from_parts(None, vec![], group);
+            let resolver = TokioAsyncResolver::tokio(config, ResolverOpts::default());
+            resolver
+                .lookup_ip(domain.as_str())
+                .await
+                .map_err(|e| anyhow!("DNS lookup failed: {e}"))?;
+            Ok::<String, anyhow::Error>(format!("resolved {}", domain))
+        })
+    })();
+    match result {
+        Ok(detail) => ProbeResult { label, passed: true, detail },
+        Err(e) => ProbeResult { label, passed: false, detail: e.to_string() },
+    }
+}
+
+fn probe_dns_hijack(check: &crate::config::DnsHijackCheck) -> ProbeResult {
+    let label = format!("{} → {}", check.server, check.domain);
+    let server = check.server.clone();
+    let domain = check.domain.clone();
+    let expected = check.expected.clone();
+    let result = (|| -> anyhow::Result<String> {
+        let server_ip: std::net::IpAddr = server
+            .parse()
+            .map_err(|_| anyhow!("Invalid DNS server IP: {}", server))?;
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?;
+        rt.block_on(async {
+            use hickory_resolver::config::{NameServerConfigGroup, ResolverConfig, ResolverOpts};
+            use hickory_resolver::TokioAsyncResolver;
+            let group = NameServerConfigGroup::from_ips_clear(&[server_ip], 53, true);
+            let config = ResolverConfig::from_parts(None, vec![], group);
+            let resolver = TokioAsyncResolver::tokio(config, ResolverOpts::default());
+            let lookup = resolver
+                .lookup_ip(domain.as_str())
+                .await
+                .map_err(|e| anyhow!("DNS lookup failed: {e}"))?;
+            let ips: Vec<String> = lookup.iter().map(|ip| ip.to_string()).collect();
+            if ips.iter().any(|ip| ip == &expected) {
+                Ok::<String, anyhow::Error>(format!("{} (match)", expected))
+            } else {
+                Err(anyhow!("got {}, expected {}", ips.join(", "), expected))
+            }
+        })
+    })();
+    match result {
+        Ok(detail) => ProbeResult { label, passed: true, detail },
+        Err(e) => ProbeResult { label, passed: false, detail: e.to_string() },
+    }
+}
+
 // ── Placeholder run() — will be fleshed out in Task 10 ───────────────────────
 
 pub fn run(_config: &crate::config::NetstatusConfig, _silent: bool) -> anyhow::Result<()> {
