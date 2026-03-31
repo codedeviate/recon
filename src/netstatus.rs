@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Result};
+use colored::Colorize;
 use socket2::{Domain, Protocol, Socket, Type};
 use std::mem::MaybeUninit;
 use std::net::{SocketAddr, ToSocketAddrs};
@@ -410,8 +411,161 @@ async fn check_public_ip(sources: &[String]) -> IpCheckResult {
 
 // ── Placeholder run() — will be fleshed out in Task 10 ───────────────────────
 
-pub fn run(_config: &crate::config::NetstatusConfig, _silent: bool) -> anyhow::Result<()> {
-    todo!("implemented in Task 10")
+pub fn run(config: &crate::config::NetstatusConfig, silent: bool) -> anyhow::Result<()> {
+    // Parse all probe strings into typed Probes
+    let probes: Vec<Probe> = config
+        .probes
+        .iter()
+        .map(|s| parse_probe(s, &config.dns_lookup_domains))
+        .collect::<Result<Vec<_>>>()?;
+
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .map_err(|e| anyhow!("Failed to build async runtime: {e}"))?;
+
+    let (ip_result, probe_results, hijack_results) = rt.block_on(async {
+        // ── Public IP check (async) ───────────────────────────────────────
+        let ip_fut = check_public_ip(&config.ip_sources);
+
+        // ── Probe tasks (blocking, in thread pool) ────────────────────────
+        let probe_handles: Vec<_> = probes
+            .into_iter()
+            .map(|probe| {
+                tokio::task::spawn_blocking(move || match &probe {
+                    Probe::Http(url) => probe_http(url),
+                    Probe::Ping { host, port } => probe_ping(host, *port),
+                    Probe::Dns { server, domain } => probe_dns(server, domain),
+                    Probe::Tcp { host, port } => probe_tcp(host, *port),
+                    Probe::Tls { host, port } => probe_tls(host, *port),
+                    Probe::Ntp(host) => probe_ntp(host),
+                })
+            })
+            .collect();
+
+        // ── DNS hijack tasks (blocking, in thread pool) ───────────────────
+        let hijack_handles: Vec<_> = config
+            .dns_hijack_checks
+            .iter()
+            .map(|check| {
+                let check = check.clone();
+                tokio::task::spawn_blocking(move || probe_dns_hijack(&check))
+            })
+            .collect();
+
+        // ── Collect results (maintain order) ─────────────────────────────
+        let ip_result = ip_fut.await;
+
+        let mut probe_results = Vec::new();
+        for h in probe_handles {
+            probe_results.push(h.await.unwrap_or_else(|_| ProbeResult {
+                label: "(probe panicked)".into(),
+                passed: false,
+                detail: "internal error".into(),
+            }));
+        }
+
+        let mut hijack_results = Vec::new();
+        for h in hijack_handles {
+            hijack_results.push(h.await.unwrap_or_else(|_| ProbeResult {
+                label: "(hijack check panicked)".into(),
+                passed: false,
+                detail: "internal error".into(),
+            }));
+        }
+
+        (ip_result, probe_results, hijack_results)
+    });
+
+    // ── Convert IP result to ProbeResult so overall_status() covers it ──
+    let any_ip_check = !config.ip_sources.is_empty();
+    let ip_probe = if any_ip_check {
+        let (passed, detail) = if ip_result.ips.is_empty() {
+            (false, "all sources failed".to_string())
+        } else if ip_result.agreed {
+            (true, format!(
+                "{} ({}/{} sources agree)",
+                ip_result.agreed_ip.as_deref().unwrap_or("?"),
+                ip_result.ips.len(),
+                config.ip_sources.len()
+            ))
+        } else {
+            let parts: Vec<String> = ip_result.ips.iter()
+                .map(|(s, ip)| format!("{}: {}", s, ip))
+                .collect();
+            (false, format!("IP mismatch — {}", parts.join(", ")))
+        };
+        Some(ProbeResult { label: "Public IP".to_string(), passed, detail })
+    } else {
+        None
+    };
+
+    // Combine all results and compute status
+    let all_owned: Vec<ProbeResult> = ip_probe.iter()
+        .map(|r| ProbeResult { label: r.label.clone(), passed: r.passed, detail: r.detail.clone() })
+        .chain(probe_results.iter().map(|r| ProbeResult { label: r.label.clone(), passed: r.passed, detail: r.detail.clone() }))
+        .chain(hijack_results.iter().map(|r| ProbeResult { label: r.label.clone(), passed: r.passed, detail: r.detail.clone() }))
+        .collect();
+    let status = overall_status(&all_owned);
+
+    if silent {
+        if status != "ONLINE" {
+            return Err(anyhow!("network check failed"));
+        }
+        return Ok(());
+    }
+
+    // ── Print output ──────────────────────────────────────────────────────
+    println!("Network Status");
+    println!("{}", "═".repeat(50));
+
+    // Public IP section
+    if let Some(ref r) = ip_probe {
+        println!();
+        println!("Public IP");
+        let mark = if r.passed { "✓".green() } else { "✗".red() };
+        println!("  {} {}", mark, r.detail);
+        // On mismatch, also print per-source breakdown
+        if !r.passed && !ip_result.ips.is_empty() {
+            for (src, ip) in &ip_result.ips {
+                println!("    {}: {}", src, ip);
+            }
+        }
+    }
+
+    // Probes section
+    if !probe_results.is_empty() {
+        println!();
+        println!("Probes");
+        for r in &probe_results {
+            let mark = if r.passed { "✓".green() } else { "✗".red() };
+            println!("  {} {:<40} {}", mark, r.label, r.detail);
+        }
+    }
+
+    // DNS Hijack Checks section
+    if !hijack_results.is_empty() {
+        println!();
+        println!("DNS Hijack Checks");
+        for r in &hijack_results {
+            let mark = if r.passed { "✓".green() } else { "✗".red() };
+            println!("  {} {:<35} {}", mark, r.label, r.detail);
+        }
+    }
+
+    // Overall
+    println!();
+    let status_colored = match status {
+        "ONLINE" => "ONLINE".green().bold(),
+        "OFFLINE" => "OFFLINE".red().bold(),
+        _ => "DEGRADED".yellow().bold(),
+    };
+    println!("Overall: {}", status_colored);
+
+    if status != "ONLINE" {
+        return Err(anyhow!("network check failed"));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
