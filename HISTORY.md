@@ -18,6 +18,13 @@ recon follows semantic versioning (`MAJOR.MINOR.PATCH`):
 
 ## Version Log
 
+### [0.7.2]
+
+#### Changed
+- `--serve-sni` now accepts an omitted value and defaults to `~/.recon/sni/`, so `recon --serve-sni` uses that directory automatically.
+
+---
+
 ### [0.7.0]
 
 #### Added

@@ -197,7 +197,8 @@ pub struct Args {
     pub serve_log: Option<std::path::PathBuf>,
 
     /// SNI hostname-to-certificate mapping (repeatable: inline host:cert:key, directory, or config file)
-    #[arg(long = "serve-sni", value_name = "MAPPING", action = clap::ArgAction::Append)]
+    /// Omit the value to use the default directory: ~/.recon/sni/
+    #[arg(long = "serve-sni", value_name = "MAPPING", num_args = 0..=1, default_missing_value = "~/.recon/sni/", action = clap::ArgAction::Append)]
     pub serve_sni: Vec<String>,
 
     /// Cookie jar to use for this request (name or path to a .db file).
