@@ -18,6 +18,25 @@ recon follows semantic versioning (`MAJOR.MINOR.PATCH`):
 
 ## Version Log
 
+### [0.8.0]
+
+#### Added
+- `--editor [EDITOR]`: redirect response output to a file and open it in an editor.
+  Accepts a built-in alias (`zed`, `code`, `cursor`, `subl`, `vim`, `nvim`, `nano`,
+  `emacs`), a user-defined alias from `~/.recon/config.toml`, or a raw shell
+  command. When the flag is given with no value, falls back to
+  `[editor] default` in the config. The temp file is written to
+  `/tmp/recon-<unix-ms>.<ext>` with the extension derived from the response
+  `Content-Type`. By default stdout is silent; `-vv` or higher also mirrors the
+  body to stdout.
+- `--editor-cleanup`: remove all `/tmp/recon-*` temp files from previous
+  `--editor` invocations. Standalone action — does not require a URL.
+- `[editor]` config section in `~/.recon/config.toml`:
+  `default` (optional alias used when `--editor` has no value) and
+  `[editor.aliases]` (optional map of user-defined alias → command).
+
+---
+
 ### [0.7.3]
 
 #### Changed
