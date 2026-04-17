@@ -18,6 +18,20 @@ recon follows semantic versioning (`MAJOR.MINOR.PATCH`):
 
 ## Version Log
 
+### [0.10.0]
+
+#### Changed
+- `--sample lorem` now produces randomized output instead of deterministic
+  rotation through the corpus. Each invocation yields different text.
+
+#### Added
+- `--sample-seed <N>`: optional u64 seed for lorem generation. When set,
+  output is reproducible for that seed + count + unit. When omitted, a
+  seed is derived from the current system time.
+- Using `--sample-seed` with a non-lorem sample is a loud error.
+
+---
+
 ### [0.9.0]
 
 #### Added
