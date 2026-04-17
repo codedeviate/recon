@@ -501,6 +501,17 @@ fn spec_from_config(
     for (k, v) in &cfg.urls {
         urls.insert(k.clone(), expand_env(v)?);
     }
+
+    if mode != SampleMode::PerItem {
+        for (fmt, url_tpl) in &urls {
+            if url_tpl.contains("{{n}}") {
+                return Err(format!(
+                    "sample '{name}': URL for format '{fmt}' contains {{{{n}}}} but mode is not 'per_item'"
+                ));
+            }
+        }
+    }
+
     let mut headers = Vec::with_capacity(cfg.headers.len());
     for h in &cfg.headers {
         headers.push(expand_env(h)?);
@@ -952,5 +963,52 @@ mod tests {
     fn parse_sample_arg_lorem_with_unit() {
         let p = parse_sample_arg("lorem::3p").unwrap();
         assert_eq!(p.count, Some(CountSpec { n: 3, unit: Some(CountUnit::P) }));
+    }
+
+    #[test]
+    fn resolve_rejects_n_placeholder_in_bulk_url() {
+        let mut cfg = HashMap::new();
+        cfg.insert(
+            "bad".into(),
+            SampleDataConfig {
+                mode: Some("bulk".into()),
+                default_format: Some("json".into()),
+                count: None,
+                description: None,
+                urls: {
+                    let mut u = HashMap::new();
+                    u.insert("json".into(), "https://x/?i={{n}}".into());
+                    u
+                },
+                headers: vec![],
+                basic_auth: None,
+            },
+        );
+        let err = resolve("bad", None, None, &cfg).unwrap_err();
+        assert!(err.contains("{{n}}"));
+        assert!(err.contains("per_item"));
+    }
+
+    #[test]
+    fn resolve_accepts_n_placeholder_in_per_item_url() {
+        let mut cfg = HashMap::new();
+        cfg.insert(
+            "img2".into(),
+            SampleDataConfig {
+                mode: Some("per_item".into()),
+                default_format: Some("jpg".into()),
+                count: None,
+                description: None,
+                urls: {
+                    let mut u = HashMap::new();
+                    u.insert("jpg".into(), "https://img/?i={{n}}".into());
+                    u
+                },
+                headers: vec![],
+                basic_auth: None,
+            },
+        );
+        let ok = resolve("img2", None, None, &cfg);
+        assert!(ok.is_ok(), "expected Ok, got {:?}", ok);
     }
 }
