@@ -18,6 +18,16 @@ recon follows semantic versioning (`MAJOR.MINOR.PATCH`):
 
 ## Version Log
 
+### [0.10.1]
+
+#### Changed
+- `--sample lorem` output now always begins with the words "Lorem ipsum" —
+  the first paragraph's opener is fixed, the first two words in word mode
+  are fixed, and character mode starts with the prefix (truncated if
+  `--sample-count` is smaller than 11). Remaining content stays random.
+
+---
+
 ### [0.10.0]
 
 #### Changed

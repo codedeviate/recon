@@ -1,4 +1,6 @@
-//! Deterministic local lorem ipsum generator. No HTTP, no randomness.
+//! Local lorem ipsum generator. Randomized per invocation with a xorshift64
+//! PRNG; optional seed makes output reproducible. Always starts with
+//! "Lorem ipsum".
 
 use crate::sampledata::{CountSpec, CountUnit};
 
@@ -44,15 +46,19 @@ fn pick(state: &mut u64, len: usize) -> usize {
 
 /// Generate lorem ipsum text for the given `CountSpec` seeded by `seed`.
 ///
+/// Output always begins with the words "Lorem ipsum" (truncated to the
+/// available length if `n` is smaller than 11 in `C` mode, or smaller than
+/// 2 in `W` mode, etc.).
+///
 /// - Unit `P` (or `None` — defaults to paragraphs): emit `n` paragraphs
-///   separated by a blank line. Each paragraph is 3 sentences picked at
-///   random from the corpus.
-/// - Unit `W`: emit `n` words from the corpus joined with spaces. Words
-///   are picked at random from the pool; sentence breaks follow a fixed
-///   rhythm (every 8–15 words) so the output reads naturally.
-/// - Unit `C`: emit exactly `n` characters. Builds a randomized word
-///   stream, then truncates on a word boundary, padding with spaces if
-///   truncation leaves the output short.
+///   separated by a blank line. The first paragraph's first sentence is
+///   always the classic `CORPUS[0]` opener; every other sentence is random.
+/// - Unit `W`: emit `n` words from the corpus joined with spaces. The first
+///   two words are always "Lorem" and "ipsum"; remaining words are random.
+///   Sentence breaks follow a fixed rhythm (every 8–15 words).
+/// - Unit `C`: emit exactly `n` characters. Starts with "Lorem ipsum"
+///   (truncated if `n < 11`); for larger `n`, appends random words and
+///   truncates at a word boundary, padding with spaces if necessary.
 ///
 /// A `seed` of 0 is internally rewritten to 1 because xorshift64 has a
 /// fixed point at 0.
@@ -71,13 +77,20 @@ fn generate_paragraphs(n: u32, state: &mut u64) -> String {
         if i > 0 {
             out.push_str("\n\n");
         }
-        // Each paragraph: 3 random sentences from the corpus.
+        // Each paragraph: 3 sentences. The very first sentence of the first
+        // paragraph is always CORPUS[0] ("Lorem ipsum dolor sit amet, …") so
+        // the output reliably opens with "Lorem ipsum". Every other sentence
+        // is random.
         for s in 0..3 {
             if s > 0 {
                 out.push(' ');
             }
-            let idx = pick(state, CORPUS.len());
-            out.push_str(CORPUS[idx]);
+            let sentence = if i == 0 && s == 0 {
+                CORPUS[0]
+            } else {
+                CORPUS[pick(state, CORPUS.len())]
+            };
+            out.push_str(sentence);
         }
     }
     out
@@ -91,6 +104,9 @@ fn generate_words(n: u32, state: &mut u64) -> String {
     if pool.is_empty() || n == 0 {
         return String::new();
     }
+    // First two positions are always "Lorem" and "ipsum".
+    const FIXED_PREFIX: &[&str] = &["Lorem", "ipsum"];
+
     let mut out = String::new();
     let mut since_sentence: u32 = 0;
     let sentence_breaks = [12u32, 9, 14, 8, 11, 15];
@@ -100,19 +116,30 @@ fn generate_words(n: u32, state: &mut u64) -> String {
         if i > 0 {
             out.push(' ');
         }
-        let raw = pool[pick(state, pool.len())];
-        let word: String = raw
-            .chars()
-            .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '\'')
-            .collect();
-        if i == 0 || since_sentence == 0 {
-            let mut chars = word.chars();
-            if let Some(first) = chars.next() {
-                out.push_str(&first.to_uppercase().to_string());
-                out.push_str(chars.as_str());
+        let idx = i as usize;
+        if idx < FIXED_PREFIX.len() {
+            // Fixed opener: "Lorem" (capitalised) then "ipsum" (lowercase).
+            let fw = FIXED_PREFIX[idx];
+            if idx == 0 {
+                out.push_str(fw);
+            } else {
+                out.push_str(&fw.to_lowercase());
             }
         } else {
-            out.push_str(&word.to_lowercase());
+            let raw = pool[pick(state, pool.len())];
+            let word: String = raw
+                .chars()
+                .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '\'')
+                .collect();
+            if since_sentence == 0 {
+                let mut chars = word.chars();
+                if let Some(first) = chars.next() {
+                    out.push_str(&first.to_uppercase().to_string());
+                    out.push_str(chars.as_str());
+                }
+            } else {
+                out.push_str(&word.to_lowercase());
+            }
         }
         since_sentence += 1;
         if since_sentence >= sentence_breaks[break_idx % sentence_breaks.len()] {
@@ -132,17 +159,25 @@ fn generate_characters(n: u32, state: &mut u64) -> String {
         return String::new();
     }
     let target = n as usize;
+    const PREFIX: &str = "Lorem ipsum";
+
+    // If target fits inside the fixed prefix, truncate the prefix itself.
+    // PREFIX is ASCII so byte index == char index.
+    if target <= PREFIX.len() {
+        return PREFIX[..target].to_string();
+    }
+
     let pool: Vec<&str> = CORPUS
         .iter()
         .flat_map(|s| s.split_whitespace())
         .collect();
 
-    // Build a randomized stream of words until we exceed target length.
+    // Start with the fixed prefix and append random words until we exceed
+    // target length.
     let mut source = String::with_capacity(target + 32);
+    source.push_str(PREFIX);
     while source.len() < target {
-        if !source.is_empty() {
-            source.push(' ');
-        }
+        source.push(' ');
         source.push_str(pool[pick(state, pool.len())]);
     }
 
@@ -151,7 +186,8 @@ fn generate_characters(n: u32, state: &mut u64) -> String {
     }
 
     // Truncate at a byte boundary, then back up to the previous word
-    // boundary. Pad with spaces so char count == target exactly.
+    // boundary — but never below the fixed prefix. Pad with spaces so char
+    // count == target exactly.
     let mut cut = target;
     while cut > 0 && !source.is_char_boundary(cut) {
         cut -= 1;
@@ -159,13 +195,16 @@ fn generate_characters(n: u32, state: &mut u64) -> String {
     if cut < source.len() {
         let bytes = source.as_bytes();
         if cut < bytes.len() && bytes[cut] != b' ' {
-            while cut > 0 && bytes[cut - 1] != b' ' {
+            while cut > PREFIX.len() && bytes[cut - 1] != b' ' {
                 cut -= 1;
             }
-            if cut > 0 && bytes[cut - 1] == b' ' {
+            if cut > PREFIX.len() && bytes[cut - 1] == b' ' {
                 cut -= 1;
             }
         }
+    }
+    if cut < PREFIX.len() {
+        cut = PREFIX.len();
     }
     let mut truncated: String = source.chars().take(cut).collect();
     while truncated.chars().count() < target {
@@ -264,5 +303,61 @@ mod tests {
         let a = generate(spec(3, Some(CountUnit::P)), 0);
         let b = generate(spec(3, Some(CountUnit::P)), 1);
         assert_eq!(a, b);
+    }
+
+    #[test]
+    fn paragraphs_always_start_with_lorem_ipsum() {
+        for seed in [1u64, 42, 999, 7, u64::MAX] {
+            let out = generate(spec(3, Some(CountUnit::P)), seed);
+            assert!(
+                out.starts_with("Lorem ipsum"),
+                "seed={seed} got: {out:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn words_always_start_with_lorem_ipsum() {
+        for seed in [1u64, 42, 999] {
+            let out = generate(spec(5, Some(CountUnit::W)), seed);
+            assert!(
+                out.starts_with("Lorem ipsum"),
+                "seed={seed} got: {out:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn words_one_word_is_lorem() {
+        let out = generate(spec(1, Some(CountUnit::W)), TEST_SEED);
+        // One word + the trailing period inserted at end.
+        assert_eq!(out, "Lorem.");
+    }
+
+    #[test]
+    fn words_two_words_are_lorem_ipsum() {
+        let out = generate(spec(2, Some(CountUnit::W)), TEST_SEED);
+        // Two words + trailing period.
+        assert_eq!(out, "Lorem ipsum.");
+    }
+
+    #[test]
+    fn characters_always_start_with_lorem_ipsum() {
+        for target in [11u32, 12, 20, 50, 200, 1000] {
+            let out = generate(spec(target, Some(CountUnit::C)), TEST_SEED);
+            assert!(
+                out.starts_with("Lorem ipsum"),
+                "target={target} got: {out:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn characters_short_target_truncates_prefix() {
+        assert_eq!(generate(spec(1, Some(CountUnit::C)), TEST_SEED), "L");
+        assert_eq!(generate(spec(5, Some(CountUnit::C)), TEST_SEED), "Lorem");
+        assert_eq!(generate(spec(6, Some(CountUnit::C)), TEST_SEED), "Lorem ");
+        assert_eq!(generate(spec(10, Some(CountUnit::C)), TEST_SEED), "Lorem ipsu");
+        assert_eq!(generate(spec(11, Some(CountUnit::C)), TEST_SEED), "Lorem ipsum");
     }
 }
