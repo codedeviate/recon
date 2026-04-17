@@ -108,9 +108,12 @@ fn main() {
 
     // ── Sample data: list available samples ──────────────────────────────────
     if args.sample_list {
-        let cfg_map = match config::load() {
-            Ok(c) => c.sampledata,
-            Err(_) => std::collections::HashMap::new(),
+        let cfg_map = match load_sampledata_config() {
+            Ok(m) => m,
+            Err(e) => {
+                eprintln!("error: {e}");
+                std::process::exit(1);
+            }
         };
         print_sample_list(&sampledata::list_samples(&cfg_map));
         return;
@@ -460,6 +463,20 @@ fn load_editor_config() -> (Option<String>, std::collections::HashMap<String, St
     }
 }
 
+/// Load `[sampledata.*]` from ~/.recon/config.toml. Returns an empty map
+/// when the config file simply doesn't exist (fine — built-ins always
+/// work). Propagates real parse/IO errors so the user sees them.
+fn load_sampledata_config() -> anyhow::Result<std::collections::HashMap<String, config::SampleDataConfig>> {
+    let path = std::path::PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| ".".to_string()))
+        .join(".recon")
+        .join("config.toml");
+    if !path.exists() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let cfg = config::load()?;
+    Ok(cfg.sampledata)
+}
+
 fn run_sample(args: &Args) -> anyhow::Result<()> {
     use sampledata::SampleMode;
 
@@ -475,10 +492,7 @@ fn run_sample(args: &Args) -> anyhow::Result<()> {
         None => parsed.count,
     };
 
-    let cfg_map = match config::load() {
-        Ok(c) => c.sampledata,
-        Err(_) => std::collections::HashMap::new(),
-    };
+    let cfg_map = load_sampledata_config()?;
 
     let resolved = sampledata::resolve(&parsed.name, format_override, count_override, &cfg_map)
         .map_err(|e| anyhow::anyhow!("{e}"))?;
