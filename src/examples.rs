@@ -486,6 +486,28 @@ pub fn print() {
         "# expected = \"93.184.216.34\"",
     ]);
 
+    section("EDITOR OUTPUT");
+
+    example("Open the response in an editor (--editor [EDITOR])", &[
+        "recon --editor zed https://httpbin.org/get",
+        "recon --editor code https://example.com",
+        "recon --editor vim -p https://api.github.com",
+    ]);
+    example("Use a raw command passed through sh -c", &[
+        r#"recon --editor "code --new-window" https://example.com"#,
+        r#"recon --editor "subl -n" https://example.com"#,
+    ]);
+    example("Use the default editor from ~/.recon/config.toml [editor] default", &[
+        "recon --editor https://example.com",
+    ]);
+    example("Mirror the body to stdout as well (-vv)", &[
+        "recon --editor zed -vv https://httpbin.org/get",
+    ]);
+    example("Purge all /tmp/recon-* temp files (standalone action)", &[
+        "recon --editor-cleanup",
+    ]);
+    note("Built-in aliases: zed, code, cursor, subl, vim, nvim, nano, emacs. User aliases can be added under [editor.aliases] in ~/.recon/config.toml.");
+
     println!();
 }
 
