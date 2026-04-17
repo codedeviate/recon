@@ -486,6 +486,39 @@ pub fn print() {
         "# expected = \"93.184.216.34\"",
     ]);
 
+    section("SAMPLE DATA");
+
+    example("10 customers in JSON (default)", &[
+        "recon --sample customer",
+    ]);
+    example("Colon shortcut: NAME[:FORMAT[:COUNT]]", &[
+        "recon --sample customer:json:25",
+        "recon --sample product::5",
+    ]);
+    example("Override count or format with explicit flags", &[
+        "recon --sample customer --sample-count 50",
+        "recon --sample product --sample-format json",
+    ]);
+    example("Save to a file (bulk mode)", &[
+        "recon --sample product --sample-file products.json",
+    ]);
+    example("Save per-item results (images)", &[
+        "recon --sample image --sample-count 5 --sample-file img-{{n}}.jpg",
+    ]);
+    example("Local lorem ipsum with unit suffix", &[
+        "recon --sample lorem --sample-count 3p     # 3 paragraphs",
+        "recon --sample lorem --sample-count 50w    # 50 words",
+        "recon --sample lorem --sample-count 200c   # 200 characters",
+    ]);
+    example("Open sample data in an editor", &[
+        "recon --sample product --editor zed",
+        "recon --sample lorem --sample-count 5p --editor code",
+    ]);
+    example("List all available samples", &[
+        "recon --sample-list",
+    ]);
+    note("Custom samples (including paid APIs with Bearer tokens) can be added in ~/.recon/config.toml under [sampledata.<name>]. See --help sample for details.");
+
     section("EDITOR OUTPUT");
 
     example("Open the response in an editor (--editor [EDITOR])", &[

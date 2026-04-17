@@ -545,6 +545,58 @@ static TOPIC_JWT: Topic = Topic {
     ],
 };
 
+static TOPIC_SAMPLE: Topic = Topic {
+    title: "Sample Data",
+    description: "Fetch canned ecommerce sample data (customers, products, orders, categories,\n\
+                  addresses, images) from known free APIs, or generate local lorem ipsum. All\n\
+                  built-ins are overridable in ~/.recon/config.toml, and you can add your own\n\
+                  named samples — including paid APIs with Bearer tokens — by defining a\n\
+                  [sampledata.<name>] section.\n\
+                  \n\
+                  Note: because --sample takes a value, place the URL-less form such as\n\
+                  --sample customer, --sample customer:csv:25, etc. Use --sample-list to see\n\
+                  what's available.",
+    flags: &[
+        FlagHelp {
+            flags: "--sample <NAME[:FORMAT[:COUNT]]>",
+            description: "Fetch sample data by name. The colon shortcut lets you set format and\n\
+                          count inline; empty slots fall back to defaults. Built-in names:\n\
+                          customer, product, order, category, address, image, lorem.",
+        },
+        FlagHelp {
+            flags: "--sample-format <FMT>",
+            description: "Override the format (takes precedence over the colon shortcut).",
+        },
+        FlagHelp {
+            flags: "--sample-count <N[p|w|c]>",
+            description: "Override the count. Unit suffixes p/w/c are only valid for the\n\
+                          local 'lorem' sample. Non-lorem samples error on a unit suffix.",
+        },
+        FlagHelp {
+            flags: "--sample-file [PATH]",
+            description: "Write output to file(s). Default filename is\n\
+                          sample-{{name}}.{{format}} (bulk) or\n\
+                          sample-{{name}}-{{n}}.{{format}} (per_item).\n\
+                          Required when per_item sample count > 1.",
+        },
+        FlagHelp {
+            flags: "--sample-list",
+            description: "Standalone action: list all available samples (built-in plus\n\
+                          user-configured). Does not require a URL.",
+        },
+    ],
+    related: &["--editor", "-o / --output", "-p / --prettify", "-i / --include"],
+    examples: &[
+        ExampleHelp { description: "10 customers to stdout", command: "recon --sample customer" },
+        ExampleHelp { description: "25 products, prettified", command: "recon --sample product --sample-count 25 -p" },
+        ExampleHelp { description: "Colon shortcut: 25 customers as JSON", command: "recon --sample customer:json:25" },
+        ExampleHelp { description: "Open products in Zed", command: "recon --sample product --editor zed" },
+        ExampleHelp { description: "3 random images saved to files", command: "recon --sample image --sample-count 3 --sample-file img-{{n}}.jpg" },
+        ExampleHelp { description: "50 words of lorem ipsum", command: "recon --sample lorem --sample-count 50w" },
+        ExampleHelp { description: "List all samples", command: "recon --sample-list" },
+    ],
+};
+
 static TOPIC_EDITOR: Topic = Topic {
     title: "Editor Output",
     description: "Redirect recon's response output into an editor. Saves the body (or whatever the\n\
@@ -628,6 +680,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "telnet" => Some(&TOPIC_TELNET),
         "jwt" | "jwt-token" | "token" => Some(&TOPIC_JWT),
         "netstatus" => Some(&TOPIC_NETSTATUS),
+        "sample" | "sampledata" | "sample-data" => Some(&TOPIC_SAMPLE),
         "editor" | "editor-output" => Some(&TOPIC_EDITOR),
         "serve" | "server" => Some(&TOPIC_SERVE),
         "serve-tls" | "serve-https" | "https-server" => Some(&TOPIC_SERVE_TLS),
@@ -688,6 +741,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "ssh",
         "telnet",
         "jwt",
+        "sample",
         "editor",
         "serve",
         "serve-tls",
