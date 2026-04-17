@@ -116,6 +116,20 @@ fn main() {
         return;
     }
 
+    // ── Sample data: fetch / generate ────────────────────────────────────────
+    if args.sample.is_some() {
+        let result = run_sample(&args);
+        if let Err(err) = result {
+            if args.full_errors {
+                eprintln!("error: {err:#}");
+            } else {
+                eprintln!("error: {}", friendly_message(&err));
+            }
+            std::process::exit(1);
+        }
+        return;
+    }
+
     // ── Network status ───────────────────────────────────────────────────────
     if args.netstatus {
         let cfg = config::load();
@@ -444,6 +458,103 @@ fn load_editor_config() -> (Option<String>, std::collections::HashMap<String, St
         // still resolve built-in aliases and raw commands without it.
         Err(_) => (None, std::collections::HashMap::new()),
     }
+}
+
+fn run_sample(args: &Args) -> anyhow::Result<()> {
+    use sampledata::SampleMode;
+
+    let raw = args.sample.as_deref().unwrap_or("");
+    let parsed = sampledata::parse_sample_arg(raw).map_err(|e| anyhow::anyhow!("{e}"))?;
+
+    let format_override = args
+        .sample_format
+        .as_deref()
+        .or(parsed.format.as_deref());
+    let count_override = match &args.sample_count {
+        Some(s) => Some(sampledata::parse_count(s).map_err(|e| anyhow::anyhow!("{e}"))?),
+        None => parsed.count,
+    };
+
+    let cfg_map = match config::load() {
+        Ok(c) => c.sampledata,
+        Err(_) => std::collections::HashMap::new(),
+    };
+
+    let resolved = sampledata::resolve(&parsed.name, format_override, count_override, &cfg_map)
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+
+    // Early guard: --sample-file and --output are mutually exclusive.
+    if args.sample_file.is_some() && args.output.is_some() {
+        anyhow::bail!("-o and --sample-file are mutually exclusive");
+    }
+
+    match resolved.spec.mode {
+        SampleMode::Local => run_sample_local(&resolved, args),
+        SampleMode::Bulk => anyhow::bail!("sample mode 'bulk' not yet implemented"),
+        SampleMode::PerItem => anyhow::bail!("sample mode 'per_item' not yet implemented"),
+    }
+}
+
+fn run_sample_local(resolved: &sampledata::ResolvedSample, args: &Args) -> anyhow::Result<()> {
+    use anyhow::Context;
+
+    let bytes = crate::lorem::generate(resolved.count).into_bytes();
+
+    if let Some(sf) = &args.sample_file {
+        let path = resolve_sample_file_path(sf, &resolved.name, &resolved.format, None)?;
+        std::fs::write(&path, &bytes)
+            .with_context(|| format!("failed to write {}", path.display()))?;
+        if !args.silent {
+            eprintln!("Saved to {}", path.display());
+        }
+        return Ok(());
+    }
+
+    if args.editor.is_some() {
+        let (cfg_default, user_aliases) = load_editor_config();
+        let flag_value = args.editor.as_deref().unwrap_or("");
+        let ed = editor::resolve_editor(flag_value, cfg_default.as_deref(), &user_aliases)
+            .map_err(|_| anyhow::anyhow!(
+                "--editor: no value given and no [editor] default in ~/.recon/config.toml"
+            ))?;
+        let path = editor::create_temp_file(&resolved.format, &bytes)
+            .context("failed to write editor temp file")?;
+        editor::spawn_editor(&ed, &path)
+            .with_context(|| format!("failed to launch editor for {}", path.display()))?;
+        return Ok(());
+    }
+
+    std::io::Write::write_all(&mut std::io::stdout(), &bytes)?;
+    Ok(())
+}
+
+/// Resolve a `--sample-file` template to an actual filesystem path.
+/// `iteration` is `Some(i)` in per_item mode, `None` otherwise.
+fn resolve_sample_file_path(
+    template: &str,
+    name: &str,
+    format: &str,
+    iteration: Option<u32>,
+) -> anyhow::Result<std::path::PathBuf> {
+    let tpl = if template.is_empty() {
+        // Default template: per_item uses {{n}}, others do not.
+        if iteration.is_some() {
+            "sample-{{name}}-{{n}}.{{format}}".to_string()
+        } else {
+            "sample-{{name}}.{{format}}".to_string()
+        }
+    } else {
+        template.to_string()
+    };
+
+    let mut vars: std::collections::HashMap<&str, String> = std::collections::HashMap::new();
+    vars.insert("name", name.to_string());
+    vars.insert("format", format.to_string());
+    if let Some(i) = iteration {
+        vars.insert("n", i.to_string());
+    }
+    let s = sampledata::expand_template(&tpl, &vars).map_err(|e| anyhow::anyhow!("{e}"))?;
+    Ok(std::path::PathBuf::from(s))
 }
 
 fn print_sample_list(entries: &[sampledata::SampleListEntry]) {
