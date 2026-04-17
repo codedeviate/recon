@@ -584,6 +584,12 @@ static TOPIC_SAMPLE: Topic = Topic {
             description: "Standalone action: list all available samples (built-in plus\n\
                           user-configured). Does not require a URL.",
         },
+        FlagHelp {
+            flags: "--sample-seed <N>",
+            description: "Seed for lorem ipsum randomization. When omitted, a seed is\n\
+                          derived from the current system time. Using this flag with\n\
+                          any non-lorem sample is an error.",
+        },
     ],
     related: &["--editor", "-o / --output", "-p / --prettify", "-i / --include"],
     examples: &[
@@ -593,6 +599,7 @@ static TOPIC_SAMPLE: Topic = Topic {
         ExampleHelp { description: "Open products in Zed", command: "recon --sample product --editor zed" },
         ExampleHelp { description: "3 random images saved to files", command: "recon --sample image --sample-count 3 --sample-file img-{{n}}.jpg" },
         ExampleHelp { description: "50 words of lorem ipsum", command: "recon --sample lorem --sample-count 50w" },
+        ExampleHelp { description: "Reproducible lorem with a seed", command: "recon --sample lorem --sample-count 3p --sample-seed 42" },
         ExampleHelp { description: "List all samples", command: "recon --sample-list" },
     ],
 };

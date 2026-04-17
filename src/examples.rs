@@ -510,6 +510,10 @@ pub fn print() {
         "recon --sample lorem --sample-count 50w    # 50 words",
         "recon --sample lorem --sample-count 200c   # 200 characters",
     ]);
+    example("Reproducible lorem with --sample-seed", &[
+        "recon --sample lorem --sample-count 3p --sample-seed 42",
+        "recon --sample lorem --sample-count 50w --sample-seed 1000",
+    ]);
     example("Open sample data in an editor", &[
         "recon --sample product --editor zed",
         "recon --sample lorem --sample-count 5p --editor code",
