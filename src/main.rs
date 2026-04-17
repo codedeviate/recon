@@ -90,6 +90,20 @@ fn main() {
         return;
     }
 
+    // ── Editor temp file cleanup (no HTTP request needed) ────────────────────
+    if args.editor_cleanup {
+        match editor::cleanup_temp_files() {
+            Ok(n) => {
+                println!("removed {n} file{}", if n == 1 { "" } else { "s" });
+            }
+            Err(e) => {
+                eprintln!("error: {e}");
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
+
     // ── Network status ───────────────────────────────────────────────────────
     if args.netstatus {
         let cfg = config::load();
