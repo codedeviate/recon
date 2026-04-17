@@ -13,6 +13,7 @@ mod netstatus;
 mod output;
 mod ping;
 mod prettify;
+mod sampledata;
 mod scp;
 mod serve;
 mod ssh;
