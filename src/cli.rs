@@ -352,6 +352,12 @@ pub struct Args {
     /// List all available samples (built-in plus user-configured) and exit.
     #[arg(long = "sample-list")]
     pub sample_list: bool,
+
+    /// Seed for lorem ipsum randomization. When omitted, a seed is derived
+    /// from the current system time. Only valid with the lorem sample —
+    /// using this flag with any other sample is an error.
+    #[arg(long = "sample-seed", value_name = "N")]
+    pub sample_seed: Option<u64>,
 }
 
 impl Args {
