@@ -550,7 +550,12 @@ static TOPIC_EDITOR: Topic = Topic {
     description: "Redirect recon's response output into an editor. Saves the body (or whatever the\n\
                   current output flags would print) to /tmp/recon-<timestamp>.<ext> and launches\n\
                   the editor on it — fire-and-forget. Extensions are derived from Content-Type so\n\
-                  editors get syntax highlighting automatically.",
+                  editors get syntax highlighting automatically.\n\
+                  \n\
+                  Note: because --editor takes an optional value, do NOT put the URL directly\n\
+                  after a bare --editor — clap will consume the URL as the editor value. Either\n\
+                  place the URL first (recon <URL> --editor), use --editor=zed <URL>, or use\n\
+                  --url to disambiguate (recon --editor --url <URL>).",
     flags: &[
         FlagHelp {
             flags: "--editor [EDITOR]",
