@@ -1,9 +1,19 @@
 use anyhow::{anyhow, Context, Result};
 use serde::Deserialize;
+use std::collections::HashMap;
 
 #[derive(Deserialize, Default)]
 pub struct ReconConfig {
     pub netstatus: Option<NetstatusConfig>,
+    pub editor: Option<EditorConfig>,
+}
+
+#[derive(Deserialize, Default, Debug)]
+pub struct EditorConfig {
+    #[serde(default)]
+    pub default: Option<String>,
+    #[serde(default)]
+    pub aliases: HashMap<String, String>,
 }
 
 #[derive(Deserialize, Default)]
@@ -121,5 +131,51 @@ expected = "93.184.216.34"
             ..Default::default()
         };
         assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_parse_editor_config() {
+        let toml_str = r#"
+[editor]
+default = "zed"
+
+[editor.aliases]
+mycode = "code --new-window"
+altzed = "zed --dev"
+"#;
+        let config: ReconConfig = toml::from_str(toml_str).unwrap();
+        let editor = config.editor.expect("editor section should parse");
+        assert_eq!(editor.default.as_deref(), Some("zed"));
+        assert_eq!(
+            editor.aliases.get("mycode").map(String::as_str),
+            Some("code --new-window"),
+        );
+        assert_eq!(
+            editor.aliases.get("altzed").map(String::as_str),
+            Some("zed --dev"),
+        );
+    }
+
+    #[test]
+    fn test_editor_config_all_optional() {
+        let toml_str = r#"
+[editor]
+"#;
+        let config: ReconConfig = toml::from_str(toml_str).unwrap();
+        let editor = config.editor.expect("editor section should parse");
+        assert!(editor.default.is_none());
+        assert!(editor.aliases.is_empty());
+    }
+
+    #[test]
+    fn test_editor_section_missing_is_none() {
+        let toml_str = r#"
+[netstatus]
+ip_sources = []
+dns_lookup_domains = []
+probes = []
+"#;
+        let config: ReconConfig = toml::from_str(toml_str).unwrap();
+        assert!(config.editor.is_none());
     }
 }
