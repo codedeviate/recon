@@ -18,6 +18,30 @@ recon follows semantic versioning (`MAJOR.MINOR.PATCH`):
 
 ## Version Log
 
+### [0.9.0]
+
+#### Added
+- `--sample <NAME[:FORMAT[:COUNT]]>`: fetch sample ecommerce data from known
+  free APIs. Built-in names: `customer`, `product`, `order`, `category`,
+  `address`, `image`, and a local `lorem` generator. Composes with `-p`,
+  `-o`, `--editor`, `-i`, and verbose.
+- `--sample-format <FMT>` and `--sample-count <N[p|w|c]>`: override format
+  and count independently of the colon shortcut. Unit suffixes (`p`, `w`,
+  `c`) are only valid for the local `lorem` sample; passing them to other
+  samples is an error.
+- `--sample-file [PATH]`: write sample output to file(s). Default filename
+  is `sample-{{name}}.{{format}}` (bulk) or `sample-{{name}}-{{n}}.{{format}}`
+  (per_item). Required when `per_item` sample is fetched with count > 1.
+- `--sample-list`: standalone action listing all available samples (built-in
+  plus user-configured). Does not require a URL.
+- `[sampledata.<name>]` config sections in `~/.recon/config.toml`: add or
+  override samples with `mode`, `default_format`, `count`, `urls.<fmt>`,
+  `headers`, `basic_auth`, and `description`. `${ENV_VAR}` substitution is
+  honored in URL, header, and basic_auth strings so secrets stay out of the
+  config file.
+
+---
+
 ### [0.8.0]
 
 #### Added
