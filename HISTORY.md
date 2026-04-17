@@ -18,16 +18,6 @@ recon follows semantic versioning (`MAJOR.MINOR.PATCH`):
 
 ## Version Log
 
-### [0.9.1]
-
-#### Fixed
-- `--sample` per-item mode now executes: makes N sequential HTTP fetches and
-  saves each to a per-iteration filename using the `{{n}}` template. When
-  `--sample-count 1` and no `--sample-file`, output goes to stdout (or to an
-  editor via `--editor`). Guards reject `--editor` with count > 1, missing
-  `--sample-file` when count > 1, and `--sample-file` without `{{n}}` when
-  count > 1.
-
 ### [0.9.0]
 
 #### Added
