@@ -424,6 +424,41 @@ pub fn list_samples(
     out
 }
 
+/// Parsed form of the raw `--sample` CLI value.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SampleArg {
+    pub name: String,
+    pub format: Option<String>,
+    pub count: Option<CountSpec>,
+}
+
+/// Parse `NAME[:FORMAT[:COUNT]]`. Empty format/count slots produce `None`.
+/// Errors on empty name or more than three colon-separated parts.
+pub fn parse_sample_arg(raw: &str) -> Result<SampleArg, String> {
+    let parts: Vec<&str> = raw.split(':').collect();
+    if parts.len() > 3 {
+        return Err(format!(
+            "invalid --sample value '{raw}': expected NAME[:FORMAT[:COUNT]]"
+        ));
+    }
+    let name = parts[0].trim();
+    if name.is_empty() {
+        return Err(format!(
+            "invalid --sample value '{raw}': name is empty"
+        ));
+    }
+    let format = parts.get(1).map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
+    let count = match parts.get(2).map(|s| s.trim()).filter(|s| !s.is_empty()) {
+        Some(c) => Some(parse_count(c)?),
+        None => None,
+    };
+    Ok(SampleArg {
+        name: name.to_string(),
+        format,
+        count,
+    })
+}
+
 /// Build a `SampleSpec` from a user config entry. Reports errors for
 /// missing-required-field combinations and for the reserved `mode = "local"`.
 fn spec_from_config(
@@ -794,5 +829,58 @@ mod tests {
         assert!(list.iter().any(|e| e.name == "customer" && e.source_tag == SampleSource::Overridden));
         assert!(list.iter().any(|e| e.name == "myapi" && e.source_tag == SampleSource::Config));
         assert!(list.iter().any(|e| e.name == "product" && e.source_tag == SampleSource::BuiltIn));
+    }
+
+    #[test]
+    fn parse_sample_arg_plain_name() {
+        let p = parse_sample_arg("customer").unwrap();
+        assert_eq!(p.name, "customer");
+        assert_eq!(p.format, None);
+        assert_eq!(p.count, None);
+    }
+
+    #[test]
+    fn parse_sample_arg_with_format() {
+        let p = parse_sample_arg("customer:csv").unwrap();
+        assert_eq!(p.name, "customer");
+        assert_eq!(p.format.as_deref(), Some("csv"));
+        assert_eq!(p.count, None);
+    }
+
+    #[test]
+    fn parse_sample_arg_with_all_three() {
+        let p = parse_sample_arg("customer:csv:25").unwrap();
+        assert_eq!(p.name, "customer");
+        assert_eq!(p.format.as_deref(), Some("csv"));
+        assert_eq!(p.count, Some(CountSpec { n: 25, unit: None }));
+    }
+
+    #[test]
+    fn parse_sample_arg_empty_slots_are_none() {
+        let p = parse_sample_arg("customer::5").unwrap();
+        assert_eq!(p.name, "customer");
+        assert_eq!(p.format, None);
+        assert_eq!(p.count, Some(CountSpec { n: 5, unit: None }));
+
+        let p = parse_sample_arg("customer:csv:").unwrap();
+        assert_eq!(p.format.as_deref(), Some("csv"));
+        assert_eq!(p.count, None);
+    }
+
+    #[test]
+    fn parse_sample_arg_empty_name_errors() {
+        assert!(parse_sample_arg("").is_err());
+        assert!(parse_sample_arg(":csv").is_err());
+    }
+
+    #[test]
+    fn parse_sample_arg_too_many_parts_errors() {
+        assert!(parse_sample_arg("customer:csv:5:extra").is_err());
+    }
+
+    #[test]
+    fn parse_sample_arg_lorem_with_unit() {
+        let p = parse_sample_arg("lorem::3p").unwrap();
+        assert_eq!(p.count, Some(CountSpec { n: 3, unit: Some(CountUnit::P) }));
     }
 }
