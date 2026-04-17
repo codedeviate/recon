@@ -7,28 +7,89 @@ use std::io::{self, Write};
 
 use crate::cli::Args;
 
-pub fn write_response(mut response: Response, args: &Args) -> Result<()> {
+/// Destination for the "stdout-bound" portion of the response: the body and
+/// the stdout-bound header block (i.e., when `-i`, `--full`, `--LHEAD`, or
+/// `-I` routes headers to stdout instead of stderr). Diagnostic headers at
+/// `-v` still go to stderr via the real stderr handle, unchanged.
+pub enum StdoutSink {
+    /// Write to the process's real stdout.
+    Stdout,
+    /// Write to an in-memory buffer (used by `--editor`). After
+    /// `write_response` returns the caller can read the buffer and route it
+    /// wherever it needs to go.
+    Buffer(Vec<u8>),
+    /// Write to both stdout and an in-memory buffer (used by `--editor -vv`).
+    Tee(Vec<u8>),
+}
+
+impl StdoutSink {
+    fn writer(&mut self) -> Box<dyn Write + '_> {
+        match self {
+            StdoutSink::Stdout => Box::new(io::stdout()),
+            StdoutSink::Buffer(buf) => Box::new(buf),
+            StdoutSink::Tee(buf) => Box::new(TeeWriter {
+                a: io::stdout(),
+                b: buf,
+            }),
+        }
+    }
+
+    /// Consume the sink and return the captured bytes, if any.
+    pub fn into_bytes(self) -> Option<Vec<u8>> {
+        match self {
+            StdoutSink::Stdout => None,
+            StdoutSink::Buffer(b) | StdoutSink::Tee(b) => Some(b),
+        }
+    }
+}
+
+struct TeeWriter<'a, A: Write> {
+    a: A,
+    b: &'a mut Vec<u8>,
+}
+
+impl<'a, A: Write> Write for TeeWriter<'a, A> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let n = self.a.write(buf)?;
+        self.b.extend_from_slice(&buf[..n]);
+        Ok(n)
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        self.a.flush()?;
+        // Vec<u8>'s Write impl never errors on flush.
+        Ok(())
+    }
+}
+
+pub fn write_response(response: Response, args: &Args) -> Result<()> {
+    let mut sink = StdoutSink::Stdout;
+    write_response_to(response, args, &mut sink)
+}
+
+/// Same as `write_response`, but the stdout-bound bytes go through `sink`.
+pub fn write_response_to(
+    mut response: Response,
+    args: &Args,
+    sink: &mut StdoutSink,
+) -> Result<()> {
     let status = response.status();
 
     if args.status_only {
-        println!("{}", status.as_u16());
+        let mut out = sink.writer();
+        writeln!(out, "{}", status.as_u16())?;
         return Ok(());
     }
 
-    let print_headers = args.verbose >= 1 || args.include_headers || args.head_only || args.lhead || args.full;
+    let print_headers = args.verbose >= 1
+        || args.include_headers
+        || args.head_only
+        || args.lhead
+        || args.full;
+    let headers_to_stdout =
+        args.include_headers || args.head_only || args.lhead || args.full;
     let print_body = !args.head_only || args.full;
 
     if print_headers {
-        let dest: &mut dyn Write = if args.include_headers || args.head_only || args.lhead || args.full {
-            &mut io::stdout()
-        } else {
-            &mut io::stderr()
-        };
-
-        if args.lhead {
-            writeln!(dest, "* {}", response.url())?;
-        }
-
         let status_str = format!(
             "HTTP/{} {} {}",
             match response.version() {
@@ -41,7 +102,6 @@ pub fn write_response(mut response: Response, args: &Args) -> Result<()> {
             status.as_u16(),
             status.canonical_reason().unwrap_or("")
         );
-
         let colored_status = if status.is_success() {
             status_str.green().to_string()
         } else if status.is_redirection() {
@@ -50,12 +110,27 @@ pub fn write_response(mut response: Response, args: &Args) -> Result<()> {
             status_str.red().to_string()
         };
 
-        writeln!(dest, "< {colored_status}")?;
-
-        for (name, value) in response.headers() {
-            writeln!(dest, "< {}: {}", name, value.to_str().unwrap_or("?"))?;
+        if headers_to_stdout {
+            let mut out = sink.writer();
+            if args.lhead {
+                writeln!(out, "* {}", response.url())?;
+            }
+            writeln!(out, "< {colored_status}")?;
+            for (name, value) in response.headers() {
+                writeln!(out, "< {}: {}", name, value.to_str().unwrap_or("?"))?;
+            }
+            writeln!(out, "<")?;
+        } else {
+            let mut err = io::stderr();
+            if args.lhead {
+                writeln!(err, "* {}", response.url())?;
+            }
+            writeln!(err, "< {colored_status}")?;
+            for (name, value) in response.headers() {
+                writeln!(err, "< {}: {}", name, value.to_str().unwrap_or("?"))?;
+            }
+            writeln!(err, "<")?;
         }
-        writeln!(dest, "<")?;
     }
 
     if args.fail_on_error && status.as_u16() >= 400 {
@@ -79,15 +154,16 @@ pub fn write_response(mut response: Response, args: &Args) -> Result<()> {
             .to_string();
         let body = response.text().context("Failed to read response body")?;
         let format = crate::prettify::detect(&content_type_str, &body);
-        let out = crate::prettify::run(&body, format).unwrap_or(body);
+        let out_text = crate::prettify::run(&body, format).unwrap_or(body);
         if let Some(path) = &args.output {
             let mut file = File::create(path)?;
-            write!(file, "{out}")?;
+            write!(file, "{out_text}")?;
             if !args.silent {
                 eprintln!("Saved to {}", path.display());
             }
         } else {
-            print!("{out}");
+            let mut out = sink.writer();
+            write!(out, "{out_text}")?;
         }
         return Ok(());
     }
@@ -111,7 +187,8 @@ pub fn write_response(mut response: Response, args: &Args) -> Result<()> {
             eprintln!("Saved to {}", path.display());
         }
     } else {
-        io::copy(&mut response, &mut io::stdout())?;
+        let mut out = sink.writer();
+        io::copy(&mut response, &mut out)?;
     }
 
     Ok(())
