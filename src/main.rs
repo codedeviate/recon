@@ -106,6 +106,16 @@ fn main() {
         return;
     }
 
+    // ── Sample data: list available samples ──────────────────────────────────
+    if args.sample_list {
+        let cfg_map = match config::load() {
+            Ok(c) => c.sampledata,
+            Err(_) => std::collections::HashMap::new(),
+        };
+        print_sample_list(&sampledata::list_samples(&cfg_map));
+        return;
+    }
+
     // ── Network status ───────────────────────────────────────────────────────
     if args.netstatus {
         let cfg = config::load();
@@ -433,5 +443,33 @@ fn load_editor_config() -> (Option<String>, std::collections::HashMap<String, St
         // Missing or malformed config is not fatal for --editor: the flag can
         // still resolve built-in aliases and raw commands without it.
         Err(_) => (None, std::collections::HashMap::new()),
+    }
+}
+
+fn print_sample_list(entries: &[sampledata::SampleListEntry]) {
+    use sampledata::{SampleMode, SampleSource};
+
+    for e in entries {
+        let mode = match e.mode {
+            SampleMode::Bulk => "bulk",
+            SampleMode::PerItem => "per_item",
+            SampleMode::Local => "local",
+        };
+        let tag = match e.source_tag {
+            SampleSource::BuiltIn => "[built-in]",
+            SampleSource::Config => "[config]",
+            SampleSource::Overridden => "[overridden]",
+        };
+        println!("{}    {}", e.name, e.description);
+        println!(
+            "            mode={mode}   default format={}   formats={}",
+            e.default_format,
+            e.formats.join(","),
+        );
+        println!(
+            "            default count={}                           source={tag}",
+            e.count,
+        );
+        println!();
     }
 }

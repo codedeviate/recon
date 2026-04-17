@@ -362,6 +362,68 @@ pub fn resolve(
     })
 }
 
+/// One entry for `--sample-list` output. Separate from `SampleSpec` because
+/// we want to show merged built-in + config state at a glance without re-running
+/// the full `resolve` validation.
+#[derive(Debug, Clone)]
+pub struct SampleListEntry {
+    pub name: String,
+    pub description: String,
+    pub mode: SampleMode,
+    pub default_format: String,
+    pub formats: Vec<String>,
+    pub count: u32,
+    pub source_tag: SampleSource,
+}
+
+/// Produce a sorted list of all samples (built-in and config-defined),
+/// without making any HTTP requests. Config entries override built-ins
+/// of the same name.
+pub fn list_samples(
+    config: &HashMap<String, crate::config::SampleDataConfig>,
+) -> Vec<SampleListEntry> {
+    let builtins = builtin_samples();
+    let mut names: Vec<String> = builtins.keys().cloned().collect();
+    for k in config.keys() {
+        if !names.iter().any(|n| n == k) {
+            names.push(k.clone());
+        }
+    }
+    names.sort();
+
+    let mut out = Vec::with_capacity(names.len());
+    for name in names {
+        let (spec, tag) = match (config.contains_key(&name), builtins.contains_key(&name)) {
+            (true, true) => match spec_from_config(&name, &config[&name]) {
+                Ok(s) => (s, SampleSource::Overridden),
+                Err(_) => (builtins[&name].clone(), SampleSource::BuiltIn),
+            },
+            (true, false) => match spec_from_config(&name, &config[&name]) {
+                Ok(s) => (s, SampleSource::Config),
+                // Config-only entry that won't load: skip in the listing.
+                Err(_) => continue,
+            },
+            (false, true) => (builtins[&name].clone(), SampleSource::BuiltIn),
+            (false, false) => continue,
+        };
+        let mut formats: Vec<String> = spec.urls.keys().cloned().collect();
+        formats.sort();
+        if formats.is_empty() {
+            formats.push(spec.default_format.clone()); // local mode
+        }
+        out.push(SampleListEntry {
+            name,
+            description: spec.description.clone(),
+            mode: spec.mode,
+            default_format: spec.default_format.clone(),
+            formats,
+            count: spec.count,
+            source_tag: tag,
+        });
+    }
+    out
+}
+
 /// Build a `SampleSpec` from a user config entry. Reports errors for
 /// missing-required-field combinations and for the reserved `mode = "local"`.
 fn spec_from_config(
@@ -690,5 +752,47 @@ mod tests {
         );
         let err = resolve("bad", None, None, &cfg).unwrap_err();
         assert!(err.contains("local"));
+    }
+
+    #[test]
+    fn list_samples_merges_builtins_and_config() {
+        let mut cfg = HashMap::new();
+        cfg.insert(
+            "customer".into(), // overrides built-in
+            SampleDataConfig {
+                mode: Some("bulk".into()),
+                default_format: Some("json".into()),
+                count: Some(50),
+                description: Some("Override".into()),
+                urls: {
+                    let mut u = HashMap::new();
+                    u.insert("json".into(), "https://x/users".into());
+                    u
+                },
+                headers: vec![],
+                basic_auth: None,
+            },
+        );
+        cfg.insert(
+            "myapi".into(), // new name
+            SampleDataConfig {
+                mode: Some("bulk".into()),
+                default_format: Some("json".into()),
+                count: Some(5),
+                description: None,
+                urls: {
+                    let mut u = HashMap::new();
+                    u.insert("json".into(), "https://my/api".into());
+                    u
+                },
+                headers: vec![],
+                basic_auth: None,
+            },
+        );
+
+        let list = list_samples(&cfg);
+        assert!(list.iter().any(|e| e.name == "customer" && e.source_tag == SampleSource::Overridden));
+        assert!(list.iter().any(|e| e.name == "myapi" && e.source_tag == SampleSource::Config));
+        assert!(list.iter().any(|e| e.name == "product" && e.source_tag == SampleSource::BuiltIn));
     }
 }
