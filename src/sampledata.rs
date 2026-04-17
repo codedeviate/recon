@@ -135,6 +135,153 @@ pub fn expand_env(input: &str) -> Result<String, String> {
     Ok(out)
 }
 
+/// How a sample is fetched.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SampleMode {
+    /// One HTTP call returns many records.
+    Bulk,
+    /// One HTTP call per record; iterate `count` times.
+    PerItem,
+    /// No HTTP call; content is generated in-process. Reserved for built-ins.
+    Local,
+}
+
+/// A sample definition. Built-ins and config-loaded entries share this shape.
+#[derive(Debug, Clone)]
+pub struct SampleSpec {
+    pub mode: SampleMode,
+    pub default_format: String,
+    pub count: u32,
+    pub description: String,
+    pub urls: HashMap<String, String>,
+    pub headers: Vec<String>,
+    pub basic_auth: Option<String>,
+    /// Built-in flag (not settable from config): this sample's upstream
+    /// endpoint ignores count. Passing `--sample-count` warns instead of
+    /// passing through.
+    pub count_ignored: bool,
+}
+
+impl SampleSpec {
+    pub fn supported_formats(&self) -> Vec<&str> {
+        let mut v: Vec<&str> = self.urls.keys().map(String::as_str).collect();
+        v.sort();
+        v
+    }
+}
+
+/// Return the seven built-in samples, keyed by name. This is called on
+/// every invocation of `--sample` / `--sample-list`; it's cheap (all
+/// data is static) and simpler than a `lazy_static`.
+pub fn builtin_samples() -> HashMap<String, SampleSpec> {
+    fn entry(
+        mode: SampleMode,
+        default_format: &str,
+        count: u32,
+        description: &str,
+        urls: &[(&str, &str)],
+        count_ignored: bool,
+    ) -> SampleSpec {
+        SampleSpec {
+            mode,
+            default_format: default_format.to_string(),
+            count,
+            description: description.to_string(),
+            urls: urls
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
+            headers: Vec::new(),
+            basic_auth: None,
+            count_ignored,
+        }
+    }
+
+    let mut m = HashMap::new();
+
+    m.insert(
+        "customer".into(),
+        entry(
+            SampleMode::Bulk,
+            "json",
+            10,
+            "Customer profiles (users)",
+            &[("json", "https://dummyjson.com/users?limit={{count}}")],
+            false,
+        ),
+    );
+    m.insert(
+        "product".into(),
+        entry(
+            SampleMode::Bulk,
+            "json",
+            10,
+            "Products with price, category, and images",
+            &[("json", "https://dummyjson.com/products?limit={{count}}")],
+            false,
+        ),
+    );
+    m.insert(
+        "order".into(),
+        entry(
+            SampleMode::Bulk,
+            "json",
+            10,
+            "Orders / carts with line items",
+            &[("json", "https://dummyjson.com/carts?limit={{count}}")],
+            false,
+        ),
+    );
+    m.insert(
+        "category".into(),
+        entry(
+            SampleMode::Bulk,
+            "json",
+            10,
+            "Product category list",
+            &[("json", "https://dummyjson.com/products/categories")],
+            true, // count_ignored: endpoint returns the full list
+        ),
+    );
+    m.insert(
+        "address".into(),
+        entry(
+            SampleMode::Bulk,
+            "json",
+            10,
+            "Postal addresses",
+            &[("json", "https://fakerapi.it/api/v2/addresses?_quantity={{count}}")],
+            false,
+        ),
+    );
+    m.insert(
+        "image".into(),
+        entry(
+            SampleMode::PerItem,
+            "jpg",
+            1,
+            "Random placeholder image (JPEG)",
+            &[("jpg", "https://picsum.photos/400/300")],
+            false,
+        ),
+    );
+    m.insert(
+        "lorem".into(),
+        SampleSpec {
+            mode: SampleMode::Local,
+            default_format: "txt".into(),
+            count: 1,
+            description: "Local lorem ipsum text (supports p/w/c units)".into(),
+            urls: HashMap::new(),
+            headers: Vec::new(),
+            basic_auth: None,
+            count_ignored: false,
+        },
+    );
+
+    m
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -228,5 +375,46 @@ mod tests {
     fn expand_env_leaves_standalone_dollar_alone() {
         let out = expand_env("no vars here $").unwrap();
         assert_eq!(out, "no vars here $");
+    }
+
+    #[test]
+    fn builtin_samples_contains_expected_names() {
+        let all = builtin_samples();
+        for name in ["customer", "product", "order", "category", "address", "image", "lorem"] {
+            assert!(all.contains_key(name), "missing built-in: {name}");
+        }
+        assert_eq!(all.len(), 7);
+    }
+
+    #[test]
+    fn builtin_lorem_is_local_mode() {
+        let all = builtin_samples();
+        let lorem = all.get("lorem").unwrap();
+        assert_eq!(lorem.mode, SampleMode::Local);
+        assert!(lorem.urls.is_empty(), "local mode has no URLs");
+        assert_eq!(lorem.default_format, "txt");
+    }
+
+    #[test]
+    fn builtin_image_is_per_item_mode() {
+        let all = builtin_samples();
+        let image = all.get("image").unwrap();
+        assert_eq!(image.mode, SampleMode::PerItem);
+        assert!(image.urls.contains_key("jpg"));
+    }
+
+    #[test]
+    fn builtin_customer_is_bulk_mode() {
+        let all = builtin_samples();
+        let c = all.get("customer").unwrap();
+        assert_eq!(c.mode, SampleMode::Bulk);
+        assert!(c.urls.get("json").unwrap().contains("{{count}}"));
+    }
+
+    #[test]
+    fn builtin_category_has_count_ignored_flag() {
+        let all = builtin_samples();
+        let cat = all.get("category").unwrap();
+        assert!(cat.count_ignored, "category should have count_ignored = true");
     }
 }
