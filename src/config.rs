@@ -6,6 +6,8 @@ use std::collections::HashMap;
 pub struct ReconConfig {
     pub netstatus: Option<NetstatusConfig>,
     pub editor: Option<EditorConfig>,
+    #[serde(default)]
+    pub sampledata: HashMap<String, SampleDataConfig>,
 }
 
 #[derive(Deserialize, Default, Debug)]
@@ -14,6 +16,24 @@ pub struct EditorConfig {
     pub default: Option<String>,
     #[serde(default)]
     pub aliases: HashMap<String, String>,
+}
+
+#[derive(Deserialize, Default, Debug, Clone)]
+pub struct SampleDataConfig {
+    #[serde(default)]
+    pub mode: Option<String>,
+    #[serde(default)]
+    pub default_format: Option<String>,
+    #[serde(default)]
+    pub count: Option<u32>,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub urls: HashMap<String, String>,
+    #[serde(default)]
+    pub headers: Vec<String>,
+    #[serde(default)]
+    pub basic_auth: Option<String>,
 }
 
 #[derive(Deserialize, Default)]
@@ -177,5 +197,61 @@ probes = []
 "#;
         let config: ReconConfig = toml::from_str(toml_str).unwrap();
         assert!(config.editor.is_none());
+    }
+
+    #[test]
+    fn test_parse_sampledata_full_entry() {
+        let toml_str = r#"
+[sampledata.customer]
+mode = "bulk"
+default_format = "json"
+count = 25
+description = "Customer profiles"
+urls.json = "https://api.example.com/users?limit={{count}}"
+urls.csv  = "https://api.example.com/users.csv?n={{count}}"
+headers = ["Authorization: Bearer xxx", "X-Tenant: acme"]
+basic_auth = "alice:secret"
+"#;
+        let config: ReconConfig = toml::from_str(toml_str).unwrap();
+        let s = config.sampledata.get("customer").expect("present");
+        assert_eq!(s.mode.as_deref(), Some("bulk"));
+        assert_eq!(s.default_format.as_deref(), Some("json"));
+        assert_eq!(s.count, Some(25));
+        assert_eq!(s.description.as_deref(), Some("Customer profiles"));
+        assert_eq!(s.urls.len(), 2);
+        assert_eq!(
+            s.urls.get("json").map(String::as_str),
+            Some("https://api.example.com/users?limit={{count}}"),
+        );
+        assert_eq!(s.headers.len(), 2);
+        assert_eq!(s.basic_auth.as_deref(), Some("alice:secret"));
+    }
+
+    #[test]
+    fn test_parse_sampledata_minimal_entry() {
+        let toml_str = r#"
+[sampledata.foo]
+default_format = "json"
+urls.json = "https://example.com/foo"
+"#;
+        let config: ReconConfig = toml::from_str(toml_str).unwrap();
+        let s = config.sampledata.get("foo").expect("present");
+        assert!(s.mode.is_none());
+        assert_eq!(s.default_format.as_deref(), Some("json"));
+        assert!(s.count.is_none());
+        assert!(s.headers.is_empty());
+        assert!(s.basic_auth.is_none());
+    }
+
+    #[test]
+    fn test_sampledata_missing_is_empty_map() {
+        let toml_str = r#"
+[netstatus]
+ip_sources = []
+dns_lookup_domains = []
+probes = []
+"#;
+        let config: ReconConfig = toml::from_str(toml_str).unwrap();
+        assert!(config.sampledata.is_empty());
     }
 }
