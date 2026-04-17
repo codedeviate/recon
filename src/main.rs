@@ -490,7 +490,7 @@ fn run_sample(args: &Args) -> anyhow::Result<()> {
 
     match resolved.spec.mode {
         SampleMode::Local => run_sample_local(&resolved, args),
-        SampleMode::Bulk => anyhow::bail!("sample mode 'bulk' not yet implemented"),
+        SampleMode::Bulk => run_sample_bulk(&resolved, args),
         SampleMode::PerItem => anyhow::bail!("sample mode 'per_item' not yet implemented"),
     }
 }
@@ -555,6 +555,71 @@ fn resolve_sample_file_path(
     }
     let s = sampledata::expand_template(&tpl, &vars).map_err(|e| anyhow::anyhow!("{e}"))?;
     Ok(std::path::PathBuf::from(s))
+}
+
+fn run_sample_bulk(resolved: &sampledata::ResolvedSample, args: &Args) -> anyhow::Result<()> {
+    use anyhow::Context;
+
+    if resolved.spec.count_ignored && args.sample_count.is_some() {
+        eprintln!("warning: --sample-count ignored for sample '{}'", resolved.name);
+    }
+
+    let url = sampledata::expand_sample_url(resolved, None)
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+
+    if args.verbose >= 1 {
+        eprintln!("* sample: {} {} ({} mode, format={})",
+            resolved.name, url, mode_label(resolved.spec.mode), resolved.format);
+    }
+
+    let client = sampledata::build_client(args.timeout, args.insecure)?;
+    let req = sampledata::build_request(&client, resolved, &url, args.timeout)?;
+    let response = req.send().context("sample fetch failed")?;
+
+    // --sample-file path: save response bytes to the templated filename and stop.
+    if let Some(sf) = &args.sample_file {
+        let path = resolve_sample_file_path(sf, &resolved.name, &resolved.format, None)?;
+        let bytes = response.bytes().context("failed to read sample response")?;
+        std::fs::write(&path, &bytes)
+            .with_context(|| format!("failed to write {}", path.display()))?;
+        if !args.silent {
+            eprintln!("Saved to {}", path.display());
+        }
+        return Ok(());
+    }
+
+    // --editor path: buffer bytes, extension from sample format (not Content-Type).
+    if args.editor.is_some() {
+        let (cfg_default, user_aliases) = load_editor_config();
+        let flag_value = args.editor.as_deref().unwrap_or("");
+        let ed = editor::resolve_editor(flag_value, cfg_default.as_deref(), &user_aliases)
+            .map_err(|_| anyhow::anyhow!(
+                "--editor: no value given and no [editor] default in ~/.recon/config.toml"
+            ))?;
+        let mut sink = if args.verbose >= 2 {
+            output::StdoutSink::Tee(Vec::new())
+        } else {
+            output::StdoutSink::Buffer(Vec::new())
+        };
+        output::write_response_to(response, args, &mut sink)?;
+        let bytes = sink.into_bytes().unwrap_or_default();
+        let path = editor::create_temp_file(&resolved.format, &bytes)
+            .context("failed to write editor temp file")?;
+        editor::spawn_editor(&ed, &path)
+            .with_context(|| format!("failed to launch editor for {}", path.display()))?;
+        return Ok(());
+    }
+
+    // Default: route through the normal output pipeline.
+    output::write_response(response, args)
+}
+
+fn mode_label(mode: sampledata::SampleMode) -> &'static str {
+    match mode {
+        sampledata::SampleMode::Bulk => "bulk",
+        sampledata::SampleMode::PerItem => "per_item",
+        sampledata::SampleMode::Local => "local",
+    }
 }
 
 fn print_sample_list(entries: &[sampledata::SampleListEntry]) {

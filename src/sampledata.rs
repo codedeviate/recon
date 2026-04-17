@@ -525,6 +525,76 @@ fn spec_from_config(
     })
 }
 
+use anyhow::{anyhow, Context, Result as AnyhowResult};
+use reqwest::blocking::{Client, RequestBuilder};
+use std::time::Duration;
+
+/// Expand `{{count}}`, `{{format}}`, `{{unit}}`, and (per_item only) `{{n}}`
+/// placeholders in a URL template for this resolved sample.
+pub fn expand_sample_url(
+    resolved: &ResolvedSample,
+    iteration: Option<u32>,
+) -> Result<String, String> {
+    let url_tpl = resolved
+        .spec
+        .urls
+        .get(&resolved.format)
+        .ok_or_else(|| format!("no URL for format '{}'", resolved.format))?;
+
+    let mut vars: HashMap<&str, String> = HashMap::new();
+    vars.insert("count", resolved.count.n.to_string());
+    vars.insert("format", resolved.format.clone());
+    vars.insert(
+        "unit",
+        match resolved.count.unit {
+            Some(CountUnit::P) => "p".into(),
+            Some(CountUnit::W) => "w".into(),
+            Some(CountUnit::C) => "c".into(),
+            None => String::new(),
+        },
+    );
+    if let Some(i) = iteration {
+        vars.insert("n", i.to_string());
+    }
+    expand_template(url_tpl, &vars)
+}
+
+/// Build a blocking HTTP request for a resolved sample at the given URL.
+/// Attaches per-sample headers and basic_auth (resolved from env at load time).
+pub fn build_request(
+    client: &Client,
+    resolved: &ResolvedSample,
+    url: &str,
+    timeout: u64,
+) -> AnyhowResult<RequestBuilder> {
+    let mut req = client.get(url);
+    for h in &resolved.spec.headers {
+        let (name, value) = h
+            .split_once(':')
+            .ok_or_else(|| anyhow!("invalid header '{h}': expected 'Name: Value'"))?;
+        req = req.header(name.trim(), value.trim());
+    }
+    if let Some(ba) = &resolved.spec.basic_auth {
+        let (user, pass) = ba
+            .split_once(':')
+            .ok_or_else(|| anyhow!("invalid basic_auth '{ba}': expected 'user:pass'"))?;
+        req = req.basic_auth(user, Some(pass));
+    }
+    req = req.timeout(Duration::from_secs(timeout));
+    Ok(req)
+}
+
+/// Construct a blocking reqwest Client configured like recon's default HTTP client.
+pub fn build_client(timeout: u64, insecure: bool) -> AnyhowResult<Client> {
+    Client::builder()
+        .use_rustls_tls()
+        .danger_accept_invalid_certs(insecure)
+        .user_agent(concat!("recon/", env!("CARGO_PKG_VERSION")))
+        .timeout(Duration::from_secs(timeout))
+        .build()
+        .context("failed to build sample HTTP client")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
