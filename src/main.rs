@@ -4,6 +4,7 @@ mod client;
 mod config;
 mod cookiejar;
 mod dns;
+mod editor;
 mod email;
 mod examples;
 mod help;
