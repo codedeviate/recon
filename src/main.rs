@@ -9,6 +9,7 @@ mod email;
 mod examples;
 mod help;
 mod jwt;
+mod lorem;
 mod netstatus;
 mod output;
 mod ping;
