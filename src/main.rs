@@ -497,6 +497,10 @@ fn run_sample(args: &Args) -> anyhow::Result<()> {
     let resolved = sampledata::resolve(&parsed.name, format_override, count_override, &cfg_map)
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
+    if args.sample_seed.is_some() && resolved.spec.mode != sampledata::SampleMode::Local {
+        anyhow::bail!("--sample-seed only applies to the lorem sample");
+    }
+
     // Early guard: --sample-file and --output are mutually exclusive.
     if args.sample_file.is_some() && args.output.is_some() {
         anyhow::bail!("-o and --sample-file are mutually exclusive");
@@ -512,7 +516,8 @@ fn run_sample(args: &Args) -> anyhow::Result<()> {
 fn run_sample_local(resolved: &sampledata::ResolvedSample, args: &Args) -> anyhow::Result<()> {
     use anyhow::Context;
 
-    let bytes = crate::lorem::generate(resolved.count).into_bytes();
+    let seed = args.sample_seed.unwrap_or_else(seed_from_clock);
+    let bytes = crate::lorem::generate(resolved.count, seed).into_bytes();
 
     if let Some(sf) = &args.sample_file {
         let path = resolve_sample_file_path(sf, &resolved.name, &resolved.format, None)?;
@@ -753,4 +758,14 @@ fn print_sample_list(entries: &[sampledata::SampleListEntry]) {
         );
         println!();
     }
+}
+
+fn seed_from_clock() -> u64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos() as u64)
+        .ok()
+        .filter(|&n| n != 0)
+        .unwrap_or(1)
 }
