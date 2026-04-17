@@ -180,6 +180,35 @@ fn shell_quote(path: &std::path::Path) -> String {
     format!("'{escaped}'")
 }
 
+/// Delete every file in `/tmp` whose filename starts with `recon-`. Returns
+/// the count of files removed. Unlink errors for individual files are printed
+/// to stderr and do not abort the sweep.
+pub fn cleanup_temp_files() -> std::io::Result<usize> {
+    let mut removed = 0usize;
+    for entry in std::fs::read_dir("/tmp")? {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        let name = entry.file_name();
+        let name_str = name.to_string_lossy();
+        if !name_str.starts_with("recon-") {
+            continue;
+        }
+        let path = entry.path();
+        // Only touch plain files (not directories, symlinks, etc. we created).
+        match entry.file_type() {
+            Ok(ft) if ft.is_file() => {}
+            _ => continue,
+        }
+        match std::fs::remove_file(&path) {
+            Ok(_) => removed += 1,
+            Err(e) => eprintln!("warning: failed to remove {}: {e}", path.display()),
+        }
+    }
+    Ok(removed)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -320,5 +349,23 @@ mod tests {
     fn shell_quote_embedded_single_quote() {
         let p = std::path::PathBuf::from("/tmp/foo'bar.txt");
         assert_eq!(shell_quote(&p), "'/tmp/foo'\\''bar.txt'");
+    }
+
+    #[test]
+    fn cleanup_removes_only_recon_temp_files() {
+        // Create a recon temp file and an unrelated /tmp file.
+        let ours = create_temp_file("txt", b"x").unwrap();
+        let theirs = std::path::PathBuf::from(format!(
+            "/tmp/not-recon-{}.txt",
+            std::process::id()
+        ));
+        std::fs::write(&theirs, b"y").unwrap();
+
+        let n = cleanup_temp_files().unwrap();
+        assert!(n >= 1, "expected to remove at least our file");
+        assert!(!ours.exists(), "our file should be deleted");
+        assert!(theirs.exists(), "unrelated file should remain");
+
+        let _ = std::fs::remove_file(&theirs);
     }
 }
