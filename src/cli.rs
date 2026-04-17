@@ -9,7 +9,7 @@ use std::path::PathBuf;
 )]
 pub struct Args {
     /// URL to request (or use --url)
-    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni", "jwt_view", "jwt_sign", "jwt_validate", "netstatus"])]
+    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni", "jwt_view", "jwt_sign", "jwt_validate", "netstatus", "editor_cleanup"])]
     pub url: Option<String>,
 
     /// URL to request — curl-compatible alternative to the positional argument
@@ -314,6 +314,19 @@ pub struct Args {
     /// Check connectivity using probes defined in ~/.recon/config.toml
     #[arg(long = "netstatus")]
     pub netstatus: bool,
+
+    // ── Editor output ────────────────────────────────────────────────────────
+
+    /// Open the response output in an editor (e.g. `zed`, `code`, `vim`).
+    /// Built-in aliases: zed, code, cursor, subl, vim, nvim, nano, emacs.
+    /// Accepts a user alias from [editor.aliases] or a raw shell command.
+    /// Omit the value to use `[editor] default` from ~/.recon/config.toml.
+    #[arg(long = "editor", value_name = "EDITOR", num_args = 0..=1, default_missing_value = "")]
+    pub editor: Option<String>,
+
+    /// Remove all temp files written by previous --editor invocations (/tmp/recon-*)
+    #[arg(long = "editor-cleanup")]
+    pub editor_cleanup: bool,
 }
 
 impl Args {
