@@ -282,6 +282,152 @@ pub fn builtin_samples() -> HashMap<String, SampleSpec> {
     m
 }
 
+/// Where a sample ultimately came from (built-in, user config, or user
+/// config overriding a built-in of the same name).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SampleSource {
+    BuiltIn,
+    Config,
+    Overridden,
+}
+
+/// A fully-resolved sample ready to execute.
+#[derive(Debug, Clone)]
+pub struct ResolvedSample {
+    pub name: String,
+    pub spec: SampleSpec,
+    pub format: String,
+    pub count: CountSpec,
+    pub source_tag: SampleSource,
+}
+
+/// Resolve a `--sample <name>` invocation to a ready-to-execute
+/// `ResolvedSample`, merging CLI overrides with config and built-ins.
+///
+/// Resolution precedence: config entry fully replaces built-in of same name.
+/// CLI overrides replace the resolved spec's defaults for format and count.
+/// Unknown sample / format / unit errors are returned as `Err(String)`.
+pub fn resolve(
+    name: &str,
+    format_override: Option<&str>,
+    count_override: Option<CountSpec>,
+    config: &HashMap<String, crate::config::SampleDataConfig>,
+) -> Result<ResolvedSample, String> {
+    let builtins = builtin_samples();
+    let in_config = config.contains_key(name);
+    let in_builtin = builtins.contains_key(name);
+
+    let (spec, source_tag) = match (in_config, in_builtin) {
+        (true, true) => (spec_from_config(name, &config[name])?, SampleSource::Overridden),
+        (true, false) => (spec_from_config(name, &config[name])?, SampleSource::Config),
+        (false, true) => (builtins[name].clone(), SampleSource::BuiltIn),
+        (false, false) => {
+            return Err(format!(
+                "unknown sample '{name}'; try --sample-list"
+            ));
+        }
+    };
+
+    let format = format_override.map(str::to_string).unwrap_or_else(|| spec.default_format.clone());
+
+    // Validate format against the spec's URL map — unless mode is Local
+    // (where urls is always empty and format is a cosmetic extension only).
+    if spec.mode != SampleMode::Local && !spec.urls.contains_key(&format) {
+        let mut supported = spec.supported_formats();
+        supported.sort();
+        return Err(format!(
+            "sample '{name}' does not support format '{format}'; supported: {}",
+            supported.join(", ")
+        ));
+    }
+
+    let count = match count_override {
+        Some(c) => c,
+        None => CountSpec { n: spec.count, unit: None },
+    };
+
+    // Unit suffix is only valid for the local lorem built-in (SampleMode::Local).
+    if count.unit.is_some() && spec.mode != SampleMode::Local {
+        return Err(format!(
+            "sample '{name}' does not accept count units"
+        ));
+    }
+
+    Ok(ResolvedSample {
+        name: name.to_string(),
+        spec,
+        format,
+        count,
+        source_tag,
+    })
+}
+
+/// Build a `SampleSpec` from a user config entry. Reports errors for
+/// missing-required-field combinations and for the reserved `mode = "local"`.
+fn spec_from_config(
+    name: &str,
+    cfg: &crate::config::SampleDataConfig,
+) -> Result<SampleSpec, String> {
+    let mode = match cfg.mode.as_deref().unwrap_or("bulk") {
+        "bulk" => SampleMode::Bulk,
+        "per_item" => SampleMode::PerItem,
+        "local" => {
+            return Err(format!(
+                "sample '{name}': mode = \"local\" is reserved for built-in samples"
+            ));
+        }
+        other => {
+            return Err(format!(
+                "sample '{name}': unknown mode '{other}'; expected 'bulk' or 'per_item'"
+            ));
+        }
+    };
+
+    let default_format = cfg
+        .default_format
+        .clone()
+        .ok_or_else(|| format!("sample '{name}': 'default_format' is required"))?;
+
+    if cfg.urls.is_empty() {
+        return Err(format!(
+            "sample '{name}': at least one URL is required under [sampledata.{name}.urls]"
+        ));
+    }
+    if !cfg.urls.contains_key(&default_format) {
+        return Err(format!(
+            "sample '{name}': default_format '{default_format}' has no matching urls.{default_format}"
+        ));
+    }
+
+    // Resolve env vars in URLs, headers, basic_auth at load time.
+    let mut urls = HashMap::new();
+    for (k, v) in &cfg.urls {
+        urls.insert(k.clone(), expand_env(v)?);
+    }
+    let mut headers = Vec::with_capacity(cfg.headers.len());
+    for h in &cfg.headers {
+        headers.push(expand_env(h)?);
+    }
+    let basic_auth = match &cfg.basic_auth {
+        Some(s) => Some(expand_env(s)?),
+        None => None,
+    };
+
+    Ok(SampleSpec {
+        mode,
+        default_format,
+        count: cfg.count.unwrap_or(10),
+        description: cfg
+            .description
+            .clone()
+            .unwrap_or_else(|| format!("User-defined sample '{name}'")),
+        urls,
+        headers,
+        basic_auth,
+        count_ignored: false,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -416,5 +562,133 @@ mod tests {
         let all = builtin_samples();
         let cat = all.get("category").unwrap();
         assert!(cat.count_ignored, "category should have count_ignored = true");
+    }
+
+    use crate::config::SampleDataConfig;
+
+    fn empty_cfg() -> HashMap<String, SampleDataConfig> {
+        HashMap::new()
+    }
+
+    #[test]
+    fn resolve_builtin_customer_defaults() {
+        let r = resolve("customer", None, None, &empty_cfg()).unwrap();
+        assert_eq!(r.name, "customer");
+        assert_eq!(r.format, "json");
+        assert_eq!(r.count.n, 10);
+        assert_eq!(r.spec.mode, SampleMode::Bulk);
+    }
+
+    #[test]
+    fn resolve_cli_overrides() {
+        let r = resolve("customer", Some("json"), Some(CountSpec { n: 25, unit: None }), &empty_cfg()).unwrap();
+        assert_eq!(r.count.n, 25);
+    }
+
+    #[test]
+    fn resolve_unknown_sample() {
+        let err = resolve("doesnotexist", None, None, &empty_cfg()).unwrap_err();
+        assert!(err.contains("doesnotexist"));
+        assert!(err.contains("--sample-list"));
+    }
+
+    #[test]
+    fn resolve_unknown_format_for_sample() {
+        let err = resolve("customer", Some("xml"), None, &empty_cfg()).unwrap_err();
+        assert!(err.contains("customer"));
+        assert!(err.contains("xml"));
+        assert!(err.contains("json"), "error should list supported formats");
+    }
+
+    #[test]
+    fn resolve_unit_rejected_for_non_lorem() {
+        let err = resolve(
+            "customer",
+            None,
+            Some(CountSpec { n: 5, unit: Some(CountUnit::P) }),
+            &empty_cfg(),
+        ).unwrap_err();
+        assert!(err.contains("customer"));
+        assert!(err.contains("unit"));
+    }
+
+    #[test]
+    fn resolve_unit_accepted_for_lorem() {
+        let r = resolve(
+            "lorem",
+            None,
+            Some(CountSpec { n: 3, unit: Some(CountUnit::P) }),
+            &empty_cfg(),
+        ).unwrap();
+        assert_eq!(r.count.n, 3);
+        assert_eq!(r.count.unit, Some(CountUnit::P));
+    }
+
+    #[test]
+    fn resolve_config_overrides_builtin() {
+        let mut cfg = HashMap::new();
+        cfg.insert(
+            "customer".into(),
+            SampleDataConfig {
+                mode: Some("bulk".into()),
+                default_format: Some("xml".into()),
+                count: Some(50),
+                description: Some("Custom customer".into()),
+                urls: {
+                    let mut u = HashMap::new();
+                    u.insert("xml".into(), "https://internal/x?n={{count}}".into());
+                    u
+                },
+                headers: vec![],
+                basic_auth: None,
+            },
+        );
+        let r = resolve("customer", None, None, &cfg).unwrap();
+        assert_eq!(r.format, "xml");
+        assert_eq!(r.count.n, 50);
+        assert_eq!(r.source_tag, SampleSource::Overridden);
+    }
+
+    #[test]
+    fn resolve_config_new_sample() {
+        let mut cfg = HashMap::new();
+        cfg.insert(
+            "myapi".into(),
+            SampleDataConfig {
+                mode: Some("bulk".into()),
+                default_format: Some("json".into()),
+                count: Some(7),
+                description: None,
+                urls: {
+                    let mut u = HashMap::new();
+                    u.insert("json".into(), "https://my.internal/x".into());
+                    u
+                },
+                headers: vec![],
+                basic_auth: None,
+            },
+        );
+        let r = resolve("myapi", None, None, &cfg).unwrap();
+        assert_eq!(r.source_tag, SampleSource::Config);
+        assert_eq!(r.count.n, 7);
+    }
+
+    #[test]
+    fn resolve_rejects_config_mode_local() {
+        let mut cfg = HashMap::new();
+        cfg.insert(
+            "bad".into(),
+            SampleDataConfig {
+                mode: Some("local".into()),
+                default_format: Some("txt".into()),
+                count: None,
+                description: None,
+                urls: HashMap::new(),
+                headers: vec![],
+                basic_auth: None,
+            },
+        );
+        let err = resolve("bad", None, None, &cfg).unwrap_err();
+        assert!(err.contains("local"));
     }
 }
