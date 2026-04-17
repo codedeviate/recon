@@ -103,6 +103,27 @@ pub fn resolve_editor(
     })
 }
 
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+/// Monotonic counter bumped by every call to `temp_path_for` so that rapid
+/// successive calls within the same millisecond still produce unique paths.
+static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+/// Build a fresh temp file path of the form `/tmp/recon-<unix-ms><counter>.<ext>`.
+/// Pure path construction — does not touch the filesystem.
+pub fn temp_path_for(extension: &str) -> PathBuf {
+    let now_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+    let seq = TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
+    // Merge the counter as extra low-order digits so chronological sort stays stable.
+    let stem = now_ms.saturating_mul(1_000).saturating_add(seq % 1_000);
+    PathBuf::from(format!("/tmp/recon-{stem}.{extension}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -199,5 +220,29 @@ mod tests {
         let aliases = HashMap::new();
         let err = resolve_editor("", None, &aliases).unwrap_err();
         assert_eq!(err, NoEditorDefault);
+    }
+
+    #[test]
+    fn temp_path_format() {
+        let p = temp_path_for("json");
+        let s = p.to_string_lossy();
+        assert!(s.starts_with("/tmp/recon-"), "got {s}");
+        assert!(s.ends_with(".json"), "got {s}");
+        // Expect /tmp/recon-<digits>.json
+        let stem = s
+            .strip_prefix("/tmp/recon-")
+            .and_then(|t| t.strip_suffix(".json"))
+            .expect("unexpected format");
+        assert!(stem.chars().all(|c| c.is_ascii_digit()), "stem was {stem}");
+    }
+
+    #[test]
+    fn temp_paths_are_unique_across_rapid_calls() {
+        use std::collections::HashSet;
+        let mut seen = HashSet::new();
+        for _ in 0..50 {
+            let p = temp_path_for("txt");
+            assert!(seen.insert(p), "duplicate path generated");
+        }
     }
 }
