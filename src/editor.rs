@@ -124,6 +124,62 @@ pub fn temp_path_for(extension: &str) -> PathBuf {
     PathBuf::from(format!("/tmp/recon-{stem}.{extension}"))
 }
 
+use std::fs::OpenOptions;
+use std::io::Write;
+
+/// Create a fresh temp file under `/tmp/recon-*` with the given extension and
+/// payload, with 0600 permissions on Unix. Returns the path written.
+pub fn create_temp_file(extension: &str, bytes: &[u8]) -> std::io::Result<PathBuf> {
+    let path = temp_path_for(extension);
+    let mut opts = OpenOptions::new();
+    opts.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
+    let mut file = opts.open(&path)?;
+    file.write_all(bytes)?;
+    file.flush()?;
+    Ok(path)
+}
+
+use std::process::{Command, Stdio};
+
+/// Launch the resolved editor on `path`, fire-and-forget.
+/// Returns an error if the process fails to spawn.
+pub fn spawn_editor(resolved: &ResolvedEditor, path: &std::path::Path) -> std::io::Result<()> {
+    match resolved {
+        ResolvedEditor::Argv { program } => {
+            Command::new(program)
+                .arg(path)
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn()?;
+        }
+        ResolvedEditor::Shell { command } => {
+            let full = format!("{} {}", command, shell_quote(path));
+            Command::new("sh")
+                .arg("-c")
+                .arg(&full)
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn()?;
+        }
+    }
+    Ok(())
+}
+
+/// Single-quote a path for safe inclusion in a POSIX `sh -c` string. Embedded
+/// single quotes are escaped by breaking and re-opening the quoted run.
+fn shell_quote(path: &std::path::Path) -> String {
+    let s = path.to_string_lossy();
+    let escaped = s.replace('\'', r"'\''");
+    format!("'{escaped}'")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -244,5 +300,25 @@ mod tests {
             let p = temp_path_for("txt");
             assert!(seen.insert(p), "duplicate path generated");
         }
+    }
+
+    #[test]
+    fn create_temp_file_writes_contents() {
+        let p = create_temp_file("txt", b"hello world").expect("write");
+        let got = std::fs::read_to_string(&p).expect("read");
+        assert_eq!(got, "hello world");
+        let _ = std::fs::remove_file(&p);
+    }
+
+    #[test]
+    fn shell_quote_plain_path() {
+        let p = std::path::PathBuf::from("/tmp/recon-123.json");
+        assert_eq!(shell_quote(&p), "'/tmp/recon-123.json'");
+    }
+
+    #[test]
+    fn shell_quote_embedded_single_quote() {
+        let p = std::path::PathBuf::from("/tmp/foo'bar.txt");
+        assert_eq!(shell_quote(&p), "'/tmp/foo'\\''bar.txt'");
     }
 }
