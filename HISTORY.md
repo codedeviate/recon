@@ -18,13 +18,6 @@ recon follows semantic versioning (`MAJOR.MINOR.PATCH`):
 
 ## Version Log
 
-### [0.8.1]
-
-#### Changed
-- Internal refactor: stdout-bound writes in `output.rs` now route through a
-  `StdoutSink` enum (`Stdout`, `Buffer`, `Tee`) so callers can redirect output
-  without touching the public `write_response` signature.
-
 ### [0.8.0]
 
 #### Added
