@@ -545,6 +545,60 @@ static TOPIC_JWT: Topic = Topic {
     ],
 };
 
+static TOPIC_EDITOR: Topic = Topic {
+    title: "Editor Output",
+    description: "Redirect recon's response output into an editor. Saves the body (or whatever the\n\
+                  current output flags would print) to /tmp/recon-<timestamp>.<ext> and launches\n\
+                  the editor on it — fire-and-forget. Extensions are derived from Content-Type so\n\
+                  editors get syntax highlighting automatically.",
+    flags: &[
+        FlagHelp {
+            flags: "--editor [EDITOR]",
+            description: "Open the output in the given editor.\n\
+                          Built-in aliases: zed, code, cursor, subl, vim, nvim, nano, emacs.\n\
+                          Accepts a user alias from [editor.aliases] or a raw shell command.\n\
+                          Omit the value to use [editor] default from ~/.recon/config.toml.",
+        },
+        FlagHelp {
+            flags: "--editor-cleanup",
+            description: "Delete all /tmp/recon-* temp files written by past --editor runs.\n\
+                          Standalone action: does not require a URL.",
+        },
+        FlagHelp {
+            flags: "-vv (with --editor)",
+            description: "Also mirror the body to stdout in addition to opening the editor.\n\
+                          By default stdout is silent when --editor is active.",
+        },
+    ],
+    related: &["-o / --output", "-p / --prettify", "-i / --include", "--full"],
+    examples: &[
+        ExampleHelp {
+            description: "Open a JSON response in Zed",
+            command: "recon --editor zed https://httpbin.org/get",
+        },
+        ExampleHelp {
+            description: "Open prettified HTML in VS Code",
+            command: "recon --editor code -p https://example.com",
+        },
+        ExampleHelp {
+            description: "Use a raw command (passes through sh -c)",
+            command: "recon --editor \"code --new-window\" https://example.com",
+        },
+        ExampleHelp {
+            description: "Use the default editor from config",
+            command: "recon --editor https://example.com",
+        },
+        ExampleHelp {
+            description: "Mirror body to stdout as well",
+            command: "recon --editor zed -vv https://httpbin.org/get",
+        },
+        ExampleHelp {
+            description: "Purge leftover temp files",
+            command: "recon --editor-cleanup",
+        },
+    ],
+};
+
 // ── Topic resolution ─────────────────────────────────────────────────────────
 
 fn resolve_topic(key: &str) -> Option<&'static Topic> {
@@ -569,6 +623,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "telnet" => Some(&TOPIC_TELNET),
         "jwt" | "jwt-token" | "token" => Some(&TOPIC_JWT),
         "netstatus" => Some(&TOPIC_NETSTATUS),
+        "editor" | "editor-output" => Some(&TOPIC_EDITOR),
         "serve" | "server" => Some(&TOPIC_SERVE),
         "serve-tls" | "serve-https" | "https-server" => Some(&TOPIC_SERVE_TLS),
         _ => None,
@@ -628,6 +683,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "ssh",
         "telnet",
         "jwt",
+        "editor",
         "serve",
         "serve-tls",
     ]
