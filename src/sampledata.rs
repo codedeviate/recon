@@ -525,18 +525,6 @@ fn spec_from_config(
     })
 }
 
-use anyhow::{anyhow, Context, Result as AnyhowResult};
-
-/// Execute a local (lorem) sample, writing bytes to `writer`.
-pub fn run_local(resolved: &ResolvedSample, writer: &mut dyn std::io::Write) -> AnyhowResult<()> {
-    if resolved.spec.mode != SampleMode::Local {
-        return Err(anyhow!("run_local called with non-local sample"));
-    }
-    let bytes = crate::lorem::generate(resolved.count).into_bytes();
-    writer.write_all(&bytes).context("failed to write lorem output")?;
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
