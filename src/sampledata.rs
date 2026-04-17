@@ -396,12 +396,17 @@ pub fn list_samples(
         let (spec, tag) = match (config.contains_key(&name), builtins.contains_key(&name)) {
             (true, true) => match spec_from_config(&name, &config[&name]) {
                 Ok(s) => (s, SampleSource::Overridden),
-                Err(_) => (builtins[&name].clone(), SampleSource::BuiltIn),
+                Err(e) => {
+                    eprintln!("warning: config override for '{name}' is invalid; falling back to built-in: {e}");
+                    (builtins[&name].clone(), SampleSource::BuiltIn)
+                }
             },
             (true, false) => match spec_from_config(&name, &config[&name]) {
                 Ok(s) => (s, SampleSource::Config),
-                // Config-only entry that won't load: skip in the listing.
-                Err(_) => continue,
+                Err(e) => {
+                    eprintln!("warning: sample '{name}' in config is invalid and was skipped: {e}");
+                    continue;
+                }
             },
             (false, true) => (builtins[&name].clone(), SampleSource::BuiltIn),
             (false, false) => continue,
