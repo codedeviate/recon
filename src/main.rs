@@ -491,7 +491,7 @@ fn run_sample(args: &Args) -> anyhow::Result<()> {
     match resolved.spec.mode {
         SampleMode::Local => run_sample_local(&resolved, args),
         SampleMode::Bulk => run_sample_bulk(&resolved, args),
-        SampleMode::PerItem => anyhow::bail!("sample mode 'per_item' not yet implemented"),
+        SampleMode::PerItem => run_sample_per_item(&resolved, args),
     }
 }
 
@@ -612,6 +612,97 @@ fn run_sample_bulk(resolved: &sampledata::ResolvedSample, args: &Args) -> anyhow
 
     // Default: route through the normal output pipeline.
     output::write_response(response, args)
+}
+
+fn run_sample_per_item(
+    resolved: &sampledata::ResolvedSample,
+    args: &Args,
+) -> anyhow::Result<()> {
+    use anyhow::Context;
+
+    let count = resolved.count.n;
+
+    // Editor + count > 1 is unsupported.
+    if args.editor.is_some() && count > 1 {
+        anyhow::bail!("--editor with per_item sample requires count == 1");
+    }
+
+    // --sample-file is required when count > 1.
+    if count > 1 && args.sample_file.is_none() {
+        anyhow::bail!(
+            "--sample-file required for per_item sample '{}' with count > 1",
+            resolved.name
+        );
+    }
+
+    // Filename must include {{n}} when count > 1. Empty template means
+    // "use the default", which already contains {{n}} in per_item mode.
+    if count > 1 {
+        let sf = args.sample_file.as_deref().unwrap();
+        if !sf.is_empty() && !sf.contains("{{n}}") {
+            anyhow::bail!(
+                "--sample-file '{sf}' must include {{{{n}}}} when count > 1"
+            );
+        }
+    }
+
+    let client = sampledata::build_client(args.timeout, args.insecure)?;
+
+    for i in 1..=count {
+        let url = sampledata::expand_sample_url(resolved, Some(i))
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+
+        if args.verbose >= 1 {
+            eprintln!("* fetching {i}/{count} ({}): {url}", resolved.name);
+        }
+
+        let req = sampledata::build_request(&client, resolved, &url, args.timeout)?;
+        let response = req
+            .send()
+            .with_context(|| format!("sample fetch failed at iteration {i}/{count}"))?;
+        let bytes = response
+            .bytes()
+            .with_context(|| format!("failed to read response at iteration {i}/{count}"))?;
+
+        // Destination: --sample-file template (with {{n}} when count > 1), or
+        // stdout if count == 1 and no --sample-file.
+        match (count, &args.sample_file) {
+            (1, None) => {
+                if args.editor.is_some() {
+                    let (cfg_default, user_aliases) = load_editor_config();
+                    let flag_value = args.editor.as_deref().unwrap_or("");
+                    let ed = editor::resolve_editor(
+                        flag_value,
+                        cfg_default.as_deref(),
+                        &user_aliases,
+                    ).map_err(|_| anyhow::anyhow!(
+                        "--editor: no value given and no [editor] default in ~/.recon/config.toml"
+                    ))?;
+                    let path = editor::create_temp_file(&resolved.format, &bytes)
+                        .context("failed to write editor temp file")?;
+                    editor::spawn_editor(&ed, &path)
+                        .with_context(|| format!("failed to launch editor for {}", path.display()))?;
+                } else {
+                    std::io::Write::write_all(&mut std::io::stdout(), &bytes)?;
+                }
+            }
+            (_, Some(sf)) => {
+                let path = resolve_sample_file_path(
+                    sf,
+                    &resolved.name,
+                    &resolved.format,
+                    Some(i),
+                )?;
+                std::fs::write(&path, &bytes)
+                    .with_context(|| format!("failed to write {}", path.display()))?;
+                if !args.silent {
+                    eprintln!("Saved to {}", path.display());
+                }
+            }
+            _ => unreachable!("count > 1 without --sample-file is rejected above"),
+        }
+    }
+    Ok(())
 }
 
 fn mode_label(mode: sampledata::SampleMode) -> &'static str {
