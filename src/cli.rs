@@ -9,7 +9,7 @@ use std::path::PathBuf;
 )]
 pub struct Args {
     /// URL to request (or use --url)
-    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni", "jwt_view", "jwt_sign", "jwt_validate", "netstatus", "editor_cleanup"])]
+    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni", "jwt_view", "jwt_sign", "jwt_validate", "netstatus", "editor_cleanup", "sample", "sample_list"])]
     pub url: Option<String>,
 
     /// URL to request — curl-compatible alternative to the positional argument
@@ -327,6 +327,31 @@ pub struct Args {
     /// Remove all temp files written by previous --editor invocations (/tmp/recon-*)
     #[arg(long = "editor-cleanup")]
     pub editor_cleanup: bool,
+
+    // ── Sample data ──────────────────────────────────────────────────────────
+
+    /// Fetch sample data by name. Colon shortcut supported: NAME[:FORMAT[:COUNT]].
+    /// Examples: customer, customer:csv, customer:csv:25, lorem:txt:3p
+    #[arg(long = "sample", value_name = "NAME[:FORMAT[:COUNT]]")]
+    pub sample: Option<String>,
+
+    /// Override the format portion of --sample (takes precedence over colon shortcut).
+    #[arg(long = "sample-format", value_name = "FMT")]
+    pub sample_format: Option<String>,
+
+    /// Override the count portion of --sample (takes precedence over colon shortcut).
+    /// Accepts N or N{p|w|c} (unit suffixes only valid for lorem).
+    #[arg(long = "sample-count", value_name = "COUNT")]
+    pub sample_count: Option<String>,
+
+    /// Write sample output to file(s). Default: sample-{{name}}.{{format}} (bulk)
+    /// or sample-{{name}}-{{n}}.{{format}} (per_item). Required for per_item with count > 1.
+    #[arg(long = "sample-file", value_name = "PATH", num_args = 0..=1, default_missing_value = "")]
+    pub sample_file: Option<String>,
+
+    /// List all available samples (built-in plus user-configured) and exit.
+    #[arg(long = "sample-list")]
+    pub sample_list: bool,
 }
 
 impl Args {
