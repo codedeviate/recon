@@ -18,6 +18,13 @@ recon follows semantic versioning (`MAJOR.MINOR.PATCH`):
 
 ## Version Log
 
+### [0.7.3]
+
+#### Changed
+- SNI directory parsing now accepts both `<hostname>-cert.pem` and `<hostname>.pem` as certificate files when paired with `<hostname>-key.pem`, improving compatibility with mkcert-style output.
+
+---
+
 ### [0.7.2]
 
 #### Changed

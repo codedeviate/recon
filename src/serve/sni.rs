@@ -65,9 +65,17 @@ pub fn parse_sni_mapping(value: &str) -> Result<Vec<SniEntry>> {
     );
 }
 
-/// Scan a directory for `<host>-cert.pem` / `<host>-key.pem` pairs.
+/// Scan a directory for SNI cert/key pairs.
+///
+/// Supported cert naming for a hostname `<host>`:
+/// - `<host>-cert.pem` (preferred)
+/// - `<host>.pem` (fallback; useful for mkcert)
+///
+/// Key naming:
+/// - `<host>-key.pem`
 fn parse_directory(dir: &Path) -> Result<Vec<SniEntry>> {
     let mut certs: HashMap<String, PathBuf> = HashMap::new();
+    let mut plain_certs: HashMap<String, PathBuf> = HashMap::new();
     let mut keys: HashMap<String, PathBuf> = HashMap::new();
 
     for entry in fs::read_dir(dir)
@@ -79,6 +87,17 @@ fn parse_directory(dir: &Path) -> Result<Vec<SniEntry>> {
             certs.insert(host.to_lowercase(), entry.path());
         } else if let Some(host) = name.strip_suffix("-key.pem") {
             keys.insert(host.to_lowercase(), entry.path());
+        } else if let Some(host) = name.strip_suffix(".pem") {
+            plain_certs.insert(host.to_lowercase(), entry.path());
+        }
+    }
+
+    // For hosts with a key but no explicit `-cert.pem`, accept `<host>.pem`.
+    for host in keys.keys() {
+        if !certs.contains_key(host) {
+            if let Some(cert_path) = plain_certs.get(host) {
+                certs.insert(host.clone(), cert_path.clone());
+            }
         }
     }
 
@@ -94,7 +113,7 @@ fn parse_directory(dir: &Path) -> Result<Vec<SniEntry>> {
     for host in keys.keys() {
         if !certs.contains_key(host) {
             eprintln!(
-                "{} SNI directory: found {host}-key.pem but no {host}-cert.pem — skipping",
+                "{} SNI directory: found {host}-key.pem but no {host}-cert.pem or {host}.pem — skipping",
                 "warning:".yellow().bold()
             );
         }
@@ -114,7 +133,8 @@ fn parse_directory(dir: &Path) -> Result<Vec<SniEntry>> {
     if entries.is_empty() {
         bail!(
             "No valid SNI cert/key pairs found in directory: {}\n\
-             Expected files named <hostname>-cert.pem and <hostname>-key.pem",
+             Expected files named <hostname>-cert.pem and <hostname>-key.pem,\n\
+             or <hostname>.pem and <hostname>-key.pem",
             dir.display()
         );
     }
