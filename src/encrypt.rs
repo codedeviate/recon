@@ -199,8 +199,6 @@ pub fn encrypt_streaming(
     source_kind: &crate::source::SourceKind,
     params: &EncryptParams<'_>,
 ) -> Result<()> {
-    use std::io::Write;
-
     // Decide: recipient mode or passphrase mode. If both are supplied,
     // recipient mode wins (v1 simplification).
     let encryptor = if !params.recipients.is_empty() {
@@ -256,8 +254,6 @@ pub fn decrypt_streaming(
     source_kind: &crate::source::SourceKind,
     params: &DecryptParams<'_>,
 ) -> Result<()> {
-    use std::io::Write;
-
     // ArmoredReader transparently handles both armored and binary age files.
     let armored = age::armor::ArmoredReader::new(std::io::Cursor::new(buf));
     let decryptor = age::Decryptor::new_buffered(armored)
@@ -299,27 +295,87 @@ pub fn decrypt_streaming(
 }
 
 pub fn run_encrypt(args: &crate::cli::Args) -> Result<()> {
-    let _ = args;
-    Err(anyhow!("run_encrypt: pending CLI wiring (Task 5)"))
+    let source_kind = crate::source::resolve(args)?;
+    let reader = crate::source::open(source_kind.clone(), args)?;
+
+    let params = EncryptParams {
+        recipients: &args.recipient,
+        passphrase_file: args.passphrase_file.as_deref(),
+        armor: args.armor,
+        verbose: args.verbose,
+        output: args.output.as_deref(),
+    };
+    encrypt_streaming(reader, &source_kind, &params)
 }
 
 pub fn run_decrypt(args: &crate::cli::Args) -> Result<()> {
-    let _ = args;
-    Err(anyhow!("run_decrypt: pending CLI wiring (Task 5)"))
+    let source_kind = crate::source::resolve(args)?;
+    let mut reader = crate::source::open(source_kind.clone(), args)?;
+
+    let mut buf: Vec<u8> = Vec::new();
+    std::io::Read::read_to_end(&mut reader, &mut buf)?;
+
+    let params = DecryptParams {
+        passphrase_file: args.passphrase_file.as_deref(),
+        identity_paths: &args.identity,
+        verbose: args.verbose,
+        output: args.output.as_deref(),
+    };
+    decrypt_streaming(&buf, &source_kind, &params)
 }
 
-pub fn run_keygen(_args: &crate::cli::Args) -> Result<()> {
-    Err(anyhow!("run_keygen not yet implemented"))
+pub fn run_keygen(args: &crate::cli::Args) -> Result<()> {
+    use std::io::Write;
+
+    let identity = age::x25519::Identity::generate();
+    let public = identity.to_public();
+
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+
+    let mut out = open_output_path(args.output.as_deref())?;
+    writeln!(out, "# created: {}Z", format_iso8601_utc(now))?;
+    writeln!(out, "# public key: {}", public)?;
+    {
+        use age::secrecy::ExposeSecret as _;
+        writeln!(out, "{}", identity.to_string().expose_secret())?;
+    }
+    Ok(())
 }
 
-pub fn run(_args: &crate::cli::Args) -> Result<()> {
-    Err(anyhow!("encrypt::run not yet implemented"))
+/// Format a Unix-epoch seconds value as "YYYY-MM-DDTHH:MM:SS" (UTC).
+/// No external dep; cosmetic keygen header.
+fn format_iso8601_utc(secs: u64) -> String {
+    let days = (secs / 86400) as i64;
+    let time_of_day = secs % 86400;
+    let hh = time_of_day / 3600;
+    let mm = (time_of_day % 3600) / 60;
+    let ss = time_of_day % 60;
+
+    let z = days + 719468;
+    let era = if z >= 0 { z } else { z - 146096 } / 146097;
+    let doe = (z - era * 146097) as u64;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = yoe as i64 + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
+    let m = (if mp < 10 { mp + 3 } else { mp - 9 }) as u32;
+    let year = if m <= 2 { y + 1 } else { y };
+
+    format!("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}", year, m, d, hh, mm, ss)
 }
 
-// Suppress unused-import warnings for the yet-to-wire pieces.
-#[allow(dead_code)]
-fn _ensure_exposesecret_used(s: &Secret<String>) -> &str {
-    s.expose_secret()
+pub fn run(args: &crate::cli::Args) -> Result<()> {
+    if args.encrypt {
+        return run_encrypt(args);
+    }
+    if args.decrypt {
+        return run_decrypt(args);
+    }
+    Err(anyhow!("internal: encrypt::run called without --encrypt or --decrypt"))
 }
 
 #[cfg(test)]
@@ -591,6 +647,81 @@ mod tests {
         let identity = age::scrypt::Identity::new(wrong);
         let err = decryptor.decrypt(std::iter::once(&identity as &dyn age::Identity));
         assert!(err.is_err(), "expected decryption failure with wrong passphrase");
+    }
+
+    #[test]
+    fn run_encrypt_decrypt_via_cli_args() {
+        use clap::Parser;
+        use crate::cli::Args;
+
+        let _guard = env_mutex().lock().unwrap();
+
+        let pp_path = write_tmp("cli-pp", b"ciphertest\n");
+        let pt_path = write_tmp("cli-pt", b"CLI round trip");
+        let ct_path = std::env::temp_dir().join(format!(
+            "recon-encrypt-cli-ct-{}.age",
+            std::process::id()
+        ));
+        let dec_path = std::env::temp_dir().join(format!(
+            "recon-encrypt-cli-dec-{}.bin",
+            std::process::id()
+        ));
+
+        let args = Args::try_parse_from([
+            "recon",
+            "--encrypt",
+            "--passphrase-file",
+            pp_path.to_str().unwrap(),
+            "-o",
+            ct_path.to_str().unwrap(),
+            pt_path.to_str().unwrap(),
+        ]).unwrap();
+        run(&args).unwrap();
+
+        let args = Args::try_parse_from([
+            "recon",
+            "--decrypt",
+            "--passphrase-file",
+            pp_path.to_str().unwrap(),
+            "-o",
+            dec_path.to_str().unwrap(),
+            ct_path.to_str().unwrap(),
+        ]).unwrap();
+        run(&args).unwrap();
+
+        let got = std::fs::read(&dec_path).unwrap();
+        assert_eq!(got, b"CLI round trip");
+
+        let _ = std::fs::remove_file(&pp_path);
+        let _ = std::fs::remove_file(&pt_path);
+        let _ = std::fs::remove_file(&ct_path);
+        let _ = std::fs::remove_file(&dec_path);
+    }
+
+    #[test]
+    fn run_keygen_produces_expected_lines() {
+        use clap::Parser;
+        use crate::cli::Args;
+
+        let out_path = std::env::temp_dir().join(format!(
+            "recon-encrypt-keygen-{}.txt",
+            std::process::id()
+        ));
+        let args = Args::try_parse_from([
+            "recon",
+            "--encrypt-keygen",
+            "-o",
+            out_path.to_str().unwrap(),
+        ]).unwrap();
+        run_keygen(&args).unwrap();
+
+        let text = std::fs::read_to_string(&out_path).unwrap();
+        assert!(text.contains("# created:"), "missing timestamp comment\n{text}");
+        assert!(text.contains("# public key: age1"), "missing public key comment\n{text}");
+        assert!(text.contains("AGE-SECRET-KEY-1"), "missing private key line\n{text}");
+        assert_eq!(text.lines().count(), 3);
+
+        let _ = std::fs::remove_file(&out_path);
     }
 
     fn env_mutex() -> &'static std::sync::Mutex<()> {

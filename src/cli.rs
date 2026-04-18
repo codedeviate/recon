@@ -9,7 +9,7 @@ use std::path::PathBuf;
 )]
 pub struct Args {
     /// URL to request (or use --url)
-    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni", "jwt_view", "jwt_sign", "jwt_validate", "netstatus", "editor_cleanup", "sample", "sample_list", "hash", "hash_list", "compress", "decompress", "compress_list", "encode", "encode_list"])]
+    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni", "jwt_view", "jwt_sign", "jwt_validate", "netstatus", "editor_cleanup", "sample", "sample_list", "hash", "hash_list", "compress", "decompress", "compress_list", "encode", "encode_list", "encrypt", "decrypt", "encrypt_keygen"])]
     pub url: Option<String>,
 
     /// URL to request — curl-compatible alternative to the positional argument
@@ -434,6 +434,40 @@ pub struct Args {
     /// List all supported encode formats and exit (standalone action).
     #[arg(long = "encode-list")]
     pub encode_list: bool,
+
+    // ── Encryption ───────────────────────────────────────────────────────────
+
+    /// Encrypt the input source (age format). Requires at least one --recipient
+    /// or a passphrase source.
+    #[arg(long = "encrypt")]
+    pub encrypt: bool,
+
+    /// Decrypt the input source (age format; armored or binary auto-detected).
+    #[arg(long = "decrypt")]
+    pub decrypt: bool,
+
+    /// Read passphrase from a file (trims one trailing newline). Beats
+    /// $RECON_PASSPHRASE; both beat the interactive prompt.
+    #[arg(long = "passphrase-file", value_name = "PATH")]
+    pub passphrase_file: Option<std::path::PathBuf>,
+
+    /// Encrypt to an age X25519 recipient. Value is either a literal public
+    /// key (age1...) or a path to a file containing one or more. Repeatable.
+    #[arg(long = "recipient", value_name = "KEY_OR_PATH", action = clap::ArgAction::Append)]
+    pub recipient: Vec<String>,
+
+    /// Decrypt with an age private-key file. File may contain one or more keys.
+    /// Repeatable.
+    #[arg(long = "identity", value_name = "PATH", action = clap::ArgAction::Append)]
+    pub identity: Vec<std::path::PathBuf>,
+
+    /// Produce ASCII-armored output (--encrypt only). Decrypt auto-detects.
+    #[arg(long = "armor")]
+    pub armor: bool,
+
+    /// Generate a fresh X25519 key pair (age-compatible) and print it (standalone action).
+    #[arg(long = "encrypt-keygen")]
+    pub encrypt_keygen: bool,
 }
 
 impl Args {

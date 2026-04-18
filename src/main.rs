@@ -258,6 +258,69 @@ fn main() {
         return;
     }
 
+    // ── Encrypt: generate a key pair (standalone action) ─────────────────────
+    if args.encrypt_keygen {
+        if let Err(err) = encrypt::run_keygen(&args) {
+            eprintln!("error: {err}");
+            std::process::exit(1);
+        }
+        return;
+    }
+
+    // ── Encrypt / decrypt the input source ───────────────────────────────────
+    if args.encrypt || args.decrypt {
+        if args.encrypt && args.decrypt {
+            eprintln!("error: --encrypt and --decrypt are mutually exclusive");
+            std::process::exit(1);
+        }
+        if args.armor && args.decrypt {
+            eprintln!("error: --armor only applies to --encrypt; --decrypt auto-detects");
+            std::process::exit(1);
+        }
+        if args.remote_name {
+            eprintln!("error: --encrypt and -O/--remote-name are mutually exclusive");
+            std::process::exit(1);
+        }
+        if args.hash.is_some() {
+            eprintln!("error: --encrypt and --hash are mutually exclusive");
+            std::process::exit(1);
+        }
+        if args.compress.is_some() || args.decompress.is_some() {
+            eprintln!("error: --encrypt and --compress/--decompress are mutually exclusive");
+            std::process::exit(1);
+        }
+        if args.encode.is_some() {
+            eprintln!("error: --encrypt and --encode are mutually exclusive");
+            std::process::exit(1);
+        }
+        if args.sample.is_some() {
+            eprintln!("error: --encrypt and --sample are mutually exclusive");
+            std::process::exit(1);
+        }
+        if args.data.is_some() {
+            eprintln!("error: --encrypt and -d/--data are mutually exclusive");
+            std::process::exit(1);
+        }
+        if args.upload_file.is_some() {
+            eprintln!("error: --encrypt and -T/--upload-file are mutually exclusive");
+            std::process::exit(1);
+        }
+        if args.editor.is_some() {
+            eprintln!("error: --encrypt and --editor are mutually exclusive");
+            std::process::exit(1);
+        }
+
+        if let Err(err) = encrypt::run(&args) {
+            if args.full_errors {
+                eprintln!("error: {err:#}");
+            } else {
+                eprintln!("error: {}", friendly_message(&err));
+            }
+            std::process::exit(1);
+        }
+        return;
+    }
+
     // ── Sample data: fetch / generate ────────────────────────────────────────
     if args.sample.is_some() {
         let result = run_sample(&args);
