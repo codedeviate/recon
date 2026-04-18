@@ -18,6 +18,27 @@ recon follows semantic versioning (`MAJOR.MINOR.PATCH`):
 
 ## Version Log
 
+### [0.12.0]
+
+#### Added
+- `--hash <ALGO>`: compute a cryptographic hash of any source — local file,
+  `file://` URL, HTTP(S) URL, or stdin. Supported: md5, sha1, sha256,
+  sha384, sha512, sha3-256, sha3-512, blake3 (case-insensitive; hyphens
+  and underscores accepted). HTTP sources honour every usual HTTP flag
+  (`-H`, `-u`, `-L`, `-k`, `-A`, cookies, `-e`).
+- `--hash-format <hex|base64|raw>`: digest output format. Default is
+  lowercase hex. `raw` writes binary bytes with no trailing newline.
+- `--hash-list`: standalone action that lists supported algorithms and
+  their digest sizes. Does not require a URL.
+
+#### Changed
+- Internal: new `src/source.rs` module unifies input-source handling
+  (file, URL, stdin, `file://`) for feature flags that consume arbitrary
+  bytes. No user-visible change on its own; backs `--hash` and the
+  upcoming `--compress` / `--encrypt` / `--qr` / `--barcode` flags.
+
+---
+
 ### [0.11.0]
 
 #### Added
