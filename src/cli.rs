@@ -9,7 +9,7 @@ use std::path::PathBuf;
 )]
 pub struct Args {
     /// URL to request (or use --url)
-    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni", "jwt_view", "jwt_sign", "jwt_validate", "netstatus", "editor_cleanup", "sample", "sample_list"])]
+    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni", "jwt_view", "jwt_sign", "jwt_validate", "netstatus", "editor_cleanup", "sample", "sample_list", "hash", "hash_list"])]
     pub url: Option<String>,
 
     /// URL to request — curl-compatible alternative to the positional argument
@@ -374,6 +374,22 @@ pub struct Args {
     /// using this flag with any other sample is an error.
     #[arg(long = "sample-seed", value_name = "N")]
     pub sample_seed: Option<u64>,
+
+    // ── Hashing ──────────────────────────────────────────────────────────────
+
+    /// Compute a cryptographic hash of the input source. Algorithm name is
+    /// case-insensitive; hyphens and underscores are accepted. Supported:
+    /// md5, sha1, sha256, sha384, sha512, sha3-256, sha3-512, blake3.
+    #[arg(long = "hash", value_name = "ALGO")]
+    pub hash: Option<String>,
+
+    /// Output format for --hash digest: hex (default), base64, or raw.
+    #[arg(long = "hash-format", value_name = "FMT")]
+    pub hash_format: Option<String>,
+
+    /// List all supported hash algorithms and exit (standalone action).
+    #[arg(long = "hash-list")]
+    pub hash_list: bool,
 }
 
 impl Args {

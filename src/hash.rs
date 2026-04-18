@@ -219,6 +219,48 @@ pub fn print_list(out: &mut dyn Write) -> std::io::Result<()> {
     Ok(())
 }
 
+use crate::cli::Args;
+
+/// Top-level entry: resolve the source, compute the hash, write the output.
+pub fn run(args: &Args) -> Result<()> {
+    let algo_str = args
+        .hash
+        .as_deref()
+        .ok_or_else(|| anyhow!("internal: run() called without --hash"))?;
+    let algo = parse_algo(algo_str)?;
+
+    let format = match args.hash_format.as_deref() {
+        Some(s) => parse_format(s)?,
+        None => Format::Hex,
+    };
+
+    let source_kind = crate::source::resolve(args)?;
+    if args.verbose >= 1 {
+        let label = match &source_kind {
+            crate::source::SourceKind::Stdin => "stdin".to_string(),
+            crate::source::SourceKind::File(p) => p.display().to_string(),
+            crate::source::SourceKind::Http(u) => u.clone(),
+        };
+        eprintln!("* hash: {} of {}", algo.canonical(), label);
+    }
+
+    let mut reader = crate::source::open(source_kind, args)?;
+    let digest = compute(algo, &mut reader)?;
+
+    match &args.output {
+        Some(path) => {
+            let mut file = std::fs::File::create(path)?;
+            write_digest(&mut file, &digest, format)?;
+        }
+        None => {
+            let mut stdout = std::io::stdout().lock();
+            write_digest(&mut stdout, &digest, format)?;
+        }
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -491,5 +533,44 @@ mod tests {
         assert!(text.contains("128-bit"));  // md5
         assert!(text.contains("256-bit"));  // sha256, sha3-256, blake3
         assert!(text.contains("512-bit"));  // sha512, sha3-512
+    }
+
+    #[test]
+    fn run_hashes_a_file_via_cli_args() {
+        use clap::Parser;
+
+        // Write a small temp file.
+        let tmp_path = std::env::temp_dir().join(format!(
+            "recon-hash-test-{}.bin",
+            std::process::id()
+        ));
+        std::fs::write(&tmp_path, b"abc").unwrap();
+
+        // Build Args that point --hash sha256 at the temp file and redirect
+        // output to a sibling file (so we can read it back in the test).
+        let out_path = std::env::temp_dir().join(format!(
+            "recon-hash-out-{}.txt",
+            std::process::id()
+        ));
+        let args = Args::try_parse_from([
+            "recon",
+            "--hash",
+            "sha256",
+            "-o",
+            out_path.to_str().unwrap(),
+            tmp_path.to_str().unwrap(),
+        ])
+        .unwrap();
+
+        run(&args).unwrap();
+
+        let got = std::fs::read_to_string(&out_path).unwrap();
+        assert_eq!(
+            got.trim(),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+        );
+
+        let _ = std::fs::remove_file(&tmp_path);
+        let _ = std::fs::remove_file(&out_path);
     }
 }

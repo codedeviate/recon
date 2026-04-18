@@ -121,6 +121,32 @@ fn main() {
         return;
     }
 
+    // ── Hash: list supported algorithms ──────────────────────────────────────
+    if args.hash_list {
+        if let Err(e) = hash::print_list(&mut std::io::stdout().lock()) {
+            eprintln!("error: {e}");
+            std::process::exit(1);
+        }
+        return;
+    }
+
+    // ── Hash: compute digest of the input source ─────────────────────────────
+    if args.hash.is_some() {
+        if args.remote_name {
+            eprintln!("error: --hash and -O/--remote-name are mutually exclusive");
+            std::process::exit(1);
+        }
+        if let Err(err) = hash::run(&args) {
+            if args.full_errors {
+                eprintln!("error: {err:#}");
+            } else {
+                eprintln!("error: {}", friendly_message(&err));
+            }
+            std::process::exit(1);
+        }
+        return;
+    }
+
     // ── Sample data: fetch / generate ────────────────────────────────────────
     if args.sample.is_some() {
         let result = run_sample(&args);
