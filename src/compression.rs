@@ -176,6 +176,61 @@ pub fn resolve_native_level(algo: Algo, level: Level) -> Result<u32> {
     }
 }
 
+use std::io::Read;
+
+const BROTLI_BUF_SIZE: usize = 8192;
+
+/// Stream `source` through the chosen encoder, writing compressed bytes to
+/// `out`. The encoder is constructed read-side (wraps `source`); `io::copy`
+/// drains it into `out`.
+pub fn compress(
+    algo: Algo,
+    level: u32,
+    source: Box<dyn Read>,
+    out: &mut dyn std::io::Write,
+) -> Result<u64> {
+    let mut encoder: Box<dyn Read> = match algo {
+        Algo::Gzip => Box::new(flate2::read::GzEncoder::new(
+            source,
+            flate2::Compression::new(level),
+        )),
+        Algo::Deflate => Box::new(flate2::read::DeflateEncoder::new(
+            source,
+            flate2::Compression::new(level),
+        )),
+        Algo::Zstd => Box::new(zstd::stream::read::Encoder::new(source, level as i32)?),
+        Algo::Brotli => Box::new(brotli::CompressorReader::new(
+            source,
+            BROTLI_BUF_SIZE,
+            level,
+            // lgwin = 22 is brotli's default sliding-window size.
+            22,
+        )),
+        Algo::Bzip2 => Box::new(bzip2::read::BzEncoder::new(
+            source,
+            bzip2::Compression::new(level),
+        )),
+    };
+    Ok(std::io::copy(&mut encoder, out)?)
+}
+
+/// Stream `source` through the chosen decoder, writing plain bytes to `out`.
+/// Returns the number of bytes written.
+pub fn decompress(
+    algo: Algo,
+    source: Box<dyn Read>,
+    out: &mut dyn std::io::Write,
+) -> Result<u64> {
+    let mut decoder: Box<dyn Read> = match algo {
+        Algo::Gzip => Box::new(flate2::read::GzDecoder::new(source)),
+        Algo::Deflate => Box::new(flate2::read::DeflateDecoder::new(source)),
+        Algo::Zstd => Box::new(zstd::stream::read::Decoder::new(source)?),
+        Algo::Brotli => Box::new(brotli::Decompressor::new(source, BROTLI_BUF_SIZE)),
+        Algo::Bzip2 => Box::new(bzip2::read::BzDecoder::new(source)),
+    };
+    Ok(std::io::copy(&mut decoder, out)?)
+}
+
 fn word_to_native(algo: Algo, word: LevelWord) -> u32 {
     // Table from spec. Keep in sync with spec section "Level words".
     match (algo, word) {
@@ -352,5 +407,92 @@ mod tests {
         let err = resolve_native_level(Algo::Zstd, Level::Num(23)).unwrap_err().to_string();
         assert!(err.contains("zstd"), "got: {err}");
         assert!(err.contains("1-22"), "got: {err}");
+    }
+
+    fn round_trip(algo: Algo, input: &[u8]) -> Vec<u8> {
+        // Compress into a Vec<u8>.
+        let mut encoded = Vec::new();
+        let source: Box<dyn Read> = Box::new(std::io::Cursor::new(input.to_vec()));
+        let level = algo.default_level();
+        compress(algo, level, source, &mut encoded).unwrap();
+
+        // Decompress the result.
+        let mut decoded = Vec::new();
+        let source: Box<dyn Read> = Box::new(std::io::Cursor::new(encoded));
+        decompress(algo, source, &mut decoded).unwrap();
+
+        decoded
+    }
+
+    #[test]
+    fn round_trip_gzip_short_string() {
+        let got = round_trip(Algo::Gzip, b"hello recon");
+        assert_eq!(got, b"hello recon");
+    }
+
+    #[test]
+    fn round_trip_deflate_short_string() {
+        let got = round_trip(Algo::Deflate, b"hello recon");
+        assert_eq!(got, b"hello recon");
+    }
+
+    #[test]
+    fn round_trip_zstd_short_string() {
+        let got = round_trip(Algo::Zstd, b"hello recon");
+        assert_eq!(got, b"hello recon");
+    }
+
+    #[test]
+    fn round_trip_brotli_short_string() {
+        let got = round_trip(Algo::Brotli, b"hello recon");
+        assert_eq!(got, b"hello recon");
+    }
+
+    #[test]
+    fn round_trip_bzip2_short_string() {
+        let got = round_trip(Algo::Bzip2, b"hello recon");
+        assert_eq!(got, b"hello recon");
+    }
+
+    #[test]
+    fn round_trip_gzip_empty() {
+        let got = round_trip(Algo::Gzip, b"");
+        assert_eq!(got, b"");
+    }
+
+    #[test]
+    fn round_trip_zstd_large_buffer() {
+        // 1 MiB of a repeating pattern — verifies streaming chunks work.
+        let input: Vec<u8> = (0u8..=255).cycle().take(1024 * 1024).collect();
+        let got = round_trip(Algo::Zstd, &input);
+        assert_eq!(got.len(), input.len());
+        assert_eq!(got, input);
+    }
+
+    #[test]
+    fn compressed_gzip_has_magic_bytes() {
+        let mut encoded = Vec::new();
+        let source: Box<dyn Read> = Box::new(std::io::Cursor::new(b"hello".to_vec()));
+        compress(Algo::Gzip, 6, source, &mut encoded).unwrap();
+        assert!(encoded.len() >= 2);
+        assert_eq!(&encoded[..2], &[0x1f, 0x8b]);
+    }
+
+    #[test]
+    fn compressed_zstd_has_magic_bytes() {
+        let mut encoded = Vec::new();
+        let source: Box<dyn Read> = Box::new(std::io::Cursor::new(b"hello".to_vec()));
+        compress(Algo::Zstd, 3, source, &mut encoded).unwrap();
+        assert!(encoded.len() >= 4);
+        assert_eq!(&encoded[..4], &[0x28, 0xb5, 0x2f, 0xfd]);
+    }
+
+    #[test]
+    fn compressed_bzip2_has_magic_bytes() {
+        let mut encoded = Vec::new();
+        let source: Box<dyn Read> = Box::new(std::io::Cursor::new(b"hello".to_vec()));
+        compress(Algo::Bzip2, 6, source, &mut encoded).unwrap();
+        assert!(encoded.len() >= 3);
+        assert_eq!(&encoded[..3], b"BZh");
     }
 }
