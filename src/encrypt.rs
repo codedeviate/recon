@@ -160,12 +160,152 @@ pub fn resolve_identities(
 
 // ---- Execution stubs — filled in Tasks 4 and 5 -----------------------
 
-pub fn run_encrypt(_args: &crate::cli::Args) -> Result<()> {
-    Err(anyhow!("run_encrypt not yet implemented"))
+/// Parameters for [`encrypt_streaming`] and [`decrypt_streaming`], assembled
+/// from CLI args once the corresponding fields are added to `cli::Args` (Task 5).
+pub struct EncryptParams<'a> {
+    pub recipients: &'a [String],
+    pub passphrase_file: Option<&'a std::path::Path>,
+    pub armor: bool,
+    pub verbose: u8,
+    pub output: Option<&'a std::path::Path>,
 }
 
-pub fn run_decrypt(_args: &crate::cli::Args) -> Result<()> {
-    Err(anyhow!("run_decrypt not yet implemented"))
+pub struct DecryptParams<'a> {
+    pub passphrase_file: Option<&'a std::path::Path>,
+    pub identity_paths: &'a [std::path::PathBuf],
+    pub verbose: u8,
+    pub output: Option<&'a std::path::Path>,
+}
+
+fn source_label(kind: &crate::source::SourceKind) -> String {
+    match kind {
+        crate::source::SourceKind::Stdin => "stdin".to_string(),
+        crate::source::SourceKind::File(p) => p.display().to_string(),
+        crate::source::SourceKind::Http(u) => u.clone(),
+    }
+}
+
+fn open_output_path(path: Option<&std::path::Path>) -> Result<Box<dyn std::io::Write>> {
+    match path {
+        Some(p) => Ok(Box::new(std::fs::File::create(p)?)),
+        None => Ok(Box::new(std::io::stdout().lock())),
+    }
+}
+
+/// Core encrypt logic: reads from `reader`, encrypts with age, writes to
+/// `output` (stdout if `None`). Called by `run_encrypt` once cli fields exist.
+pub fn encrypt_streaming(
+    mut reader: impl std::io::Read,
+    source_kind: &crate::source::SourceKind,
+    params: &EncryptParams<'_>,
+) -> Result<()> {
+    use std::io::Write;
+
+    // Decide: recipient mode or passphrase mode. If both are supplied,
+    // recipient mode wins (v1 simplification).
+    let encryptor = if !params.recipients.is_empty() {
+        let recipients = resolve_recipients(params.recipients)?;
+        age::Encryptor::with_recipients(
+            recipients.iter().map(|b| b.as_ref() as &dyn age::Recipient),
+        )
+        .map_err(|e| anyhow!("encrypt: {e}"))?
+    } else {
+        let passphrase = resolve_passphrase(params.passphrase_file, true)?;
+        age::Encryptor::with_user_passphrase(age::secrecy::SecretString::from(
+            passphrase.expose_secret().to_string(),
+        ))
+    };
+
+    if params.verbose >= 1 {
+        let label = source_label(source_kind);
+        eprintln!(
+            "* encrypt: age {} ({})",
+            if params.armor { "armored" } else { "binary" },
+            label
+        );
+    }
+
+    let mut out = open_output_path(params.output)?;
+
+    if params.armor {
+        let armored = age::armor::ArmoredWriter::wrap_output(
+            &mut out,
+            age::armor::Format::AsciiArmor,
+        )
+        .map_err(|e| anyhow!("armor: {e}"))?;
+        let mut writer = encryptor
+            .wrap_output(armored)
+            .map_err(|e| anyhow!("encrypt: {e}"))?;
+        std::io::copy(&mut reader, &mut writer)?;
+        let armored = writer.finish().map_err(|e| anyhow!("encrypt finish: {e}"))?;
+        armored.finish().map_err(|e| anyhow!("armor finish: {e}"))?;
+    } else {
+        let mut writer = encryptor
+            .wrap_output(&mut out)
+            .map_err(|e| anyhow!("encrypt: {e}"))?;
+        std::io::copy(&mut reader, &mut writer)?;
+        writer.finish().map_err(|e| anyhow!("encrypt finish: {e}"))?;
+    }
+    Ok(())
+}
+
+/// Core decrypt logic: reads ciphertext from `buf`, decrypts, writes plaintext.
+/// Called by `run_decrypt` once cli fields exist.
+pub fn decrypt_streaming(
+    buf: &[u8],
+    source_kind: &crate::source::SourceKind,
+    params: &DecryptParams<'_>,
+) -> Result<()> {
+    use std::io::Write;
+
+    // ArmoredReader transparently handles both armored and binary age files.
+    let armored = age::armor::ArmoredReader::new(std::io::Cursor::new(buf));
+    let decryptor = age::Decryptor::new_buffered(armored)
+        .map_err(|e| anyhow!("decrypt header: {e}"))?;
+
+    let mut plaintext_reader: Box<dyn std::io::Read> = if decryptor.is_scrypt() {
+        // Passphrase-based decryption.
+        let passphrase = resolve_passphrase(params.passphrase_file, false)?;
+        let pp = age::secrecy::SecretString::from(passphrase.expose_secret().to_string());
+        let identity = age::scrypt::Identity::new(pp);
+        let r = decryptor
+            .decrypt(std::iter::once(&identity as &dyn age::Identity))
+            .map_err(|e| anyhow!("decryption failed: {e}"))?;
+        Box::new(r)
+    } else {
+        // Recipient (X25519 / SSH / plugin) decryption.
+        if params.identity_paths.is_empty() {
+            return Err(anyhow!(
+                "no matching identity for this payload; supply --identity or a passphrase"
+            ));
+        }
+        let identities = resolve_identities(params.identity_paths)?;
+        let id_refs: Vec<&dyn age::Identity> =
+            identities.iter().map(|b| b.as_ref()).collect();
+        let r = decryptor
+            .decrypt(id_refs.into_iter())
+            .map_err(|e| anyhow!("decryption failed: {e}"))?;
+        Box::new(r)
+    };
+
+    if params.verbose >= 1 {
+        let label = source_label(source_kind);
+        eprintln!("* decrypt: age from {label}");
+    }
+
+    let mut out = open_output_path(params.output)?;
+    std::io::copy(&mut plaintext_reader, &mut out)?;
+    Ok(())
+}
+
+pub fn run_encrypt(args: &crate::cli::Args) -> Result<()> {
+    let _ = args;
+    Err(anyhow!("run_encrypt: pending CLI wiring (Task 5)"))
+}
+
+pub fn run_decrypt(args: &crate::cli::Args) -> Result<()> {
+    let _ = args;
+    Err(anyhow!("run_decrypt: pending CLI wiring (Task 5)"))
 }
 
 pub fn run_keygen(_args: &crate::cli::Args) -> Result<()> {
@@ -358,6 +498,99 @@ mod tests {
             .to_string();
         assert!(err.contains("line 2"), "got: {err}");
         let _ = std::fs::remove_file(&path);
+    }
+
+    fn round_trip_passphrase(plaintext: &[u8], armor: bool) -> Vec<u8> {
+        let pp = age::secrecy::SecretString::from("hunter2".to_string());
+        let encryptor = age::Encryptor::with_user_passphrase(pp);
+
+        let mut ciphertext: Vec<u8> = Vec::new();
+        if armor {
+            let armored = age::armor::ArmoredWriter::wrap_output(
+                &mut ciphertext,
+                age::armor::Format::AsciiArmor,
+            )
+            .unwrap();
+            let mut writer = encryptor.wrap_output(armored).unwrap();
+            writer.write_all(plaintext).unwrap();
+            let armored = writer.finish().unwrap();
+            armored.finish().unwrap();
+        } else {
+            let mut writer = encryptor.wrap_output(&mut ciphertext).unwrap();
+            writer.write_all(plaintext).unwrap();
+            writer.finish().unwrap();
+        }
+
+        // Decrypt using scrypt::Identity as the identity for passphrase mode.
+        let armored =
+            age::armor::ArmoredReader::new(std::io::Cursor::new(&ciphertext[..]));
+        let decryptor = age::Decryptor::new_buffered(armored).unwrap();
+        let pp2 = age::secrecy::SecretString::from("hunter2".to_string());
+        let identity = age::scrypt::Identity::new(pp2);
+        let mut reader = decryptor
+            .decrypt(std::iter::once(&identity as &dyn age::Identity))
+            .unwrap();
+        let mut decrypted = Vec::new();
+        std::io::Read::read_to_end(&mut reader, &mut decrypted).unwrap();
+        decrypted
+    }
+
+    #[test]
+    fn round_trip_passphrase_binary() {
+        let pt = b"hello encryption";
+        let got = round_trip_passphrase(pt, false);
+        assert_eq!(got, pt);
+    }
+
+    #[test]
+    fn round_trip_passphrase_armored() {
+        let pt = b"hello encryption";
+        let got = round_trip_passphrase(pt, true);
+        assert_eq!(got, pt);
+    }
+
+    #[test]
+    fn round_trip_x25519() {
+        let id = age::x25519::Identity::generate();
+        let pub_str = id.to_public().to_string();
+
+        let recipient: age::x25519::Recipient = pub_str.parse().unwrap();
+        let encryptor =
+            age::Encryptor::with_recipients(std::iter::once(&recipient as &dyn age::Recipient))
+                .unwrap();
+        let plaintext = b"x25519 payload";
+
+        let mut ciphertext: Vec<u8> = Vec::new();
+        let mut writer = encryptor.wrap_output(&mut ciphertext).unwrap();
+        writer.write_all(plaintext).unwrap();
+        writer.finish().unwrap();
+
+        let armored =
+            age::armor::ArmoredReader::new(std::io::Cursor::new(&ciphertext[..]));
+        let decryptor = age::Decryptor::new_buffered(armored).unwrap();
+        let ids: Vec<&dyn age::Identity> = vec![&id];
+        let mut reader = decryptor.decrypt(ids.into_iter()).unwrap();
+        let mut decrypted = Vec::new();
+        std::io::Read::read_to_end(&mut reader, &mut decrypted).unwrap();
+        assert_eq!(decrypted, plaintext);
+    }
+
+    #[test]
+    fn decrypt_wrong_passphrase_errors() {
+        let pp = age::secrecy::SecretString::from("hunter2".to_string());
+        let encryptor = age::Encryptor::with_user_passphrase(pp);
+        let mut ciphertext: Vec<u8> = Vec::new();
+        let mut writer = encryptor.wrap_output(&mut ciphertext).unwrap();
+        writer.write_all(b"plaintext").unwrap();
+        writer.finish().unwrap();
+
+        let armored =
+            age::armor::ArmoredReader::new(std::io::Cursor::new(&ciphertext[..]));
+        let decryptor = age::Decryptor::new_buffered(armored).unwrap();
+        let wrong = age::secrecy::SecretString::from("wrong".to_string());
+        let identity = age::scrypt::Identity::new(wrong);
+        let err = decryptor.decrypt(std::iter::once(&identity as &dyn age::Identity));
+        assert!(err.is_err(), "expected decryption failure with wrong passphrase");
     }
 
     fn env_mutex() -> &'static std::sync::Mutex<()> {
