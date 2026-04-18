@@ -607,6 +607,42 @@ static TOPIC_SAMPLE: Topic = Topic {
     ],
 };
 
+static TOPIC_HASH: Topic = Topic {
+    title: "Hashing",
+    description: "Compute a cryptographic hash of any source — a local file, file:// URL, HTTP(S)\n\
+                  URL, or stdin. HTTP sources honour the full HTTP flag set (auth, redirects,\n\
+                  TLS options, cookies, referer). Output defaults to lowercase hex and can be\n\
+                  switched to base64 or raw bytes with --hash-format.",
+    flags: &[
+        FlagHelp {
+            flags: "--hash <ALGO>",
+            description: "Algorithm. Case-insensitive; hyphens and underscores accepted.\n\
+                          Supported: md5, sha1, sha256, sha384, sha512,\n\
+                          sha3-256, sha3-512, blake3.",
+        },
+        FlagHelp {
+            flags: "--hash-format <FMT>",
+            description: "Output format: hex (default, lowercase + newline),\n\
+                          base64 (standard + newline), raw (binary, no newline).",
+        },
+        FlagHelp {
+            flags: "--hash-list",
+            description: "Standalone action: list all supported algorithms with digest sizes.\n\
+                          Does not require a URL.",
+        },
+    ],
+    related: &["-o / --output", "-H / --header", "-u / --user", "-L / --location", "-e / --referer"],
+    examples: &[
+        ExampleHelp { description: "sha256 of a local file", command: "recon --hash sha256 ./file.bin" },
+        ExampleHelp { description: "sha512 of a remote artifact (with auth)", command: "recon --hash sha512 https://api/artifact -H \"Authorization: Bearer $T\" -L" },
+        ExampleHelp { description: "blake3 of stdin", command: "cat data | recon --hash blake3" },
+        ExampleHelp { description: "sha256 via file:// scheme", command: "recon --hash sha256 file:///tmp/data.bin" },
+        ExampleHelp { description: "Base64 output", command: "recon --hash sha256 ./file --hash-format base64" },
+        ExampleHelp { description: "Raw digest bytes piped onward", command: "recon --hash sha256 ./file --hash-format raw > digest.bin" },
+        ExampleHelp { description: "List supported algorithms", command: "recon --hash-list" },
+    ],
+};
+
 static TOPIC_EDITOR: Topic = Topic {
     title: "Editor Output",
     description: "Redirect recon's response output into an editor. Saves the body (or whatever the\n\
@@ -690,6 +726,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "telnet" => Some(&TOPIC_TELNET),
         "jwt" | "jwt-token" | "token" => Some(&TOPIC_JWT),
         "netstatus" => Some(&TOPIC_NETSTATUS),
+        "hash" | "hashing" => Some(&TOPIC_HASH),
         "sample" | "sampledata" | "sample-data" => Some(&TOPIC_SAMPLE),
         "editor" | "editor-output" => Some(&TOPIC_EDITOR),
         "serve" | "server" => Some(&TOPIC_SERVE),
@@ -751,6 +788,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "ssh",
         "telnet",
         "jwt",
+        "hash",
         "sample",
         "editor",
         "serve",

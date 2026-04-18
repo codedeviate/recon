@@ -498,6 +498,34 @@ pub fn print() {
         "# expected = \"93.184.216.34\"",
     ]);
 
+    section("HASHING");
+
+    example("Hash a local file", &[
+        "recon --hash sha256 ./file.bin",
+        "recon --hash md5 Cargo.toml",
+    ]);
+    example("Hash a remote URL with the full HTTP flag set", &[
+        "recon --hash sha512 https://api.example.com/artifact -H \"Authorization: Bearer $T\" -L",
+    ]);
+    example("Hash from stdin (explicit or implicit)", &[
+        "cat data | recon --hash blake3",
+        "recon --hash sha256 -",
+    ]);
+    example("Read through the file:// scheme", &[
+        "recon --hash sha256 file:///tmp/data.bin",
+    ]);
+    example("Alternative output formats (--hash-format)", &[
+        "recon --hash sha256 ./file --hash-format base64",
+        "recon --hash sha256 ./file --hash-format raw > digest.bin",
+    ]);
+    example("Write digest to a file (-o)", &[
+        "recon --hash sha256 ./file -o digest.hex",
+    ]);
+    example("List supported algorithms", &[
+        "recon --hash-list",
+    ]);
+    note("Accepted algorithm aliases: sha-256, sha_256, sha3_256, etc. Case-insensitive. See --help hash for the full list.");
+
     section("SAMPLE DATA");
 
     example("10 customers in JSON (default)", &[
