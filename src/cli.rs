@@ -33,6 +33,11 @@ pub struct Args {
     #[arg(short = 'L', long = "location")]
     pub follow_redirects: bool,
 
+    /// Send a Referer header. Accepts --referrer as an alias for the common
+    /// misspelling. An explicit -H "Referer: …" overrides this.
+    #[arg(short = 'e', long = "referer", alias = "referrer", value_name = "URL")]
+    pub referer: Option<String>,
+
     /// Maximum number of redirects to follow
     #[arg(long = "max-redirs", default_value_t = 10)]
     pub max_redirs: usize,

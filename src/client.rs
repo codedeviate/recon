@@ -111,6 +111,19 @@ fn send_request(
 ) -> Result<Response> {
     let mut request = client.request(method, url);
 
+    // Check if user explicitly provided a Referer header
+    let user_provided_referer = args.header.iter().any(|h| {
+        h.split_once(':')
+            .map(|(name, _)| name.trim().eq_ignore_ascii_case("Referer"))
+            .unwrap_or(false)
+    });
+
+    if let Some(ref_url) = &args.referer {
+        if !user_provided_referer {
+            request = request.header("Referer", ref_url.as_str());
+        }
+    }
+
     for header_str in &args.header {
         let (name, value) = parse_header(header_str)?;
         request = request.header(name, value);
