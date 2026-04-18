@@ -683,6 +683,50 @@ static TOPIC_COMPRESSION: Topic = Topic {
     ],
 };
 
+static TOPIC_ENCODE: Topic = Topic {
+    title: "Encoding (QR / DataMatrix / Barcodes)",
+    description: "Generate QR codes, DataMatrix codes, and linear barcodes from literal text.\n\
+                  Input comes from the positional argument, stdin (via `-` or a pipe), or\n\
+                  --from-file <PATH>. Output goes to stdout or a file via -o; the format\n\
+                  is inferred from the file extension (.svg / .png) or can be set explicitly\n\
+                  with --encode-format.",
+    flags: &[
+        FlagHelp {
+            flags: "--encode <FORMAT>",
+            description: "Code format. Supported:\n\
+                          qr, datamatrix, code128, code39, ean13, upca.",
+        },
+        FlagHelp {
+            flags: "--encode-format <FMT>",
+            description: "Output format: ascii (default for terminal), svg, or png.\n\
+                          When omitted, -o <FILE> extension is honored: .svg → svg,\n\
+                          .png → png, otherwise ASCII.",
+        },
+        FlagHelp {
+            flags: "--from-file <PATH>",
+            description: "Read the encode input from a file. Mutually exclusive with a\n\
+                          positional text argument.",
+        },
+        FlagHelp {
+            flags: "--encode-list",
+            description: "Standalone action: list all supported formats with their input\n\
+                          requirements. Does not require a URL.",
+        },
+    ],
+    related: &["-o / --output", "--from-file"],
+    examples: &[
+        ExampleHelp { description: "QR code to terminal (ASCII)", command: "recon --encode qr \"https://example.com\"" },
+        ExampleHelp { description: "QR code to SVG (inferred from extension)", command: "recon --encode qr \"https://example.com\" -o qr.svg" },
+        ExampleHelp { description: "QR code to PNG", command: "recon --encode qr \"Contact: +46-70-123\" -o contact.png" },
+        ExampleHelp { description: "DataMatrix (Swedish personal number)", command: "recon --encode datamatrix \"199001011234\" -o id.png" },
+        ExampleHelp { description: "EAN-13 retail barcode", command: "recon --encode ean13 \"590123412345\" -o retail.png" },
+        ExampleHelp { description: "Code 128 alphanumeric", command: "recon --encode code128 \"RECON-TEST-001\"" },
+        ExampleHelp { description: "Encode from stdin", command: "echo \"https://example.com\" | recon --encode qr" },
+        ExampleHelp { description: "Encode from file", command: "recon --encode qr --from-file long-url.txt -o link.png" },
+        ExampleHelp { description: "List supported formats", command: "recon --encode-list" },
+    ],
+};
+
 static TOPIC_EDITOR: Topic = Topic {
     title: "Editor Output",
     description: "Redirect recon's response output into an editor. Saves the body (or whatever the\n\
@@ -761,6 +805,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "tls-rpt" | "tlsrpt" => Some(&TOPIC_TLS_RPT),
         "email" | "email-protection" => Some(&TOPIC_EMAIL),
         "cookies" | "cookiejar" | "cookie" => Some(&TOPIC_COOKIES),
+        "encode" | "encoding" | "qr" | "barcode" => Some(&TOPIC_ENCODE),
         "scp" => Some(&TOPIC_SCP),
         "ssh" | "ssh-shell" => Some(&TOPIC_SSH),
         "telnet" => Some(&TOPIC_TELNET),
@@ -831,6 +876,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "jwt",
         "hash",
         "compression",
+        "encoding",
         "sample",
         "editor",
         "serve",

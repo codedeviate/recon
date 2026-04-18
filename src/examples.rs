@@ -552,6 +552,34 @@ pub fn print() {
     ]);
     note("Level aliases (fastest/fast/default/good/best) map to each algorithm's native scale. See --help compression for the word-to-number table.");
 
+    section("ENCODING");
+
+    example("QR code to terminal (ASCII)", &[
+        "recon --encode qr \"https://example.com\"",
+    ]);
+    example("QR code saved to disk (format inferred from extension)", &[
+        "recon --encode qr \"https://example.com\" -o qr.svg",
+        "recon --encode qr \"Contact: +46-70-123\" -o contact.png",
+    ]);
+    example("DataMatrix / linear barcodes", &[
+        "recon --encode datamatrix \"199001011234\" -o id.png",
+        "recon --encode ean13 \"590123412345\" -o retail.png",
+        "recon --encode code128 \"RECON-TEST-001\" -o shelf.svg",
+        "recon --encode code39 \"SKU-42\" -o label.svg",
+    ]);
+    example("Input from stdin or a file", &[
+        "echo \"https://example.com\" | recon --encode qr",
+        "recon --encode qr --from-file long-url.txt -o link.png",
+    ]);
+    example("Explicit output format (override the extension guess)", &[
+        "recon --encode qr \"text\" --encode-format svg",
+        "recon --encode qr \"text\" --encode-format png > code.png",
+    ]);
+    example("List supported formats", &[
+        "recon --encode-list",
+    ]);
+    note("Only encoding is supported in this release. Decoding (image → text) may land in a later version.");
+
     section("SAMPLE DATA");
 
     example("10 customers in JSON (default)", &[
