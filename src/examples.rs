@@ -526,6 +526,32 @@ pub fn print() {
     ]);
     note("Accepted algorithm aliases: sha-256, sha_256, sha3_256, etc. Case-insensitive. See --help hash for the full list.");
 
+    section("COMPRESSION");
+
+    example("Compress a local file with gzip", &[
+        "recon --compress gzip ./big.log -o big.log.gz",
+        "recon --compress gz Cargo.toml > cargo.gz",
+    ]);
+    example("Compress to stdout with a quality knob", &[
+        "recon --compress zstd --compression-level best ./data -o data.zst",
+        "recon --compress brotli --compression-level 9 ./web > web.br",
+    ]);
+    example("Decompress a file (auto-detect from magic bytes)", &[
+        "recon --decompress ./foo.gz",
+        "recon --decompress https://cdn/file.zst",
+    ]);
+    example("Decompress brotli or deflate (explicit algorithm required)", &[
+        "recon --decompress brotli ./asset.br",
+        "recon --decompress deflate ./raw.zz",
+    ]);
+    example("Piping streams without touching disk", &[
+        "cat data | recon --compress gzip | recon --decompress > data-roundtrip",
+    ]);
+    example("List supported algorithms", &[
+        "recon --compress-list",
+    ]);
+    note("Level aliases (fastest/fast/default/good/best) map to each algorithm's native scale. See --help compression for the word-to-number table.");
+
     section("SAMPLE DATA");
 
     example("10 customers in JSON (default)", &[

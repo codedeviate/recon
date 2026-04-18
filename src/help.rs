@@ -643,6 +643,46 @@ static TOPIC_HASH: Topic = Topic {
     ],
 };
 
+static TOPIC_COMPRESSION: Topic = Topic {
+    title: "Compression",
+    description: "Compress or decompress any source — a local file, file:// URL, HTTP(S) URL,\n\
+                  or stdin. Output goes to stdout or -o <FILE>. Auto-detects gzip, zstd, and\n\
+                  bzip2 inputs by magic bytes; deflate and brotli lack a signature so their\n\
+                  algorithm must be named explicitly when decompressing.",
+    flags: &[
+        FlagHelp {
+            flags: "--compress <ALGO>",
+            description: "Compress with the named algorithm (case-insensitive; alias accepted).\n\
+                          Supported: gzip/gz, deflate, zstd/zst, brotli/br, bzip2/bz2.",
+        },
+        FlagHelp {
+            flags: "--decompress [ALGO]",
+            description: "Decompress. Omit ALGO to auto-detect (gzip, zstd, bzip2 by magic\n\
+                          bytes). Pass the algorithm for deflate or brotli.",
+        },
+        FlagHelp {
+            flags: "--compression-level <LEVEL>",
+            description: "Quality for --compress. Number in the algorithm's native range\n\
+                          (gzip 0-9, zstd 1-22, brotli 0-11, bzip2 1-9), or a word:\n\
+                          fastest, fast, default, good, best. Invalid with --decompress.",
+        },
+        FlagHelp {
+            flags: "--compress-list",
+            description: "Standalone action: list all supported algorithms with their\n\
+                          aliases, magic bytes, and level ranges. Does not require a URL.",
+        },
+    ],
+    related: &["-o / --output", "-H / --header", "-u / --user", "-L / --location"],
+    examples: &[
+        ExampleHelp { description: "gzip a local file to stdout", command: "recon --compress gzip ./big.log" },
+        ExampleHelp { description: "zstd with a strong level to disk", command: "recon --compress zstd --compression-level best ./data -o data.zst" },
+        ExampleHelp { description: "Decompress from URL (auto-detect)", command: "recon --decompress https://cdn/file.zst" },
+        ExampleHelp { description: "Decompress brotli (explicit algorithm)", command: "recon --decompress brotli ./web-asset.br" },
+        ExampleHelp { description: "Compress stdin", command: "cat data | recon --compress gzip > data.gz" },
+        ExampleHelp { description: "List supported algorithms", command: "recon --compress-list" },
+    ],
+};
+
 static TOPIC_EDITOR: Topic = Topic {
     title: "Editor Output",
     description: "Redirect recon's response output into an editor. Saves the body (or whatever the\n\
@@ -727,6 +767,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "jwt" | "jwt-token" | "token" => Some(&TOPIC_JWT),
         "netstatus" => Some(&TOPIC_NETSTATUS),
         "hash" | "hashing" => Some(&TOPIC_HASH),
+        "compress" | "compression" | "decompress" => Some(&TOPIC_COMPRESSION),
         "sample" | "sampledata" | "sample-data" => Some(&TOPIC_SAMPLE),
         "editor" | "editor-output" => Some(&TOPIC_EDITOR),
         "serve" | "server" => Some(&TOPIC_SERVE),
@@ -789,6 +830,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "telnet",
         "jwt",
         "hash",
+        "compression",
         "sample",
         "editor",
         "serve",
