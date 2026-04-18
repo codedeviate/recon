@@ -40,6 +40,9 @@ static TOPIC_HTTP: Topic = Topic {
         FlagHelp { flags: "-k, --insecure", description: "Skip TLS certificate verification.\nDisables hostname, expiry, and chain checks." },
         FlagHelp { flags: "-A, --user-agent <STRING>", description: "Custom User-Agent header value." },
         FlagHelp { flags: "-f, --fail", description: "Exit with non-zero status on HTTP 4xx/5xx responses.\nNo output is printed for the error response body." },
+        FlagHelp { flags: "-e, --referer <URL>", description: "Send a Referer header. Also accepts --referrer.\nAn explicit -H \"Referer: …\" takes precedence over this flag." },
+        FlagHelp { flags: "-O, --remote-name", description: "Save response body to a file named after the URL's final path segment.\nPercent-decodes the name. Mutually exclusive with -o/--output." },
+        FlagHelp { flags: "-T, --upload-file <PATH>", description: "Upload local file as request body.\nDefaults method to PUT unless -X is set explicitly. Mutually exclusive with -d/--data." },
     ],
     related: &["--cert", "--cookiejar", "-p / --prettify"],
     examples: &[

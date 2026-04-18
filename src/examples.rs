@@ -46,6 +46,18 @@ pub fn print() {
         r#"recon https://api.example.com/private -u admin:password -p"#,
         r#"recon https://intranet.corp/api -u alice:s3cr3t -H "Accept: application/json""#,
     ]);
+    example("Send a Referer header (-e / --referer)", &[
+        "recon https://api.example.com/ -e https://dashboard.example.com/",
+        "recon https://api.example.com/ --referrer https://dashboard.example.com/",
+    ]);
+    example("Save to a file named after the URL (-O / --remote-name)", &[
+        "recon https://example.com/files/report.pdf -O",
+        "recon https://example.com/files/report.pdf -O -L",
+    ]);
+    example("Upload a local file (-T / --upload-file, defaults to PUT)", &[
+        "recon https://api.example.com/files/img.jpg -T ./img.jpg",
+        "recon https://api.example.com/upload -T payload.json -X POST",
+    ]);
     example("Send -d data as URL query parameters with GET (-G / --get)", &[
         "recon https://httpbin.org/get -G -d 'q=rust&lang=en'",
         "recon https://api.example.com/search -G -d 'query=hello&page=1&limit=20'",
