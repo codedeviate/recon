@@ -18,6 +18,27 @@ recon follows semantic versioning (`MAJOR.MINOR.PATCH`):
 
 ## Version Log
 
+### [0.11.0]
+
+#### Added
+- `-e, --referer <URL>`: send a Referer header (alias `--referrer` for the
+  common misspelling). Overridden by any explicit `-H "Referer: …"`.
+- `-O, --remote-name`: save the response body to a file named after the
+  URL's final path segment (mirrors `curl -O`). Percent-decodes the name;
+  errors when the URL has no filename or when the name would escape the
+  current directory. Mutually exclusive with `-o/--output`.
+- `-T, --upload-file <PATH>`: upload a local file as the request body.
+  Defaults the method to PUT unless `-X` is set explicitly. Mutually
+  exclusive with `-d/--data`.
+
+#### Changed
+- `-X/--request` is now `Option<String>`; the effective method is resolved
+  through a new `Args::effective_method()` helper that honours explicit
+  `-X`, then `-T` (PUT), then `-d`/`-G` (POST/GET), then defaults to GET.
+  No user-visible behaviour change for existing invocations.
+
+---
+
 ### [0.10.1]
 
 #### Changed
