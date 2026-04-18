@@ -17,6 +17,7 @@ mod prettify;
 mod sampledata;
 mod scp;
 mod serve;
+mod source;
 mod ssh;
 mod ssh_auth;
 mod telnet;
