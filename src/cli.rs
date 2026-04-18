@@ -9,7 +9,7 @@ use std::path::PathBuf;
 )]
 pub struct Args {
     /// URL to request (or use --url)
-    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni", "jwt_view", "jwt_sign", "jwt_validate", "netstatus", "editor_cleanup", "sample", "sample_list", "hash", "hash_list"])]
+    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni", "jwt_view", "jwt_sign", "jwt_validate", "netstatus", "editor_cleanup", "sample", "sample_list", "hash", "hash_list", "compress", "decompress", "compress_list"])]
     pub url: Option<String>,
 
     /// URL to request — curl-compatible alternative to the positional argument
@@ -390,6 +390,30 @@ pub struct Args {
     /// List all supported hash algorithms and exit (standalone action).
     #[arg(long = "hash-list")]
     pub hash_list: bool,
+
+    // ── Compression ──────────────────────────────────────────────────────────
+
+    /// Compress the input source with the named algorithm. Value is an
+    /// algorithm name (case-insensitive; canonical or alias): gzip, gz,
+    /// deflate, zstd, zst, brotli, br, bzip2, bz2.
+    #[arg(long = "compress", value_name = "ALGO")]
+    pub compress: Option<String>,
+
+    /// Decompress the input source. Omit ALGO to auto-detect from magic
+    /// bytes (gzip, zstd, bzip2). Deflate and brotli have no magic bytes
+    /// — pass the algorithm explicitly for those.
+    #[arg(long = "decompress", value_name = "ALGO", num_args = 0..=1, default_missing_value = "")]
+    pub decompress: Option<String>,
+
+    /// Compression level for --compress. Accepts a number in the algorithm's
+    /// native range (e.g. gzip 0-9, zstd 1-22), or one of:
+    /// fastest, fast, default, good, best. Invalid with --decompress.
+    #[arg(long = "compression-level", value_name = "LEVEL")]
+    pub compression_level: Option<String>,
+
+    /// List supported compression algorithms and exit (standalone action).
+    #[arg(long = "compress-list")]
+    pub compress_list: bool,
 }
 
 impl Args {

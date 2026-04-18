@@ -262,6 +262,141 @@ fn word_to_native(algo: Algo, word: LevelWord) -> u32 {
     }
 }
 
+use std::io::Write;
+
+/// Print the `--compress-list` output to `out`.
+pub fn print_list(out: &mut dyn Write) -> std::io::Result<()> {
+    for algo in Algo::ALL {
+        let aliases = if algo.aliases().is_empty() {
+            "—".to_string()
+        } else {
+            algo.aliases().join(",")
+        };
+        let magic = match algo.magic() {
+            Some(bytes) => bytes.iter().map(|b| format!("{:02x}", b)).collect::<String>(),
+            None => "—".to_string(),
+        };
+        let (min, max) = algo.level_range();
+        writeln!(
+            out,
+            "{:<8} aliases: {:<8} magic: {:<10} levels: {}-{:<4} default: {}",
+            algo.canonical(),
+            aliases,
+            magic,
+            min,
+            max,
+            algo.default_level(),
+        )?;
+    }
+    Ok(())
+}
+
+use crate::cli::Args;
+
+/// Top-level entry for `--compress` and `--decompress`. Exactly one of
+/// those flags must be set; mutual exclusion is enforced in `main.rs`
+/// before this is called.
+pub fn run(args: &Args) -> Result<()> {
+    if args.compress.is_some() {
+        return run_compress(args);
+    }
+    if args.decompress.is_some() {
+        return run_decompress(args);
+    }
+    Err(anyhow!("internal: compression::run called with neither flag set"))
+}
+
+fn run_compress(args: &Args) -> Result<()> {
+    let algo_str = args.compress.as_deref().unwrap_or("");
+    let algo = parse_algo(algo_str)?;
+
+    let level = match args.compression_level.as_deref() {
+        Some(s) => {
+            let parsed = parse_level(s)?;
+            resolve_native_level(algo, parsed)?
+        }
+        None => algo.default_level(),
+    };
+
+    let source_kind = crate::source::resolve(args)?;
+    if args.verbose >= 1 {
+        let label = source_label(&source_kind);
+        eprintln!("* compress: {} level={} from {}", algo.canonical(), level, label);
+    }
+    let reader = crate::source::open(source_kind, args)?;
+
+    let mut out: Box<dyn Write> = open_output(args)?;
+    compress(algo, level, reader, &mut out)?;
+    Ok(())
+}
+
+fn run_decompress(args: &Args) -> Result<()> {
+    // `--compression-level` is only valid with --compress.
+    if args.compression_level.is_some() {
+        return Err(anyhow!("--compression-level only applies to --compress"));
+    }
+
+    let algo_flag = args.decompress.as_deref().unwrap_or("");
+    let source_kind = crate::source::resolve(args)?;
+    let mut reader = crate::source::open(source_kind.clone(), args)?;
+
+    let algo = if algo_flag.is_empty() {
+        // Peek the first 6 bytes, then chain them back with the rest.
+        let mut head = [0u8; 6];
+        let n = fill_buf(&mut reader, &mut head)?;
+        let detected = detect_from_magic(&head[..n]).ok_or_else(|| anyhow!(
+            "--decompress: could not auto-detect format from magic bytes; \
+             supply an algorithm: --decompress <gzip|deflate|zstd|brotli|bzip2>"
+        ))?;
+        // Re-chain: prepend the peeked bytes.
+        reader = Box::new(std::io::Read::chain(
+            std::io::Cursor::new(head[..n].to_vec()),
+            reader,
+        ));
+        detected
+    } else {
+        parse_algo(algo_flag)?
+    };
+
+    if args.verbose >= 1 {
+        let label = source_label(&source_kind);
+        eprintln!("* decompress: {} from {}", algo.canonical(), label);
+    }
+
+    let mut out: Box<dyn Write> = open_output(args)?;
+    decompress(algo, reader, &mut out)?;
+    Ok(())
+}
+
+fn source_label(kind: &crate::source::SourceKind) -> String {
+    match kind {
+        crate::source::SourceKind::Stdin => "stdin".to_string(),
+        crate::source::SourceKind::File(p) => p.display().to_string(),
+        crate::source::SourceKind::Http(u) => u.clone(),
+    }
+}
+
+fn open_output(args: &Args) -> Result<Box<dyn Write>> {
+    match &args.output {
+        Some(path) => Ok(Box::new(std::fs::File::create(path)?)),
+        None => Ok(Box::new(std::io::stdout().lock())),
+    }
+}
+
+/// `Read::read` can return short reads; loop until we fill the buffer or
+/// hit EOF. Returns the number of bytes actually read.
+fn fill_buf(reader: &mut Box<dyn Read>, buf: &mut [u8]) -> std::io::Result<usize> {
+    let mut total = 0;
+    while total < buf.len() {
+        let n = reader.read(&mut buf[total..])?;
+        if n == 0 {
+            break;
+        }
+        total += n;
+    }
+    Ok(total)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -407,6 +542,58 @@ mod tests {
         let err = resolve_native_level(Algo::Zstd, Level::Num(23)).unwrap_err().to_string();
         assert!(err.contains("zstd"), "got: {err}");
         assert!(err.contains("1-22"), "got: {err}");
+    }
+
+    #[test]
+    fn run_compress_file_then_decompress_roundtrips() {
+        use clap::Parser;
+
+        let tmp_in = std::env::temp_dir().join(format!(
+            "recon-compress-in-{}.bin",
+            std::process::id()
+        ));
+        let tmp_enc = std::env::temp_dir().join(format!(
+            "recon-compress-enc-{}.gz",
+            std::process::id()
+        ));
+        let tmp_dec = std::env::temp_dir().join(format!(
+            "recon-compress-dec-{}.bin",
+            std::process::id()
+        ));
+
+        std::fs::write(&tmp_in, b"hello compression").unwrap();
+
+        // Compress.
+        let args = Args::try_parse_from([
+            "recon",
+            "--compress",
+            "gzip",
+            "-o",
+            tmp_enc.to_str().unwrap(),
+            tmp_in.to_str().unwrap(),
+        ]).unwrap();
+        run(&args).unwrap();
+
+        // Confirm output starts with gzip magic.
+        let compressed = std::fs::read(&tmp_enc).unwrap();
+        assert_eq!(&compressed[..2], &[0x1f, 0x8b]);
+
+        // Decompress (auto-detect) back to tmp_dec.
+        let args = Args::try_parse_from([
+            "recon",
+            "--decompress",
+            "-o",
+            tmp_dec.to_str().unwrap(),
+            tmp_enc.to_str().unwrap(),
+        ]).unwrap();
+        run(&args).unwrap();
+
+        let got = std::fs::read(&tmp_dec).unwrap();
+        assert_eq!(got, b"hello compression");
+
+        let _ = std::fs::remove_file(&tmp_in);
+        let _ = std::fs::remove_file(&tmp_enc);
+        let _ = std::fs::remove_file(&tmp_dec);
     }
 
     fn round_trip(algo: Algo, input: &[u8]) -> Vec<u8> {

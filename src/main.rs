@@ -148,6 +148,58 @@ fn main() {
         return;
     }
 
+    // ── Compression: list supported algorithms ───────────────────────────────
+    if args.compress_list {
+        if let Err(e) = compression::print_list(&mut std::io::stdout().lock()) {
+            eprintln!("error: {e}");
+            std::process::exit(1);
+        }
+        return;
+    }
+
+    // ── Compression: compress / decompress the input source ─────────────────
+    if args.compress.is_some() || args.decompress.is_some() {
+        // Mutual exclusions.
+        if args.compress.is_some() && args.decompress.is_some() {
+            eprintln!("error: --compress and --decompress are mutually exclusive");
+            std::process::exit(1);
+        }
+        if args.hash.is_some() {
+            eprintln!("error: --compress and --hash are mutually exclusive");
+            std::process::exit(1);
+        }
+        if args.remote_name {
+            eprintln!("error: --compress and -O/--remote-name are mutually exclusive");
+            std::process::exit(1);
+        }
+        if args.upload_file.is_some() {
+            eprintln!("error: --compress and -T/--upload-file are mutually exclusive");
+            std::process::exit(1);
+        }
+        if args.data.is_some() {
+            eprintln!("error: --compress and -d/--data are mutually exclusive");
+            std::process::exit(1);
+        }
+        if args.editor.is_some() {
+            eprintln!("error: --compress and --editor are mutually exclusive");
+            std::process::exit(1);
+        }
+        if args.sample.is_some() {
+            eprintln!("error: --compress and --sample are mutually exclusive");
+            std::process::exit(1);
+        }
+
+        if let Err(err) = compression::run(&args) {
+            if args.full_errors {
+                eprintln!("error: {err:#}");
+            } else {
+                eprintln!("error: {}", friendly_message(&err));
+            }
+            std::process::exit(1);
+        }
+        return;
+    }
+
     // ── Sample data: fetch / generate ────────────────────────────────────────
     if args.sample.is_some() {
         let result = run_sample(&args);
