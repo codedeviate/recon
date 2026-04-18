@@ -1,6 +1,7 @@
 mod cert;
 mod cli;
 mod client;
+mod compression;
 mod config;
 mod cookiejar;
 mod dns;
