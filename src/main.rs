@@ -7,6 +7,7 @@ mod cookiejar;
 mod dns;
 mod editor;
 mod email;
+mod encode;
 mod examples;
 mod hash;
 mod help;
