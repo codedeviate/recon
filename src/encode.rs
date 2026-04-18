@@ -286,18 +286,194 @@ fn encode_1d(format: Format, input: &[u8]) -> Result<BitMatrix> {
     })
 }
 
-// ---- Renderer stubs — filled in by Task 4 ------------------------------
+// ---- Renderers — Task 4 ------------------------------------------------
 
-pub fn render_ascii(_matrix: &BitMatrix) -> String {
-    String::new()
+use std::io::Write;
+
+// Renderer constants.
+const TWOD_PIXEL_SCALE: u32 = 8;       // 8× per module for 2D codes
+const ONED_PIXEL_WIDTH: u32 = 2;       // 2× horizontal stretch for 1D
+const ONED_BAR_HEIGHT: u32 = 50;       // row count for 1D output
+const QUIET_ZONE_MODULES: u32 = 2;     // blank modules around the matrix
+
+/// Render to unicode-block ASCII.
+/// - 2D codes: pair two rows per line with `▀`/`▄`/`█`/` ` half-blocks so output
+///   looks square-ish in the terminal.
+/// - 1D codes: extrude the single row into a tall block using full blocks.
+pub fn render_ascii(matrix: &BitMatrix) -> String {
+    match matrix.kind {
+        MatrixKind::TwoD => render_ascii_2d(matrix),
+        MatrixKind::OneD => render_ascii_1d(matrix),
+    }
 }
 
-pub fn render_svg(_matrix: &BitMatrix) -> String {
-    String::new()
+fn render_ascii_2d(matrix: &BitMatrix) -> String {
+    let upper_lower = |up: bool, lo: bool| match (up, lo) {
+        (false, false) => ' ',
+        (true, false) => '▀',
+        (false, true) => '▄',
+        (true, true) => '█',
+    };
+    let mut out = String::new();
+    let qz = QUIET_ZONE_MODULES as i64;
+    let w = matrix.width as i64;
+    let h = matrix.height as i64;
+    let mut y = -qz;
+    while y < h + qz {
+        // quiet zone left
+        for _ in 0..qz {
+            out.push(upper_lower(false, false));
+        }
+        for x in 0..w {
+            let up = if y >= 0 && y < h { matrix.get(x as u32, y as u32) } else { false };
+            let lo_y = y + 1;
+            let lo = if lo_y >= 0 && lo_y < h { matrix.get(x as u32, lo_y as u32) } else { false };
+            out.push(upper_lower(up, lo));
+        }
+        // quiet zone right
+        for _ in 0..qz {
+            out.push(upper_lower(false, false));
+        }
+        out.push('\n');
+        y += 2;
+    }
+    out
 }
 
-pub fn render_png(_matrix: &BitMatrix) -> Result<Vec<u8>> {
-    Err(anyhow!("encode::render_png not yet implemented"))
+fn render_ascii_1d(matrix: &BitMatrix) -> String {
+    // Single row tiled vertically to a few lines for visibility.
+    const LINES: u32 = 6;
+    let mut out = String::new();
+    let qz = QUIET_ZONE_MODULES;
+    for _ in 0..LINES {
+        for _ in 0..qz {
+            out.push(' ');
+        }
+        for x in 0..matrix.width {
+            out.push(if matrix.get(x, 0) { '█' } else { ' ' });
+        }
+        for _ in 0..qz {
+            out.push(' ');
+        }
+        out.push('\n');
+    }
+    out
+}
+
+/// Render to a self-contained SVG document. Black-on-white.
+pub fn render_svg(matrix: &BitMatrix) -> String {
+    let (scale, height_mul) = match matrix.kind {
+        MatrixKind::TwoD => (TWOD_PIXEL_SCALE, 1),
+        MatrixKind::OneD => (ONED_PIXEL_WIDTH, ONED_BAR_HEIGHT),
+    };
+    let qz = QUIET_ZONE_MODULES;
+    let module_w = matrix.width + 2 * qz;
+    let module_h = (matrix.height * height_mul) + 2 * qz;
+    let px_w = module_w * scale;
+    let px_h = module_h * scale;
+
+    let mut out = String::new();
+    out.push_str(&format!(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
+         <svg xmlns=\"http://www.w3.org/2000/svg\" \
+              viewBox=\"0 0 {px_w} {px_h}\" \
+              width=\"{px_w}\" height=\"{px_h}\" \
+              shape-rendering=\"crispEdges\">\n\
+           <rect width=\"{px_w}\" height=\"{px_h}\" fill=\"white\"/>\n"
+    ));
+
+    match matrix.kind {
+        MatrixKind::TwoD => {
+            for y in 0..matrix.height {
+                for x in 0..matrix.width {
+                    if matrix.get(x, y) {
+                        let px_x = (x + qz) * scale;
+                        let px_y = (y + qz) * scale;
+                        out.push_str(&format!(
+                            "  <rect x=\"{px_x}\" y=\"{px_y}\" width=\"{scale}\" height=\"{scale}\" fill=\"black\"/>\n"
+                        ));
+                    }
+                }
+            }
+        }
+        MatrixKind::OneD => {
+            let bar_px_h = ONED_BAR_HEIGHT * scale;
+            let bar_y = qz * scale;
+            for x in 0..matrix.width {
+                if matrix.get(x, 0) {
+                    let px_x = (x + qz) * scale;
+                    out.push_str(&format!(
+                        "  <rect x=\"{px_x}\" y=\"{bar_y}\" width=\"{scale}\" height=\"{bar_px_h}\" fill=\"black\"/>\n"
+                    ));
+                }
+            }
+        }
+    }
+
+    out.push_str("</svg>\n");
+    out
+}
+
+/// Render to a PNG byte stream. Grayscale 8-bit (0 = black, 255 = white).
+pub fn render_png(matrix: &BitMatrix) -> Result<Vec<u8>> {
+    let (scale, height_mul) = match matrix.kind {
+        MatrixKind::TwoD => (TWOD_PIXEL_SCALE, 1),
+        MatrixKind::OneD => (ONED_PIXEL_WIDTH, ONED_BAR_HEIGHT),
+    };
+    let qz = QUIET_ZONE_MODULES;
+    let module_w = matrix.width + 2 * qz;
+    let module_h = (matrix.height * height_mul) + 2 * qz;
+    let px_w = module_w * scale;
+    let px_h = module_h * scale;
+
+    // One byte per pixel grayscale (0 = black, 255 = white).
+    let mut pixels: Vec<u8> = vec![255u8; (px_w * px_h) as usize];
+    let set_pixel = |pixels: &mut Vec<u8>, x: u32, y: u32| {
+        let idx = (y * px_w + x) as usize;
+        pixels[idx] = 0;
+    };
+
+    match matrix.kind {
+        MatrixKind::TwoD => {
+            for my in 0..matrix.height {
+                for mx in 0..matrix.width {
+                    if matrix.get(mx, my) {
+                        let px_x0 = (mx + qz) * scale;
+                        let px_y0 = (my + qz) * scale;
+                        for dy in 0..scale {
+                            for dx in 0..scale {
+                                set_pixel(&mut pixels, px_x0 + dx, px_y0 + dy);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        MatrixKind::OneD => {
+            let bar_px_h = ONED_BAR_HEIGHT * scale;
+            let bar_y0 = qz * scale;
+            for mx in 0..matrix.width {
+                if matrix.get(mx, 0) {
+                    let px_x0 = (mx + qz) * scale;
+                    for dy in 0..bar_px_h {
+                        for dx in 0..scale {
+                            set_pixel(&mut pixels, px_x0 + dx, bar_y0 + dy);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let mut out = Vec::new();
+    {
+        let mut encoder = png::Encoder::new(&mut out, px_w, px_h);
+        encoder.set_color(png::ColorType::Grayscale);
+        encoder.set_depth(png::BitDepth::Eight);
+        let mut writer = encoder.write_header().map_err(|e| anyhow!("png: {e}"))?;
+        writer.write_image_data(&pixels).map_err(|e| anyhow!("png: {e}"))?;
+    }
+    Ok(out)
 }
 
 #[cfg(test)]
@@ -475,5 +651,81 @@ mod tests {
         // with check digit 5.
         assert_eq!(ean_check_digit(b"590123412345"), b'7');
         assert_eq!(ean_check_digit(b"01234567890"), b'5');
+    }
+
+    fn tiny_2d_matrix() -> BitMatrix {
+        // 3×3 all dark except center.
+        BitMatrix {
+            width: 3,
+            height: 3,
+            bits: vec![
+                true, true, true,
+                true, false, true,
+                true, true, true,
+            ],
+            kind: MatrixKind::TwoD,
+        }
+    }
+
+    #[test]
+    fn render_ascii_2d_produces_output_lines() {
+        let out = render_ascii(&tiny_2d_matrix());
+        let lines: Vec<&str> = out.lines().collect();
+        assert!(lines.len() >= 2, "expected at least 2 output lines; got {}\n{out}", lines.len());
+        assert!(!out.is_empty());
+    }
+
+    #[test]
+    fn render_ascii_1d_produces_multiple_lines() {
+        let m = BitMatrix {
+            width: 5,
+            height: 1,
+            bits: vec![true, false, true, false, true],
+            kind: MatrixKind::OneD,
+        };
+        let out = render_ascii(&m);
+        assert!(out.lines().count() >= 4, "1D should render multiple lines:\n{out}");
+    }
+
+    #[test]
+    fn render_svg_well_formed() {
+        let out = render_svg(&tiny_2d_matrix());
+        assert!(out.starts_with("<?xml"), "got: {}", &out[..30.min(out.len())]);
+        assert!(out.contains("<svg "), "missing <svg>: {out}");
+        assert!(out.trim_end().ends_with("</svg>"), "no closing </svg>: {out}");
+        let rect_count = out.matches("<rect").count();
+        assert!(rect_count >= 8, "expected ≥8 <rect>s, got {rect_count}:\n{out}");
+    }
+
+    #[test]
+    fn render_svg_1d_has_one_rect_per_bar() {
+        let m = BitMatrix {
+            width: 3,
+            height: 1,
+            bits: vec![true, false, true],
+            kind: MatrixKind::OneD,
+        };
+        let out = render_svg(&m);
+        // 1 background rect + 2 bar rects = 3
+        assert_eq!(out.matches("<rect").count(), 3, "got:\n{out}");
+    }
+
+    #[test]
+    fn render_png_has_signature_and_ihdr() {
+        let bytes = render_png(&tiny_2d_matrix()).unwrap();
+        assert!(bytes.len() > 16);
+        assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n");
+        assert_eq!(&bytes[12..16], b"IHDR");
+    }
+
+    #[test]
+    fn render_png_decodes_back() {
+        let bytes = render_png(&tiny_2d_matrix()).unwrap();
+        let decoder = png::Decoder::new(bytes.as_slice());
+        let mut reader = decoder.read_info().unwrap();
+        let info = reader.info();
+        // 3 modules + 2 quiet-zones on each side = 7 modules wide; × 8 scale = 56.
+        assert_eq!(info.width, 56);
+        assert_eq!(info.height, 56);
     }
 }
