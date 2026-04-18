@@ -18,6 +18,24 @@ recon follows semantic versioning (`MAJOR.MINOR.PATCH`):
 
 ## Version Log
 
+### [0.13.0]
+
+#### Added
+- `--compress <ALGO>`: compress the input source (file, URL, stdin, file://)
+  with gzip, deflate, zstd, brotli, or bzip2. Streams bytes; output goes to
+  stdout or -o <FILE>.
+- `--decompress [ALGO]`: decompress the input source. Without ALGO, the
+  first 6 bytes are inspected and gzip / zstd / bzip2 are auto-detected.
+  Deflate and brotli lack magic bytes; pass the algorithm explicitly for
+  those.
+- `--compression-level <LEVEL>`: quality for --compress. Accepts a number
+  in the algorithm's native range or a word (fastest, fast, default, good,
+  best). Invalid with --decompress.
+- `--compress-list`: standalone action listing supported algorithms with
+  their aliases, magic bytes, and level ranges.
+
+---
+
 ### [0.12.0]
 
 #### Added
