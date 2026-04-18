@@ -29,6 +29,11 @@ pub struct Args {
     #[arg(short = 'd', long = "data")]
     pub data: Option<String>,
 
+    /// Upload the given local file as the request body. Defaults method to
+    /// PUT unless -X is set explicitly. Mutually exclusive with -d/--data.
+    #[arg(short = 'T', long = "upload-file", value_name = "PATH")]
+    pub upload_file: Option<std::path::PathBuf>,
+
     /// Follow redirects
     #[arg(short = 'L', long = "location")]
     pub follow_redirects: bool,
@@ -375,14 +380,15 @@ impl Args {
     /// Effective HTTP method after flag precedence is applied.
     /// Priority:
     ///   1. Explicit `-X/--request` if supplied.
-    ///   2. POST when `-d/--data` is present and `-G/--get` is not.
-    ///   3. GET.
-    ///
-    /// Task 5 of the curl-compat work will extend this helper with a PUT
-    /// branch when `-T/--upload-file` is set.
+    ///   2. PUT when `-T/--upload-file` is set.
+    ///   3. POST when `-d/--data` is present and `-G/--get` is not.
+    ///   4. GET.
     pub fn effective_method(&self) -> String {
         if let Some(m) = &self.method {
             return m.to_uppercase();
+        }
+        if self.upload_file.is_some() {
+            return "PUT".to_string();
         }
         if self.data.is_some() && !self.get_data {
             return "POST".to_string();
@@ -461,5 +467,17 @@ mod tests {
     fn effective_method_explicit_overrides_data_post() {
         let args = Args::try_parse_from(["recon", "https://example.com/", "-X", "put", "-d", "x=1"]).unwrap();
         assert_eq!(args.effective_method(), "PUT");
+    }
+
+    #[test]
+    fn effective_method_promotes_to_put_on_upload_file() {
+        let args = Args::try_parse_from(["recon", "https://example.com/", "-T", "Cargo.toml"]).unwrap();
+        assert_eq!(args.effective_method(), "PUT");
+    }
+
+    #[test]
+    fn effective_method_explicit_overrides_upload_put() {
+        let args = Args::try_parse_from(["recon", "https://example.com/", "-T", "Cargo.toml", "-X", "POST"]).unwrap();
+        assert_eq!(args.effective_method(), "POST");
     }
 }

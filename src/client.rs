@@ -133,8 +133,12 @@ fn send_request(
         request = request.header(reqwest::header::COOKIE, c);
     }
 
-    // -G sends data as query string, not request body
-    if !args.get_data {
+    // Body source priority: -T (upload-file) > -d (data, unless -G).
+    if let Some(path) = &args.upload_file {
+        let body = fs::read(path)
+            .with_context(|| format!("Failed to read upload file: {}", path.display()))?;
+        request = request.body(body);
+    } else if !args.get_data {
         if let Some(data) = &args.data {
             let body = if let Some(path) = data.strip_prefix('@') {
                 fs::read(path).with_context(|| format!("Failed to read file: {path}"))?

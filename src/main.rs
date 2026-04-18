@@ -228,6 +228,11 @@ fn main() {
         }
     }
 
+    if args.upload_file.is_some() && args.data.is_some() {
+        eprintln!("error: -T/--upload-file and -d/--data are mutually exclusive");
+        std::process::exit(1);
+    }
+
     // ── Dispatch ──────────────────────────────────────────────────────────────
     let result = if args.traceroute {
         traceroute::run(args.target_url(), args.max_hops)
