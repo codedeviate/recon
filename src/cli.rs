@@ -9,7 +9,7 @@ use std::path::PathBuf;
 )]
 pub struct Args {
     /// URL to request (or use --url)
-    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni", "jwt_view", "jwt_sign", "jwt_validate", "netstatus", "editor_cleanup", "sample", "sample_list", "hash", "hash_list", "compress", "decompress", "compress_list"])]
+    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni", "jwt_view", "jwt_sign", "jwt_validate", "netstatus", "editor_cleanup", "sample", "sample_list", "hash", "hash_list", "compress", "decompress", "compress_list", "encode", "encode_list"])]
     pub url: Option<String>,
 
     /// URL to request — curl-compatible alternative to the positional argument
@@ -414,6 +414,26 @@ pub struct Args {
     /// List supported compression algorithms and exit (standalone action).
     #[arg(long = "compress-list")]
     pub compress_list: bool,
+
+    // ── Encoding ─────────────────────────────────────────────────────────────
+
+    /// Encode the positional text as a QR / DataMatrix / barcode.
+    /// Supported formats: qr, datamatrix, code128, code39, ean13, upca.
+    #[arg(long = "encode", value_name = "FORMAT")]
+    pub encode: Option<String>,
+
+    /// Output format for --encode: ascii, svg, or png. When omitted, inferred
+    /// from -o <FILE> extension (.svg / .png); defaults to ASCII otherwise.
+    #[arg(long = "encode-format", value_name = "FMT")]
+    pub encode_format: Option<String>,
+
+    /// Read --encode input from a file. Mutually exclusive with a positional text.
+    #[arg(long = "from-file", value_name = "PATH")]
+    pub from_file: Option<std::path::PathBuf>,
+
+    /// List all supported encode formats and exit (standalone action).
+    #[arg(long = "encode-list")]
+    pub encode_list: bool,
 }
 
 impl Args {

@@ -476,6 +476,106 @@ pub fn render_png(matrix: &BitMatrix) -> Result<Vec<u8>> {
     Ok(out)
 }
 
+/// Print `--encode-list` to the given writer.
+pub fn print_list(out: &mut dyn Write) -> std::io::Result<()> {
+    for f in Format::ALL {
+        let kind = match f.kind() {
+            MatrixKind::TwoD => "2D",
+            MatrixKind::OneD => "1D",
+        };
+        writeln!(out, "{:<11} {}  {}", f.canonical(), kind, f.description())?;
+    }
+    Ok(())
+}
+
+/// Resolve the encode input. Priority: --from-file > positional '-' or pipe
+/// > positional literal > error. Reads as bytes so DataMatrix can carry
+/// arbitrary content.
+pub fn resolve_input(
+    from_file: Option<&Path>,
+    positional: &str,
+) -> Result<Vec<u8>> {
+    if let Some(path) = from_file {
+        if !positional.is_empty() && positional != "-" {
+            return Err(anyhow!(
+                "--from-file and a positional text are mutually exclusive"
+            ));
+        }
+        let bytes = std::fs::read(path)
+            .map_err(|e| anyhow!("failed to read '{}': {e}", path.display()))?;
+        let trimmed = if bytes.ends_with(b"\n") { &bytes[..bytes.len() - 1] } else { &bytes[..] };
+        return Ok(trimmed.to_vec());
+    }
+    if positional == "-" {
+        let mut buf = Vec::new();
+        std::io::Read::read_to_end(&mut std::io::stdin().lock(), &mut buf)?;
+        let trimmed = if buf.ends_with(b"\n") { &buf[..buf.len() - 1] } else { &buf[..] };
+        return Ok(trimmed.to_vec());
+    }
+    if positional.is_empty() {
+        use std::io::IsTerminal;
+        if !std::io::stdin().is_terminal() {
+            let mut buf = Vec::new();
+            std::io::Read::read_to_end(&mut std::io::stdin().lock(), &mut buf)?;
+            let trimmed = if buf.ends_with(b"\n") { &buf[..buf.len() - 1] } else { &buf[..] };
+            return Ok(trimmed.to_vec());
+        }
+        return Err(anyhow!(
+            "--encode requires a positional text, --from-file <PATH>, or a pipe on stdin"
+        ));
+    }
+    Ok(positional.as_bytes().to_vec())
+}
+
+use crate::cli::Args;
+
+/// Top-level dispatcher for `--encode`.
+pub fn run(args: &Args) -> Result<()> {
+    let fmt_str = args.encode.as_deref().unwrap_or("");
+    let format = parse_format(fmt_str)?;
+
+    let out_format = resolve_output_format(
+        args.encode_format.as_deref(),
+        args.output.as_deref(),
+    )?;
+
+    let input = resolve_input(args.from_file.as_deref(), args.target_url())?;
+
+    let matrix = encode(format, &input)?;
+
+    if args.verbose >= 1 {
+        let of_label = match out_format {
+            OutputFormat::Ascii => "ascii",
+            OutputFormat::Svg => "svg",
+            OutputFormat::Png => "png",
+        };
+        eprintln!(
+            "* encode: {} -> {} ({}x{} modules)",
+            format.canonical(),
+            of_label,
+            matrix.width,
+            matrix.height,
+        );
+    }
+
+    let bytes: Vec<u8> = match out_format {
+        OutputFormat::Ascii => render_ascii(&matrix).into_bytes(),
+        OutputFormat::Svg => render_svg(&matrix).into_bytes(),
+        OutputFormat::Png => render_png(&matrix)?,
+    };
+
+    match &args.output {
+        Some(path) => {
+            let mut file = std::fs::File::create(path)?;
+            file.write_all(&bytes)?;
+        }
+        None => {
+            std::io::stdout().lock().write_all(&bytes)?;
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -727,5 +827,64 @@ mod tests {
         // 3 modules + 2 quiet-zones on each side = 7 modules wide; × 8 scale = 56.
         assert_eq!(info.width, 56);
         assert_eq!(info.height, 56);
+    }
+
+    #[test]
+    fn run_qr_to_ascii_via_cli_args() {
+        use clap::Parser;
+
+        let args = Args::try_parse_from([
+            "recon",
+            "--encode",
+            "qr",
+            "hello",
+        ]).unwrap();
+
+        // Run writes to stdout but should at least succeed for a clean input.
+        assert!(run(&args).is_ok());
+    }
+
+    #[test]
+    fn run_qr_to_file_writes_png() {
+        use clap::Parser;
+
+        let tmp = std::env::temp_dir().join(format!(
+            "recon-encode-test-{}.png",
+            std::process::id()
+        ));
+
+        let args = Args::try_parse_from([
+            "recon",
+            "--encode",
+            "qr",
+            "-o",
+            tmp.to_str().unwrap(),
+            "https://example.com",
+        ]).unwrap();
+        run(&args).unwrap();
+
+        let bytes = std::fs::read(&tmp).unwrap();
+        assert!(bytes.len() > 100, "expected a PNG file of some size");
+        assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n");
+
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn print_list_has_six_lines() {
+        let mut out = Vec::new();
+        print_list(&mut out).unwrap();
+        let text = String::from_utf8(out).unwrap();
+        assert_eq!(text.lines().count(), 6, "got:\n{text}");
+        assert!(text.contains("qr"));
+        assert!(text.contains("datamatrix"));
+        assert!(text.contains("upca"));
+    }
+
+    #[test]
+    fn resolve_input_errors_on_both_file_and_positional() {
+        let path = std::path::PathBuf::from("/tmp/does-not-matter");
+        let err = resolve_input(Some(&path), "some text").unwrap_err().to_string();
+        assert!(err.contains("mutually exclusive"), "got: {err}");
     }
 }

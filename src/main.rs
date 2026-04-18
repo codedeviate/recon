@@ -138,6 +138,10 @@ fn main() {
             eprintln!("error: --hash and -O/--remote-name are mutually exclusive");
             std::process::exit(1);
         }
+        if args.encode.is_some() {
+            eprintln!("error: --encode and --hash are mutually exclusive");
+            std::process::exit(1);
+        }
         if let Err(err) = hash::run(&args) {
             if args.full_errors {
                 eprintln!("error: {err:#}");
@@ -191,6 +195,58 @@ fn main() {
         }
 
         if let Err(err) = compression::run(&args) {
+            if args.full_errors {
+                eprintln!("error: {err:#}");
+            } else {
+                eprintln!("error: {}", friendly_message(&err));
+            }
+            std::process::exit(1);
+        }
+        return;
+    }
+
+    // ── Encode: list supported formats ───────────────────────────────────────
+    if args.encode_list {
+        if let Err(e) = encode::print_list(&mut std::io::stdout().lock()) {
+            eprintln!("error: {e}");
+            std::process::exit(1);
+        }
+        return;
+    }
+
+    // ── Encode: QR / DataMatrix / 1D barcode ────────────────────────────────
+    if args.encode.is_some() {
+        // Mutual exclusions.
+        if args.remote_name {
+            eprintln!("error: --encode and -O/--remote-name are mutually exclusive");
+            std::process::exit(1);
+        }
+        if args.hash.is_some() {
+            eprintln!("error: --encode and --hash are mutually exclusive");
+            std::process::exit(1);
+        }
+        if args.compress.is_some() || args.decompress.is_some() {
+            eprintln!("error: --encode and --compress/--decompress are mutually exclusive");
+            std::process::exit(1);
+        }
+        if args.sample.is_some() {
+            eprintln!("error: --encode and --sample are mutually exclusive");
+            std::process::exit(1);
+        }
+        if args.data.is_some() {
+            eprintln!("error: --encode and -d/--data are mutually exclusive");
+            std::process::exit(1);
+        }
+        if args.upload_file.is_some() {
+            eprintln!("error: --encode and -T/--upload-file are mutually exclusive");
+            std::process::exit(1);
+        }
+        if args.editor.is_some() {
+            eprintln!("error: --encode and --editor are mutually exclusive");
+            std::process::exit(1);
+        }
+
+        if let Err(err) = encode::run(&args) {
             if args.full_errors {
                 eprintln!("error: {err:#}");
             } else {
