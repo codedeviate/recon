@@ -1,6 +1,6 @@
 [package]
 name = "recon"
-version = "0.13.0"
+version = "0.14.0"
 edition = "2021"
 
 [[bin]]
@@ -48,3 +48,7 @@ flate2 = "1"
 zstd = "0.13"
 brotli = "7"
 bzip2 = "0.4"
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
+datamatrix = "0.3"
+barcoders = { version = "1", default-features = false, features = ["ascii", "svg"] }
+png = "0.17"

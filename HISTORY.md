@@ -18,6 +18,20 @@ recon follows semantic versioning (`MAJOR.MINOR.PATCH`):
 
 ## Version Log
 
+### [0.14.0]
+
+#### Added
+- `--encode <FORMAT>`: generate a QR, DataMatrix, Code 128, Code 39,
+  EAN-13, or UPC-A code from the positional text. Use `-` or a pipe to
+  read from stdin; `--from-file <PATH>` reads from disk.
+- `--encode-format <ascii|svg|png>`: output format. When omitted, inferred
+  from `-o <FILE>` extension (`.svg` / `.png`); defaults to ASCII otherwise.
+- `--from-file <PATH>`: read encode input from a file instead of the
+  positional argument. Mutually exclusive with a positional text value.
+- `--encode-list`: standalone action listing the supported formats.
+
+---
+
 ### [0.13.0]
 
 #### Added
