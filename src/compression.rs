@@ -108,6 +108,105 @@ pub fn detect_from_magic(head: &[u8]) -> Option<Algo> {
     None
 }
 
+/// One of the five level-quality words. Case-insensitive when parsed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LevelWord {
+    Fastest,
+    Fast,
+    Default,
+    Good,
+    Best,
+}
+
+impl LevelWord {
+    pub fn parse(input: &str) -> Option<Self> {
+        match input.trim().to_ascii_lowercase().as_str() {
+            "fastest" => Some(LevelWord::Fastest),
+            "fast" => Some(LevelWord::Fast),
+            "default" => Some(LevelWord::Default),
+            "good" => Some(LevelWord::Good),
+            "best" => Some(LevelWord::Best),
+            _ => None,
+        }
+    }
+}
+
+/// Resolved level value: either a word (resolved per-algo later) or a raw
+/// number in the algorithm's native range.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Level {
+    Word(LevelWord),
+    Num(u32),
+}
+
+/// Parse a `--compression-level <LEVEL>` value into `Level`. A trimmed
+/// decimal integer → `Level::Num`; a recognised word → `Level::Word`.
+/// Anything else errors with both grammar forms.
+pub fn parse_level(input: &str) -> Result<Level> {
+    let trimmed = input.trim();
+    if let Ok(n) = trimmed.parse::<u32>() {
+        return Ok(Level::Num(n));
+    }
+    if let Some(word) = LevelWord::parse(trimmed) {
+        return Ok(Level::Word(word));
+    }
+    Err(anyhow!(
+        "unknown compression level '{input}'; \
+         supported: number or fastest|fast|default|good|best"
+    ))
+}
+
+/// Resolve a `Level` to the algorithm's native integer. Errors when a raw
+/// number falls outside the algorithm's valid range.
+pub fn resolve_native_level(algo: Algo, level: Level) -> Result<u32> {
+    match level {
+        Level::Num(n) => {
+            let (min, max) = algo.level_range();
+            if n < min || n > max {
+                return Err(anyhow!(
+                    "level {n} out of range for {} (valid: {}-{} or fastest|fast|default|good|best)",
+                    algo.canonical(),
+                    min,
+                    max,
+                ));
+            }
+            Ok(n)
+        }
+        Level::Word(word) => Ok(word_to_native(algo, word)),
+    }
+}
+
+fn word_to_native(algo: Algo, word: LevelWord) -> u32 {
+    // Table from spec. Keep in sync with spec section "Level words".
+    match (algo, word) {
+        (Algo::Gzip, LevelWord::Fastest)     => 1,
+        (Algo::Gzip, LevelWord::Fast)        => 3,
+        (Algo::Gzip, LevelWord::Default)     => 6,
+        (Algo::Gzip, LevelWord::Good)        => 7,
+        (Algo::Gzip, LevelWord::Best)        => 9,
+        (Algo::Deflate, LevelWord::Fastest)  => 1,
+        (Algo::Deflate, LevelWord::Fast)     => 3,
+        (Algo::Deflate, LevelWord::Default)  => 6,
+        (Algo::Deflate, LevelWord::Good)     => 7,
+        (Algo::Deflate, LevelWord::Best)     => 9,
+        (Algo::Zstd, LevelWord::Fastest)     => 1,
+        (Algo::Zstd, LevelWord::Fast)        => 3,
+        (Algo::Zstd, LevelWord::Default)     => 3,
+        (Algo::Zstd, LevelWord::Good)        => 9,
+        (Algo::Zstd, LevelWord::Best)        => 22,
+        (Algo::Brotli, LevelWord::Fastest)   => 0,
+        (Algo::Brotli, LevelWord::Fast)      => 2,
+        (Algo::Brotli, LevelWord::Default)   => 4,
+        (Algo::Brotli, LevelWord::Good)      => 7,
+        (Algo::Brotli, LevelWord::Best)      => 11,
+        (Algo::Bzip2, LevelWord::Fastest)    => 1,
+        (Algo::Bzip2, LevelWord::Fast)       => 3,
+        (Algo::Bzip2, LevelWord::Default)    => 6,
+        (Algo::Bzip2, LevelWord::Good)       => 7,
+        (Algo::Bzip2, LevelWord::Best)       => 9,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -193,5 +292,65 @@ mod tests {
         assert_eq!(Algo::Zstd.default_level(), 3);
         assert_eq!(Algo::Brotli.default_level(), 4);
         assert_eq!(Algo::Bzip2.default_level(), 6);
+    }
+
+    #[test]
+    fn parse_level_numbers() {
+        assert_eq!(parse_level("0").unwrap(), Level::Num(0));
+        assert_eq!(parse_level("6").unwrap(), Level::Num(6));
+        assert_eq!(parse_level("22").unwrap(), Level::Num(22));
+    }
+
+    #[test]
+    fn parse_level_words_case_insensitive() {
+        assert_eq!(parse_level("fastest").unwrap(), Level::Word(LevelWord::Fastest));
+        assert_eq!(parse_level("FAST").unwrap(), Level::Word(LevelWord::Fast));
+        assert_eq!(parse_level("Default").unwrap(), Level::Word(LevelWord::Default));
+        assert_eq!(parse_level("good").unwrap(), Level::Word(LevelWord::Good));
+        assert_eq!(parse_level("best").unwrap(), Level::Word(LevelWord::Best));
+    }
+
+    #[test]
+    fn parse_level_unknown_word_errors() {
+        let err = parse_level("fastestish").unwrap_err().to_string();
+        assert!(err.contains("fastestish"), "got: {err}");
+        assert!(err.contains("fastest"), "got: {err}");
+    }
+
+    #[test]
+    fn parse_level_garbage_errors() {
+        let err = parse_level("1.5").unwrap_err().to_string();
+        assert!(err.contains("1.5"), "got: {err}");
+    }
+
+    #[test]
+    fn resolve_word_levels_per_algorithm() {
+        // Spot-check a few entries from the word-to-native table.
+        assert_eq!(resolve_native_level(Algo::Gzip, Level::Word(LevelWord::Fastest)).unwrap(), 1);
+        assert_eq!(resolve_native_level(Algo::Gzip, Level::Word(LevelWord::Best)).unwrap(), 9);
+        assert_eq!(resolve_native_level(Algo::Zstd, Level::Word(LevelWord::Default)).unwrap(), 3);
+        assert_eq!(resolve_native_level(Algo::Zstd, Level::Word(LevelWord::Best)).unwrap(), 22);
+        assert_eq!(resolve_native_level(Algo::Brotli, Level::Word(LevelWord::Default)).unwrap(), 4);
+        assert_eq!(resolve_native_level(Algo::Brotli, Level::Word(LevelWord::Best)).unwrap(), 11);
+        assert_eq!(resolve_native_level(Algo::Bzip2, Level::Word(LevelWord::Default)).unwrap(), 6);
+    }
+
+    #[test]
+    fn resolve_numeric_level_in_range() {
+        assert_eq!(resolve_native_level(Algo::Gzip, Level::Num(5)).unwrap(), 5);
+        assert_eq!(resolve_native_level(Algo::Zstd, Level::Num(22)).unwrap(), 22);
+        assert_eq!(resolve_native_level(Algo::Brotli, Level::Num(0)).unwrap(), 0);
+    }
+
+    #[test]
+    fn resolve_numeric_level_out_of_range_errors() {
+        let err = resolve_native_level(Algo::Gzip, Level::Num(10)).unwrap_err().to_string();
+        assert!(err.contains("10"), "got: {err}");
+        assert!(err.contains("gzip"), "got: {err}");
+        assert!(err.contains("0-9"), "got: {err}");
+
+        let err = resolve_native_level(Algo::Zstd, Level::Num(23)).unwrap_err().to_string();
+        assert!(err.contains("zstd"), "got: {err}");
+        assert!(err.contains("1-22"), "got: {err}");
     }
 }
