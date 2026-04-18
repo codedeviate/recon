@@ -105,6 +105,80 @@ pub fn parse_format(input: &str) -> Result<Format> {
     }
 }
 
+use digest::Digest;
+
+/// Internal streaming hasher state. Each variant wraps the per-algorithm
+/// hasher type so we can `update` and `finalize` without chasing trait
+/// objects with associated types.
+pub enum HasherKind {
+    Md5(md5::Md5),
+    Sha1(sha1::Sha1),
+    Sha256(sha2::Sha256),
+    Sha384(sha2::Sha384),
+    Sha512(sha2::Sha512),
+    Sha3_256(sha3::Sha3_256),
+    Sha3_512(sha3::Sha3_512),
+    Blake3(blake3::Hasher),
+}
+
+impl HasherKind {
+    pub fn for_algo(algo: Algo) -> Self {
+        match algo {
+            Algo::Md5 => HasherKind::Md5(md5::Md5::new()),
+            Algo::Sha1 => HasherKind::Sha1(sha1::Sha1::new()),
+            Algo::Sha256 => HasherKind::Sha256(sha2::Sha256::new()),
+            Algo::Sha384 => HasherKind::Sha384(sha2::Sha384::new()),
+            Algo::Sha512 => HasherKind::Sha512(sha2::Sha512::new()),
+            Algo::Sha3_256 => HasherKind::Sha3_256(sha3::Sha3_256::new()),
+            Algo::Sha3_512 => HasherKind::Sha3_512(sha3::Sha3_512::new()),
+            Algo::Blake3 => HasherKind::Blake3(blake3::Hasher::new()),
+        }
+    }
+
+    pub fn update(&mut self, bytes: &[u8]) {
+        match self {
+            HasherKind::Md5(h) => h.update(bytes),
+            HasherKind::Sha1(h) => h.update(bytes),
+            HasherKind::Sha256(h) => h.update(bytes),
+            HasherKind::Sha384(h) => h.update(bytes),
+            HasherKind::Sha512(h) => h.update(bytes),
+            HasherKind::Sha3_256(h) => h.update(bytes),
+            HasherKind::Sha3_512(h) => h.update(bytes),
+            HasherKind::Blake3(h) => {
+                h.update(bytes);
+            }
+        }
+    }
+
+    pub fn finalize(self) -> Vec<u8> {
+        match self {
+            HasherKind::Md5(h) => h.finalize().to_vec(),
+            HasherKind::Sha1(h) => h.finalize().to_vec(),
+            HasherKind::Sha256(h) => h.finalize().to_vec(),
+            HasherKind::Sha384(h) => h.finalize().to_vec(),
+            HasherKind::Sha512(h) => h.finalize().to_vec(),
+            HasherKind::Sha3_256(h) => h.finalize().to_vec(),
+            HasherKind::Sha3_512(h) => h.finalize().to_vec(),
+            HasherKind::Blake3(h) => h.finalize().as_bytes().to_vec(),
+        }
+    }
+}
+
+/// Stream `reader` through a fresh hasher for `algo`, returning the digest.
+/// Uses an 8 KiB chunked read so memory stays constant.
+pub fn compute(algo: Algo, reader: &mut dyn std::io::Read) -> Result<Vec<u8>> {
+    let mut hasher = HasherKind::for_algo(algo);
+    let mut buf = [0u8; 8 * 1024];
+    loop {
+        let n = reader.read(&mut buf)?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buf[..n]);
+    }
+    Ok(hasher.finalize())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -183,5 +257,156 @@ mod tests {
     #[test]
     fn algo_all_covers_every_variant() {
         assert_eq!(Algo::ALL.len(), 8);
+    }
+
+    fn hex(bytes: &[u8]) -> String {
+        let mut s = String::with_capacity(bytes.len() * 2);
+        for b in bytes {
+            s.push_str(&format!("{:02x}", b));
+        }
+        s
+    }
+
+    fn compute_str(algo: Algo, input: &[u8]) -> String {
+        let digest = compute(algo, &mut std::io::Cursor::new(input)).unwrap();
+        hex(&digest)
+    }
+
+    #[test]
+    fn vector_md5_empty() {
+        assert_eq!(compute_str(Algo::Md5, b""), "d41d8cd98f00b204e9800998ecf8427e");
+    }
+
+    #[test]
+    fn vector_md5_abc() {
+        assert_eq!(compute_str(Algo::Md5, b"abc"), "900150983cd24fb0d6963f7d28e17f72");
+    }
+
+    #[test]
+    fn vector_sha1_empty() {
+        assert_eq!(compute_str(Algo::Sha1, b""), "da39a3ee5e6b4b0d3255bfef95601890afd80709");
+    }
+
+    #[test]
+    fn vector_sha1_abc() {
+        assert_eq!(compute_str(Algo::Sha1, b"abc"), "a9993e364706816aba3e25717850c26c9cd0d89d");
+    }
+
+    #[test]
+    fn vector_sha256_empty() {
+        assert_eq!(
+            compute_str(Algo::Sha256, b""),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        );
+    }
+
+    #[test]
+    fn vector_sha256_abc() {
+        assert_eq!(
+            compute_str(Algo::Sha256, b"abc"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+        );
+    }
+
+    #[test]
+    fn vector_sha384_empty() {
+        assert_eq!(
+            compute_str(Algo::Sha384, b""),
+            "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b",
+        );
+    }
+
+    #[test]
+    fn vector_sha384_abc() {
+        assert_eq!(
+            compute_str(Algo::Sha384, b"abc"),
+            "cb00753f45a35e8bb5a03d699ac65007272c32ab0eded1631a8b605a43ff5bed8086072ba1e7cc2358baeca134c825a7",
+        );
+    }
+
+    #[test]
+    fn vector_sha512_empty() {
+        assert_eq!(
+            compute_str(Algo::Sha512, b""),
+            "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e",
+        );
+    }
+
+    #[test]
+    fn vector_sha512_abc() {
+        assert_eq!(
+            compute_str(Algo::Sha512, b"abc"),
+            "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f",
+        );
+    }
+
+    #[test]
+    fn vector_sha3_256_empty() {
+        assert_eq!(
+            compute_str(Algo::Sha3_256, b""),
+            "a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a",
+        );
+    }
+
+    #[test]
+    fn vector_sha3_256_abc() {
+        assert_eq!(
+            compute_str(Algo::Sha3_256, b"abc"),
+            "3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532",
+        );
+    }
+
+    #[test]
+    fn vector_sha3_512_abc() {
+        assert_eq!(
+            compute_str(Algo::Sha3_512, b"abc"),
+            "b751850b1a57168a5693cd924b6b096e08f621827444f70d884f5d0240d2712e10e116e9192af3c91a7ec57647e3934057340b4cf408d5a56592f8274eec53f0",
+        );
+    }
+
+    #[test]
+    fn vector_blake3_empty() {
+        assert_eq!(
+            compute_str(Algo::Blake3, b""),
+            "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262",
+        );
+    }
+
+    #[test]
+    fn vector_blake3_abc() {
+        assert_eq!(
+            compute_str(Algo::Blake3, b"abc"),
+            "6437b3ac38465133ffb63b75273a8db548c558465d79db03fd359c6cd5bd9d85",
+        );
+    }
+
+    #[test]
+    fn compute_streams_large_input_consistently() {
+        // Exercise the 8 KiB chunked loop at least 12 times.
+        let input = vec![0u8; 100 * 1024];
+
+        // Reference: feed the whole buffer at once.
+        let whole = compute(Algo::Sha256, &mut std::io::Cursor::new(input.clone())).unwrap();
+
+        // Streaming via a reader that hands out tiny chunks (forces the
+        // outer loop to spin many times).
+        struct ChunkedReader<'a> {
+            data: &'a [u8],
+            chunk: usize,
+            pos: usize,
+        }
+        impl<'a> std::io::Read for ChunkedReader<'a> {
+            fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+                let remaining = self.data.len().saturating_sub(self.pos);
+                let to_copy = remaining.min(self.chunk).min(buf.len());
+                buf[..to_copy].copy_from_slice(&self.data[self.pos..self.pos + to_copy]);
+                self.pos += to_copy;
+                Ok(to_copy)
+            }
+        }
+
+        let mut chunked = ChunkedReader { data: &input, chunk: 97, pos: 0 };
+        let streamed = compute(Algo::Sha256, &mut chunked).unwrap();
+        assert_eq!(whole, streamed);
     }
 }
