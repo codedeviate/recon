@@ -18,6 +18,19 @@ recon follows semantic versioning (`MAJOR.MINOR.PATCH`):
 
 ## Version Log
 
+### [0.14.1]
+
+#### Fixed
+- `--encode code128`: no longer requires users to manually prepend a
+  code-set marker (À/Ɓ/Ć). Code-set B (mixed ASCII) is now automatically
+  selected when the input does not already start with one.
+- `--encode ean13`: now accepts 12-digit input (body without check) in
+  addition to the full 13-digit code; the check digit is computed automatically.
+- `--encode upca`: now accepts 11-digit input (body without check) in
+  addition to the full 12-digit code; the check digit is computed automatically.
+
+---
+
 ### [0.14.0]
 
 #### Added

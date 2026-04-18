@@ -178,6 +178,61 @@ fn encode_datamatrix(input: &[u8]) -> Result<BitMatrix> {
     })
 }
 
+/// Validate an EAN-style numeric input and return the 12-digit string that
+/// barcoders expects. barcoders EAN13/UPCA always takes exactly 12 digits
+/// (the body without the check digit it encodes as the 13th bar group).
+///
+/// `body_len` is the user-visible body length (digits WITHOUT the check):
+///   * 12 for EAN-13 — accept 12 digits (pass through) or 13 digits (strip check).
+///   * 11 for UPC-A  — accept 11 digits (append computed check) or 12 digits (pass through).
+///
+/// In both cases the returned string is exactly 12 digits.
+fn prepare_ean_like(text: &str, body_len: usize, name: &str) -> Result<String> {
+    if !text.chars().all(|c| c.is_ascii_digit()) {
+        return Err(anyhow!("{name}: input must be digits only"));
+    }
+    match text.len() {
+        n if n == body_len && body_len < 12 => {
+            // Short form that needs a check digit appended to reach 12 (UPC-A: 11 → 12).
+            let check = ean_check_digit(text.as_bytes());
+            Ok(format!("{text}{check}"))
+        }
+        n if n == body_len && body_len == 12 => {
+            // EAN-13 body (12 digits): already exactly what barcoders wants.
+            Ok(text.to_string())
+        }
+        n if n == body_len + 1 && n > 12 => {
+            // EAN-13 full code (13 digits): strip the check — barcoders recomputes it.
+            Ok(text[..12].to_string())
+        }
+        n if n == body_len + 1 && n == 12 => {
+            // UPC-A full code (12 digits): already exactly what barcoders wants.
+            Ok(text.to_string())
+        }
+        _ => Err(anyhow!(
+            "{name}: input must be {body_len} or {} digits; got {}",
+            body_len + 1,
+            text.len(),
+        )),
+    }
+}
+
+/// Mod-10 check digit used by EAN-13, UPC-A, UPC-E and ITF.
+/// `body` is the ASCII-digit sequence WITHOUT the check digit.
+/// Algorithm: from the rightmost body digit, multiply digits alternately by
+/// 3 and 1, sum, then the check is (10 - sum % 10) % 10.
+fn ean_check_digit(body: &[u8]) -> u8 {
+    let mut sum: u32 = 0;
+    // From rightmost to leftmost; rightmost gets weight 3.
+    for (i, &b) in body.iter().rev().enumerate() {
+        let d = (b - b'0') as u32;
+        let w = if i % 2 == 0 { 3 } else { 1 };
+        sum += d * w;
+    }
+    let check = (10 - (sum % 10)) % 10;
+    b'0' + (check as u8)
+}
+
 fn encode_1d(format: Format, input: &[u8]) -> Result<BitMatrix> {
     let text = std::str::from_utf8(input)
         .map_err(|_| anyhow!("{}: input must be valid UTF-8", format.canonical()))?
@@ -185,7 +240,16 @@ fn encode_1d(format: Format, input: &[u8]) -> Result<BitMatrix> {
 
     let bars: Vec<u8> = match format {
         Format::Code128 => {
-            let bc = barcoders::sym::code128::Code128::new(text)
+            // barcoders' Code128 requires a leading code-set marker: À (U+00C0)
+            // for A, Ɓ (U+0181) for B, Ć (U+0106) for C. Most inputs are mixed
+            // ASCII, which is code-set B; prepend Ɓ unless the input already
+            // selects a code-set explicitly.
+            let prepared = if text.starts_with('À') || text.starts_with('Ɓ') || text.starts_with('Ć') {
+                text.to_string()
+            } else {
+                format!("Ɓ{text}")
+            };
+            let bc = barcoders::sym::code128::Code128::new(&prepared)
                 .map_err(|e| anyhow!("code128: {e}"))?;
             bc.encode()
         }
@@ -195,12 +259,14 @@ fn encode_1d(format: Format, input: &[u8]) -> Result<BitMatrix> {
             bc.encode()
         }
         Format::Ean13 => {
-            let bc = barcoders::sym::ean13::EAN13::new(text)
+            let prepared = prepare_ean_like(text, 12, "ean13")?;
+            let bc = barcoders::sym::ean13::EAN13::new(&prepared)
                 .map_err(|e| anyhow!("ean13: {e}"))?;
             bc.encode()
         }
         Format::UpcA => {
-            let bc = barcoders::sym::ean13::UPCA::new(text)
+            let prepared = prepare_ean_like(text, 11, "upca")?;
+            let bc = barcoders::sym::ean13::UPCA::new(&prepared)
                 .map_err(|e| anyhow!("upca: {e}"))?;
             bc.encode()
         }
@@ -360,8 +426,7 @@ mod tests {
 
     #[test]
     fn encode_code128_produces_1d_matrix() {
-        // Code128 requires a charset prefix: À (0xC0) = charset A
-        let m = encode(Format::Code128, "ÀRECON-TEST-001".as_bytes()).unwrap();
+        let m = encode(Format::Code128, b"RECON-TEST-001").unwrap();
         assert!(m.width > 0);
         assert_eq!(m.height, 1);
         assert_eq!(m.kind, MatrixKind::OneD);
@@ -398,9 +463,17 @@ mod tests {
     }
 
     #[test]
-    fn encode_upca_12_digits_ok() {
-        // UPCA is an alias for EAN13 in barcoders; requires 12 digits (11 + check digit)
-        let m = encode(Format::UpcA, b"012345678905").unwrap();
+    fn encode_upca_11_digits_ok() {
+        let m = encode(Format::UpcA, b"01234567890").unwrap();
         assert_eq!(m.kind, MatrixKind::OneD);
+    }
+
+    #[test]
+    fn ean_check_digit_known_vectors() {
+        // Canonical examples: EAN-13 "5901234123457" has body "590123412345"
+        // with check digit 7. UPC-A "012345678905" has body "01234567890"
+        // with check digit 5.
+        assert_eq!(ean_check_digit(b"590123412345"), b'7');
+        assert_eq!(ean_check_digit(b"01234567890"), b'5');
     }
 }
