@@ -18,13 +18,6 @@ recon follows semantic versioning (`MAJOR.MINOR.PATCH`):
 
 ## Version Log
 
-### [0.13.1]
-
-#### Added
-- `compress` and `decompress` functions in `compression.rs`: streaming
-  read-side adapters over all five algorithm crates (gzip, deflate, zstd,
-  brotli, bzip2) bridged with `io::copy`. 10 round-trip and magic-byte tests.
-
 ### [0.13.0]
 
 #### Added
