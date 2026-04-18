@@ -16,9 +16,10 @@ pub struct Args {
     #[arg(id = "url_flag", long = "url", value_name = "URL")]
     pub url_flag: Option<String>,
 
-    /// HTTP method (GET, POST, PUT, DELETE, PATCH, HEAD)
-    #[arg(short = 'X', long = "request", default_value = "GET")]
-    pub method: String,
+    /// HTTP method (GET, POST, PUT, DELETE, PATCH, HEAD). When omitted, the method
+    /// defaults to GET — or PUT when -T is set, or POST when -d is set.
+    #[arg(short = 'X', long = "request")]
+    pub method: Option<String>,
 
     /// Send request headers (can be repeated: -H "Name: Value")
     #[arg(short = 'H', long = "header")]
@@ -361,6 +362,24 @@ pub struct Args {
 }
 
 impl Args {
+    /// Effective HTTP method after flag precedence is applied.
+    /// Priority:
+    ///   1. Explicit `-X/--request` if supplied.
+    ///   2. POST when `-d/--data` is present and `-G/--get` is not.
+    ///   3. GET.
+    ///
+    /// Task 5 of the curl-compat work will extend this helper with a PUT
+    /// branch when `-T/--upload-file` is set.
+    pub fn effective_method(&self) -> String {
+        if let Some(m) = &self.method {
+            return m.to_uppercase();
+        }
+        if self.data.is_some() && !self.get_data {
+            return "POST".to_string();
+        }
+        "GET".to_string()
+    }
+
     /// Returns the effective URL, preferring --url over the positional argument.
     pub fn target_url(&self) -> &str {
         self.url_flag
@@ -396,5 +415,41 @@ impl Args {
     /// Returns the count of exclusive flags set (for mutual exclusion check).
     pub fn exclusive_count(&self) -> usize {
         [self.ping, self.traceroute, self.whois].iter().filter(|&&f| f).count()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[test]
+    fn effective_method_defaults_to_get() {
+        let args = Args::try_parse_from(["recon", "https://example.com/"]).unwrap();
+        assert_eq!(args.effective_method(), "GET");
+    }
+
+    #[test]
+    fn effective_method_promotes_to_post_on_data() {
+        let args = Args::try_parse_from(["recon", "https://example.com/", "-d", "x=1"]).unwrap();
+        assert_eq!(args.effective_method(), "POST");
+    }
+
+    #[test]
+    fn effective_method_stays_get_with_dash_g() {
+        let args = Args::try_parse_from(["recon", "https://example.com/", "-d", "x=1", "-G"]).unwrap();
+        assert_eq!(args.effective_method(), "GET");
+    }
+
+    #[test]
+    fn effective_method_honors_explicit_request() {
+        let args = Args::try_parse_from(["recon", "https://example.com/", "-X", "patch"]).unwrap();
+        assert_eq!(args.effective_method(), "PATCH");
+    }
+
+    #[test]
+    fn effective_method_explicit_overrides_data_post() {
+        let args = Args::try_parse_from(["recon", "https://example.com/", "-X", "put", "-d", "x=1"]).unwrap();
+        assert_eq!(args.effective_method(), "PUT");
     }
 }

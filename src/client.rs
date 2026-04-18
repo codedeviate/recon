@@ -220,7 +220,7 @@ fn send_request(
         }
 
         eprintln!(">");
-        eprintln!("> {} {}", args.method.to_uppercase(), url);
+        eprintln!("> {} {}", args.effective_method(), url);
         for h in &args.header {
             eprintln!("> {h}");
         }
@@ -330,17 +330,9 @@ fn resolve_redirect(base: &str, location: &str) -> Result<String> {
 }
 
 fn resolve_method(args: &Args) -> Result<Method> {
-    // -G always forces GET regardless of -X or -d
-    if args.get_data {
-        return Ok(Method::GET);
-    }
-    let method = Method::from_str(&args.method.to_uppercase())
-        .map_err(|_| anyhow!("Invalid HTTP method: {}", args.method))?;
-    Ok(if method == Method::GET && args.data.is_some() {
-        Method::POST
-    } else {
-        method
-    })
+    let method_str = args.effective_method();
+    Method::from_str(method_str.as_str())
+        .map_err(|_| anyhow!("Invalid HTTP method: {}", method_str))
 }
 
 fn parse_header(header: &str) -> Result<(String, String)> {
