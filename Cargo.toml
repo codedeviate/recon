@@ -1,6 +1,6 @@
 [package]
 name = "recon"
-version = "0.14.1"
+version = "0.15.0"
 edition = "2021"
 
 [[bin]]
@@ -52,3 +52,6 @@ qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 datamatrix = "0.3"
 barcoders = { version = "1", default-features = false, features = ["ascii", "svg"] }
 png = "0.17"
+age = { version = "0.11", default-features = false, features = ["armor"] }
+rpassword = "7"
+secrecy = "0.8"

@@ -18,6 +18,28 @@ recon follows semantic versioning (`MAJOR.MINOR.PATCH`):
 
 ## Version Log
 
+### [0.15.0]
+
+#### Added
+- `--encrypt` / `--decrypt`: age-format encryption and decryption over any
+  source (file, URL, stdin, file://). Output to stdout or `-o <FILE>`.
+  Binary by default; `--armor` produces ASCII-armored output for paste
+  into email or chat.
+- `--passphrase-file <PATH>`, `$RECON_PASSPHRASE` env var, and an
+  interactive hidden prompt as the three passphrase sources (priority in
+  that order). The `--passphrase <TEXT>` literal flag is intentionally not
+  offered (security footgun).
+- `--recipient <AGE1... | PATH>` (repeatable): encrypt to one or more
+  X25519 recipients. Mix with a passphrase in the same invocation; any
+  one recipient or the passphrase decrypts.
+- `--identity <PATH>` (repeatable): decrypt using an age private-key
+  file. Skips blank and `#`-comment lines.
+- `--encrypt-keygen`: standalone action that generates a fresh X25519
+  key pair (age-compatible). Prints the public key as a comment and the
+  private key on its own line.
+
+---
+
 ### [0.14.1]
 
 #### Fixed
