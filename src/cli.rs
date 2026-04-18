@@ -46,6 +46,11 @@ pub struct Args {
     #[arg(short = 'o', long = "output")]
     pub output: Option<PathBuf>,
 
+    /// Save the response body to a file named after the URL's final path
+    /// segment (curl -O). Mutually exclusive with -o/--output.
+    #[arg(short = 'O', long = "remote-name")]
+    pub remote_name: bool,
+
     /// Silent mode: suppress progress and informational output
     #[arg(short = 's', long = "silent")]
     pub silent: bool,

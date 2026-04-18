@@ -210,6 +210,24 @@ fn main() {
         std::process::exit(1);
     }
 
+    // ── -O / -o mutual exclusion + filename substitution ─────────────────────
+    let mut args = args;
+    if args.remote_name && args.output.is_some() {
+        eprintln!("error: -O/--remote-name and -o/--output are mutually exclusive");
+        std::process::exit(1);
+    }
+    if args.remote_name {
+        match util::filename_from_url(args.target_url()) {
+            Ok(name) => {
+                args.output = Some(std::path::PathBuf::from(name));
+            }
+            Err(e) => {
+                eprintln!("error: {e}");
+                std::process::exit(1);
+            }
+        }
+    }
+
     // ── Dispatch ──────────────────────────────────────────────────────────────
     let result = if args.traceroute {
         traceroute::run(args.target_url(), args.max_hops)
