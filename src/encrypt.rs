@@ -85,12 +85,77 @@ pub fn resolve_passphrase(
 
 // ---- Recipient / identity resolution — stubs filled in Task 3 --------
 
-pub fn resolve_recipients(_values: &[String]) -> Result<Vec<Box<dyn age::Recipient + Send>>> {
-    Err(anyhow!("resolve_recipients not yet implemented"))
+pub fn resolve_recipients(values: &[String]) -> Result<Vec<Box<dyn age::Recipient + Send>>> {
+    let mut out: Vec<Box<dyn age::Recipient + Send>> = Vec::new();
+    for v in values {
+        if let Some(rec) = parse_recipient_literal(v)? {
+            out.push(Box::new(rec));
+            continue;
+        }
+        // Otherwise, treat the value as a file path.
+        let path = Path::new(v);
+        if !path.exists() {
+            return Err(anyhow!(
+                "invalid recipient '{v}': not an age1... public key or a readable file"
+            ));
+        }
+        let contents = std::fs::read_to_string(path)
+            .with_context(|| format!("failed to read recipient file '{v}'"))?;
+        let mut found = 0usize;
+        for line in contents.lines() {
+            let trimmed = line.trim();
+            if trimmed.is_empty() || trimmed.starts_with('#') {
+                continue;
+            }
+            let rec = parse_recipient_literal(trimmed)?
+                .ok_or_else(|| anyhow!(
+                    "invalid recipient key in '{v}': '{trimmed}'"
+                ))?;
+            out.push(Box::new(rec));
+            found += 1;
+        }
+        if found == 0 {
+            return Err(anyhow!(
+                "recipient file '{v}' contains no age1... keys"
+            ));
+        }
+    }
+    Ok(out)
 }
 
-pub fn resolve_identities(_paths: &[std::path::PathBuf]) -> Result<Vec<Box<dyn age::Identity>>> {
-    Err(anyhow!("resolve_identities not yet implemented"))
+/// If `s` looks like an age1... literal public key, parse it; otherwise Ok(None).
+fn parse_recipient_literal(s: &str) -> Result<Option<age::x25519::Recipient>> {
+    if !s.starts_with("age1") {
+        return Ok(None);
+    }
+    let rec: age::x25519::Recipient = s.parse()
+        .map_err(|e| anyhow!("invalid recipient '{s}': {e}"))?;
+    Ok(Some(rec))
+}
+
+pub fn resolve_identities(
+    paths: &[std::path::PathBuf],
+) -> Result<Vec<Box<dyn age::Identity>>> {
+    let mut out: Vec<Box<dyn age::Identity>> = Vec::new();
+    for path in paths {
+        let contents = std::fs::read_to_string(path)
+            .with_context(|| format!("failed to read identity file '{}'", path.display()))?;
+        for (i, line) in contents.lines().enumerate() {
+            let trimmed = line.trim();
+            if trimmed.is_empty() || trimmed.starts_with('#') {
+                continue;
+            }
+            let id: age::x25519::Identity = trimmed.parse().map_err(|e| {
+                anyhow!(
+                    "invalid identity in '{}' at line {}: {e}",
+                    path.display(),
+                    i + 1,
+                )
+            })?;
+            out.push(Box::new(id));
+        }
+    }
+    Ok(out)
 }
 
 // ---- Execution stubs — filled in Tasks 4 and 5 -----------------------
@@ -204,6 +269,95 @@ mod tests {
         let err = resolve_passphrase(None, false).unwrap_err().to_string();
         assert!(err.contains("empty"), "got: {err}");
         set_prompt_override(None);
+    }
+
+    fn write_text_tmp(name: &str, content: &str) -> PathBuf {
+        let path = std::env::temp_dir().join(format!(
+            "recon-encrypt-text-{}-{}.txt",
+            std::process::id(),
+            name,
+        ));
+        std::fs::write(&path, content).unwrap();
+        path
+    }
+
+    fn make_keypair() -> (age::x25519::Identity, String) {
+        let id = age::x25519::Identity::generate();
+        let pub_key = id.to_public().to_string();
+        (id, pub_key)
+    }
+
+    #[test]
+    fn recipients_literal_age1_key() {
+        let (_, pub_key) = make_keypair();
+        let recs = resolve_recipients(&[pub_key])
+            .unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(recs.len(), 1);
+    }
+
+    #[test]
+    fn recipients_from_file() {
+        let (_, pub_key) = make_keypair();
+        let path = write_text_tmp("recips1", &format!("# comment\n{pub_key}\n"));
+        let recs = resolve_recipients(&[path.to_str().unwrap().to_string()])
+            .unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(recs.len(), 1);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn recipients_empty_file_errors() {
+        let path = write_text_tmp("recips2", "# only comments\n\n#\n");
+        let err = resolve_recipients(&[path.to_str().unwrap().to_string()])
+            .err()
+            .expect("expected an error")
+            .to_string();
+        assert!(err.contains("no age1") || err.contains("no age"), "got: {err}");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn recipients_missing_path_errors() {
+        let err = resolve_recipients(&["/tmp/definitely-not-here.rec".to_string()])
+            .err()
+            .expect("expected an error")
+            .to_string();
+        assert!(err.contains("invalid recipient"), "got: {err}");
+    }
+
+    #[test]
+    fn recipients_malformed_literal_errors() {
+        let err = resolve_recipients(&["age1notvalid".to_string()])
+            .err()
+            .expect("expected an error")
+            .to_string();
+        assert!(err.contains("invalid recipient"), "got: {err}");
+    }
+
+    #[test]
+    fn identities_from_file() {
+        // Use a known well-formed age secret key so we don't need to call
+        // expose_secret() on Identity::to_string()'s SecretString return value
+        // (which comes from age_core::secrecy, a different secrecy version than
+        // the one this crate depends on directly).
+        const TEST_SK: &str =
+            "AGE-SECRET-KEY-1GQ9778VQXMMJVE8SK7J6VT8UJ4HDQAJUVSFCWCM02D8GEWQ72PVQ2Y5J33";
+        let path = write_text_tmp("id1", &format!("# my key\n{TEST_SK}\n"));
+        let ids = resolve_identities(&[path.clone()])
+            .unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(ids.len(), 1);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn identities_malformed_line_reports_line_number() {
+        let path = write_text_tmp("id2", "# header\nNOT-AN-AGE-KEY\n");
+        let err = resolve_identities(&[path.clone()])
+            .err()
+            .expect("expected an error")
+            .to_string();
+        assert!(err.contains("line 2"), "got: {err}");
+        let _ = std::fs::remove_file(&path);
     }
 
     fn env_mutex() -> &'static std::sync::Mutex<()> {
