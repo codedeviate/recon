@@ -7,6 +7,7 @@ mod dns;
 mod editor;
 mod email;
 mod examples;
+mod hash;
 mod help;
 mod jwt;
 mod lorem;
