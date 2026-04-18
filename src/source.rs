@@ -10,7 +10,7 @@
 //! positional handling but prevents surprising network side-effects in
 //! source-layer contexts (hash, compress, encrypt, qr, barcode).
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{bail, Context, Result};
 use std::io::Read;
 use std::path::PathBuf;
 
@@ -108,15 +108,37 @@ fn stdin_is_pipe() -> bool {
 /// Open a streaming reader for the given source.
 /// Filled out in Task 2 of the source-layer plan.
 pub fn open(source: SourceKind, args: &Args) -> Result<Box<dyn Read>> {
-    let _ = (source, args);
-    Err(anyhow!("source::open not yet implemented"))
+    match source {
+        SourceKind::Stdin => Ok(Box::new(std::io::stdin().lock())),
+        SourceKind::File(path) => {
+            let file = std::fs::File::open(&path)
+                .with_context(|| format!("failed to open file '{}'", path.display()))?;
+            Ok(Box::new(file))
+        }
+        SourceKind::Http(_url) => {
+            let response = crate::client::execute(args)
+                .context("source fetch failed")?;
+            if args.fail_on_error && response.status().as_u16() >= 400 {
+                bail!(
+                    "source fetch returned HTTP {} {}",
+                    response.status().as_u16(),
+                    response.status().canonical_reason().unwrap_or(""),
+                );
+            }
+            Ok(Box::new(response))
+        }
+    }
 }
 
 /// Convenience: `resolve` + `open` + `read_to_end` into a `Vec<u8>`.
 /// Filled out in Task 2 of the source-layer plan.
 pub fn read_all(args: &Args) -> Result<Vec<u8>> {
-    let _ = args;
-    Err(anyhow!("source::read_all not yet implemented"))
+    let source = resolve(args)?;
+    let mut reader = open(source, args)?;
+    let mut buf = Vec::new();
+    std::io::Read::read_to_end(&mut reader, &mut buf)
+        .context("failed to read source")?;
+    Ok(buf)
 }
 
 #[cfg(test)]
@@ -279,5 +301,47 @@ mod tests {
             resolve(&args).unwrap(),
             SourceKind::File(PathBuf::from("./relative/path.bin")),
         );
+    }
+
+    #[test]
+    fn open_file_reads_bytes() {
+        let tmp_path = std::env::temp_dir().join(format!(
+            "recon-source-test-{}.bin",
+            std::process::id()
+        ));
+        std::fs::write(&tmp_path, b"hello source").unwrap();
+
+        let args = Args::try_parse_from(["recon", tmp_path.to_str().unwrap()]).unwrap();
+
+        let bytes = read_all(&args).unwrap();
+        assert_eq!(bytes, b"hello source");
+
+        std::fs::remove_file(&tmp_path).ok();
+    }
+
+    #[test]
+    fn open_file_errors_when_missing() {
+        let missing = "/tmp/recon-source-does-not-exist-please";
+        let args = Args::try_parse_from(["recon", missing]).unwrap();
+        let err = read_all(&args).unwrap_err().to_string();
+        assert!(err.contains("failed to open file"), "got: {err}");
+        assert!(err.contains(missing), "got: {err}");
+    }
+
+    #[test]
+    fn open_file_via_file_scheme() {
+        let tmp_path = std::env::temp_dir().join(format!(
+            "recon-source-scheme-{}.bin",
+            std::process::id()
+        ));
+        std::fs::write(&tmp_path, b"via scheme").unwrap();
+
+        let url = format!("file://{}", tmp_path.display());
+        let args = Args::try_parse_from(["recon", &url]).unwrap();
+
+        let bytes = read_all(&args).unwrap();
+        assert_eq!(bytes, b"via scheme");
+
+        std::fs::remove_file(&tmp_path).ok();
     }
 }
