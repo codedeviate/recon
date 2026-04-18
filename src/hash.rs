@@ -3,6 +3,7 @@
 //! input can be a file, `file://` URL, HTTP URL, or stdin.
 
 use anyhow::{anyhow, Result};
+use std::io::Write;
 
 /// Supported hash algorithms.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -177,6 +178,45 @@ pub fn compute(algo: Algo, reader: &mut dyn std::io::Read) -> Result<Vec<u8>> {
         hasher.update(&buf[..n]);
     }
     Ok(hasher.finalize())
+}
+
+/// Write a digest to `out` in the chosen format.
+/// - Hex → lowercase hex, trailing `\n`.
+/// - Base64 → standard base64 with padding, trailing `\n`.
+/// - Raw → digest bytes verbatim, NO trailing newline.
+pub fn write_digest(
+    out: &mut dyn Write,
+    digest: &[u8],
+    format: Format,
+) -> std::io::Result<()> {
+    match format {
+        Format::Hex => {
+            let mut s = String::with_capacity(digest.len() * 2);
+            for b in digest {
+                s.push_str(&format!("{:02x}", b));
+            }
+            writeln!(out, "{s}")?;
+        }
+        Format::Base64 => {
+            use base64::Engine;
+            let encoded = base64::engine::general_purpose::STANDARD.encode(digest);
+            writeln!(out, "{encoded}")?;
+        }
+        Format::Raw => {
+            out.write_all(digest)?;
+        }
+    }
+    Ok(())
+}
+
+/// Print the `--hash-list` output to `out`.
+pub fn print_list(out: &mut dyn Write) -> std::io::Result<()> {
+    // Width: the canonical name column is 10 chars wide — enough for
+    // "sha3-256" (8) + margin.
+    for algo in Algo::ALL {
+        writeln!(out, "{:<10} {}-bit", algo.canonical(), algo.bits())?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -408,5 +448,48 @@ mod tests {
         let mut chunked = ChunkedReader { data: &input, chunk: 97, pos: 0 };
         let streamed = compute(Algo::Sha256, &mut chunked).unwrap();
         assert_eq!(whole, streamed);
+    }
+
+    #[test]
+    fn write_digest_hex_has_trailing_newline() {
+        let mut out = Vec::new();
+        write_digest(&mut out, &[0xde, 0xad, 0xbe, 0xef], Format::Hex).unwrap();
+        assert_eq!(out, b"deadbeef\n");
+    }
+
+    #[test]
+    fn write_digest_base64_has_trailing_newline() {
+        let mut out = Vec::new();
+        write_digest(&mut out, &[0xde, 0xad, 0xbe, 0xef], Format::Base64).unwrap();
+        assert_eq!(out, b"3q2+7w==\n");
+    }
+
+    #[test]
+    fn write_digest_raw_has_no_trailing_newline() {
+        let mut out = Vec::new();
+        write_digest(&mut out, &[0xde, 0xad, 0xbe, 0xef], Format::Raw).unwrap();
+        assert_eq!(out, &[0xde, 0xad, 0xbe, 0xef]);
+    }
+
+    #[test]
+    fn print_list_contains_all_algorithms() {
+        let mut out = Vec::new();
+        print_list(&mut out).unwrap();
+        let text = String::from_utf8(out).unwrap();
+        for algo in Algo::ALL {
+            assert!(text.contains(algo.canonical()), "missing: {} in {text}", algo.canonical());
+        }
+        // Exactly 8 lines, no blank trailer.
+        assert_eq!(text.lines().count(), 8, "output was:\n{text}");
+    }
+
+    #[test]
+    fn print_list_includes_bit_sizes() {
+        let mut out = Vec::new();
+        print_list(&mut out).unwrap();
+        let text = String::from_utf8(out).unwrap();
+        assert!(text.contains("128-bit"));  // md5
+        assert!(text.contains("256-bit"));  // sha256, sha3-256, blake3
+        assert!(text.contains("512-bit"));  // sha512, sha3-512
     }
 }
