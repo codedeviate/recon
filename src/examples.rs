@@ -580,6 +580,34 @@ pub fn print() {
     ]);
     note("Only encoding is supported in this release. Decoding (image → text) may land in a later version.");
 
+    section("ENCRYPTION");
+
+    example("Generate a fresh age key pair", &[
+        "recon --encrypt-keygen -o ~/.config/age/keys.txt",
+    ]);
+    example("Passphrase-based encrypt / decrypt (interactive prompt)", &[
+        "recon --encrypt ./secrets.bin -o secrets.age",
+        "recon --decrypt secrets.age -o secrets.bin",
+    ]);
+    example("Scripted with a passphrase file", &[
+        "recon --encrypt ./secrets.bin --passphrase-file ~/.recon/pass -o secrets.age",
+        "recon --decrypt secrets.age --passphrase-file ~/.recon/pass -o secrets.bin",
+    ]);
+    example("Scripted with the env var", &[
+        "RECON_PASSPHRASE=... recon --encrypt ./secrets.bin -o secrets.age",
+    ]);
+    example("Encrypt to an X25519 recipient (or several)", &[
+        "recon --encrypt ./payload.bin --recipient age1xyz... -o payload.age",
+        "recon --encrypt ./payload.bin --recipient ./alice.pub --recipient ./bob.pub -o payload.age",
+    ]);
+    example("ASCII armor for email or chat paste", &[
+        "recon --encrypt ./note.txt --armor -o note.age.txt",
+    ]);
+    example("Decrypt a URL-hosted payload", &[
+        "recon --decrypt https://cdn/secret.age --identity ~/.config/age/keys.txt -o secret.bin",
+    ]);
+    note("The --passphrase <TEXT> flag is intentionally not offered (secrets on the command line leak to process lists and shell history). Use --passphrase-file, $RECON_PASSPHRASE, or the interactive prompt.");
+
     section("SAMPLE DATA");
 
     example("10 customers in JSON (default)", &[

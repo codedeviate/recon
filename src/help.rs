@@ -727,6 +727,59 @@ static TOPIC_ENCODE: Topic = Topic {
     ],
 };
 
+static TOPIC_ENCRYPT: Topic = Topic {
+    title: "Encryption (age format)",
+    description: "Encrypt or decrypt data with the age file format. Supports passphrase-based\n\
+                  encryption (scrypt KDF) and X25519 recipient-based encryption. Input comes\n\
+                  from any source (file, URL, stdin, file://); output goes to stdout or -o.\n\
+                  Binary by default; use --armor for ASCII-armored output. Decrypt auto-detects\n\
+                  the format.",
+    flags: &[
+        FlagHelp {
+            flags: "--encrypt",
+            description: "Encrypt the input. Needs at least one --recipient or a passphrase source.",
+        },
+        FlagHelp {
+            flags: "--decrypt",
+            description: "Decrypt the input. Auto-detects binary vs armored and passphrase vs\n\
+                          recipient mode from the header.",
+        },
+        FlagHelp {
+            flags: "--passphrase-file <PATH>",
+            description: "Read passphrase from a file (trims one trailing newline). Priority:\n\
+                          file > $RECON_PASSPHRASE > interactive prompt.",
+        },
+        FlagHelp {
+            flags: "--recipient <AGE1... | PATH>",
+            description: "Encrypt to an X25519 recipient. Literal age1... public key or a\n\
+                          path to a file containing one. Repeatable.",
+        },
+        FlagHelp {
+            flags: "--identity <PATH>",
+            description: "Decrypt with the age private-key file at PATH. Repeatable.",
+        },
+        FlagHelp {
+            flags: "--armor",
+            description: "Produce ASCII-armored output (--encrypt only).",
+        },
+        FlagHelp {
+            flags: "--encrypt-keygen",
+            description: "Standalone action: print a fresh X25519 key pair (age-compatible).",
+        },
+    ],
+    related: &["-o / --output", "-H / --header"],
+    examples: &[
+        ExampleHelp { description: "Generate a key pair", command: "recon --encrypt-keygen -o key.txt" },
+        ExampleHelp { description: "Encrypt with passphrase (interactive prompt)", command: "recon --encrypt ./secret.bin -o secret.age" },
+        ExampleHelp { description: "Encrypt with passphrase from env", command: "RECON_PASSPHRASE=... recon --encrypt ./secret.bin -o secret.age" },
+        ExampleHelp { description: "Encrypt to an X25519 recipient", command: "recon --encrypt ./payload.bin --recipient age1abc... -o payload.age" },
+        ExampleHelp { description: "Encrypt armored for paste", command: "recon --encrypt ./note.txt --armor -o note.age.txt" },
+        ExampleHelp { description: "Decrypt with a passphrase", command: "recon --decrypt secret.age -o secret.bin" },
+        ExampleHelp { description: "Decrypt with a private-key file", command: "recon --decrypt payload.age --identity ~/.config/age/keys.txt -o payload.bin" },
+        ExampleHelp { description: "Decrypt a URL-hosted payload", command: "recon --decrypt https://cdn/secret.age --identity ~/.age.key -o secret.bin" },
+    ],
+};
+
 static TOPIC_EDITOR: Topic = Topic {
     title: "Editor Output",
     description: "Redirect recon's response output into an editor. Saves the body (or whatever the\n\
@@ -806,6 +859,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "email" | "email-protection" => Some(&TOPIC_EMAIL),
         "cookies" | "cookiejar" | "cookie" => Some(&TOPIC_COOKIES),
         "encode" | "encoding" | "qr" | "barcode" => Some(&TOPIC_ENCODE),
+        "encrypt" | "encryption" | "decrypt" | "age" => Some(&TOPIC_ENCRYPT),
         "scp" => Some(&TOPIC_SCP),
         "ssh" | "ssh-shell" => Some(&TOPIC_SSH),
         "telnet" => Some(&TOPIC_TELNET),
@@ -877,6 +931,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "hash",
         "compression",
         "encoding",
+        "encryption",
         "sample",
         "editor",
         "serve",
