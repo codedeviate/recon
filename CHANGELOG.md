@@ -8,6 +8,33 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.15.1] - 2026-04-19
+
+### Changed
+
+- `--help` output is now grouped into labeled sections (`HTTP Request`,
+  `Auth & TLS`, `Output`, `Certificate Inspection`, `DNS`, `WHOIS`,
+  `Network Tests`, `Email Protection`, `Cookies`, `File Server`, `JWT`,
+  `Hashing`, `Compression`, `Encoding`, `Encryption`, `Sample Data`,
+  `Editor`, `Meta`) matching the existing `--help <topic>` taxonomy.
+  No flag names changed; only the rendering of `--help`.
+
+### Added
+
+- `CHANGELOG.md` at the repo root, covering versions 0.15.0 → 0.7.0
+  (lifted from `HISTORY.md`), plus reconstructed entries for 0.6.0
+  (JWT), 0.5.0 (SSH/Telnet), 0.4.1 (DMARC cross-validation fix), and
+  0.1.0 (initial curl-clone baseline). Versions 0.2.0–0.4.0 are
+  documented chronologically in `HISTORY.md`'s Feature Additions
+  narrative.
+
+### Removed
+
+- The `## Version Log` section of `HISTORY.md`. Its content lives in
+  `CHANGELOG.md` now. `HISTORY.md` retains the design-notes narrative
+  (Origins, Architecture Decisions, Feature Additions, Naming History,
+  Module Structure, Dependencies).
+
 ## [0.15.0] - 2026-04-19
 
 ### Added
