@@ -572,6 +572,30 @@ pub struct Args {
     #[arg(long = "subscribe", value_name = "FILTER", action = clap::ArgAction::Append, help_heading = "MQTT")]
     pub subscribe: Vec<String>,
 
+    /// MQTT protocol version: 3 (MQTT 3.1.1) or 5 (MQTT 5.0). Default: 5.
+    #[arg(long = "mqtt-version", value_name = "N", default_value = "5", help_heading = "MQTT")]
+    pub mqtt_version: String,
+
+    /// MQTT client identifier. Default: recon-<random>.
+    #[arg(long = "client-id", value_name = "ID", help_heading = "MQTT")]
+    pub client_id: Option<String>,
+
+    /// MQTT keepalive interval in seconds (default 60).
+    #[arg(long = "keepalive", value_name = "SECS", default_value_t = 60, help_heading = "MQTT")]
+    pub keepalive: u16,
+
+    /// MQTT QoS level for publish/subscribe (0, 1, or 2). Default: 0.
+    #[arg(long = "qos", value_name = "N", default_value_t = 0, help_heading = "MQTT")]
+    pub qos: u8,
+
+    /// Set the MQTT PUBLISH retain flag.
+    #[arg(long = "retain", help_heading = "MQTT")]
+    pub retain: bool,
+
+    /// Exit after receiving N messages in subscribe mode.
+    #[arg(long = "count", value_name = "N", help_heading = "MQTT")]
+    pub count: Option<u32>,
+
     // ── Meta ─────────────────────────────────────────────────────────────────
 
     /// Show detailed usage examples for all flags and commands
@@ -793,5 +817,61 @@ mod json_flag_tests {
     fn stores_json_at_file_verbatim() {
         let args = Args::try_parse_from(["recon", "--json", "@body.json", "http://x/"]).unwrap();
         assert_eq!(args.json.as_deref(), Some("@body.json"));
+    }
+}
+
+#[cfg(test)]
+mod mqtt_flag_tests {
+    use super::*;
+    use clap::Parser;
+
+    #[test]
+    fn mqtt_version_defaults_to_5() {
+        let args = Args::try_parse_from(["recon", "mqtt://b/"]).unwrap();
+        assert_eq!(args.mqtt_version, "5");
+    }
+
+    #[test]
+    fn mqtt_version_accepts_3() {
+        let args = Args::try_parse_from(["recon", "mqtt://b/", "--mqtt-version", "3"]).unwrap();
+        assert_eq!(args.mqtt_version, "3");
+    }
+
+    #[test]
+    fn mqtt_keepalive_defaults_to_60() {
+        let args = Args::try_parse_from(["recon", "mqtt://b/"]).unwrap();
+        assert_eq!(args.keepalive, 60);
+    }
+
+    #[test]
+    fn mqtt_qos_defaults_to_0() {
+        let args = Args::try_parse_from(["recon", "mqtt://b/"]).unwrap();
+        assert_eq!(args.qos, 0);
+    }
+
+    #[test]
+    fn mqtt_subscribe_repeatable() {
+        let args = Args::try_parse_from([
+            "recon", "mqtt://b/", "--subscribe", "a/#", "--subscribe", "b/+/c",
+        ]).unwrap();
+        assert_eq!(args.subscribe.len(), 2);
+    }
+
+    #[test]
+    fn mqtt_retain_default_false() {
+        let args = Args::try_parse_from(["recon", "mqtt://b/"]).unwrap();
+        assert!(!args.retain);
+    }
+
+    #[test]
+    fn mqtt_count_default_none() {
+        let args = Args::try_parse_from(["recon", "mqtt://b/"]).unwrap();
+        assert!(args.count.is_none());
+    }
+
+    #[test]
+    fn mqtt_count_parses() {
+        let args = Args::try_parse_from(["recon", "mqtt://b/", "--count", "5"]).unwrap();
+        assert_eq!(args.count, Some(5));
     }
 }
