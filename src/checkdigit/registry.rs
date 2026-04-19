@@ -559,6 +559,54 @@ static SPEC_ES_CIF: Spec = Spec {
     create_fn: vat::create_es_cif,
 };
 
+static SPEC_CZ_VAT: Spec = Spec {
+    canonical: "cz-vat",
+    aliases: &["czvat"],
+    description: "Czech VAT (auto-detect IČO 8 digits or rodné číslo 9-10 digits)",
+    verify_fn: vat::verify_cz_vat,
+    create_fn: vat::create_cz_vat,
+};
+
+static SPEC_CZ_LEGAL: Spec = Spec {
+    canonical: "cz-legal",
+    aliases: &[],
+    description: "Czech IČO (legal entity, 8 digits, weighted mod-11)",
+    verify_fn: vat::verify_cz_legal,
+    create_fn: vat::create_cz_legal,
+};
+
+static SPEC_CZ_PERSON: Spec = Spec {
+    canonical: "cz-person",
+    aliases: &[],
+    description: "Czech rodné číslo (person, 9 or 10 digits; 10-digit divisible by 11)",
+    verify_fn: vat::verify_cz_person,
+    create_fn: vat::create_cz_person,
+};
+
+static SPEC_LV_VAT: Spec = Spec {
+    canonical: "lv-vat",
+    aliases: &["lvvat"],
+    description: "Latvian VAT (auto-detect personal/business by first digit)",
+    verify_fn: vat::verify_lv_vat,
+    create_fn: vat::create_lv_vat,
+};
+
+static SPEC_LV_PERSONAL: Spec = Spec {
+    canonical: "lv-personal",
+    aliases: &[],
+    description: "Latvian personal code (11 digits, first digit 0-3, weighted mod-11)",
+    verify_fn: vat::verify_lv_personal,
+    create_fn: vat::create_lv_personal,
+};
+
+static SPEC_LV_BUSINESS: Spec = Spec {
+    canonical: "lv-business",
+    aliases: &[],
+    description: "Latvian business registration number (11 digits, first digit 4-9, weighted mod-11)",
+    verify_fn: vat::verify_lv_business,
+    create_fn: vat::create_lv_business,
+};
+
 pub static SPECS: &[&Spec] = &[
     &SPEC_LUHN,
     &SPEC_CREDITCARD,
@@ -627,6 +675,12 @@ pub static SPECS: &[&Spec] = &[
     &SPEC_ES_NIF,
     &SPEC_ES_NIE,
     &SPEC_ES_CIF,
+    &SPEC_CZ_VAT,
+    &SPEC_CZ_LEGAL,
+    &SPEC_CZ_PERSON,
+    &SPEC_LV_VAT,
+    &SPEC_LV_PERSONAL,
+    &SPEC_LV_BUSINESS,
 ];
 
 /// Resolve a CLI keyword (canonical or alias, case-insensitive).
