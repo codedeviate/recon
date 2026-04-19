@@ -228,7 +228,16 @@ fn emit_probe_json_v5<W: std::io::Write>(
     map.insert("broker_host".into(), json!(cfg.host));
     map.insert("broker_port".into(), json!(cfg.port));
     map.insert("protocol_version".into(), json!("5.0"));
-    map.insert("tls".into(), if cfg.tls { json!({"backend": "rustls"}) } else { Value::Null });
+    // `tls` is always an object (never null) so consumers can safely destructure.
+    // When TLS is enabled, Task 11 will add peer_cn / cipher / alpn etc.
+    map.insert(
+        "tls".into(),
+        if cfg.tls {
+            json!({"enabled": true, "backend": "rustls"})
+        } else {
+            json!({"enabled": false})
+        },
+    );
     map.insert("connect_reason_code".into(), json!(code));
     map.insert("connect_reason".into(), json!(reason));
     map.insert("session_present".into(), json!(connack.session_present));
@@ -266,7 +275,17 @@ fn emit_probe_json_v3<W: std::io::Write>(
     map.insert("broker_host".into(), json!(cfg.host));
     map.insert("broker_port".into(), json!(cfg.port));
     map.insert("protocol_version".into(), json!("3.1.1"));
-    map.insert("tls".into(), if cfg.tls { json!({"backend": "rustls"}) } else { Value::Null });
+    map.insert(
+        "tls".into(),
+        if cfg.tls {
+            json!({"enabled": true, "backend": "rustls"})
+        } else {
+            json!({"enabled": false})
+        },
+    );
+    // Debug-formatted string intentionally: MQTT 3.1.1 has a small named
+    // variant set (Success, BadUserNamePassword, NotAuthorized, …) and the
+    // debug name is more readable for operators than the wire-byte number.
     map.insert("connect_return_code".into(), json!(format!("{:?}", connack.code)));
     map.insert("session_present".into(), json!(connack.session_present));
     writeln!(out, "{}", Value::Object(map))?;
