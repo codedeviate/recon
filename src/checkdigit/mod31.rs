@@ -51,7 +51,16 @@ pub fn verify_henkilotunnus(input: &str) -> Verdict {
     let dd: u32 = clean[..2].parse().unwrap();
     let mm: u32 = clean[2..4].parse().unwrap();
     let yy: u32 = clean[4..6].parse().unwrap();
-    if !valid_ddmmyy(dd, mm, yy, false) {
+    let century: u32 = match chars[6] {
+        '+' => 1800,
+        '-' | 'Y' | 'X' | 'W' | 'V' | 'U' => 1900,
+        'A' | 'B' | 'C' | 'D' | 'E' | 'F' => 2000,
+        _ => return Verdict::Invalid {
+            reason: format!("invalid century marker '{}' at position 7", chars[6]),
+        },
+    };
+    let full_year = Some(century + yy);
+    if !valid_ddmmyy(dd, mm, yy, false, full_year) {
         return Verdict::Invalid { reason: "invalid date in henkilötunnus".into() };
     }
     let nine = format!("{}{}", &clean[..6], &clean[7..10]);

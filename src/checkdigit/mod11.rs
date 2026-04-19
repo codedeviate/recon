@@ -117,7 +117,19 @@ pub fn verify_cpr(input: &str) -> Verdict {
     let dd: u32 = clean[..2].parse().unwrap();
     let mm: u32 = clean[2..4].parse().unwrap();
     let yy: u32 = clean[4..6].parse().unwrap();
-    if !valid_ddmmyy(dd, mm, yy, false) {
+    let d7: u32 = clean.chars().nth(6).unwrap().to_digit(10).unwrap();
+    let century: u32 = match d7 {
+        0..=3 => 1900,
+        4 if yy < 37 => 2000,
+        4 => 1900,
+        5..=8 if yy > 57 => 1800,
+        5..=8 => 2000,
+        9 if yy < 37 => 2000,
+        9 => 1900,
+        _ => unreachable!(),
+    };
+    let full_year = Some(century + yy);
+    if !valid_ddmmyy(dd, mm, yy, false, full_year) {
         return Verdict::Invalid { reason: "invalid date in CPR".into() };
     }
     let weights = [4u32, 3, 2, 7, 6, 5, 4, 3, 2, 1];
@@ -140,6 +152,24 @@ pub fn create_cpr(input: &str, raw: bool) -> Result<String> {
     }
     if !clean.chars().all(|c| c.is_ascii_digit()) {
         return Err(anyhow!("non-digit input"));
+    }
+    let dd: u32 = clean[..2].parse().unwrap();
+    let mm: u32 = clean[2..4].parse().unwrap();
+    let yy: u32 = clean[4..6].parse().unwrap();
+    let d7: u32 = clean.chars().nth(6).unwrap().to_digit(10).unwrap();
+    let century: u32 = match d7 {
+        0..=3 => 1900,
+        4 if yy < 37 => 2000,
+        4 => 1900,
+        5..=8 if yy > 57 => 1800,
+        5..=8 => 2000,
+        9 if yy < 37 => 2000,
+        9 => 1900,
+        _ => unreachable!(),
+    };
+    let full_year = Some(century + yy);
+    if !valid_ddmmyy(dd, mm, yy, false, full_year) {
+        return Err(anyhow!("invalid date in CPR body"));
     }
     let weights = [4u32, 3, 2, 7, 6, 5, 4, 3, 2, 1];
     let mut partial = 0u32;

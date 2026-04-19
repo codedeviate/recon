@@ -7,9 +7,17 @@ use super::{sanitize, Verdict};
 use anyhow::{anyhow, Result};
 
 /// Validate a DDMMYY date. For `allow_samordning`, accept day+60 (61..=91).
-/// Leap-year handling is simplified: February always accepts up to 29 since
-/// we don't know the full year from a 2-digit yy.
-pub fn valid_ddmmyy(dd: u32, mm: u32, _yy: u32, allow_samordning: bool) -> bool {
+///
+/// When `full_year` is `Some(y)`, applies the real Gregorian leap-year rule for
+/// February. When `None`, uses the forgiving fallback of accepting Feb 29
+/// (century unknown).
+pub fn valid_ddmmyy(
+    dd: u32,
+    mm: u32,
+    _yy: u32,
+    allow_samordning: bool,
+    full_year: Option<u32>,
+) -> bool {
     let day = if allow_samordning && dd > 60 { dd - 60 } else { dd };
     if !(1..=12).contains(&mm) || day == 0 {
         return false;
@@ -17,10 +25,26 @@ pub fn valid_ddmmyy(dd: u32, mm: u32, _yy: u32, allow_samordning: bool) -> bool 
     let max = match mm {
         1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
         4 | 6 | 9 | 11 => 30,
-        2 => 29,
+        2 => match full_year {
+            Some(y) if y % 4 == 0 && (y % 100 != 0 || y % 400 == 0) => 29,
+            Some(_) => 28,
+            None => 29, // forgiving: century unknown
+        },
         _ => 0,
     };
     day <= max
+}
+
+/// Current calendar year in local time (approximate — good enough for
+/// age-based warnings; not for millisecond-accurate calendar math).
+fn current_year() -> u32 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let approx = 1970.0 + (secs as f64) / 31_556_952.0;
+    approx as u32
 }
 
 // ── Swedish personnummer ─────────────────────────────────────────────────
@@ -46,7 +70,26 @@ pub fn verify_personnummer(input: &str) -> Verdict {
     let yy: u32 = last10[..2].parse().unwrap();
     let mm: u32 = last10[2..4].parse().unwrap();
     let dd: u32 = last10[4..6].parse().unwrap();
-    if !valid_ddmmyy(dd, mm, yy, true) {
+
+    let full_year: Option<u32> = if len == 12 {
+        clean[..4].parse::<u32>().ok()
+    } else {
+        // 10-digit form. Century from separator + current year.
+        let current = current_year();
+        let current_yy = current % 100;
+        let century_base = if yy <= current_yy {
+            current - current_yy
+        } else {
+            current - current_yy - 100
+        };
+        let mut y = century_base + yy;
+        if plus_separator {
+            y = y.saturating_sub(100);
+        }
+        Some(y)
+    };
+
+    if !valid_ddmmyy(dd, mm, yy, true, full_year) {
         return Verdict::Invalid { reason: "invalid date in personnummer".into() };
     }
     if !luhn_verify(last10) {
@@ -77,7 +120,26 @@ pub fn create_personnummer(input: &str, raw: bool) -> Result<String> {
     let yy: u32 = clean[date_start..date_start+2].parse().unwrap();
     let mm: u32 = clean[date_start+2..date_start+4].parse().unwrap();
     let dd: u32 = clean[date_start+4..date_start+6].parse().unwrap();
-    if !valid_ddmmyy(dd, mm, yy, true) {
+
+    let full_year: Option<u32> = if len == 11 {
+        clean[..4].parse::<u32>().ok()
+    } else {
+        // 9-digit form (YYMMDDNNN). Century from current year + yy.
+        let current = current_year();
+        let current_yy = current % 100;
+        let century_base = if yy <= current_yy {
+            current - current_yy
+        } else {
+            current - current_yy - 100
+        };
+        let mut y = century_base + yy;
+        if plus_separator {
+            y = y.saturating_sub(100);
+        }
+        Some(y)
+    };
+
+    if !valid_ddmmyy(dd, mm, yy, true, full_year) {
         return Err(anyhow!("invalid date in personnummer body"));
     }
 
@@ -163,24 +225,24 @@ mod tests {
 
     #[test]
     fn date_valid_2026_feb_29() {
-        // Simplified date-validator: 29 is accepted in February regardless of year.
-        assert!(valid_ddmmyy(29, 2, 26, false));
+        // Forgiving fallback (None): 29 is accepted in February when century unknown.
+        assert!(valid_ddmmyy(29, 2, 26, false, None));
     }
 
     #[test]
     fn date_invalid_feb_30() {
-        assert!(!valid_ddmmyy(30, 2, 26, false));
+        assert!(!valid_ddmmyy(30, 2, 26, false, None));
     }
 
     #[test]
     fn date_invalid_month_13() {
-        assert!(!valid_ddmmyy(1, 13, 26, false));
+        assert!(!valid_ddmmyy(1, 13, 26, false, None));
     }
 
     #[test]
     fn date_samordning_accepted() {
         // Day 88 = real day 28 with samordningsnummer offset
-        assert!(valid_ddmmyy(88, 12, 81, true));
+        assert!(valid_ddmmyy(88, 12, 81, true, None));
     }
 
     #[test]
@@ -265,6 +327,51 @@ mod tests {
         match verify_sa_id(&full) {
             Verdict::Valid { .. } => {}
             _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn date_valid_feb_29_leap_year() {
+        assert!(valid_ddmmyy(29, 2, 0, false, Some(2000)));
+        assert!(valid_ddmmyy(29, 2, 4, false, Some(2004)));
+    }
+
+    #[test]
+    fn date_invalid_feb_29_non_leap() {
+        assert!(!valid_ddmmyy(29, 2, 1, false, Some(2001)));
+        assert!(!valid_ddmmyy(29, 2, 3, false, Some(2003)));
+        assert!(!valid_ddmmyy(29, 2, 100, false, Some(2100)));
+    }
+
+    #[test]
+    fn date_valid_feb_29_year_unknown() {
+        assert!(valid_ddmmyy(29, 2, 1, false, None));
+    }
+
+    #[test]
+    fn personnummer_2001_feb_29_invalid() {
+        // 010229 not a real date (2001 was not a leap year).
+        use crate::checkdigit::luhn::luhn_check_digit;
+        let body = "010229123";
+        if let Ok(cd) = luhn_check_digit(body) {
+            let full = format!("{}{}", body, cd);
+            match verify_personnummer(&full) {
+                Verdict::Invalid { reason } => assert!(reason.contains("date"), "reason was: {}", reason),
+                v => panic!("expected Invalid (non-leap Feb 29), got {:?}", v),
+            }
+        }
+    }
+
+    #[test]
+    fn personnummer_2000_feb_29_valid() {
+        // 000229 IS a real date (2000 was a leap year).
+        use crate::checkdigit::luhn::luhn_check_digit;
+        let body = "000229123";
+        let cd = luhn_check_digit(body).unwrap();
+        let full = format!("{}{}", body, cd);
+        match verify_personnummer(&full) {
+            Verdict::Valid { .. } => {}
+            v => panic!("{:?}", v),
         }
     }
 }

@@ -71,9 +71,10 @@ pub fn verify_bg_egn(input: &str) -> Verdict {
     let yy: u32 = digits[0] * 10 + digits[1];
     let mm_raw: u32 = digits[2] * 10 + digits[3];
     let dd: u32 = digits[4] * 10 + digits[5];
-    let (real_mm, _century) = decode_bg_century(mm_raw);
+    let (real_mm, century) = decode_bg_century(mm_raw);
+    let full_year = Some(century + yy);
 
-    if !valid_ddmmyy(dd, real_mm, yy, false) {
+    if !valid_ddmmyy(dd, real_mm, yy, false, full_year) {
         return Verdict::Invalid {
             reason: format!(
                 "invalid date in EGN: DD={}, encoded MM={}, real month={}",
@@ -113,9 +114,10 @@ pub fn create_bg_egn(input: &str, _raw: bool) -> Result<String> {
     let yy: u32 = digits[0] * 10 + digits[1];
     let mm_raw: u32 = digits[2] * 10 + digits[3];
     let dd: u32 = digits[4] * 10 + digits[5];
-    let (real_mm, _century) = decode_bg_century(mm_raw);
+    let (real_mm, century) = decode_bg_century(mm_raw);
+    let full_year = Some(century + yy);
 
-    if !valid_ddmmyy(dd, real_mm, yy, false) {
+    if !valid_ddmmyy(dd, real_mm, yy, false, full_year) {
         return Err(anyhow!(
             "invalid date in EGN body: DD={}, encoded MM={}, real month={}",
             dd, mm_raw, real_mm
