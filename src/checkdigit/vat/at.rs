@@ -23,8 +23,11 @@ fn strip_prefix(s: &str) -> &str {
 }
 
 pub fn verify_at_vat(input: &str) -> Verdict {
-    let upped = sanitize(input, true);
-    let digits = strip_prefix(&upped);
+    let body = match super::strip_vat_prefix(input, "AT") {
+        Ok(b) => b,
+        Err(v) => return v,
+    };
+    let digits = strip_prefix(&body);
     if digits.len() != 8 {
         return Verdict::Invalid { reason: format!("expected 8 digits after optional ATU/U prefix, got {}", digits.len()) };
     }

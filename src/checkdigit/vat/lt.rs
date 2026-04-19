@@ -53,7 +53,10 @@ fn parse_digits(s: &str) -> Vec<u32> {
 }
 
 pub fn verify_lt_vat(input: &str) -> Verdict {
-    let clean = sanitize(input, false);
+    let clean = match super::strip_vat_prefix(input, "LT") {
+        Ok(body) => body,
+        Err(v) => return v,
+    };
     let len = clean.len();
     if len != 9 && len != 12 {
         return Verdict::Invalid {

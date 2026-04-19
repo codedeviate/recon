@@ -7,7 +7,10 @@ use super::super::luhn::{luhn_verify, luhn_check_digit};
 use anyhow::{anyhow, Result};
 
 pub fn verify_it_vat(input: &str) -> Verdict {
-    let clean = sanitize(input, false);
+    let clean = match super::strip_vat_prefix(input, "IT") {
+        Ok(body) => body,
+        Err(v) => return v,
+    };
     if clean.len() != 11 {
         return Verdict::Invalid {
             reason: format!("expected 11 digits, got {}", clean.len()),
@@ -66,6 +69,33 @@ mod tests {
     fn it_vat_rejects_bad_check() {
         match verify_it_vat("00743110158") {
             Verdict::Invalid { .. } => {}
+            v => panic!("{:?}", v),
+        }
+    }
+
+    #[test]
+    fn it_vat_accepts_it_prefix() {
+        match verify_it_vat("IT00743110157") {
+            Verdict::Valid { formatted, .. } => assert_eq!(formatted, "IT00743110157"),
+            v => panic!("{:?}", v),
+        }
+    }
+
+    #[test]
+    fn it_vat_accepts_lowercase_prefix() {
+        match verify_it_vat("it00743110157") {
+            Verdict::Valid { .. } => {}
+            v => panic!("{:?}", v),
+        }
+    }
+
+    #[test]
+    fn it_vat_rejects_fr_prefix() {
+        match verify_it_vat("FR00743110157") {
+            Verdict::Invalid { reason } => {
+                assert!(reason.contains("IT"));
+                assert!(reason.contains("FR"));
+            }
             v => panic!("{:?}", v),
         }
     }

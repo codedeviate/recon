@@ -31,7 +31,10 @@ fn compute_check(body: &str) -> u32 {
 }
 
 pub fn verify_hr_vat(input: &str) -> Verdict {
-    let clean = sanitize(input, false);
+    let clean = match super::strip_vat_prefix(input, "HR") {
+        Ok(body) => body,
+        Err(v) => return v,
+    };
     if clean.len() != 11 {
         return Verdict::Invalid {
             reason: format!("expected 11 digits, got {}", clean.len()),

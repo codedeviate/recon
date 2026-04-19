@@ -6,7 +6,10 @@ use anyhow::{anyhow, Result};
 const WEIGHTS: [u32; 7] = [8, 7, 6, 5, 4, 3, 2];
 
 pub fn verify_si_vat(input: &str) -> Verdict {
-    let clean = sanitize(input, false);
+    let clean = match super::strip_vat_prefix(input, "SI") {
+        Ok(body) => body,
+        Err(v) => return v,
+    };
     if clean.len() != 8 {
         return Verdict::Invalid { reason: format!("expected 8 digits, got {}", clean.len()) };
     }

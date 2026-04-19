@@ -16,7 +16,10 @@ fn compute_check(body: &str) -> u32 {
 }
 
 pub fn verify_el_vat(input: &str) -> Verdict {
-    let clean = sanitize(input, false);
+    let clean = match super::strip_vat_prefix(input, "EL") {
+        Ok(body) => body,
+        Err(v) => return v,
+    };
     if clean.len() != 9 {
         return Verdict::Invalid { reason: format!("expected 9 digits, got {}", clean.len()) };
     }
@@ -88,6 +91,22 @@ mod tests {
     fn el_vat_rejects_wrong_length() {
         match verify_el_vat("12345678") {
             Verdict::Invalid { .. } => {}
+            v => panic!("{:?}", v),
+        }
+    }
+
+    #[test]
+    fn el_vat_accepts_el_prefix() {
+        match verify_el_vat("EL094259216") {
+            Verdict::Valid { .. } => {}
+            v => panic!("{:?}", v),
+        }
+    }
+
+    #[test]
+    fn el_vat_accepts_gr_prefix_alias() {
+        match verify_el_vat("GR094259216") {
+            Verdict::Valid { .. } => {}
             v => panic!("{:?}", v),
         }
     }

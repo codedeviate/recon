@@ -7,7 +7,10 @@ use super::super::{sanitize, Verdict};
 use anyhow::{anyhow, Result};
 
 pub fn verify_lu_vat(input: &str) -> Verdict {
-    let clean = sanitize(input, false);
+    let clean = match super::strip_vat_prefix(input, "LU") {
+        Ok(body) => body,
+        Err(v) => return v,
+    };
     if clean.len() != 8 {
         return Verdict::Invalid { reason: format!("expected 8 digits, got {}", clean.len()) };
     }

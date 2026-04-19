@@ -16,7 +16,10 @@ fn compute_check(body: &str) -> u32 {
 }
 
 pub fn verify_mt_vat(input: &str) -> Verdict {
-    let clean = sanitize(input, false);
+    let clean = match super::strip_vat_prefix(input, "MT") {
+        Ok(body) => body,
+        Err(v) => return v,
+    };
     if clean.len() != 8 {
         return Verdict::Invalid { reason: format!("expected 8 digits, got {}", clean.len()) };
     }

@@ -6,7 +6,10 @@ use anyhow::{anyhow, Result};
 
 // 12 digits: organisationsnummer (10 digits) + "01". Luhn on the first 10.
 pub fn verify_se_vat(input: &str) -> Verdict {
-    let clean = sanitize(input, false);
+    let clean = match super::strip_vat_prefix(input, "SE") {
+        Ok(body) => body,
+        Err(v) => return v,
+    };
     if clean.len() != 12 {
         return Verdict::Invalid { reason: format!("expected 12 digits, got {}", clean.len()) };
     }

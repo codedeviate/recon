@@ -198,7 +198,10 @@ pub fn create_lv_business(input: &str, _raw: bool) -> Result<String> {
 /// - First digit 0-3 → personal code
 /// - First digit 4-9 → business registration number
 pub fn verify_lv_vat(input: &str) -> Verdict {
-    let clean = sanitize(input, false);
+    let clean = match super::strip_vat_prefix(input, "LV") {
+        Ok(body) => body,
+        Err(v) => return v,
+    };
     if clean.len() != 11 {
         return Verdict::Invalid {
             reason: format!("Latvian VAT requires 11 digits, got {}", clean.len()),
@@ -209,9 +212,9 @@ pub fn verify_lv_vat(input: &str) -> Verdict {
     }
     let first = clean.chars().next().unwrap().to_digit(10).unwrap();
     if first <= 3 {
-        verify_lv_personal(input)
+        verify_lv_personal(&clean)
     } else {
-        verify_lv_business(input)
+        verify_lv_business(&clean)
     }
 }
 

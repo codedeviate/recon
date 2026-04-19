@@ -8,7 +8,10 @@ use anyhow::{anyhow, Result};
 //     carry = (2 * sum) mod 11
 //   Check digit = (11 - carry) mod 10.
 pub fn verify_de_vat(input: &str) -> Verdict {
-    let clean = sanitize(input, false);
+    let clean = match super::strip_vat_prefix(input, "DE") {
+        Ok(body) => body,
+        Err(v) => return v,
+    };
     if clean.len() != 9 {
         return Verdict::Invalid { reason: format!("expected 9 digits, got {}", clean.len()) };
     }

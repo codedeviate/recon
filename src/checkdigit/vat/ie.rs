@@ -50,7 +50,10 @@ fn suffix_value(c: char) -> Option<u32> {
 }
 
 pub fn verify_ie_vat(input: &str) -> Verdict {
-    let clean = sanitize(input, true);
+    let clean = match super::strip_vat_prefix(input, "IE") {
+        Ok(body) => body,
+        Err(v) => return v,
+    };
     let len = clean.len();
 
     // Format 3: starts with '0' — not supported

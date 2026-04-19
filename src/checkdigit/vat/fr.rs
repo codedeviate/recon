@@ -5,7 +5,10 @@ use anyhow::{anyhow, Result};
 
 // 2-char key + 9-digit SIREN. Key = (12 + 3 × (SIREN mod 97)) mod 97.
 pub fn verify_fr_vat(input: &str) -> Verdict {
-    let clean = sanitize(input, true);
+    let clean = match super::strip_vat_prefix(input, "FR") {
+        Ok(body) => body,
+        Err(v) => return v,
+    };
     if clean.len() != 11 {
         return Verdict::Invalid { reason: format!("expected 11 chars (2-key + 9-SIREN), got {}", clean.len()) };
     }

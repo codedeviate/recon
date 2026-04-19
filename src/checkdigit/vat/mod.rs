@@ -55,3 +55,98 @@ pub use lt::{verify_lt_vat, create_lt_vat};
 pub use es::{verify_es_vat, create_es_vat, verify_es_nif, create_es_nif, verify_es_nie, create_es_nie, verify_es_cif, create_es_cif};
 pub use cz::{verify_cz_vat, create_cz_vat, verify_cz_legal, create_cz_legal, verify_cz_person, create_cz_person};
 pub use lv::{verify_lv_vat, create_lv_vat, verify_lv_personal, create_lv_personal, verify_lv_business, create_lv_business};
+
+use super::{sanitize, Verdict};
+
+/// The 27 EU country codes + GR as a known alias for EL — used for
+/// prefix-mismatch detection.
+const KNOWN_PREFIXES: &[&str] = &[
+    "AT", "BE", "BG", "CY", "CZ", "DE", "DK", "EE", "EL", "ES",
+    "FI", "FR", "GR", "HR", "HU", "IE", "IT", "LT", "LU", "LV",
+    "MT", "NL", "PL", "PT", "RO", "SE", "SI", "SK",
+];
+
+/// Strip an optional leading 2-letter country-code prefix. Accepts input
+/// with or without the prefix. If a prefix is present, it must match
+/// `expected_cc` (case-insensitive); Greek VAT treats `EL` and `GR` as
+/// aliases in both directions. If a different known EU prefix appears,
+/// returns Err with a clear mismatch message.
+///
+/// Input is sanitized (whitespace, dashes, dots stripped; uppercased).
+pub fn strip_vat_prefix(input: &str, expected_cc: &str) -> Result<String, Verdict> {
+    let clean = sanitize(input, true);
+    if clean.len() < 2 {
+        return Ok(clean);
+    }
+    let first_two = &clean[..2];
+    if !first_two.chars().all(|c| c.is_ascii_alphabetic()) {
+        return Ok(clean);
+    }
+    let expected = expected_cc.to_ascii_uppercase();
+    if first_two == expected {
+        return Ok(clean[2..].to_string());
+    }
+    // EL ↔ GR alias (Greek VAT is 'el-vat' but users may type 'GR' prefix)
+    if (expected == "EL" && first_two == "GR") || (expected == "GR" && first_two == "EL") {
+        return Ok(clean[2..].to_string());
+    }
+    // Known EU code but not the expected one → mismatch error.
+    if KNOWN_PREFIXES.contains(&first_two) {
+        return Err(Verdict::Invalid {
+            reason: format!(
+                "expected {} prefix (requested {}-vat), got {}",
+                expected,
+                expected.to_ascii_lowercase(),
+                first_two
+            ),
+        });
+    }
+    // Two alphabetic chars that aren't a known EU code — pass through as body.
+    Ok(clean)
+}
+
+#[cfg(test)]
+mod mod_tests {
+    use super::*;
+
+    #[test]
+    fn strip_prefix_accepts_bare_body() {
+        let out = strip_vat_prefix("5261040828", "PL").unwrap();
+        assert_eq!(out, "5261040828");
+    }
+
+    #[test]
+    fn strip_prefix_strips_matching() {
+        let out = strip_vat_prefix("PL5261040828", "PL").unwrap();
+        assert_eq!(out, "5261040828");
+    }
+
+    #[test]
+    fn strip_prefix_strips_lowercase() {
+        let out = strip_vat_prefix("pl5261040828", "PL").unwrap();
+        assert_eq!(out, "5261040828");
+    }
+
+    #[test]
+    fn strip_prefix_rejects_mismatched_eu() {
+        match strip_vat_prefix("DE5261040828", "PL") {
+            Err(Verdict::Invalid { reason }) => {
+                assert!(reason.contains("PL"));
+                assert!(reason.contains("DE"));
+            }
+            other => panic!("{:?}", other),
+        }
+    }
+
+    #[test]
+    fn strip_prefix_gr_accepted_for_el() {
+        let out = strip_vat_prefix("GR094259216", "EL").unwrap();
+        assert_eq!(out, "094259216");
+    }
+
+    #[test]
+    fn strip_prefix_el_accepted_for_gr_request() {
+        let out = strip_vat_prefix("EL094259216", "GR").unwrap();
+        assert_eq!(out, "094259216");
+    }
+}

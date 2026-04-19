@@ -31,7 +31,10 @@ fn compute_check_letter(body: &str) -> char {
 }
 
 pub fn verify_cy_vat(input: &str) -> Verdict {
-    let clean = sanitize(input, true);
+    let clean = match super::strip_vat_prefix(input, "CY") {
+        Ok(body) => body,
+        Err(v) => return v,
+    };
     if clean.len() != 9 {
         return Verdict::Invalid { reason: format!("expected 8 digits + 1 letter (9 chars), got {}", clean.len()) };
     }

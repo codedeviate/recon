@@ -175,10 +175,13 @@ pub fn create_cz_person(input: &str, _raw: bool) -> Result<String> {
 /// - 9 digits  → rodné číslo pre-1954 (no check digit)
 /// - 10 digits → rodné číslo modern (divisible by 11)
 pub fn verify_cz_vat(input: &str) -> Verdict {
-    let clean = sanitize(input, false);
+    let clean = match super::strip_vat_prefix(input, "CZ") {
+        Ok(body) => body,
+        Err(v) => return v,
+    };
     match clean.len() {
-        8 => verify_cz_legal(input),
-        9 | 10 => verify_cz_person(input),
+        8 => verify_cz_legal(&clean),
+        9 | 10 => verify_cz_person(&clean),
         n => Verdict::Invalid {
             reason: format!(
                 "Czech VAT: expected 8 digits (IČO) or 9-10 digits (rodné číslo), got {}",

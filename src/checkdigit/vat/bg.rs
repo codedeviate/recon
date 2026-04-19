@@ -200,10 +200,13 @@ pub fn create_bg_bulstat(input: &str, _raw: bool) -> Result<String> {
 // ── bg-vat auto-detect ───────────────────────────────────────────────────────
 
 pub fn verify_bg_vat(input: &str) -> Verdict {
-    let clean = sanitize(input, false);
+    let clean = match super::strip_vat_prefix(input, "BG") {
+        Ok(body) => body,
+        Err(v) => return v,
+    };
     match clean.len() {
-        10 => verify_bg_egn(input),
-        9 => verify_bg_bulstat(input),
+        10 => verify_bg_egn(&clean),
+        9 => verify_bg_bulstat(&clean),
         other => Verdict::Invalid {
             reason: format!(
                 "Bulgarian VAT: expected 9 digits (BULSTAT) or 10 digits (EGN), got {}",

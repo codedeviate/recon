@@ -367,7 +367,10 @@ pub fn create_es_cif(input: &str, _raw: bool) -> Result<String> {
 // ---------------------------------------------------------------------------
 
 pub fn verify_es_vat(input: &str) -> Verdict {
-    let clean = sanitize(input, true);
+    let clean = match super::strip_vat_prefix(input, "ES") {
+        Ok(body) => body,
+        Err(v) => return v,
+    };
     if clean.len() != 9 {
         return Verdict::Invalid {
             reason: format!("ES VAT: expected 9 characters, got {}", clean.len()),

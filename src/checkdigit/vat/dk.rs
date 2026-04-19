@@ -1,11 +1,14 @@
 //! Danish VAT.
 
-use super::super::{sanitize, Verdict};
+use super::super::Verdict;
 use anyhow::{anyhow, Result};
 
 // 8 digits, weights [2,7,6,5,4,3,2,1], sum mod 11 == 0.
 pub fn verify_dk_vat(input: &str) -> Verdict {
-    let clean = sanitize(input, false);
+    let clean = match super::strip_vat_prefix(input, "DK") {
+        Ok(body) => body,
+        Err(v) => return v,
+    };
     if clean.len() != 8 {
         return Verdict::Invalid { reason: format!("expected 8 digits, got {}", clean.len()) };
     }

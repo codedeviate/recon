@@ -6,7 +6,10 @@ use anyhow::{anyhow, Result};
 // 8 digits: 7-digit body + check digit. Weights [7,9,10,5,8,4,2] on first 7.
 // check = (11 - sum mod 11) mod 11. If check == 10, invalid.
 pub fn verify_fi_vat(input: &str) -> Verdict {
-    let clean = sanitize(input, false);
+    let clean = match super::strip_vat_prefix(input, "FI") {
+        Ok(body) => body,
+        Err(v) => return v,
+    };
     if clean.len() != 8 {
         return Verdict::Invalid { reason: format!("expected 8 digits, got {}", clean.len()) };
     }

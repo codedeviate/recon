@@ -6,7 +6,10 @@ use anyhow::{anyhow, Result};
 const WEIGHTS: [u32; 8] = [9, 8, 7, 6, 5, 4, 3, 2];
 
 pub fn verify_pt_vat(input: &str) -> Verdict {
-    let clean = sanitize(input, false);
+    let clean = match super::strip_vat_prefix(input, "PT") {
+        Ok(body) => body,
+        Err(v) => return v,
+    };
     if clean.len() != 9 {
         return Verdict::Invalid { reason: format!("expected 9 digits, got {}", clean.len()) };
     }

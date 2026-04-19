@@ -28,8 +28,11 @@ fn elfproef_valid(body: &str) -> bool {
 }
 
 pub fn verify_nl_vat(input: &str) -> Verdict {
-    // sanitize with uppercase=true so any lowercase 'b' becomes 'B'
-    let clean = sanitize(input, true);
+    // strip_vat_prefix sanitizes with uppercase=true so any lowercase 'b' becomes 'B'
+    let clean = match super::strip_vat_prefix(input, "NL") {
+        Ok(body) => body,
+        Err(v) => return v,
+    };
     if clean.len() != 12 {
         return Verdict::Invalid {
             reason: format!("expected 12 chars (9 digits + 'B' + 2 digits), got {}", clean.len()),

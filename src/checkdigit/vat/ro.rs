@@ -26,7 +26,10 @@ fn compute_check(body: &str) -> u64 {
 }
 
 pub fn verify_ro_vat(input: &str) -> Verdict {
-    let clean = sanitize(input, false);
+    let clean = match super::strip_vat_prefix(input, "RO") {
+        Ok(body) => body,
+        Err(v) => return v,
+    };
     let len = clean.len();
     if len < 2 || len > 10 {
         return Verdict::Invalid {

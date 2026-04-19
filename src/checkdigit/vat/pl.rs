@@ -6,7 +6,10 @@ use anyhow::{anyhow, Result};
 const WEIGHTS: [u32; 9] = [6, 5, 7, 2, 3, 4, 5, 6, 7];
 
 pub fn verify_pl_vat(input: &str) -> Verdict {
-    let clean = sanitize(input, false);
+    let clean = match super::strip_vat_prefix(input, "PL") {
+        Ok(body) => body,
+        Err(v) => return v,
+    };
     if clean.len() != 10 {
         return Verdict::Invalid { reason: format!("expected 10 digits, got {}", clean.len()) };
     }
@@ -75,6 +78,33 @@ mod tests {
         match verify_pl_vat("526104082") {
             Verdict::Invalid { .. } => {}
             _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn pl_vat_accepts_pl_prefix() {
+        match verify_pl_vat("PL5261040828") {
+            Verdict::Valid { formatted, .. } => assert_eq!(formatted, "PL5261040828"),
+            v => panic!("{:?}", v),
+        }
+    }
+
+    #[test]
+    fn pl_vat_accepts_lowercase_prefix() {
+        match verify_pl_vat("pl5261040828") {
+            Verdict::Valid { .. } => {}
+            v => panic!("{:?}", v),
+        }
+    }
+
+    #[test]
+    fn pl_vat_rejects_de_prefix() {
+        match verify_pl_vat("DE5261040828") {
+            Verdict::Invalid { reason } => {
+                assert!(reason.contains("PL"));
+                assert!(reason.contains("DE"));
+            }
+            v => panic!("{:?}", v),
         }
     }
 }
