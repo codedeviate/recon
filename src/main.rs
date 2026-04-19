@@ -8,6 +8,7 @@ mod dns;
 mod editor;
 mod email;
 mod encode;
+mod checkdigit;
 mod encrypt;
 mod examples;
 mod hash;

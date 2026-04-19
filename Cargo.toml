@@ -1,6 +1,6 @@
 [package]
 name = "recon"
-version = "0.15.2"
+version = "0.16.0"
 edition = "2021"
 
 [[bin]]
@@ -55,3 +55,5 @@ png = "0.17"
 age = { version = "0.11", default-features = false, features = ["armor"] }
 rpassword = "7"
 secrecy = "0.8"
+bs58 = "0.5"
+bech32 = "0.11"

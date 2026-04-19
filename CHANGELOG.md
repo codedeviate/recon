@@ -8,6 +8,16 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-04-19
+
+### Added
+
+- Foundation for `--checkdigit` / `--checkdigit-create` feature: new
+  `src/checkdigit/` module with `Spec`, `Verdict`, `sanitize()`, format
+  helpers (`group_fixed`, `group_variable`), and an empty algorithm registry.
+  Algorithm modules follow in subsequent tasks.
+- New dependencies: `bs58 = "0.5"`, `bech32 = "0.11"`.
+
 ## [0.15.2] - 2026-04-19
 
 ### Changed
