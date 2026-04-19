@@ -42,7 +42,7 @@ impl MqttConfig {
         let tls = match parsed.scheme() {
             "mqtt" => false,
             "mqtts" => true,
-            other => bail!("mqtt::from_url called with non-mqtt scheme: {other}"),
+            other => bail!("unsupported scheme for mqtt URL: {other} (expected mqtt or mqtts)"),
         };
 
         let host = parsed
@@ -52,11 +52,8 @@ impl MqttConfig {
 
         let port = parsed.port().unwrap_or(if tls { 8883 } else { 1883 });
 
-        let username = if parsed.username().is_empty() {
-            None
-        } else {
-            Some(parsed.username().to_string())
-        };
+        let u = parsed.username();
+        let username = (!u.is_empty()).then(|| u.to_string());
         let password = parsed.password().map(|p| p.to_string());
 
         // Path: strip leading '/'; empty → None
