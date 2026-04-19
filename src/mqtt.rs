@@ -89,6 +89,34 @@ impl MqttConfig {
     }
 }
 
+/// Decide which of the three MQTT modes to execute based on flags + URL.
+///
+/// | -d set | --subscribe set | URL has topic | Mode |
+/// |--------|-----------------|---------------|------|
+/// | no     | no              | either        | Probe |
+/// | yes    | no              | yes           | Publish |
+/// | yes    | no              | no            | error |
+/// | no     | yes             | either        | Subscribe |
+/// | yes    | yes             | —             | error (mutually exclusive) |
+pub fn dispatch_mode(args: &Args, cfg: &MqttConfig) -> Result<Mode> {
+    let has_data = args.data.is_some();
+    let has_subscribe = !args.subscribe.is_empty();
+
+    if has_data && has_subscribe {
+        bail!("mqtt: -d/--data and --subscribe are mutually exclusive");
+    }
+    if has_subscribe {
+        return Ok(Mode::Subscribe);
+    }
+    if has_data {
+        if cfg.topic.is_none() {
+            bail!("mqtt: publish requires a topic in the URL path (e.g. mqtt://broker/topic)");
+        }
+        return Ok(Mode::Publish);
+    }
+    Ok(Mode::Probe)
+}
+
 pub fn run(_url: &str, _args: &Args) -> Result<()> {
     Err(anyhow!("mqtt: not yet implemented"))
 }
@@ -152,5 +180,55 @@ mod url_tests {
         let cfg = MqttConfig::from_url_and_args("mqtt://ignored:bad@b/", &args).unwrap();
         assert_eq!(cfg.username.as_deref(), Some("real"));
         assert_eq!(cfg.password.as_deref(), Some("pw"));
+    }
+}
+
+#[cfg(test)]
+mod dispatch_tests {
+    use super::*;
+    use clap::Parser;
+
+    fn parse(extra_args: &[&str]) -> Args {
+        let mut v = vec!["recon"];
+        v.extend_from_slice(extra_args);
+        v.push("mqtt://broker/");
+        Args::try_parse_from(&v).unwrap()
+    }
+
+    #[test]
+    fn no_flags_is_probe() {
+        let args = parse(&[]);
+        let cfg = MqttConfig::from_url("mqtt://broker/").unwrap();
+        assert_eq!(dispatch_mode(&args, &cfg).unwrap(), Mode::Probe);
+    }
+
+    #[test]
+    fn dash_d_with_topic_is_publish() {
+        let args = parse(&["-d", "hello"]);
+        let cfg = MqttConfig::from_url("mqtt://broker/topic").unwrap();
+        assert_eq!(dispatch_mode(&args, &cfg).unwrap(), Mode::Publish);
+    }
+
+    #[test]
+    fn dash_d_without_topic_errors() {
+        let args = parse(&["-d", "hello"]);
+        let cfg = MqttConfig::from_url("mqtt://broker/").unwrap();
+        let err = dispatch_mode(&args, &cfg).unwrap_err().to_string();
+        assert!(err.contains("publish requires a topic"), "got: {err}");
+    }
+
+    #[test]
+    fn subscribe_flag_is_subscribe() {
+        let args = parse(&["--subscribe", "devices/#"]);
+        let cfg = MqttConfig::from_url("mqtt://broker/").unwrap();
+        assert_eq!(dispatch_mode(&args, &cfg).unwrap(), Mode::Subscribe);
+    }
+
+    #[test]
+    fn dash_d_and_subscribe_mutually_exclusive() {
+        let args = parse(&["-d", "x", "--subscribe", "t"]);
+        let cfg = MqttConfig::from_url("mqtt://broker/topic").unwrap();
+        let err = dispatch_mode(&args, &cfg).unwrap_err().to_string();
+        assert!(err.contains("mutually exclusive"), "got: {err}");
     }
 }

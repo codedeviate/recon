@@ -566,6 +566,12 @@ pub struct Args {
     #[arg(long = "editor-cleanup", help_heading = "Editor")]
     pub editor_cleanup: bool,
 
+    // ── MQTT ─────────────────────────────────────────────────────────────────
+
+    /// Subscribe to an MQTT topic filter. Repeatable.
+    #[arg(long = "subscribe", value_name = "FILTER", action = clap::ArgAction::Append, help_heading = "MQTT")]
+    pub subscribe: Vec<String>,
+
     // ── Meta ─────────────────────────────────────────────────────────────────
 
     /// Show detailed usage examples for all flags and commands
