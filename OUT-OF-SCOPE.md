@@ -42,6 +42,7 @@ Grouped by category. When an item from here ships in a future release, remove it
 ### HTTP / curl compatibility
 
 - **Additional curl flags still unimplemented** — `--tlsv1.2`, `--cacert`, `--key-type`, `--cert-status`, some others raised earlier but not currently specced.
+- **`-w` / `--write-out` connection-phase timings** — `time_namelookup`, `time_connect`, `time_appconnect`, `time_pretransfer` currently render as `0.000000`. The accurate variables (`time_total`, `time_starttransfer`, `time_redirect`, plus every non-timing variable) work correctly. reqwest 0.12's blocking client wraps an async hyper client internally, so cleanly hooking a custom connector to record DNS/TCP/TLS phases requires either bypassing reqwest for a direct hyper + tokio stack, or waiting for upstream connector-instrumentation hooks. Revisit when either path becomes cheap.
 
 ### Two-source comparison
 
