@@ -147,7 +147,16 @@ pub fn write_response_to(
         ));
     }
 
-    let final_path = resolve_output_path(args, response.url().as_str(), None)?;
+    let cd_filename = if args.remote_header_name {
+        response
+            .headers()
+            .get(reqwest::header::CONTENT_DISPOSITION)
+            .and_then(|v| v.to_str().ok())
+            .and_then(crate::remote_name::filename_from_content_disposition)
+    } else {
+        None
+    };
+    let final_path = resolve_output_path(args, response.url().as_str(), cd_filename.as_deref())?;
 
     if print_body {
         if args.prettify {

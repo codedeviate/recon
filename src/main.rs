@@ -21,6 +21,7 @@ mod netstatus;
 mod output;
 mod ping;
 mod prettify;
+mod remote_name;
 mod sampledata;
 mod scp;
 mod serve;
@@ -488,7 +489,7 @@ fn main() {
         eprintln!("error: -O/--remote-name and -o/--output are mutually exclusive");
         std::process::exit(1);
     }
-    if args.remote_name {
+    if args.remote_name && !args.remote_header_name {
         match util::filename_from_url(args.target_url()) {
             Ok(name) => {
                 args.output = Some(std::path::PathBuf::from(name));
