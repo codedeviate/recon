@@ -8,6 +8,16 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.15.2] - 2026-04-19
+
+### Changed
+
+- `--help` output is now colorized (when stdout is a TTY): section headings
+  (`HTTP Request:`, `Auth & TLS:`, etc.) and the `Usage:` line render in
+  yellow + bold, flag names (`-H, --header`) in cyan, and argument
+  placeholders (`<URL>`, `<PATH>`) in green. Matches the existing
+  `--examples` palette. ANSI codes are suppressed when output is piped.
+
 ## [0.15.1] - 2026-04-19
 
 ### Changed

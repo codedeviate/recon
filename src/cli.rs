@@ -1,11 +1,19 @@
+use clap::builder::styling::{AnsiColor, Styles};
 use clap::Parser;
 use std::path::PathBuf;
+
+const HELP_STYLES: Styles = Styles::styled()
+    .header(AnsiColor::Yellow.on_default().bold())
+    .usage(AnsiColor::Yellow.on_default().bold())
+    .literal(AnsiColor::Cyan.on_default())
+    .placeholder(AnsiColor::Green.on_default());
 
 #[derive(Parser, Debug)]
 #[command(
     name = "recon",
     about = "A versatile network reconnaissance tool",
     version,
+    styles = HELP_STYLES,
     disable_help_flag = true,
     disable_version_flag = true,
 )]
