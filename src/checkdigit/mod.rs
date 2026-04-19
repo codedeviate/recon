@@ -1,5 +1,6 @@
 //! Check-digit verification and computation across 40+ identifier schemes.
 
+pub mod aba;
 pub mod brand;
 pub mod country_id;
 pub mod format;
@@ -9,6 +10,7 @@ pub mod mod10_ean;
 pub mod mod11;
 pub mod mod31;
 pub mod mod97;
+pub mod mrz;
 pub mod registry;
 pub mod vin;
 

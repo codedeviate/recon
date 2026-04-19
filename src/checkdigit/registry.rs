@@ -1,7 +1,7 @@
 //! Static registry of all check-digit specs. Resolve by canonical name or alias.
 
 use super::brand::Brand;
-use super::{brand, country_id, luhn, mod10_ean, mod11, mod31, mod97, vin, Spec, Verdict};
+use super::{aba, brand, country_id, luhn, mod10_ean, mod11, mod31, mod97, mrz, vin, Spec, Verdict};
 use anyhow::Result;
 
 static SPEC_LUHN: Spec = Spec {
@@ -260,6 +260,22 @@ static SPEC_VIN: Spec = Spec {
     create_fn: vin::create_vin,
 };
 
+static SPEC_MRZ: Spec = Spec {
+    canonical: "mrz",
+    aliases: &[],
+    description: "Passport / ID card MRZ (ICAO Doc 9303, TD1/TD2/TD3)",
+    verify_fn: mrz::verify_mrz,
+    create_fn: mrz::create_mrz,
+};
+
+static SPEC_ABA: Spec = Spec {
+    canonical: "aba",
+    aliases: &["us-routing"],
+    description: "US ABA routing number (9 digits, weighted mod-10 with [3,7,1])",
+    verify_fn: aba::verify_aba,
+    create_fn: aba::create_aba,
+};
+
 pub static SPECS: &[&Spec] = &[
     &SPEC_LUHN,
     &SPEC_CREDITCARD,
@@ -291,6 +307,8 @@ pub static SPECS: &[&Spec] = &[
     &SPEC_HENKILOTUNNUS,
     &SPEC_IBAN,
     &SPEC_VIN,
+    &SPEC_MRZ,
+    &SPEC_ABA,
 ];
 
 /// Resolve a CLI keyword (canonical or alias, case-insensitive).
