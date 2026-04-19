@@ -173,14 +173,13 @@ pub fn verify_brand(input: &str, brand: Brand) -> Verdict {
         Err(v) => return v,
     };
     let detected = Brand::detect(&clean);
-    if detected != brand && detected != Brand::Unknown {
-        return Verdict::Invalid {
-            reason: format!(
-                "input IIN matches {}, not requested {}",
-                detected.name(),
-                brand.name()
-            ),
+    if detected != brand {
+        let reason = if detected == Brand::Unknown {
+            format!("IIN does not match {} (prefix unrecognized)", brand.name())
+        } else {
+            format!("input IIN matches {}, not requested {}", detected.name(), brand.name())
         };
+        return Verdict::Invalid { reason };
     }
     if !brand.valid_lengths().contains(&clean.len()) {
         return Verdict::Invalid {
@@ -371,6 +370,18 @@ mod tests {
         match verify_creditcard("9999999999999999") {
             Verdict::Invalid { reason } => assert!(reason.contains("unrecognized card brand")),
             v => panic!("{:?}", v),
+        }
+    }
+
+    #[test]
+    fn verify_brand_rejects_unknown_iin_for_named_brand() {
+        // 9999... has no known IIN. Requesting Visa validation should reject at brand step.
+        match verify_brand("9999999999999991", Brand::Visa) {
+            Verdict::Invalid { reason } => assert!(
+                reason.contains("IIN does not match Visa"),
+                "unexpected reason: {}", reason
+            ),
+            v => panic!("expected Invalid, got {:?}", v),
         }
     }
 }
