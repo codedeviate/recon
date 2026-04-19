@@ -359,6 +359,38 @@ static SPEC_FR_VAT: Spec = Spec {
     create_fn: vat::create_fr_vat,
 };
 
+static SPEC_PL_VAT: Spec = Spec {
+    canonical: "pl-vat",
+    aliases: &["plvat"],
+    description: "Polish VAT / NIP (10 digits, weighted mod-11)",
+    verify_fn: vat::verify_pl_vat,
+    create_fn: vat::create_pl_vat,
+};
+
+static SPEC_PT_VAT: Spec = Spec {
+    canonical: "pt-vat",
+    aliases: &["ptvat"],
+    description: "Portuguese VAT / NIF (9 digits, weighted mod-11)",
+    verify_fn: vat::verify_pt_vat,
+    create_fn: vat::create_pt_vat,
+};
+
+static SPEC_SI_VAT: Spec = Spec {
+    canonical: "si-vat",
+    aliases: &["sivat"],
+    description: "Slovenian VAT (8 digits, weighted mod-11)",
+    verify_fn: vat::verify_si_vat,
+    create_fn: vat::create_si_vat,
+};
+
+static SPEC_SK_VAT: Spec = Spec {
+    canonical: "sk-vat",
+    aliases: &["skvat"],
+    description: "Slovak VAT (10 digits, full number divisible by 11)",
+    verify_fn: vat::verify_sk_vat,
+    create_fn: vat::create_sk_vat,
+};
+
 pub static SPECS: &[&Spec] = &[
     &SPEC_LUHN,
     &SPEC_CREDITCARD,
@@ -402,6 +434,10 @@ pub static SPECS: &[&Spec] = &[
     &SPEC_FI_VAT,
     &SPEC_DE_VAT,
     &SPEC_FR_VAT,
+    &SPEC_PL_VAT,
+    &SPEC_PT_VAT,
+    &SPEC_SI_VAT,
+    &SPEC_SK_VAT,
 ];
 
 /// Resolve a CLI keyword (canonical or alias, case-insensitive).
