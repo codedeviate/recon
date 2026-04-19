@@ -149,7 +149,7 @@ pub fn run(url: &str, args: &Args) -> Result<()> {
 
     match mode {
         Mode::Probe => probe(&cfg, version, &client_id, args),
-        Mode::Publish => Err(anyhow!("mqtt publish: not yet implemented")),
+        Mode::Publish => publish(&cfg, version, &client_id, args),
         Mode::Subscribe => Err(anyhow!("mqtt subscribe: not yet implemented")),
     }
 }
@@ -159,6 +159,191 @@ fn probe(cfg: &MqttConfig, version: MqttVersion, client_id: &str, args: &Args) -
         MqttVersion::V5 => probe_v5(cfg, client_id, args),
         MqttVersion::V311 => probe_v3(cfg, client_id, args),
     }
+}
+
+fn publish(cfg: &MqttConfig, version: MqttVersion, client_id: &str, args: &Args) -> Result<()> {
+    let topic = cfg.topic.as_deref().ok_or_else(|| {
+        anyhow!("mqtt: publish requires a topic in the URL path")
+    })?;
+    let payload_str = args.data.as_deref().ok_or_else(|| {
+        anyhow!("mqtt: publish requires -d/--data")
+    })?;
+    let payload = crate::client::load_body_from_string(payload_str)?;
+    let qos_level = parse_qos_u8(args.qos)?;
+
+    match version {
+        MqttVersion::V5 => publish_v5(cfg, client_id, topic, &payload, qos_level, args),
+        MqttVersion::V311 => publish_v3(cfg, client_id, topic, &payload, qos_level, args),
+    }
+}
+
+fn parse_qos_u8(n: u8) -> Result<u8> {
+    if n > 2 {
+        bail!("--qos must be 0, 1, or 2, got {n}");
+    }
+    Ok(n)
+}
+
+fn publish_v5(
+    cfg: &MqttConfig,
+    client_id: &str,
+    topic: &str,
+    payload: &[u8],
+    qos: u8,
+    args: &Args,
+) -> Result<()> {
+    use rumqttc::v5::mqttbytes::v5::Packet;
+    use rumqttc::v5::mqttbytes::QoS;
+    use rumqttc::v5::{AsyncClient, Event, MqttOptions};
+    use std::time::Duration;
+
+    let qos_enum = match qos {
+        0 => QoS::AtMostOnce,
+        1 => QoS::AtLeastOnce,
+        2 => QoS::ExactlyOnce,
+        _ => unreachable!("parse_qos_u8 already validated"),
+    };
+
+    let mut options = MqttOptions::new(client_id, &cfg.host, cfg.port);
+    options.set_keep_alive(Duration::from_secs(args.keepalive.into()));
+    if let (Some(u), Some(p)) = (&cfg.username, &cfg.password) {
+        options.set_credentials(u, p);
+    } else if let Some(u) = &cfg.username {
+        options.set_credentials(u, "");
+    }
+    if cfg.tls {
+        configure_tls_v5(&mut options, args.insecure)?;
+    }
+    options.set_connection_timeout(args.timeout);
+    options.set_clean_start(true);
+
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .context("failed to build tokio runtime for mqtt publish")?;
+
+    rt.block_on(async {
+        let (client, mut event_loop) = AsyncClient::new(options, 10);
+
+        // Wait for ConnAck before publishing.
+        loop {
+            match event_loop.poll().await {
+                Ok(Event::Incoming(Packet::ConnAck(_))) => break,
+                Ok(_) => continue,
+                Err(e) => return Err(anyhow!("mqtt publish (connect): {e}")),
+            }
+        }
+
+        client.publish(topic, qos_enum, args.retain, payload.to_vec())
+            .await
+            .map_err(|e| anyhow!("mqtt publish: {e}"))?;
+
+        if qos == 0 {
+            // QoS 0: fire and forget. Give the event loop a tick.
+            let _ = tokio::time::timeout(Duration::from_millis(500), event_loop.poll()).await;
+        } else {
+            // QoS 1 or 2: wait for PubAck or PubComp.
+            let deadline = Duration::from_secs(args.timeout);
+            let result = tokio::time::timeout(deadline, async {
+                loop {
+                    match event_loop.poll().await {
+                        Ok(Event::Incoming(Packet::PubAck(_))) => return Ok::<(), anyhow::Error>(()),
+                        Ok(Event::Incoming(Packet::PubComp(_))) => return Ok(()),
+                        Ok(_) => continue,
+                        Err(e) => return Err(anyhow!("mqtt publish (ack): {e}")),
+                    }
+                }
+            }).await;
+            match result {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => return Err(e),
+                Err(_) => bail!("mqtt: publish timeout waiting for broker ACK"),
+            }
+        }
+
+        let _ = client.disconnect().await;
+        let _ = tokio::time::timeout(Duration::from_millis(500), event_loop.poll()).await;
+        Ok(())
+    })
+}
+
+fn publish_v3(
+    cfg: &MqttConfig,
+    client_id: &str,
+    topic: &str,
+    payload: &[u8],
+    qos: u8,
+    args: &Args,
+) -> Result<()> {
+    use rumqttc::{AsyncClient, Event, Incoming, MqttOptions, NetworkOptions, QoS};
+    use std::time::Duration;
+
+    let qos_enum = match qos {
+        0 => QoS::AtMostOnce,
+        1 => QoS::AtLeastOnce,
+        2 => QoS::ExactlyOnce,
+        _ => unreachable!("parse_qos_u8 already validated"),
+    };
+
+    let mut options = MqttOptions::new(client_id, &cfg.host, cfg.port);
+    options.set_keep_alive(Duration::from_secs(args.keepalive.into()));
+    if let Some(u) = &cfg.username {
+        options.set_credentials(u, cfg.password.clone().unwrap_or_default());
+    }
+    if cfg.tls {
+        configure_tls_v3(&mut options, args.insecure)?;
+    }
+    options.set_clean_session(true);
+
+    let mut net_options = NetworkOptions::new();
+    net_options.set_connection_timeout(args.timeout);
+
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .context("failed to build tokio runtime for mqtt publish")?;
+
+    rt.block_on(async {
+        let (client, mut event_loop) = AsyncClient::new(options, 10);
+        event_loop.set_network_options(net_options);
+
+        loop {
+            match event_loop.poll().await {
+                Ok(Event::Incoming(Incoming::ConnAck(_))) => break,
+                Ok(_) => continue,
+                Err(e) => return Err(anyhow!("mqtt publish (connect): {e}")),
+            }
+        }
+
+        client.publish(topic, qos_enum, args.retain, payload.to_vec())
+            .await
+            .map_err(|e| anyhow!("mqtt publish: {e}"))?;
+
+        if qos == 0 {
+            let _ = tokio::time::timeout(Duration::from_millis(500), event_loop.poll()).await;
+        } else {
+            let deadline = Duration::from_secs(args.timeout);
+            let result = tokio::time::timeout(deadline, async {
+                loop {
+                    match event_loop.poll().await {
+                        Ok(Event::Incoming(Incoming::PubAck(_))) => return Ok::<(), anyhow::Error>(()),
+                        Ok(Event::Incoming(Incoming::PubComp(_))) => return Ok(()),
+                        Ok(_) => continue,
+                        Err(e) => return Err(anyhow!("mqtt publish (ack): {e}")),
+                    }
+                }
+            }).await;
+            match result {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => return Err(e),
+                Err(_) => bail!("mqtt: publish timeout waiting for broker ACK"),
+            }
+        }
+
+        let _ = client.disconnect().await;
+        let _ = tokio::time::timeout(Duration::from_millis(500), event_loop.poll()).await;
+        Ok(())
+    })
 }
 
 fn probe_v5(cfg: &MqttConfig, client_id: &str, args: &Args) -> Result<()> {

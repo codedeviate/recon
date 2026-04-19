@@ -469,7 +469,7 @@ fn parse_header(header: &str) -> Result<(String, String)> {
 /// - `@-` reads from stdin
 /// - `@file` reads from file
 /// - anything else is literal bytes
-fn load_body_from_string(s: &str) -> Result<Vec<u8>> {
+pub(crate) fn load_body_from_string(s: &str) -> Result<Vec<u8>> {
     if s == "@-" {
         let mut buf = Vec::new();
         std::io::Read::read_to_end(&mut std::io::stdin(), &mut buf)
