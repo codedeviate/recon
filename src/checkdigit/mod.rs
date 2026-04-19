@@ -28,8 +28,16 @@ pub struct Spec {
 pub fn sanitize(input: &str, upper: bool) -> String {
     let mut out = String::with_capacity(input.len());
     for c in input.chars() {
-        if c.is_ascii_whitespace() || c == '-' || c == '\u{2013}' || c == '\u{2014}'
-            || c == '\u{00a0}' || c == '.' {
+        if c.is_ascii_whitespace()
+            || c == '-'
+            || c == '\u{2013}'
+            || c == '\u{2014}'
+            || c == '\u{00a0}'
+            || c == '\u{2009}'
+            || c == '\u{202f}'
+            || c == '\u{2007}'
+            || c == '.'
+        {
             continue;
         }
         if upper && c.is_ascii_lowercase() {
@@ -58,5 +66,12 @@ mod tests {
     #[test]
     fn sanitize_preserves_case_when_not_requested() {
         assert_eq!(sanitize("AbC 123", false), "AbC123");
+    }
+
+    #[test]
+    fn sanitize_strips_unicode_spaces() {
+        // Thin space, narrow NBSP, figure space all get removed.
+        let input = "SE35\u{2009}5000\u{202f}0000\u{2007}0003";
+        assert_eq!(sanitize(input, true), "SE35500000000003");
     }
 }

@@ -9,13 +9,12 @@ pub static SPECS: &[&Spec] = &[
 
 /// Resolve a CLI keyword (canonical or alias, case-insensitive).
 pub fn resolve(name: &str) -> Option<&'static Spec> {
-    let lower = name.to_ascii_lowercase();
     for spec in SPECS {
-        if spec.canonical.eq_ignore_ascii_case(&lower) {
+        if spec.canonical.eq_ignore_ascii_case(name) {
             return Some(*spec);
         }
         for alias in spec.aliases {
-            if alias.eq_ignore_ascii_case(&lower) {
+            if alias.eq_ignore_ascii_case(name) {
                 return Some(*spec);
             }
         }

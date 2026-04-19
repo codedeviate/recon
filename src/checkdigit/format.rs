@@ -16,6 +16,13 @@ pub fn group_fixed(s: &str, width: usize, sep: char) -> String {
 /// Group with variable-width segments. `groups` sums to `s.len()`.
 /// Example: `group_variable("378282246310005", &[4, 6, 5], ' ')` → `"3782 822463 10005"`.
 pub fn group_variable(s: &str, groups: &[usize], sep: char) -> String {
+    debug_assert_eq!(
+        groups.iter().sum::<usize>(),
+        s.chars().count(),
+        "group_variable: groups sum ({}) must equal input length ({})",
+        groups.iter().sum::<usize>(),
+        s.chars().count()
+    );
     let mut out = String::with_capacity(s.len() + groups.len());
     let mut chars = s.chars();
     for (i, &n) in groups.iter().enumerate() {

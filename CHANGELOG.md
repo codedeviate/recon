@@ -8,6 +8,19 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.16.1] - 2026-04-19
+
+### Changed
+
+- `checkdigit::registry::resolve()`: removed redundant `to_ascii_lowercase()`
+  allocation; `eq_ignore_ascii_case` already handles case folding.
+- `checkdigit::format::group_variable()`: added `debug_assert_eq!` that
+  `groups.iter().sum()` equals `s.chars().count()`, surfacing length mismatches
+  during development with zero cost in release builds.
+- `checkdigit::sanitize()`: extended strip list with thin space (U+2009),
+  narrow no-break space (U+202F), and figure space (U+2007) to handle French
+  IBAN formatting and identifiers pasted from web UIs.
+
 ## [0.16.0] - 2026-04-19
 
 ### Added
