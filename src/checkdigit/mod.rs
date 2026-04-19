@@ -5,6 +5,7 @@ pub mod country_id;
 pub mod format;
 pub mod luhn;
 pub mod mod10_ean;
+pub mod mod11;
 pub mod registry;
 
 use anyhow::Result;

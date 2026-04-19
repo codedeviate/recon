@@ -1,7 +1,7 @@
 //! Static registry of all check-digit specs. Resolve by canonical name or alias.
 
 use super::brand::Brand;
-use super::{brand, country_id, luhn, mod10_ean, Spec, Verdict};
+use super::{brand, country_id, luhn, mod10_ean, mod11, Spec, Verdict};
 use anyhow::Result;
 
 static SPEC_LUHN: Spec = Spec {
@@ -204,6 +204,38 @@ static SPEC_SSCC: Spec = Spec {
     create_fn: mod10_ean::create_sscc,
 };
 
+static SPEC_ISBN10: Spec = Spec {
+    canonical: "isbn10",
+    aliases: &[],
+    description: "International Standard Book Number, 10-digit (mod 11, may end in 'X')",
+    verify_fn: mod11::verify_isbn10,
+    create_fn: mod11::create_isbn10,
+};
+
+static SPEC_CPR: Spec = Spec {
+    canonical: "cpr",
+    aliases: &["dk-id"],
+    description: "Danish CPR-nummer (10 digits, mod-11; note: post-2007 may not satisfy check)",
+    verify_fn: mod11::verify_cpr,
+    create_fn: mod11::create_cpr,
+};
+
+static SPEC_BSN: Spec = Spec {
+    canonical: "bsn",
+    aliases: &["nl-id"],
+    description: "Dutch Burgerservicenummer (8 or 9 digits, elfproef mod-11)",
+    verify_fn: mod11::verify_bsn,
+    create_fn: mod11::create_bsn,
+};
+
+static SPEC_FODSELSNUMMER: Spec = Spec {
+    canonical: "fodselsnummer",
+    aliases: &["no-id"],
+    description: "Norwegian fødselsnummer (11 digits, two mod-11 check digits)",
+    verify_fn: mod11::verify_fodselsnummer,
+    create_fn: mod11::create_fodselsnummer,
+};
+
 pub static SPECS: &[&Spec] = &[
     &SPEC_LUHN,
     &SPEC_CREDITCARD,
@@ -228,6 +260,10 @@ pub static SPECS: &[&Spec] = &[
     &SPEC_GTIN13,
     &SPEC_GTIN14,
     &SPEC_SSCC,
+    &SPEC_ISBN10,
+    &SPEC_CPR,
+    &SPEC_BSN,
+    &SPEC_FODSELSNUMMER,
 ];
 
 /// Resolve a CLI keyword (canonical or alias, case-insensitive).
