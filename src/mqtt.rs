@@ -191,9 +191,13 @@ fn probe_v5(cfg: &MqttConfig, client_id: &str, args: &Args) -> Result<()> {
             match event_loop.poll().await {
                 Ok(Event::Incoming(Packet::ConnAck(connack))) => {
                     let mut stdout = std::io::stdout();
-                    writeln!(stdout, "* Connected to {}:{} (MQTT 5.0)", cfg.host, cfg.port)?;
-                    writeln!(stdout, "* TLS: {}", if cfg.tls { "rustls" } else { "none" })?;
-                    print_connack_v5(&mut stdout, &connack)?;
+                    if args.mqtt_json {
+                        emit_probe_json_v5(&mut stdout, cfg, &connack)?;
+                    } else {
+                        writeln!(stdout, "* Connected to {}:{} (MQTT 5.0)", cfg.host, cfg.port)?;
+                        writeln!(stdout, "* TLS: {}", if cfg.tls { "rustls" } else { "none" })?;
+                        print_connack_v5(&mut stdout, &connack)?;
+                    }
                     let _ = client.disconnect().await;
                     let _ = tokio::time::timeout(Duration::from_millis(500), event_loop.poll()).await;
                     return Ok(());
@@ -203,6 +207,70 @@ fn probe_v5(cfg: &MqttConfig, client_id: &str, args: &Args) -> Result<()> {
             }
         }
     })
+}
+
+fn emit_probe_json_v5<W: std::io::Write>(
+    out: &mut W,
+    cfg: &MqttConfig,
+    connack: &rumqttc::v5::mqttbytes::v5::ConnAck,
+) -> Result<()> {
+    use serde_json::{json, Map, Value};
+    use rumqttc::v5::mqttbytes::v5::ConnectReturnCode;
+
+    let (code, reason) = match connack.code {
+        ConnectReturnCode::Success => (0u8, "Success"),
+        ConnectReturnCode::BadUserNamePassword => (0x86u8, "Bad User Name or Password"),
+        ConnectReturnCode::NotAuthorized => (0x87u8, "Not Authorized"),
+        other => (other as u8, "Other"),
+    };
+
+    let mut map = Map::new();
+    map.insert("broker_host".into(), json!(cfg.host));
+    map.insert("broker_port".into(), json!(cfg.port));
+    map.insert("protocol_version".into(), json!("5.0"));
+    map.insert("tls".into(), if cfg.tls { json!({"backend": "rustls"}) } else { Value::Null });
+    map.insert("connect_reason_code".into(), json!(code));
+    map.insert("connect_reason".into(), json!(reason));
+    map.insert("session_present".into(), json!(connack.session_present));
+    if let Some(props) = &connack.properties {
+        if let Some(id) = &props.assigned_client_identifier {
+            map.insert("assigned_client_id".into(), json!(id));
+        }
+        if let Some(ka) = props.server_keep_alive {
+            map.insert("server_keep_alive".into(), json!(ka));
+        }
+        if let Some(q) = props.max_qos {
+            map.insert("maximum_qos".into(), json!(q));
+        }
+        if let Some(ra) = props.retain_available {
+            map.insert("retain_available".into(), json!(ra != 0));
+        }
+        if let Some(mps) = props.max_packet_size {
+            map.insert("maximum_packet_size".into(), json!(mps));
+        }
+        if let Some(tam) = props.topic_alias_max {
+            map.insert("topic_alias_maximum".into(), json!(tam));
+        }
+    }
+    writeln!(out, "{}", Value::Object(map))?;
+    Ok(())
+}
+
+fn emit_probe_json_v3<W: std::io::Write>(
+    out: &mut W,
+    cfg: &MqttConfig,
+    connack: &rumqttc::ConnAck,
+) -> Result<()> {
+    use serde_json::{json, Map, Value};
+    let mut map = Map::new();
+    map.insert("broker_host".into(), json!(cfg.host));
+    map.insert("broker_port".into(), json!(cfg.port));
+    map.insert("protocol_version".into(), json!("3.1.1"));
+    map.insert("tls".into(), if cfg.tls { json!({"backend": "rustls"}) } else { Value::Null });
+    map.insert("connect_return_code".into(), json!(format!("{:?}", connack.code)));
+    map.insert("session_present".into(), json!(connack.session_present));
+    writeln!(out, "{}", Value::Object(map))?;
+    Ok(())
 }
 
 fn print_connack_v5<W: std::io::Write>(
@@ -271,10 +339,14 @@ fn probe_v3(cfg: &MqttConfig, client_id: &str, args: &Args) -> Result<()> {
             match event_loop.poll().await {
                 Ok(Event::Incoming(Incoming::ConnAck(connack))) => {
                     let mut stdout = std::io::stdout();
-                    writeln!(stdout, "* Connected to {}:{} (MQTT 3.1.1)", cfg.host, cfg.port)?;
-                    writeln!(stdout, "* TLS: {}", if cfg.tls { "rustls" } else { "none" })?;
-                    writeln!(stdout, "< Connect Return Code: {:?}", connack.code)?;
-                    writeln!(stdout, "< Session Present: {}", connack.session_present)?;
+                    if args.mqtt_json {
+                        emit_probe_json_v3(&mut stdout, cfg, &connack)?;
+                    } else {
+                        writeln!(stdout, "* Connected to {}:{} (MQTT 3.1.1)", cfg.host, cfg.port)?;
+                        writeln!(stdout, "* TLS: {}", if cfg.tls { "rustls" } else { "none" })?;
+                        writeln!(stdout, "< Connect Return Code: {:?}", connack.code)?;
+                        writeln!(stdout, "< Session Present: {}", connack.session_present)?;
+                    }
                     let _ = client.disconnect().await;
                     let _ = tokio::time::timeout(Duration::from_millis(500), event_loop.poll()).await;
                     return Ok(());

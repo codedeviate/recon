@@ -596,6 +596,11 @@ pub struct Args {
     #[arg(long = "count", value_name = "N", help_heading = "MQTT")]
     pub count: Option<u32>,
 
+    /// Emit structured JSON output for MQTT probe (single object) or
+    /// subscribe (NDJSON, one object per line).
+    #[arg(long = "mqtt-json", help_heading = "MQTT")]
+    pub mqtt_json: bool,
+
     // ── Meta ─────────────────────────────────────────────────────────────────
 
     /// Show detailed usage examples for all flags and commands
@@ -873,5 +878,17 @@ mod mqtt_flag_tests {
     fn mqtt_count_parses() {
         let args = Args::try_parse_from(["recon", "mqtt://b/", "--count", "5"]).unwrap();
         assert_eq!(args.count, Some(5));
+    }
+
+    #[test]
+    fn mqtt_json_default_false() {
+        let args = Args::try_parse_from(["recon", "mqtt://b/"]).unwrap();
+        assert!(!args.mqtt_json);
+    }
+
+    #[test]
+    fn mqtt_json_sets_true() {
+        let args = Args::try_parse_from(["recon", "mqtt://b/", "--mqtt-json"]).unwrap();
+        assert!(args.mqtt_json);
     }
 }
