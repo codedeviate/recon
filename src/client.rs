@@ -504,34 +504,8 @@ mod urlencode_tests {
 }
 
 #[cfg(test)]
-mod body_dispatch_tests {
+mod load_body_from_string_tests {
     use super::*;
-
-    // load_body_from_string covers the @- stdin path (tested via integration);
-    // the unit tests below cover the two non-stdin branches used by -d dispatch.
-
-    #[test]
-    fn data_at_file_strips_crlf() {
-        let tmp = tempfile::NamedTempFile::new().unwrap();
-        std::fs::write(tmp.path(), "line1\r\nline2\n").unwrap();
-        let path_str = tmp.path().to_str().unwrap();
-        let data = format!("@{path_str}");
-
-        // Reproduce the -d @file branch: strip \r and \n
-        let raw = fs::read(path_str).unwrap();
-        let got: Vec<u8> = raw.into_iter().filter(|&b| b != b'\r' && b != b'\n').collect();
-
-        assert_eq!(got, b"line1line2");
-        // Confirm @- is not mistakenly treated as a file path
-        assert!(data != "@-");
-    }
-
-    #[test]
-    fn data_literal_preserved_verbatim() {
-        let data = "foo=bar&baz=1";
-        let body = data.as_bytes().to_vec();
-        assert_eq!(body, b"foo=bar&baz=1");
-    }
 
     #[test]
     fn load_body_from_string_literal() {
