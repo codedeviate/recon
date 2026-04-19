@@ -23,6 +23,7 @@ pub mod mt;
 pub mod hr;
 pub mod ie;
 pub mod lt;
+pub mod es;
 
 pub use se::{verify_se_vat, create_se_vat};
 pub use dk::{verify_dk_vat, create_dk_vat};
@@ -47,3 +48,4 @@ pub use mt::{verify_mt_vat, create_mt_vat};
 pub use hr::{verify_hr_vat, create_hr_vat};
 pub use ie::{verify_ie_vat, create_ie_vat};
 pub use lt::{verify_lt_vat, create_lt_vat};
+pub use es::{verify_es_vat, create_es_vat, verify_es_nif, create_es_nif, verify_es_nie, create_es_nie, verify_es_cif, create_es_cif};

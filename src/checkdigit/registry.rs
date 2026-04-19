@@ -503,6 +503,38 @@ static SPEC_LT_VAT: Spec = Spec {
     create_fn: vat::create_lt_vat,
 };
 
+static SPEC_ES_VAT: Spec = Spec {
+    canonical: "es-vat",
+    aliases: &["esvat"],
+    description: "Spanish VAT (auto-detect NIF/NIE/CIF)",
+    verify_fn: vat::verify_es_vat,
+    create_fn: vat::create_es_vat,
+};
+
+static SPEC_ES_NIF: Spec = Spec {
+    canonical: "es-nif",
+    aliases: &[],
+    description: "Spanish NIF (citizen): 8 digits + letter, mod-23 lookup",
+    verify_fn: vat::verify_es_nif,
+    create_fn: vat::create_es_nif,
+};
+
+static SPEC_ES_NIE: Spec = Spec {
+    canonical: "es-nie",
+    aliases: &[],
+    description: "Spanish NIE (foreigner): X/Y/Z + 7 digits + letter",
+    verify_fn: vat::verify_es_nie,
+    create_fn: vat::create_es_nie,
+};
+
+static SPEC_ES_CIF: Spec = Spec {
+    canonical: "es-cif",
+    aliases: &[],
+    description: "Spanish CIF (legal entity): letter + 7 digits + check (letter or digit)",
+    verify_fn: vat::verify_es_cif,
+    create_fn: vat::create_es_cif,
+};
+
 pub static SPECS: &[&Spec] = &[
     &SPEC_LUHN,
     &SPEC_CREDITCARD,
@@ -564,6 +596,10 @@ pub static SPECS: &[&Spec] = &[
     &SPEC_HR_VAT,
     &SPEC_IE_VAT,
     &SPEC_LT_VAT,
+    &SPEC_ES_VAT,
+    &SPEC_ES_NIF,
+    &SPEC_ES_NIE,
+    &SPEC_ES_CIF,
 ];
 
 /// Resolve a CLI keyword (canonical or alias, case-insensitive).
