@@ -116,7 +116,7 @@ pub fn open(source: SourceKind, args: &Args) -> Result<Box<dyn Read>> {
             Ok(Box::new(file))
         }
         SourceKind::Http(_url) => {
-            let response = crate::client::execute(args)
+            let (response, _metrics) = crate::client::execute(args)
                 .context("source fetch failed")?;
             if args.fail_on_error && response.status().as_u16() >= 400 {
                 bail!(

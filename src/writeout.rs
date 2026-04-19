@@ -231,3 +231,198 @@ mod tests {
         assert_eq!(load_format(&arg).unwrap(), "from file");
     }
 }
+
+use crate::metrics::RequestMetrics;
+use reqwest::header::HeaderMap;
+use serde_json::{json, Map, Value};
+use std::io::Write;
+
+/// Render destination for `-w` output.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Stream {
+    Stdout,
+    Stderr,
+}
+
+/// Render parsed tokens using captured metrics. Handles `%{stderr}` /
+/// `%{stdout}` switches inline.
+pub fn render(tokens: &[Token], metrics: &RequestMetrics) -> anyhow::Result<()> {
+    let empty_hdrs = HeaderMap::new();
+    let headers = metrics.headers.as_ref().unwrap_or(&empty_hdrs);
+    let vars = build_variables(metrics);
+    let mut current = Stream::Stdout;
+
+    for tok in tokens {
+        let out = match tok {
+            Token::Literal(s) => s.clone(),
+            Token::Variable(name) => vars
+                .get(name.as_str())
+                .cloned()
+                .unwrap_or_else(|| format!("%{{{}}}", name)), // curl: preserve unknown
+            Token::Header(name) => header_value(headers, name),
+            Token::Json => render_json(&vars),
+            Token::StderrSwitch => {
+                current = Stream::Stderr;
+                continue;
+            }
+            Token::StdoutSwitch => {
+                current = Stream::Stdout;
+                continue;
+            }
+        };
+        write_to(current, &out)?;
+    }
+    Ok(())
+}
+
+fn write_to(stream: Stream, s: &str) -> anyhow::Result<()> {
+    match stream {
+        Stream::Stdout => write!(std::io::stdout(), "{}", s)?,
+        Stream::Stderr => write!(std::io::stderr(), "{}", s)?,
+    }
+    Ok(())
+}
+
+fn header_value(headers: &HeaderMap, name: &str) -> String {
+    for (k, v) in headers {
+        if k.as_str().eq_ignore_ascii_case(name) {
+            return v.to_str().unwrap_or("").to_string();
+        }
+    }
+    String::new()
+}
+
+/// Build the variable → string map from RequestMetrics.
+fn build_variables(m: &RequestMetrics) -> std::collections::HashMap<String, String> {
+    let mut v = std::collections::HashMap::new();
+
+    let status = m.status.unwrap_or(0).to_string();
+    v.insert("http_code".into(), status.clone());
+    v.insert("response_code".into(), status);
+
+    v.insert(
+        "http_version".into(),
+        m.http_version.clone().unwrap_or_default(),
+    );
+
+    let url_effective = m.url_effective.clone().unwrap_or_default();
+    v.insert("url_effective".into(), url_effective.clone());
+    v.insert("url".into(), url_effective.clone());
+
+    let scheme = reqwest::Url::parse(&url_effective)
+        .ok()
+        .map(|u| u.scheme().to_string())
+        .unwrap_or_default();
+    v.insert("scheme".into(), scheme);
+
+    let ct = m
+        .headers
+        .as_ref()
+        .and_then(|h| h.get(reqwest::header::CONTENT_TYPE))
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+    v.insert("content_type".into(), ct);
+
+    v.insert("size_download".into(), m.size_download.to_string());
+    v.insert("size_upload".into(), m.size_upload.to_string());
+    v.insert("size_header".into(), m.size_header.to_string());
+
+    let total_secs = m.time_total().as_secs_f64();
+    let speed = if total_secs > 0.0 {
+        (m.size_download as f64 / total_secs) as u64
+    } else {
+        0
+    };
+    v.insert("speed_download".into(), speed.to_string());
+
+    v.insert("num_redirects".into(), m.num_redirects.to_string());
+    v.insert("num_headers".into(), m.num_headers.to_string());
+    v.insert(
+        "redirect_url".into(),
+        m.redirect_url.clone().unwrap_or_default(),
+    );
+
+    let phase = m.phase.lock().unwrap();
+    let remote = phase.remote_ip.map(|a| a.ip().to_string()).unwrap_or_default();
+    let local = phase.local_ip.map(|a| a.ip().to_string()).unwrap_or_default();
+    v.insert("remote_ip".into(), remote);
+    v.insert("local_ip".into(), local);
+
+    let ns = phase.dns_duration.map(|d| d.as_secs_f64()).unwrap_or(0.0);
+    let tc = phase.tcp_duration.map(|d| d.as_secs_f64()).unwrap_or(0.0);
+    let tl = phase.tls_duration.map(|d| d.as_secs_f64()).unwrap_or(0.0);
+    drop(phase);
+
+    v.insert("time_namelookup".into(), fmt_time(ns));
+    v.insert("time_connect".into(), fmt_time(ns + tc));
+    v.insert("time_appconnect".into(), fmt_time(ns + tc + tl));
+    v.insert("time_pretransfer".into(), fmt_time(ns + tc + tl));
+    v.insert(
+        "time_starttransfer".into(),
+        fmt_time(m.time_starttransfer().as_secs_f64()),
+    );
+    v.insert(
+        "time_redirect".into(),
+        fmt_time(m.redirect_duration.as_secs_f64()),
+    );
+    v.insert("time_total".into(), fmt_time(m.time_total().as_secs_f64()));
+
+    v
+}
+
+fn fmt_time(secs: f64) -> String {
+    format!("{:.6}", secs)
+}
+
+/// Render %{json}: all variables as a JSON object with stable alphabetical keys.
+/// Numeric variables are typed as numbers; strings as strings.
+fn render_json(vars: &std::collections::HashMap<String, String>) -> String {
+    const NUMERIC: &[&str] = &[
+        "http_code",
+        "response_code",
+        "size_download",
+        "size_upload",
+        "size_header",
+        "speed_download",
+        "num_redirects",
+        "num_headers",
+        "time_namelookup",
+        "time_connect",
+        "time_appconnect",
+        "time_pretransfer",
+        "time_starttransfer",
+        "time_redirect",
+        "time_total",
+    ];
+
+    let mut keys: Vec<&String> = vars.keys().collect();
+    keys.sort();
+
+    let mut map = Map::new();
+    for k in keys {
+        let value = &vars[k];
+        if NUMERIC.contains(&k.as_str()) {
+            let n: Value = value
+                .parse::<f64>()
+                .map(|f| json!(f))
+                .unwrap_or_else(|_| json!(value));
+            map.insert(k.clone(), n);
+        } else {
+            map.insert(k.clone(), json!(value));
+        }
+    }
+    Value::Object(map).to_string()
+}
+
+#[cfg(test)]
+mod render_tests {
+    use super::*;
+
+    #[test]
+    fn fmt_time_six_decimals() {
+        assert_eq!(fmt_time(0.0), "0.000000");
+        assert_eq!(fmt_time(0.123), "0.123000");
+        assert_eq!(fmt_time(1.234567), "1.234567");
+    }
+}

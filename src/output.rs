@@ -8,6 +8,25 @@ use std::path::PathBuf;
 
 use crate::cli::Args;
 use crate::fail::FailMode;
+use crate::metrics::RequestMetrics;
+
+/// Thin Write wrapper that tallies bytes written into a caller-provided counter.
+/// Used to populate `metrics.size_download` while streaming the body.
+struct CountingWriter<'a, W: Write> {
+    inner: W,
+    count: &'a mut u64,
+}
+
+impl<'a, W: Write> Write for CountingWriter<'a, W> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let n = self.inner.write(buf)?;
+        *self.count += n as u64;
+        Ok(n)
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        self.inner.flush()
+    }
+}
 
 /// Destination for the "stdout-bound" portion of the response: the body and
 /// the stdout-bound header block (i.e., when `-i`, `--full`, `--LHEAD`, or
@@ -63,9 +82,9 @@ impl<'a, A: Write> Write for TeeWriter<'a, A> {
     }
 }
 
-pub fn write_response(response: Response, args: &Args) -> Result<()> {
+pub fn write_response(response: Response, args: &Args, metrics: &mut RequestMetrics) -> Result<()> {
     let mut sink = StdoutSink::Stdout;
-    write_response_to(response, args, &mut sink)
+    write_response_to(response, args, &mut sink, metrics)
 }
 
 /// Same as `write_response`, but the stdout-bound bytes go through `sink`.
@@ -73,12 +92,14 @@ pub fn write_response_to(
     mut response: Response,
     args: &Args,
     sink: &mut StdoutSink,
+    metrics: &mut RequestMetrics,
 ) -> Result<()> {
     let status = response.status();
 
     if args.status_only {
         let mut out = sink.writer();
         writeln!(out, "{}", status.as_u16())?;
+        metrics.response_end = Some(std::time::Instant::now());
         return Ok(());
     }
 
@@ -140,6 +161,7 @@ pub fn write_response_to(
 
     // -f: abort BEFORE body write
     if fail_mode == FailMode::OnError && is_error {
+        metrics.response_end = Some(std::time::Instant::now());
         return Err(anyhow!(
             "HTTP error {} {}",
             status.as_u16(),
@@ -193,6 +215,7 @@ pub fn write_response_to(
                 let mut out = sink.writer();
                 write!(out, "{out_text}")?;
             }
+            metrics.size_download = out_text.len() as u64;
         } else {
             let content_length = response
                 .headers()
@@ -204,23 +227,28 @@ pub fn write_response_to(
                 if args.create_dirs {
                     ensure_parent_dir(path)?;
                 }
-                let mut file = File::create(path)?;
+                let file = File::create(path)?;
+                let mut cw = CountingWriter { inner: file, count: &mut metrics.size_download };
                 if args.progress {
                     let pb = make_progress_bar(content_length);
-                    copy_with_progress(&mut response, &mut file, &pb)?;
+                    copy_with_progress(&mut response, &mut cw, &pb)?;
                     pb.finish_and_clear();
                 } else {
-                    io::copy(&mut response, &mut file)?;
+                    io::copy(&mut response, &mut cw)?;
                 }
                 if !args.silent {
                     eprintln!("Saved to {}", path.display());
                 }
             } else {
-                let mut out = sink.writer();
-                io::copy(&mut response, &mut out)?;
+                let writer = sink.writer();
+                let mut cw = CountingWriter { inner: writer, count: &mut metrics.size_download };
+                io::copy(&mut response, &mut cw)?;
             }
         }
     }
+
+    // All exit paths below represent "body/headers done": stamp response_end once.
+    metrics.response_end = Some(std::time::Instant::now());
 
     // --remote-time: apply Last-Modified to the saved file
     if let (Some(path), Some(mtime)) = (&final_path, last_modified_ts) {

@@ -42,6 +42,12 @@ pub struct RequestMetrics {
     pub url_effective: Option<String>,
     /// Next URL if 3xx and redirects were not followed.
     pub redirect_url: Option<String>,
+    /// HTTP status code captured before body consumption.
+    pub status: Option<u16>,
+    /// HTTP version string ("1.0", "1.1", "2", "3").
+    pub http_version: Option<String>,
+    /// Response headers snapshot (clone) for `-w` rendering.
+    pub headers: Option<reqwest::header::HeaderMap>,
     /// Shared handle populated by `InstrumentedConnector`.
     pub phase: Arc<Mutex<PhaseTiming>>,
 }

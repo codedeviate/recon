@@ -11,8 +11,38 @@ use std::time::Duration;
 
 use crate::cli::Args;
 use crate::cookiejar::CookieJar;
+use crate::metrics::RequestMetrics;
 
-pub fn execute(args: &Args) -> Result<Response> {
+/// Populate the response-snapshot fields of `metrics` from a `Response`.
+/// Called after the final response has been received (post-redirects, if any).
+fn snapshot_response(metrics: &mut RequestMetrics, args: &Args, response: &Response) {
+    metrics.first_response_byte = Some(std::time::Instant::now());
+    metrics.url_effective = Some(response.url().to_string());
+    metrics.status = Some(response.status().as_u16());
+    metrics.http_version = Some(match response.version() {
+        reqwest::Version::HTTP_10 => "1.0".to_string(),
+        reqwest::Version::HTTP_11 => "1.1".to_string(),
+        reqwest::Version::HTTP_2 => "2".to_string(),
+        reqwest::Version::HTTP_3 => "3".to_string(),
+        _ => "?".to_string(),
+    });
+    metrics.headers = Some(response.headers().clone());
+    metrics.num_headers = response.headers().len() as u32;
+    let hdr_bytes: u64 = response
+        .headers()
+        .iter()
+        .map(|(k, v)| k.as_str().len() as u64 + v.as_bytes().len() as u64 + 4) // "K: V\r\n"
+        .sum();
+    metrics.size_header = hdr_bytes;
+    // Not following redirects + 3xx → capture redirect_url
+    if !args.follow_redirects && response.status().is_redirection() {
+        if let Some(loc) = response.headers().get(reqwest::header::LOCATION) {
+            metrics.redirect_url = loc.to_str().ok().map(String::from);
+        }
+    }
+}
+
+pub fn execute(args: &Args) -> Result<(Response, RequestMetrics)> {
     let mut builder = Client::builder()
         .use_rustls_tls()
         .danger_accept_invalid_certs(args.insecure)
@@ -54,15 +84,20 @@ pub fn execute(args: &Args) -> Result<Response> {
         .map(CookieJar::open)
         .transpose()?;
 
+    let mut metrics = RequestMetrics::default();
+    metrics.request_start = Some(std::time::Instant::now());
+
     if args.lhead {
-        execute_lhead(args, &client, method, jar.as_ref(), &start_url)
+        execute_lhead(args, &client, method, jar.as_ref(), &start_url, &mut metrics)
+            .map(|r| (r, metrics))
     } else {
         let cookie = cookie_header(jar.as_ref(), &start_url)?;
         let response = send_request(args, &client, method, &start_url, cookie.as_deref())?;
         if let Some(j) = &jar {
             save_cookies(&response, j, &start_url)?;
         }
-        Ok(response)
+        snapshot_response(&mut metrics, args, &response);
+        Ok((response, metrics))
     }
 }
 
@@ -81,9 +116,16 @@ fn effective_url(args: &Args) -> String {
     args.target_url().to_string()
 }
 
-fn execute_lhead(args: &Args, client: &Client, method: Method, jar: Option<&CookieJar>, start_url: &str) -> Result<Response> {
+fn execute_lhead(
+    args: &Args,
+    client: &Client,
+    method: Method,
+    jar: Option<&CookieJar>,
+    start_url: &str,
+    metrics: &mut RequestMetrics,
+) -> Result<Response> {
     let mut current_url = start_url.to_string();
-    let mut redirects = 0;
+    let mut redirects: u32 = 0;
 
     loop {
         let cookie = cookie_header(jar, &current_url)?;
@@ -94,7 +136,7 @@ fn execute_lhead(args: &Args, client: &Client, method: Method, jar: Option<&Cook
         }
 
         let status = response.status();
-        let next_url = if status.is_redirection() && redirects < args.max_redirs {
+        let next_url = if status.is_redirection() && (redirects as usize) < args.max_redirs {
             response
                 .headers()
                 .get(reqwest::header::LOCATION)
@@ -110,6 +152,8 @@ fn execute_lhead(args: &Args, client: &Client, method: Method, jar: Option<&Cook
             current_url = next;
             redirects += 1;
         } else {
+            metrics.num_redirects = redirects;
+            snapshot_response(metrics, args, &response);
             return Ok(response);
         }
     }

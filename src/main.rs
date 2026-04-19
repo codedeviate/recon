@@ -531,15 +531,23 @@ fn main() {
         telnet::connect(args.target_url(), &args)
     } else {
         let t0 = std::time::Instant::now();
-        client::execute(&args).and_then(|response| {
+        client::execute(&args).and_then(|(response, mut metrics)| -> anyhow::Result<()> {
             if args.verbose >= 2 {
                 eprintln!("* Elapsed: {:.3}s", t0.elapsed().as_secs_f64());
             }
-            if args.editor.is_some() {
-                run_with_editor(response, &args)
+            let result = if args.editor.is_some() {
+                run_with_editor(response, &args, &mut metrics)
             } else {
-                output::write_response(response, &args)
+                output::write_response(response, &args, &mut metrics)
+            };
+            // -w / --write-out: render after the response has been handled so
+            // metrics.response_end and size_download are final.
+            if let Some(fmt_arg) = &args.write_out {
+                let format = writeout::load_format(fmt_arg)?;
+                let tokens = writeout::parse(&format);
+                writeout::render(&tokens, &metrics)?;
             }
+            result
         })
     };
 
@@ -729,7 +737,11 @@ fn extract_path(msg: &str) -> &str {
     "unknown path"
 }
 
-fn run_with_editor(response: reqwest::blocking::Response, args: &Args) -> anyhow::Result<()> {
+fn run_with_editor(
+    response: reqwest::blocking::Response,
+    args: &Args,
+    metrics: &mut metrics::RequestMetrics,
+) -> anyhow::Result<()> {
     use anyhow::Context;
 
     // Resolve the editor spec up front so we fail fast if misconfigured.
@@ -757,7 +769,7 @@ fn run_with_editor(response: reqwest::blocking::Response, args: &Args) -> anyhow
         output::StdoutSink::Buffer(Vec::new())
     };
 
-    output::write_response_to(response, args, &mut sink)?;
+    output::write_response_to(response, args, &mut sink, metrics)?;
     let bytes = sink.into_bytes().unwrap_or_default();
 
     let path = editor::create_temp_file(&extension, &bytes)
@@ -942,7 +954,10 @@ fn run_sample_bulk(resolved: &sampledata::ResolvedSample, args: &Args) -> anyhow
         } else {
             output::StdoutSink::Buffer(Vec::new())
         };
-        output::write_response_to(response, args, &mut sink)?;
+        // Sample paths don't participate in -w rendering, so a throwaway
+        // RequestMetrics is acceptable here (shortcut).
+        let mut dummy = metrics::RequestMetrics::default();
+        output::write_response_to(response, args, &mut sink, &mut dummy)?;
         let bytes = sink.into_bytes().unwrap_or_default();
         let path = editor::create_temp_file(&resolved.format, &bytes)
             .context("failed to write editor temp file")?;
@@ -952,7 +967,9 @@ fn run_sample_bulk(resolved: &sampledata::ResolvedSample, args: &Args) -> anyhow
     }
 
     // Default: route through the normal output pipeline.
-    output::write_response(response, args)
+    // Sample paths don't participate in -w rendering; use a throwaway metrics.
+    let mut dummy = metrics::RequestMetrics::default();
+    output::write_response(response, args, &mut dummy)
 }
 
 fn run_sample_per_item(
