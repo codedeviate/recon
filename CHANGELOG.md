@@ -8,6 +8,17 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.20.1] - 2026-04-19
+
+### Fixed
+
+- `--json`, `--data-raw`, `--data-binary`, and `--data-urlencode` now auto-promote the HTTP method from GET to POST, matching curl. Previously only `-d/--data` promoted, so e.g. `recon --json '{}' https://api.example.com/` silently sent GET with a body and most servers returned 405. `-G/--get` still keeps the method at GET when combined with any of these flags.
+
+### Changed
+
+- Annotated `ResolvedSample::source_tag` with `#[allow(dead_code)]` — field is read only by unit tests that verify `resolve()` picks the correct source. Documents intent without silencing meaningful warnings.
+- Removed unused `sanitize` import from `src/checkdigit/vat/ch.rs`. `cargo build` now emits zero warnings.
+
 ## [0.20.0] - 2026-04-19
 
 ### Added
