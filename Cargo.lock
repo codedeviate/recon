@@ -2294,6 +2294,7 @@ dependencies = [
  "sha3",
  "socket2",
  "ssh2",
+ "tempfile",
  "tokio",
  "tokio-rustls",
  "toml 0.8.23",

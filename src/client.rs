@@ -143,16 +143,41 @@ fn send_request(
         }
     }
 
-    // Body source priority: -T (upload-file) > --json > -d (data, unless -G).
+    // Body source priority: -T > --json > --data-raw > --data-binary > --data-urlencode > -d (unless -G).
     if let Some(path) = &args.upload_file {
         let body = fs::read(path)
             .with_context(|| format!("Failed to read upload file: {}", path.display()))?;
         request = request.body(body);
     } else if let Some(json_data) = &args.json {
         request = request.body(load_body_from_string(json_data)?);
+    } else if let Some(raw) = &args.data_raw {
+        request = request.body(raw.as_bytes().to_vec());
+    } else if let Some(bin) = &args.data_binary {
+        let body = if let Some(path) = bin.strip_prefix('@') {
+            fs::read(path).with_context(|| format!("Failed to read file: {path}"))?
+        } else {
+            bin.as_bytes().to_vec()
+        };
+        request = request.body(body);
+    } else if !args.data_urlencode.is_empty() {
+        let joined = args.data_urlencode
+            .iter()
+            .map(|s| urlencode_form(s))
+            .collect::<Result<Vec<_>>>()?
+            .join("&");
+        if !user_has_header(&args.header, "Content-Type") {
+            request = request.header("Content-Type", "application/x-www-form-urlencoded");
+        }
+        request = request.body(joined.into_bytes());
     } else if !args.get_data {
         if let Some(data) = &args.data {
-            request = request.body(load_body_from_string(data)?);
+            let body = if let Some(path) = data.strip_prefix('@') {
+                let raw = fs::read(path).with_context(|| format!("Failed to read file: {path}"))?;
+                raw.into_iter().filter(|&b| b != b'\r' && b != b'\n').collect()
+            } else {
+                data.as_bytes().to_vec()
+            };
+            request = request.body(body);
         }
     }
 
@@ -391,4 +416,81 @@ fn user_has_header(headers: &[String], name: &str) -> bool {
             .map(|(n, _)| n.trim().eq_ignore_ascii_case(name))
             .unwrap_or(false)
     })
+}
+
+/// Implements curl's --data-urlencode sub-forms.
+/// Returns the URL-encoded key=value (or raw encoded value) fragment, ready to
+/// be joined with `&`.
+fn urlencode_form(s: &str) -> Result<String> {
+    if let Some(at_idx) = s.find('@') {
+        let (prefix, at_and_rest) = s.split_at(at_idx);
+        let path = &at_and_rest[1..];
+        if !prefix.is_empty() && !prefix.contains('=') {
+            let content = fs::read_to_string(path)
+                .with_context(|| format!("Failed to read file: {path}"))?;
+            return Ok(format!("{}={}", prefix, percent_encode(&content)));
+        }
+        if prefix.is_empty() {
+            let content = fs::read_to_string(path)
+                .with_context(|| format!("Failed to read file: {path}"))?;
+            return Ok(percent_encode(&content));
+        }
+        // prefix contains '=' → fall through to name=content handling
+    }
+    if let Some((name, content)) = s.split_once('=') {
+        if !name.is_empty() {
+            return Ok(format!("{}={}", name, percent_encode(content)));
+        }
+        return Ok(percent_encode(content));
+    }
+    Ok(percent_encode(s))
+}
+
+fn percent_encode(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(b as char);
+            }
+            _ => out.push_str(&format!("%{:02X}", b)),
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+mod urlencode_tests {
+    use super::*;
+
+    #[test]
+    fn encode_plain_content() {
+        assert_eq!(urlencode_form("hello world").unwrap(), "hello%20world");
+    }
+
+    #[test]
+    fn encode_equals_prefix_keeps_eq() {
+        assert_eq!(urlencode_form("=hello world").unwrap(), "hello%20world");
+    }
+
+    #[test]
+    fn encode_name_equals_content() {
+        assert_eq!(urlencode_form("name=hello world").unwrap(), "name=hello%20world");
+    }
+
+    #[test]
+    fn encode_at_file_reads_literal() {
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(tmp.path(), "a=b&c").unwrap();
+        let form = format!("@{}", tmp.path().display());
+        assert_eq!(urlencode_form(&form).unwrap(), "a%3Db%26c");
+    }
+
+    #[test]
+    fn encode_name_at_file_keeps_name() {
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(tmp.path(), "x y").unwrap();
+        let form = format!("key@{}", tmp.path().display());
+        assert_eq!(urlencode_form(&form).unwrap(), "key=x%20y");
+    }
 }

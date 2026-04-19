@@ -48,6 +48,19 @@ pub struct Args {
     #[arg(long = "json", value_name = "DATA", help_heading = "HTTP Request")]
     pub json: Option<String>,
 
+    /// Like -d, but @file is not processed — sends the literal string.
+    #[arg(long = "data-raw", value_name = "DATA", help_heading = "HTTP Request")]
+    pub data_raw: Option<String>,
+
+    /// Like -d with @file, but CR/LF are NOT stripped from file content.
+    #[arg(long = "data-binary", value_name = "DATA", help_heading = "HTTP Request")]
+    pub data_binary: Option<String>,
+
+    /// URL-encode data. Sub-forms: content | =content | name=content | @file | name@file.
+    /// Repeatable; values concatenated with &.
+    #[arg(long = "data-urlencode", value_name = "DATA", action = clap::ArgAction::Append, help_heading = "HTTP Request")]
+    pub data_urlencode: Vec<String>,
+
     /// Upload the given local file as the request body. Defaults method to
     /// PUT unless -X is set explicitly. Mutually exclusive with -d/--data.
     #[arg(short = 'T', long = "upload-file", value_name = "PATH", help_heading = "HTTP Request")]
@@ -655,6 +668,36 @@ mod tests {
     fn effective_method_explicit_overrides_upload_put() {
         let args = Args::try_parse_from(["recon", "https://example.com/", "-T", "Cargo.toml", "-X", "POST"]).unwrap();
         assert_eq!(args.effective_method(), "POST");
+    }
+}
+
+#[cfg(test)]
+mod body_variant_tests {
+    use super::*;
+    use clap::Parser;
+
+    #[test]
+    fn parses_data_raw() {
+        let args = Args::try_parse_from(["recon", "--data-raw", "@literal", "http://x/"]).unwrap();
+        assert_eq!(args.data_raw.as_deref(), Some("@literal"));
+    }
+
+    #[test]
+    fn parses_data_binary() {
+        let args = Args::try_parse_from(["recon", "--data-binary", "@file.bin", "http://x/"]).unwrap();
+        assert_eq!(args.data_binary.as_deref(), Some("@file.bin"));
+    }
+
+    #[test]
+    fn data_urlencode_is_repeatable() {
+        let args = Args::try_parse_from([
+            "recon",
+            "--data-urlencode", "a=hello world",
+            "--data-urlencode", "b=x&y",
+            "http://x/"
+        ]).unwrap();
+        assert_eq!(args.data_urlencode.len(), 2);
+        assert_eq!(args.data_urlencode[0], "a=hello world");
     }
 }
 
