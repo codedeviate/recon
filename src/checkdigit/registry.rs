@@ -319,6 +319,30 @@ static SPEC_BECH32: Spec = Spec {
     create_fn: bech32_mod::create_unsupported,
 };
 
+static SPEC_BG_VAT: Spec = Spec {
+    canonical: "bg-vat",
+    aliases: &["bgvat"],
+    description: "Bulgarian VAT (auto-detect EGN/BULSTAT)",
+    verify_fn: vat::verify_bg_vat,
+    create_fn: vat::create_bg_vat,
+};
+
+static SPEC_BG_EGN: Spec = Spec {
+    canonical: "bg-egn",
+    aliases: &[],
+    description: "Bulgarian EGN (personal, 10 digits with birth-date + century-encoded month)",
+    verify_fn: vat::verify_bg_egn,
+    create_fn: vat::create_bg_egn,
+};
+
+static SPEC_BG_BULSTAT: Spec = Spec {
+    canonical: "bg-bulstat",
+    aliases: &[],
+    description: "Bulgarian BULSTAT (legal, 9 digits, weighted mod-11 with secondary fallback)",
+    verify_fn: vat::verify_bg_bulstat,
+    create_fn: vat::create_bg_bulstat,
+};
+
 static SPEC_SE_VAT: Spec = Spec {
     canonical: "se-vat",
     aliases: &["svat"],
@@ -573,6 +597,9 @@ pub static SPECS: &[&Spec] = &[
     &SPEC_DOGE,
     &SPEC_ETH,
     &SPEC_BECH32,
+    &SPEC_BG_VAT,
+    &SPEC_BG_EGN,
+    &SPEC_BG_BULSTAT,
     &SPEC_SE_VAT,
     &SPEC_DK_VAT,
     &SPEC_FI_VAT,

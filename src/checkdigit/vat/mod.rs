@@ -1,5 +1,6 @@
 //! EU VAT check digits (per-country dispatch).
 
+pub mod bg;
 pub mod se;
 pub mod dk;
 pub mod fi;
@@ -25,6 +26,7 @@ pub mod ie;
 pub mod lt;
 pub mod es;
 
+pub use bg::{verify_bg_vat, create_bg_vat, verify_bg_egn, create_bg_egn, verify_bg_bulstat, create_bg_bulstat};
 pub use se::{verify_se_vat, create_se_vat};
 pub use dk::{verify_dk_vat, create_dk_vat};
 pub use fi::{verify_fi_vat, create_fi_vat};
