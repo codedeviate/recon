@@ -53,6 +53,10 @@ Grouped by category. When an item from here ships in a future release, remove it
 - **`--dns-servers` / `--dns-interface` / `--dns-ipv4-addr` / `--dns-ipv6-addr`** — custom DNS override.
 - **`--speed-limit` / `--speed-time`** — minimum-speed abort threshold. `--limit-rate` (planned) covers typical bandwidth control.
 
+### SMTP / SMTPS (mail delivery)
+
+- **`smtp://` / `smtps://` protocol support** — send a test message, validate STARTTLS negotiation, exercise DKIM signing at the relay. Would complement the existing MTA-STS / TLS-RPT / SPF / DMARC / DKIM-record validation (which only inspect DNS, not the wire). Natural fit for recon's "diagnose a server" model; `lettre` crate is the standard Rust choice. Deferred pending demand — email-security DNS checks already cover most recon use cases.
+
 ### Two-source comparison
 
 - **`recon --compare <A> <B>`** — diff two sources (URLs, files, stdin). Discussed once as "could be useful"; never specced.
