@@ -684,6 +684,16 @@ pub fn print() {
         "recon --checkdigit lv-business 40003032949",
     ]);
 
+    example("EU VAT — with or without country prefix", &[
+        "recon --checkdigit pl-vat 5261040828         # bare body",
+        "recon --checkdigit pl-vat PL5261040828       # with prefix (stripped)",
+        "recon --checkdigit pl-vat DE5261040828       # error: prefix mismatch",
+    ]);
+
+    example("EU VAT — comment field surfaces warnings", &[
+        "recon --checkdigit se-vat 556036079302        # comment: 'suffix 02 (unusual)'",
+    ]);
+
     example("IMEI, ABA routing, ISIN, NPI", &[
         "recon --checkdigit imei 490154203237518",
         "recon --checkdigit aba 122105155",
@@ -700,7 +710,7 @@ pub fn print() {
         "recon --checkdigit-create iban SE500000000054910000003 --raw",
     ]);
 
-    note("Verify output format: <formatted>|<type>|<valid|invalid>. Exit 0 valid, 1 invalid, 2 misuse.");
+    note("Verify output format: <formatted>|<type>|<valid|invalid>|<comment>. Exit 0 valid, 1 invalid, 2 misuse.");
 
     section("SAMPLE DATA");
 

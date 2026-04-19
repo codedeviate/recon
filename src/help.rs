@@ -862,13 +862,33 @@ static TOPIC_CHECKDIGIT: Topic = Topic {
                     cz-person, cz-legal            Czech: rodné číslo / IČO\n\
                     lv-person, lv-business         Latvia: personal / business\n\
                   \n\
-                  Non-EU European VAT — reserved for 0.18.0 (NO, UK, CH, IS, LI, RS, UA,\n\
-                  TR, RU, BY, MD, MK, ME, AL, BA, XK).",
+                  Non-EU European VAT — reserved for 0.19.0 (NO, UK, CH, IS, LI, RS, UA,\n\
+                  TR, RU, BY, MD, MK, ME, AL, BA, XK).\n\
+                  \n\
+                  Output format (verify):\n\
+                    <formatted>|<type>|<valid|invalid>|<comment>\n\
+                  \n\
+                    The comment field is empty unless there's a note to surface. Known\n\
+                    comments include:\n\
+                    - \"person >= 110 years old — likely data entry error\" (SE personnummer)\n\
+                    - \"suffix NN (unusual — typically 01)\" (SE VAT with non-01 suffix)\n\
+                    - \"post-2007 CPRs may legitimately fail the mod-11 check\" (DK CPR)\n\
+                    - \"valid — no EIP-55 case check applied\" (Ethereum all-lowercase)\n\
+                  \n\
+                  VAT country-code prefix:\n\
+                    All 27 EU VAT keywords accept input with or without the country\n\
+                    code prefix. Input with a mismatched prefix is rejected:\n\
+                  \n\
+                    recon --checkdigit pl-vat 5261040828           # OK, no prefix\n\
+                    recon --checkdigit pl-vat PL5261040828         # OK, prefix stripped\n\
+                    recon --checkdigit pl-vat DE5261040828         # rejected (DE != PL)\n\
+                  \n\
+                    Greek VAT accepts both 'EL' and 'GR' prefixes as aliases.",
     flags: &[
         FlagHelp {
             flags: "--checkdigit <NAME> [INPUT]",
             description: "Verify a check digit. NAME is the algorithm keyword (e.g. luhn, visa, iban).\n\
-                          Output format: <formatted>|<type>|valid\n\
+                          Output format: <formatted>|<type>|<valid|invalid>|<comment>\n\
                           On invalid input, prints error to stderr and exits 1.",
         },
         FlagHelp {

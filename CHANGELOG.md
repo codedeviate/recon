@@ -8,6 +8,50 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-04-19
+
+### Breaking
+
+- `--checkdigit` verify output now has four pipe-separated fields:
+  `<formatted>|<type>|<valid|invalid>|<comment>`. Scripts using
+  `cut -d'|' -f1..3` continue to work unchanged; scripts that asserted
+  exactly 3 fields will need to accept the trailing pipe.
+- VAT aliases renamed for consistency with the `<cc>vat` pattern:
+  `svat` → `sevat`, `dvat` → `dkvat`. The old aliases now produce a
+  friendly "did you mean …?" error.
+
+### Added
+
+- `comment` field on `Verdict::Valid` surfaces warnings and notes
+  alongside a successful verification. Known comments include:
+  - Swedish personnummer: "person ≥ 110 years old — likely data entry error".
+  - Swedish VAT with non-01 suffix: "suffix NN (unusual — typically 01)".
+- All 27 EU VAT keywords now accept input with or without the 2-letter
+  country-code prefix. If a different *known* EU prefix is supplied
+  (e.g. `DE5261…` under `--checkdigit pl-vat`), the verify errors with
+  a clear mismatch message. Greek VAT accepts both `EL` and `GR`
+  prefixes on input.
+
+### Fixed
+
+- `valid_ddmmyy` now applies the real leap-year rule when the full year
+  is known. Previously, Feb 29 was accepted for all years because only
+  2-digit yy was passed. Affects SE personnummer, DK CPR, FI
+  henkilötunnus, BG EGN. Where the century genuinely cannot be derived,
+  the function still accepts Feb 29 (forgiving fallback).
+
+### Changed
+
+- Swedish VAT accepts any non-`00` 2-digit suffix. Suffix `01` is the
+  default; suffixes 02–99 (rare — used when one org.nr has multiple
+  VAT-registered entities) now validate with a comment noting the
+  unusual suffix.
+
+### Reserved for 0.19.0
+
+Non-EU European VAT / company-ID jurisdictions — NO, UK, CH, IS, LI,
+RS, UA, TR, RU, BY, MD, MK, ME, AL, BA, XK.
+
 ## [0.17.0] - 2026-04-19
 
 ### Added
