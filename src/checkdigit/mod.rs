@@ -15,6 +15,7 @@ pub mod mod31;
 pub mod mod97;
 pub mod mrz;
 pub mod registry;
+pub mod vat;
 pub mod vin;
 
 use anyhow::Result;

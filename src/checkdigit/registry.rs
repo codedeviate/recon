@@ -3,7 +3,7 @@
 use super::brand::Brand;
 use super::{
     aba, base58check, bech32_mod, brand, country_id, eip55, luhn, mod10_ean, mod11, mod31, mod97,
-    mrz, vin, Spec, Verdict,
+    mrz, vat, vin, Spec, Verdict,
 };
 use anyhow::Result;
 
@@ -319,6 +319,46 @@ static SPEC_BECH32: Spec = Spec {
     create_fn: bech32_mod::create_unsupported,
 };
 
+static SPEC_SE_VAT: Spec = Spec {
+    canonical: "se-vat",
+    aliases: &["svat"],
+    description: "Swedish VAT (12 digits, org.nr + '01'; Luhn on org.nr)",
+    verify_fn: vat::verify_se_vat,
+    create_fn: vat::create_se_vat,
+};
+
+static SPEC_DK_VAT: Spec = Spec {
+    canonical: "dk-vat",
+    aliases: &["dvat"],
+    description: "Danish VAT / CVR (8 digits, weighted mod-11 on full number)",
+    verify_fn: vat::verify_dk_vat,
+    create_fn: vat::create_dk_vat,
+};
+
+static SPEC_FI_VAT: Spec = Spec {
+    canonical: "fi-vat",
+    aliases: &["fivat"],
+    description: "Finnish VAT / Y-tunnus (8 digits, weighted mod-11)",
+    verify_fn: vat::verify_fi_vat,
+    create_fn: vat::create_fi_vat,
+};
+
+static SPEC_DE_VAT: Spec = Spec {
+    canonical: "de-vat",
+    aliases: &["devat"],
+    description: "German VAT / USt-IdNr (9 digits, running-product mod-11)",
+    verify_fn: vat::verify_de_vat,
+    create_fn: vat::create_de_vat,
+};
+
+static SPEC_FR_VAT: Spec = Spec {
+    canonical: "fr-vat",
+    aliases: &["frvat"],
+    description: "French VAT (2-key + 9-SIREN, key = mod-97 of SIREN)",
+    verify_fn: vat::verify_fr_vat,
+    create_fn: vat::create_fr_vat,
+};
+
 pub static SPECS: &[&Spec] = &[
     &SPEC_LUHN,
     &SPEC_CREDITCARD,
@@ -357,6 +397,11 @@ pub static SPECS: &[&Spec] = &[
     &SPEC_DOGE,
     &SPEC_ETH,
     &SPEC_BECH32,
+    &SPEC_SE_VAT,
+    &SPEC_DK_VAT,
+    &SPEC_FI_VAT,
+    &SPEC_DE_VAT,
+    &SPEC_FR_VAT,
 ];
 
 /// Resolve a CLI keyword (canonical or alias, case-insensitive).
