@@ -117,8 +117,180 @@ pub fn dispatch_mode(args: &Args, cfg: &MqttConfig) -> Result<Mode> {
     Ok(Mode::Probe)
 }
 
-pub fn run(_url: &str, _args: &Args) -> Result<()> {
-    Err(anyhow!("mqtt: not yet implemented"))
+fn generate_client_id() -> String {
+    use rand::Rng;
+    let suffix: String = (0..6)
+        .map(|_| {
+            let n: u8 = rand::thread_rng().gen_range(0..16);
+            if n < 10 {
+                (b'0' + n) as char
+            } else {
+                (b'a' + n - 10) as char
+            }
+        })
+        .collect();
+    format!("recon-{suffix}")
+}
+
+fn parse_version(s: &str) -> Result<MqttVersion> {
+    match s.trim() {
+        "3" | "3.1.1" | "311" => Ok(MqttVersion::V311),
+        "5" | "5.0" => Ok(MqttVersion::V5),
+        other => bail!("--mqtt-version must be 3 or 5, got '{other}'"),
+    }
+}
+
+pub fn run(url: &str, args: &Args) -> Result<()> {
+    let cfg = MqttConfig::from_url_and_args(url, args)?;
+    let mode = dispatch_mode(args, &cfg)?;
+    let version = parse_version(&args.mqtt_version)?;
+    let client_id = args.client_id.clone().unwrap_or_else(generate_client_id);
+
+    match mode {
+        Mode::Probe => probe(&cfg, version, &client_id, args),
+        Mode::Publish => Err(anyhow!("mqtt publish: not yet implemented")),
+        Mode::Subscribe => Err(anyhow!("mqtt subscribe: not yet implemented")),
+    }
+}
+
+fn probe(cfg: &MqttConfig, version: MqttVersion, client_id: &str, args: &Args) -> Result<()> {
+    match version {
+        MqttVersion::V5 => probe_v5(cfg, client_id, args),
+        MqttVersion::V311 => probe_v3(cfg, client_id, args),
+    }
+}
+
+fn probe_v5(cfg: &MqttConfig, client_id: &str, args: &Args) -> Result<()> {
+    use rumqttc::v5::mqttbytes::v5::Packet;
+    use rumqttc::v5::{AsyncClient, Event, MqttOptions};
+    use std::io::Write;
+    use std::time::Duration;
+
+    let mut options = MqttOptions::new(client_id, &cfg.host, cfg.port);
+    options.set_keep_alive(Duration::from_secs(args.keepalive.into()));
+    if let (Some(u), Some(p)) = (&cfg.username, &cfg.password) {
+        options.set_credentials(u, p);
+    } else if let Some(u) = &cfg.username {
+        options.set_credentials(u, "");
+    }
+    if cfg.tls {
+        configure_tls_v5(&mut options, args.insecure)?;
+    }
+    options.set_connection_timeout(args.timeout);
+    options.set_clean_start(true);
+
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .context("failed to build tokio runtime for mqtt probe")?;
+
+    rt.block_on(async {
+        let (client, mut event_loop) = AsyncClient::new(options, 10);
+        loop {
+            match event_loop.poll().await {
+                Ok(Event::Incoming(Packet::ConnAck(connack))) => {
+                    let mut stdout = std::io::stdout();
+                    writeln!(stdout, "* Connected to {}:{} (MQTT 5.0)", cfg.host, cfg.port)?;
+                    writeln!(stdout, "* TLS: {}", if cfg.tls { "rustls" } else { "none" })?;
+                    print_connack_v5(&mut stdout, &connack)?;
+                    let _ = client.disconnect().await;
+                    let _ = tokio::time::timeout(Duration::from_millis(500), event_loop.poll()).await;
+                    return Ok(());
+                }
+                Ok(_other) => continue,
+                Err(e) => return Err(anyhow!("mqtt probe: {e}")),
+            }
+        }
+    })
+}
+
+fn print_connack_v5<W: std::io::Write>(
+    out: &mut W,
+    connack: &rumqttc::v5::mqttbytes::v5::ConnAck,
+) -> Result<()> {
+    use rumqttc::v5::mqttbytes::v5::ConnectReturnCode;
+    let (code, reason) = match connack.code {
+        ConnectReturnCode::Success => (0u8, "Success"),
+        ConnectReturnCode::BadUserNamePassword => (0x86u8, "Bad User Name or Password"),
+        ConnectReturnCode::NotAuthorized => (0x87u8, "Not Authorized"),
+        other => (other as u8, "Other"),
+    };
+    writeln!(out, "< Connect Reason Code: {} ({})", code, reason)?;
+    writeln!(out, "< Session Present: {}", connack.session_present)?;
+    if let Some(props) = &connack.properties {
+        if let Some(id) = &props.assigned_client_identifier {
+            writeln!(out, "< Assigned Client Identifier: {id}")?;
+        }
+        if let Some(ka) = props.server_keep_alive {
+            writeln!(out, "< Server Keep Alive: {ka}")?;
+        }
+        if let Some(q) = props.max_qos {
+            writeln!(out, "< Maximum QoS: {q}")?;
+        }
+        if let Some(ra) = props.retain_available {
+            writeln!(out, "< Retain Available: {}", ra != 0)?;
+        }
+        if let Some(mps) = props.max_packet_size {
+            writeln!(out, "< Maximum Packet Size: {mps}")?;
+        }
+        if let Some(tam) = props.topic_alias_max {
+            writeln!(out, "< Topic Alias Maximum: {tam}")?;
+        }
+    }
+    Ok(())
+}
+
+fn probe_v3(cfg: &MqttConfig, client_id: &str, args: &Args) -> Result<()> {
+    use rumqttc::{AsyncClient, Event, Incoming, MqttOptions, NetworkOptions};
+    use std::io::Write;
+    use std::time::Duration;
+
+    let mut options = MqttOptions::new(client_id, &cfg.host, cfg.port);
+    options.set_keep_alive(Duration::from_secs(args.keepalive.into()));
+    if let Some(u) = &cfg.username {
+        options.set_credentials(u, cfg.password.clone().unwrap_or_default());
+    }
+    if cfg.tls {
+        configure_tls_v3(&mut options, args.insecure)?;
+    }
+    options.set_clean_session(true);
+
+    let mut net_options = NetworkOptions::new();
+    net_options.set_connection_timeout(args.timeout);
+
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .context("failed to build tokio runtime for mqtt probe")?;
+
+    rt.block_on(async {
+        let (client, mut event_loop) = AsyncClient::new(options, 10);
+        event_loop.set_network_options(net_options);
+        loop {
+            match event_loop.poll().await {
+                Ok(Event::Incoming(Incoming::ConnAck(connack))) => {
+                    let mut stdout = std::io::stdout();
+                    writeln!(stdout, "* Connected to {}:{} (MQTT 3.1.1)", cfg.host, cfg.port)?;
+                    writeln!(stdout, "* TLS: {}", if cfg.tls { "rustls" } else { "none" })?;
+                    writeln!(stdout, "< Connect Return Code: {:?}", connack.code)?;
+                    writeln!(stdout, "< Session Present: {}", connack.session_present)?;
+                    let _ = client.disconnect().await;
+                    let _ = tokio::time::timeout(Duration::from_millis(500), event_loop.poll()).await;
+                    return Ok(());
+                }
+                Ok(_other) => continue,
+                Err(e) => return Err(anyhow!("mqtt probe: {e}")),
+            }
+        }
+    })
+}
+
+fn configure_tls_v5(_options: &mut rumqttc::v5::MqttOptions, _insecure: bool) -> Result<()> {
+    bail!("mqtt: mqtts:// TLS not yet implemented; use mqtt:// for now")
+}
+
+fn configure_tls_v3(_options: &mut rumqttc::MqttOptions, _insecure: bool) -> Result<()> {
+    bail!("mqtt: mqtts:// TLS not yet implemented; use mqtt:// for now")
 }
 
 #[cfg(test)]
