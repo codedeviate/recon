@@ -505,6 +505,13 @@ fn main() {
         std::process::exit(1);
     }
 
+    if let Some(m) = args.max_time {
+        if !m.is_finite() || m < 0.0 {
+            eprintln!("error: --max-time must be a non-negative finite number");
+            std::process::exit(2);
+        }
+    }
+
     // ── Dispatch ──────────────────────────────────────────────────────────────
     let result = if args.traceroute {
         traceroute::run(args.target_url(), args.max_hops)
