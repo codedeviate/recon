@@ -147,7 +147,7 @@ pub fn write_response_to(
         ));
     }
 
-    let final_path = resolve_output_path(args, &response.url().to_string(), None)?;
+    let final_path = resolve_output_path(args, response.url().as_str(), None)?;
 
     if print_body {
         if args.prettify {
@@ -162,12 +162,7 @@ pub fn write_response_to(
             let out_text = crate::prettify::run(&body, format).unwrap_or(body);
             if let Some(path) = &final_path {
                 if args.create_dirs {
-                    if let Some(parent) = path.parent() {
-                        if !parent.as_os_str().is_empty() {
-                            std::fs::create_dir_all(parent)
-                                .with_context(|| format!("create-dirs failed for {}", parent.display()))?;
-                        }
-                    }
+                    ensure_parent_dir(path)?;
                 }
                 let mut file = File::create(path)?;
                 write!(file, "{out_text}")?;
@@ -187,12 +182,7 @@ pub fn write_response_to(
 
             if let Some(path) = &final_path {
                 if args.create_dirs {
-                    if let Some(parent) = path.parent() {
-                        if !parent.as_os_str().is_empty() {
-                            std::fs::create_dir_all(parent)
-                                .with_context(|| format!("create-dirs failed for {}", parent.display()))?;
-                        }
-                    }
+                    ensure_parent_dir(path)?;
                 }
                 let mut file = File::create(path)?;
                 if args.progress {
@@ -285,6 +275,10 @@ pub fn resolve_output_path(
     }
 
     if args.remote_name {
+        // NOTE: in real runs main.rs pre-resolves -O into args.output via
+        // util::filename_from_url, so this branch is only hit by unit tests
+        // and by callers that bypass that pre-processing. Keep the shape
+        // here so Task 9 can wire remote_header_name through.
         let basename = if args.remote_header_name {
             header_filename
                 .map(str::to_string)
@@ -302,6 +296,25 @@ pub fn resolve_output_path(
     Ok(None)
 }
 
+/// `mkdir -p` for the parent of `path`, if it has one.
+///
+/// `Path::new("file.txt").parent()` is `Some("")`, not `None` — the empty-OsStr
+/// check skips mkdir in that case (current working directory, already exists).
+fn ensure_parent_dir(path: &std::path::Path) -> anyhow::Result<()> {
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("create-dirs failed for {}", parent.display()))?;
+        }
+    }
+    Ok(())
+}
+
+/// Derive a filename from the URL's last path segment. Non-validating fallback
+/// used by the `-O` branch of `resolve_output_path` (unit-test path — real runs
+/// go through `util::filename_from_url` in main.rs, which percent-decodes and
+/// rejects path-escape sequences). Returns `"index.html"` if the URL path is
+/// empty or fails to parse.
 fn basename_from_url(url: &str) -> String {
     let parsed = url::Url::parse(url).ok();
     let path = parsed.as_ref().map(|u| u.path()).unwrap_or("/");
