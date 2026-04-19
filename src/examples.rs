@@ -65,6 +65,58 @@ pub fn print() {
     ]);
     note("-G appends the -d value as a query string; the request body is empty.");
 
+    section("CURL COMPATIBILITY — QUICK WINS (0.20.0)");
+
+    example("JSON body shorthand (--json)", &[
+        r#"recon --json '{"a":1}' https://httpbin.org/post"#,
+        r#"recon --json @payload.json https://api.example.com/"#,
+    ]);
+    note("Auto-sets Content-Type: application/json and Accept: application/json unless -H overrides.");
+
+    example("Data variants (--data-raw / --data-binary / --data-urlencode)", &[
+        r#"recon --data-raw '@literal' https://httpbin.org/post"#,
+        r#"recon --data-binary @image.bin https://api.example.com/upload"#,
+        r#"recon --data-urlencode "name=Jane Doe" --data-urlencode "city=New York" https://httpbin.org/post"#,
+    ]);
+
+    example("Compressed response (--compressed)", &[
+        "recon --compressed https://httpbin.org/brotli -o /tmp/body.bin",
+        "recon --compressed https://httpbin.org/gzip",
+    ]);
+    note("Requests gzip / deflate / brotli / zstd; decompresses transparently.");
+
+    example("Total-time cap (--max-time)", &[
+        "recon --max-time 5 https://example.com/slow",
+        "recon --max-time 0.5 https://httpbin.org/delay/5",
+    ]);
+    note("Aborts after the given seconds (fractional allowed); exit code 28.");
+
+    example("Fail with body (--fail-with-body)", &[
+        "recon --fail-with-body -o err.html https://httpbin.org/status/404",
+    ]);
+    note("Exits non-zero on 4xx/5xx but keeps the response body for inspection.");
+
+    example("Save with Content-Disposition filename (-J / --remote-header-name)", &[
+        "recon -O -J https://example.com/downloads/report",
+        "recon -O -J --output-dir ./downloads https://example.com/file",
+    ]);
+
+    example("Create directories / prefix output (--create-dirs, --output-dir)", &[
+        "recon --create-dirs -o /tmp/nested/sub/file.txt https://example.com/data",
+        "recon --output-dir ./out -O https://example.com/file.txt",
+    ]);
+
+    example("Preserve server mtime (--remote-time)", &[
+        "recon --remote-time -o page.html https://example.com/",
+    ]);
+
+    example("Scriptable metrics (-w / --write-out)", &[
+        r#"recon -w "%{http_code} %{time_total}s\n" https://example.com/"#,
+        r#"recon -w "%{json}" -o /dev/null https://example.com/"#,
+        r#"recon -w "%{header{content-type}}\n" -o /dev/null https://example.com/"#,
+    ]);
+    note("Runs AFTER the response. See `--help write-out` for the full variable list.");
+
     section("REDIRECTS");
 
     example("Follow redirects (-L / --location)", &[

@@ -43,6 +43,12 @@ static TOPIC_HTTP: Topic = Topic {
         FlagHelp { flags: "-e, --referer <URL>", description: "Send a Referer header. Also accepts --referrer.\nAn explicit -H \"Referer: …\" takes precedence over this flag." },
         FlagHelp { flags: "-O, --remote-name", description: "Save response body to a file named after the URL's final path segment.\nPercent-decodes the name. Mutually exclusive with -o/--output." },
         FlagHelp { flags: "-T, --upload-file <PATH>", description: "Upload local file as request body.\nDefaults method to PUT unless -X is set explicitly. Mutually exclusive with -d/--data." },
+        FlagHelp { flags: "--json <DATA>", description: "Send DATA as a JSON body.\nAuto-sets Content-Type: application/json and Accept: application/json unless overridden by -H. Supports @file and @- (stdin) like -d." },
+        FlagHelp { flags: "--data-raw <DATA>", description: "Like -d but @file is NOT processed — sends the literal string (including any leading @)." },
+        FlagHelp { flags: "--data-binary <DATA>", description: "Like -d but CR/LF are NOT stripped from @file content." },
+        FlagHelp { flags: "--data-urlencode <DATA>", description: "URL-encode DATA for an x-www-form-urlencoded body.\nRepeatable; values joined with &.\nSub-forms: content | =content | name=content | @file | name@file." },
+        FlagHelp { flags: "--compressed", description: "Request gzip / deflate / brotli / zstd encoding and auto-decompress the response body." },
+        FlagHelp { flags: "--max-time <SECS>", description: "Total operation timeout (DNS + TLS + request + body) in seconds.\nAccepts fractional values (e.g. 0.5). Exit code 28 on timeout." },
     ],
     related: &["--cert", "--cookiejar", "-p / --prettify"],
     examples: &[
@@ -52,6 +58,9 @@ static TOPIC_HTTP: Topic = Topic {
         ExampleHelp { description: "Send body from a file", command: "recon https://api.example.com/upload -d @payload.json -H \"Content-Type: application/json\"" },
         ExampleHelp { description: "Follow redirects and show each hop", command: "recon http://github.com --LHEAD" },
         ExampleHelp { description: "Basic auth on a self-signed server", command: "recon https://staging.internal/api -u alice:s3cr3t -k" },
+        ExampleHelp { description: "JSON shorthand (auto-sets Content-Type and Accept)", command: "recon --json '{\"q\":\"rust\"}' https://api.example.com/search" },
+        ExampleHelp { description: "URL-encode form fields", command: "recon --data-urlencode \"name=Jane Doe\" --data-urlencode \"city=New York\" https://httpbin.org/post" },
+        ExampleHelp { description: "Compressed response", command: "recon --compressed https://httpbin.org/gzip" },
     ],
 };
 
@@ -71,6 +80,12 @@ static TOPIC_OUTPUT: Topic = Topic {
         FlagHelp { flags: "-o, --output <FILE>", description: "Write the response body to a file instead of stdout." },
         FlagHelp { flags: "--progress", description: "Show a progress meter when saving to a file with -o.\nOpt-in only; never shown by default." },
         FlagHelp { flags: "--FULL-ERRORS", description: "Print the full internal error chain instead of a friendly message.\nUseful for debugging unexpected failures." },
+        FlagHelp { flags: "--fail-with-body", description: "Like -f but keeps the response body.\nWrites the body to stdout (or -o / -O destination) then exits non-zero." },
+        FlagHelp { flags: "--create-dirs", description: "Create missing parent directories for the -o / -O output path." },
+        FlagHelp { flags: "--output-dir <DIR>", description: "Prefix for -o and -O output paths.\nE.g. `--output-dir ./dl -o file.txt` writes to ./dl/file.txt." },
+        FlagHelp { flags: "-J, --remote-header-name", description: "With -O, derive the filename from the response Content-Disposition header (RFC 6266).\nFalls back to the URL basename if the header is missing or malformed. Rejects path traversal and Windows-reserved names." },
+        FlagHelp { flags: "--remote-time", description: "Apply the response Last-Modified header as the mtime of the saved file." },
+        FlagHelp { flags: "-w, --write-out <FORMAT>", description: "Print FORMAT after the response.\nSupports %{var}, %{header{name}}, %{json}, %{stderr}, %{stdout}, and \\n \\t \\r \\\\ escapes.\nLoad from file with @path or stdin with @-.\nSee --help write-out for the full variable list." },
     ],
     related: &["-L / --location", "-f / --fail"],
     examples: &[
@@ -933,6 +948,55 @@ static TOPIC_CHECKDIGIT: Topic = Topic {
     ],
 };
 
+static TOPIC_WRITE_OUT: Topic = Topic {
+    title: "Write-Out Format Variables (-w / --write-out)",
+    description: "The -w / --write-out flag emits a format string after the response body.\n\
+                  Variable references take the form %{name}. Special forms:\n\
+                  \n\
+                  %{header{name}}   — value of the named response header (lowercase)\n\
+                  %{json}           — all variables as an alphabetical JSON object\n\
+                  %{stderr}         — switch subsequent output to stderr\n\
+                  %{stdout}         — switch back to stdout\n\
+                  \n\
+                  Escape sequences: \\n (newline), \\t (tab), \\r (carriage return), \\\\\\ (backslash).\n\
+                  Load the format from a file with @path, or from stdin with @-.\n\
+                  \n\
+                  NOTE: The four connection-phase timing variables (time_namelookup, time_connect,\n\
+                  time_appconnect, time_pretransfer) render as 0.000000 in this release. reqwest's\n\
+                  blocking client wraps an async hyper client internally; connector instrumentation\n\
+                  is deferred per OUT-OF-SCOPE.md. The remaining timing variables are accurate.",
+    flags: &[
+        FlagHelp { flags: "http_code / response_code", description: "HTTP response status code (both are aliases, e.g. 200, 404)." },
+        FlagHelp { flags: "http_version", description: "HTTP protocol version: 1.0, 1.1, 2, or 3." },
+        FlagHelp { flags: "url / url_effective", description: "Final URL after any redirects." },
+        FlagHelp { flags: "scheme", description: "URL scheme of the effective URL (e.g. https)." },
+        FlagHelp { flags: "content_type", description: "Value of the response Content-Type header." },
+        FlagHelp { flags: "size_download", description: "Number of bytes in the response body." },
+        FlagHelp { flags: "size_upload", description: "Number of bytes sent as the request body." },
+        FlagHelp { flags: "size_header", description: "Number of bytes in the response headers." },
+        FlagHelp { flags: "speed_download", description: "Download speed: body bytes divided by time_total (bytes/sec)." },
+        FlagHelp { flags: "num_redirects", description: "Number of redirect hops followed." },
+        FlagHelp { flags: "num_headers", description: "Number of response headers received." },
+        FlagHelp { flags: "redirect_url", description: "Value of the Location header when a 3xx is received and -L is not set." },
+        FlagHelp { flags: "remote_ip", description: "IP address of the remote server. Requires connector instrumentation; currently empty." },
+        FlagHelp { flags: "local_ip", description: "Local IP address used for the connection. Requires connector instrumentation; currently empty." },
+        FlagHelp { flags: "time_namelookup", description: "Seconds from start to DNS resolution complete. Currently 0.000000 (deferred)." },
+        FlagHelp { flags: "time_connect", description: "Seconds from start to TCP connection established. Currently 0.000000 (deferred)." },
+        FlagHelp { flags: "time_appconnect", description: "Seconds from start to TLS/SSL handshake complete. Currently 0.000000 (deferred)." },
+        FlagHelp { flags: "time_pretransfer", description: "Seconds from start to first byte ready to transfer. Currently 0.000000 (deferred)." },
+        FlagHelp { flags: "time_starttransfer", description: "Seconds from start to first response byte received (TTFB). Accurate." },
+        FlagHelp { flags: "time_redirect", description: "Seconds spent on all redirect hops combined. Accurate." },
+        FlagHelp { flags: "time_total", description: "Total elapsed seconds for the entire operation. Accurate." },
+    ],
+    related: &["-o / --output", "-O / --remote-name", "-s / --silent"],
+    examples: &[
+        ExampleHelp { description: "Print status code and total time", command: "recon -w \"%{http_code} %{time_total}s\\n\" https://example.com/" },
+        ExampleHelp { description: "Emit all variables as JSON", command: "recon -w \"%{json}\" -o /dev/null https://example.com/" },
+        ExampleHelp { description: "Print Content-Type header", command: "recon -w \"%{header{content-type}}\\n\" -o /dev/null https://example.com/" },
+        ExampleHelp { description: "Load format from a file", command: "recon -w @fmt.txt https://example.com/" },
+    ],
+};
+
 // ── Topic resolution ─────────────────────────────────────────────────────────
 
 fn resolve_topic(key: &str) -> Option<&'static Topic> {
@@ -966,6 +1030,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "serve" | "server" => Some(&TOPIC_SERVE),
         "serve-tls" | "serve-https" | "https-server" => Some(&TOPIC_SERVE_TLS),
         "checkdigit" | "check-digit" | "checksum" => Some(&TOPIC_CHECKDIGIT),
+        "write-out" | "writeout" | "write_out" => Some(&TOPIC_WRITE_OUT),
         _ => None,
     }
 }
@@ -1032,6 +1097,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "editor",
         "serve",
         "serve-tls",
+        "write-out",
     ]
 }
 

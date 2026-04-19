@@ -43,6 +43,15 @@ Grouped by category. When an item from here ships in a future release, remove it
 
 - **Additional curl flags still unimplemented** — `--tlsv1.2`, `--cacert`, `--key-type`, `--cert-status`, some others raised earlier but not currently specced.
 - **`-w` / `--write-out` connection-phase timings** — `time_namelookup`, `time_connect`, `time_appconnect`, `time_pretransfer` currently render as `0.000000`. The accurate variables (`time_total`, `time_starttransfer`, `time_redirect`, plus every non-timing variable) work correctly. reqwest 0.12's blocking client wraps an async hyper client internally, so cleanly hooking a custom connector to record DNS/TCP/TLS phases requires either bypassing reqwest for a direct hyper + tokio stack, or waiting for upstream connector-instrumentation hooks. Revisit when either path becomes cheap.
+- **`--anyauth`** — auto-select auth scheme. Security-risky (credential probing) and niche.
+- **`--ntlm` / `--negotiate`** — Windows NTLM / Kerberos-SPNEGO auth. Pulls in external crates; niche for modern APIs.
+- **Netscape-format cookie file** (`--cookie <file>` and `--cookie-jar <file>` in Netscape format). recon's `.db` cookiejar model is intentionally different.
+- **`-w` variables outside the 22-variable subset** — `num_connects`, `proxy_ssl_verify_result`, `http_connect`, FTP-era fields. Unreachable or meaningless via reqwest.
+- **`-w` `%{output{filename}}`** — redirect part of output to a specific file. Niche.
+- **`--interface`** — bind socket to a specific local interface. Rare.
+- **`--engine`** — OpenSSL crypto engine selection. N/A under rustls.
+- **`--dns-servers` / `--dns-interface` / `--dns-ipv4-addr` / `--dns-ipv6-addr`** — custom DNS override.
+- **`--speed-limit` / `--speed-time`** — minimum-speed abort threshold. `--limit-rate` (planned) covers typical bandwidth control.
 
 ### Two-source comparison
 
@@ -66,6 +75,10 @@ These are items where we've actively decided not to ship, with a reason.
 ### Feature-mismatch
 
 - **EIN, SSN, postal codes, phone numbers** — these have format rules but no algorithmic check digit. A format-validation feature is a different tool.
+
+### Protocol scope
+
+- **Non-HTTP protocols** — FTP, SMTP, TFTP, LDAP, GOPHER, SMB, POP3, IMAP, RTSP, TELNET (beyond recon's own telnet subcommand), MQTT, DICT. recon is HTTP(S)-only; these are permanently out of scope, not deferred.
 
 ---
 

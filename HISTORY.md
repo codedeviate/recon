@@ -52,6 +52,20 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 24. curl compatibility quick-wins batch (0.20.0)
+
+Twelve high-frequency curl flags shipped in one release, making recon a credible curl drop-in for the 80/20 HTTP(S) use case. Architectural foundations introduced to support this batch (and future telemetry work) rather than one-off wiring:
+
+- **`RequestMetrics` + `PhaseTiming`** (`src/metrics.rs`) — central per-request instrumentation struct. Fields: start/end timestamps, size counters (upload / download / header), redirect count + URL, response snapshot (status / version / headers). Populated incrementally by the client during the request/response lifecycle; consumed by the `-w` renderer. The `phase: Arc<Mutex<PhaseTiming>>` handle will hold DNS / TCP / TLS phase durations once the connector-instrumentation work lands (deferred per OUT-OF-SCOPE.md).
+- **`FailMode` enum** (`src/fail.rs`) replacing the `-f` bool. Three states — `Off` / `OnError` / `OnErrorKeepBody` — clarify the three-way contract between `-f` and `--fail-with-body`. The response-handling flow branches on mode: `OnError` aborts before body write; `OnErrorKeepBody` writes body first, then returns error so the process still exits non-zero.
+- **`writeout.rs`** — dedicated format-string parser + renderer. Token enum is a public data type (`Literal`, `Variable`, `Header`, `Json`, `StderrSwitch`, `StdoutSwitch`) so future templating features can reuse it. Parser is char-based (preserves UTF-8 in literals); renderer reads metrics only (no live Response), making it composable with the body-consuming write path.
+- **`remote_name.rs`** — stand-alone RFC 6266 Content-Disposition parser. Prefers `filename*=` (RFC 5987 extended form) with UTF-8-correct percent-decoding; sanitizes against path traversal, null bytes, and Windows-reserved device names; parameter-boundary-aware matching rejects `x-filename=` and quoted-value false-positives.
+- **Bug fix with behavioral impact:** `--connect-timeout` had been wired to reqwest's total-operation timeout (`.timeout()`) since the flag was introduced; 0.20.0 corrects this to `.connect_timeout()`, and introduces `--max-time` for the total-operation slot. Users who depended on the old behavior need to migrate to `--max-time`.
+
+Roadmap note: this is tier 1 of the planned 0.20.0 → 0.3x.0 curl-compat expansion. Future tiers (not yet specced) include `--limit-rate`, `--resolve`, advanced retry, HTTP/3, and the connector-instrumentation work that will fill in `-w`'s phase timings.
+
+---
+
 ### 23. Non-EU European VAT Check-Digit Support (0.19.0)
 
 13 new country-code VAT / company-ID check-digit algorithms covering the non-EU

@@ -8,6 +8,43 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-04-19
+
+### Added
+
+- `--json <data>` — curl-compatible JSON shorthand (auto-sets `Content-Type: application/json` and `Accept: application/json` unless overridden via `-H`). Supports `@file` and `@-` (stdin).
+- `--data-raw <data>` — send DATA literally, `@file` is NOT processed.
+- `--data-binary <data>` — like `-d` but CR/LF are NOT stripped from `@file` content.
+- `--data-urlencode <data>` — URL-encode for `application/x-www-form-urlencoded` bodies. Repeatable; joined with `&`. All five curl sub-forms supported: `content`, `=content`, `name=content`, `@file`, `name@file`.
+- `--compressed` — request gzip / deflate / brotli / zstd encoding and auto-decompress the response.
+- `--max-time <seconds>` — total operation timeout (fractional seconds accepted). Exit code 28 on timeout.
+- `--fail-with-body` — like `-f` but writes the body before exiting non-zero on HTTP ≥ 400.
+- `--create-dirs` — create missing parent directories for the `-o` output path.
+- `--output-dir <dir>` — prefix for `-o` / `-O` output paths.
+- `-J` / `--remote-header-name` — with `-O`, derive the filename from the response `Content-Disposition` header (RFC 6266 / RFC 5987). Parser rejects path traversal, null bytes, empty names, and Windows-reserved device names; UTF-8-correct decoding of `filename*=`.
+- `--remote-time` — apply response `Last-Modified` as mtime on the saved file (supports IMF-fixdate, RFC 850, asctime).
+- `-w` / `--write-out <format>` — format string emitted after the response body. Supports `%{var}` (20+ variables), `%{header{name}}`, `%{json}` (alphabetical JSON blob), `%{stderr}` / `%{stdout}` stream switches, `\n \t \r \\` escapes, and `@file` / `@-` format loading.
+
+### Fixed
+
+- `--connect-timeout` now correctly maps to `reqwest::ClientBuilder::connect_timeout` (connection phase only). Previously it was wired to `.timeout()` (total operation). **Behavior change:** if you relied on `--connect-timeout` as a total-time cap, switch to `--max-time`.
+- `-d @file` now strips CR/LF characters from file content, matching curl semantics. Use `--data-binary @file` to preserve them.
+
+### Changed
+
+- HTTP error paths now return curl-compatible exit codes: `28` for timeout, `7` for connect failure, `1` for other errors.
+- `-f` / `--fail-with-body` are now represented internally by a `FailMode { Off, OnError, OnErrorKeepBody }` enum for clean runtime dispatch.
+
+### Known limitations
+
+- `-w` connection-phase variables (`time_namelookup`, `time_connect`, `time_appconnect`, `time_pretransfer`) render as `0.000000`. reqwest 0.12's blocking client wraps an async hyper client internally, so clean connector instrumentation is deferred (tracked in [OUT-OF-SCOPE.md](OUT-OF-SCOPE.md)). The accurate variables (`time_total`, `time_starttransfer`, `time_redirect`) work correctly.
+
+### Dependencies
+
+- Added: `filetime = "0.2"`, `httpdate = "1"` (for `--remote-time`).
+- Added to dev-dependencies: `tempfile = "3"`, `wiremock = "0.6"` (integration test harness).
+- reqwest: added features `gzip`, `deflate`, `brotli`, `zstd` (for `--compressed`). Adds ~500KB to binary from dep duplication (reqwest pulls its own `brotli 8` alongside recon's direct `brotli 7`).
+
 ## [0.19.0] - 2026-04-19
 
 ### Added
