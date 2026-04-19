@@ -6,6 +6,7 @@ use std::fs::File;
 use std::io::{self, Write};
 
 use crate::cli::Args;
+use crate::fail::FailMode;
 
 /// Destination for the "stdout-bound" portion of the response: the body and
 /// the stdout-bound header block (i.e., when `-i`, `--full`, `--LHEAD`, or
@@ -133,7 +134,6 @@ pub fn write_response_to(
         }
     }
 
-    use crate::fail::FailMode;
     let fail_mode = FailMode::from_args(args);
     if fail_mode == FailMode::OnError && status.as_u16() >= 400 {
         return Err(anyhow!(
