@@ -15,6 +15,7 @@ mod hash;
 mod help;
 mod jwt;
 mod lorem;
+mod metrics;
 mod netstatus;
 mod output;
 mod ping;
