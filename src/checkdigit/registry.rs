@@ -1,7 +1,7 @@
 //! Static registry of all check-digit specs. Resolve by canonical name or alias.
 
 use super::brand::Brand;
-use super::{brand, country_id, luhn, Spec, Verdict};
+use super::{brand, country_id, luhn, mod10_ean, Spec, Verdict};
 use anyhow::Result;
 
 static SPEC_LUHN: Spec = Spec {
@@ -124,6 +124,86 @@ static SPEC_SA_ID: Spec = Spec {
     create_fn: country_id::create_sa_id,
 };
 
+static SPEC_EAN13: Spec = Spec {
+    canonical: "ean13",
+    aliases: &["ean"],
+    description: "European Article Number EAN-13 (13 digits)",
+    verify_fn: mod10_ean::verify_ean13,
+    create_fn: mod10_ean::create_ean13,
+};
+
+static SPEC_EAN8: Spec = Spec {
+    canonical: "ean8",
+    aliases: &[],
+    description: "Short EAN (8 digits)",
+    verify_fn: mod10_ean::verify_ean8,
+    create_fn: mod10_ean::create_ean8,
+};
+
+static SPEC_UPCA: Spec = Spec {
+    canonical: "upca",
+    aliases: &["upc"],
+    description: "Universal Product Code A (12 digits)",
+    verify_fn: mod10_ean::verify_upca,
+    create_fn: mod10_ean::create_upca,
+};
+
+static SPEC_UPCE: Spec = Spec {
+    canonical: "upce",
+    aliases: &[],
+    description: "Short UPC (8 digits)",
+    verify_fn: mod10_ean::verify_upce,
+    create_fn: mod10_ean::create_upce,
+};
+
+static SPEC_ISBN13: Spec = Spec {
+    canonical: "isbn13",
+    aliases: &[],
+    description: "International Standard Book Number, 13-digit (simple 3-1-2-6-1 hyphenation)",
+    verify_fn: mod10_ean::verify_isbn13,
+    create_fn: mod10_ean::create_isbn13,
+};
+
+static SPEC_GTIN8: Spec = Spec {
+    canonical: "gtin8",
+    aliases: &[],
+    description: "GTIN-8 (Global Trade Item Number, 8 digits — same as EAN-8)",
+    verify_fn: mod10_ean::verify_gtin8,
+    create_fn: mod10_ean::create_gtin8,
+};
+
+static SPEC_GTIN12: Spec = Spec {
+    canonical: "gtin12",
+    aliases: &[],
+    description: "GTIN-12 (12 digits — same as UPC-A)",
+    verify_fn: mod10_ean::verify_gtin12,
+    create_fn: mod10_ean::create_gtin12,
+};
+
+static SPEC_GTIN13: Spec = Spec {
+    canonical: "gtin13",
+    aliases: &[],
+    description: "GTIN-13 (13 digits — same as EAN-13)",
+    verify_fn: mod10_ean::verify_gtin13,
+    create_fn: mod10_ean::create_gtin13,
+};
+
+static SPEC_GTIN14: Spec = Spec {
+    canonical: "gtin14",
+    aliases: &["gtin"],
+    description: "GTIN-14 (14 digits, logistic units)",
+    verify_fn: mod10_ean::verify_gtin14,
+    create_fn: mod10_ean::create_gtin14,
+};
+
+static SPEC_SSCC: Spec = Spec {
+    canonical: "sscc",
+    aliases: &[],
+    description: "Serial Shipping Container Code (18 digits)",
+    verify_fn: mod10_ean::verify_sscc,
+    create_fn: mod10_ean::create_sscc,
+};
+
 pub static SPECS: &[&Spec] = &[
     &SPEC_LUHN,
     &SPEC_CREDITCARD,
@@ -138,6 +218,16 @@ pub static SPECS: &[&Spec] = &[
     &SPEC_PERSONNUMMER,
     &SPEC_SIN,
     &SPEC_SA_ID,
+    &SPEC_EAN13,
+    &SPEC_EAN8,
+    &SPEC_UPCA,
+    &SPEC_UPCE,
+    &SPEC_ISBN13,
+    &SPEC_GTIN8,
+    &SPEC_GTIN12,
+    &SPEC_GTIN13,
+    &SPEC_GTIN14,
+    &SPEC_SSCC,
 ];
 
 /// Resolve a CLI keyword (canonical or alias, case-insensitive).
