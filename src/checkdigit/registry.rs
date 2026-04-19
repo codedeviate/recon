@@ -1,7 +1,7 @@
 //! Static registry of all check-digit specs. Resolve by canonical name or alias.
 
 use super::brand::Brand;
-use super::{brand, country_id, luhn, mod10_ean, mod11, Spec, Verdict};
+use super::{brand, country_id, luhn, mod10_ean, mod11, mod31, Spec, Verdict};
 use anyhow::Result;
 
 static SPEC_LUHN: Spec = Spec {
@@ -236,6 +236,14 @@ static SPEC_FODSELSNUMMER: Spec = Spec {
     create_fn: mod11::create_fodselsnummer,
 };
 
+static SPEC_HENKILOTUNNUS: Spec = Spec {
+    canonical: "henkilotunnus",
+    aliases: &["fi-id"],
+    description: "Finnish henkilötunnus (11 chars, mod-31 with lookup; century markers +, -, Y-U, A-F)",
+    verify_fn: mod31::verify_henkilotunnus,
+    create_fn: mod31::create_henkilotunnus,
+};
+
 pub static SPECS: &[&Spec] = &[
     &SPEC_LUHN,
     &SPEC_CREDITCARD,
@@ -264,6 +272,7 @@ pub static SPECS: &[&Spec] = &[
     &SPEC_CPR,
     &SPEC_BSN,
     &SPEC_FODSELSNUMMER,
+    &SPEC_HENKILOTUNNUS,
 ];
 
 /// Resolve a CLI keyword (canonical or alias, case-insensitive).
