@@ -197,6 +197,11 @@ pub struct Args {
     #[arg(long = "FULL-ERRORS", help_heading = "Output")]
     pub full_errors: bool,
 
+    /// Format string printed after response. Supports %{var}, %{header{name}},
+    /// %{json}, \n \t \r \\ escapes, @file / @- loading, %{stderr} / %{stdout}.
+    #[arg(short = 'w', long = "write-out", value_name = "FORMAT", help_heading = "Output")]
+    pub write_out: Option<String>,
+
     // ── Certificate Inspection ───────────────────────────────────────────────
 
     /// Fetch and display the server's TLS certificate without making an HTTP request (HTTPS only)

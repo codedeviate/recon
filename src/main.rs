@@ -22,6 +22,7 @@ mod output;
 mod ping;
 mod prettify;
 mod remote_name;
+mod writeout;
 mod sampledata;
 mod scp;
 mod serve;
