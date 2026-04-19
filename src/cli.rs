@@ -10,7 +10,7 @@ use std::path::PathBuf;
     disable_version_flag = true,
 )]
 pub struct Args {
-    // (positional argument — no help_heading)
+    // ── Positional (renders under Arguments; no help_heading) ────────────────
 
     /// URL to request (or use --url)
     #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni", "jwt_view", "jwt_sign", "jwt_validate", "netstatus", "editor_cleanup", "sample", "sample_list", "hash", "hash_list", "compress", "decompress", "compress_list", "encode", "encode_list", "encrypt", "decrypt", "encrypt_keygen"])]
@@ -493,8 +493,12 @@ pub struct Args {
     #[arg(long = "examples", help_heading = "Meta")]
     pub examples: bool,
 
-    // ── Options (auto-generated flags) ───────────────────────────────────────
+    // ── Options (manual -h / -V; keeps Options at tail of --help) ────────────
 
+    // Display-only declarations. --help is intercepted in main.rs before clap
+    // parses, so `help` never receives a value; --version is handled by
+    // clap's ArgAction::Version. Present here so they render under Options
+    // in --help output.
     /// Print help
     #[arg(short = 'h', long = "help", action = clap::ArgAction::Help, help_heading = "Options")]
     pub help: Option<bool>,
