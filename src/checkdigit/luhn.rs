@@ -81,6 +81,93 @@ pub fn create_bare(input: &str, _raw: bool) -> Result<String> {
     Ok(format!("{}{}", clean, cd))
 }
 
+/// Expand A-Z letters to their 2-digit numeric value (A=10..Z=35). Digits pass through.
+pub fn transliterate_alnum(s: &str) -> Result<String> {
+    let mut out = String::with_capacity(s.len() * 2);
+    for c in s.chars() {
+        if c.is_ascii_digit() {
+            out.push(c);
+        } else if c.is_ascii_alphabetic() {
+            let v = (c.to_ascii_uppercase() as u8 - b'A') as u32 + 10;
+            out.push_str(&v.to_string());
+        } else {
+            return Err(anyhow!("invalid character '{}'", c));
+        }
+    }
+    Ok(out)
+}
+
+/// Luhn verify on `prefix + body`.
+pub fn luhn_verify_with_prefix(prefix: &str, body: &str) -> bool {
+    let combined = format!("{}{}", prefix, body);
+    luhn_verify(&combined)
+}
+
+/// Luhn check-digit of `prefix + body` (no final check digit yet).
+pub fn luhn_check_digit_with_prefix(prefix: &str, body: &str) -> Result<u32> {
+    let combined = format!("{}{}", prefix, body);
+    luhn_check_digit(&combined)
+}
+
+pub fn verify_isin(input: &str) -> Verdict {
+    let clean = sanitize(input, true);
+    if clean.len() != 12 {
+        return Verdict::Invalid { reason: format!("expected 12 chars, got {}", clean.len()) };
+    }
+    if !clean.chars().all(|c| c.is_ascii_alphanumeric()) {
+        return Verdict::Invalid { reason: "non-alphanumeric input".into() };
+    }
+    let expanded = match transliterate_alnum(&clean) {
+        Ok(s) => s,
+        Err(e) => return Verdict::Invalid { reason: e.to_string() },
+    };
+    if luhn_verify(&expanded) {
+        Verdict::Valid { formatted: clean, detected: "ISIN".into() }
+    } else {
+        Verdict::Invalid { reason: "Luhn check failed".into() }
+    }
+}
+
+pub fn create_isin(input: &str, _raw: bool) -> Result<String> {
+    let clean = sanitize(input, true);
+    if clean.len() != 11 {
+        return Err(anyhow!("expected 11 chars (ISIN body), got {}", clean.len()));
+    }
+    if !clean.chars().all(|c| c.is_ascii_alphanumeric()) {
+        return Err(anyhow!("non-alphanumeric input"));
+    }
+    let expanded = transliterate_alnum(&clean)?;
+    let cd = luhn_check_digit(&expanded)?;
+    Ok(format!("{}{}", clean, cd))
+}
+
+pub fn verify_npi(input: &str) -> Verdict {
+    let clean = sanitize(input, false);
+    if clean.len() != 10 {
+        return Verdict::Invalid { reason: format!("expected 10 digits, got {}", clean.len()) };
+    }
+    if !clean.chars().all(|c| c.is_ascii_digit()) {
+        return Verdict::Invalid { reason: "non-digit input".into() };
+    }
+    if luhn_verify_with_prefix("80840", &clean) {
+        Verdict::Valid { formatted: clean, detected: "NPI".into() }
+    } else {
+        Verdict::Invalid { reason: "Luhn check failed (with 80840 prefix)".into() }
+    }
+}
+
+pub fn create_npi(input: &str, _raw: bool) -> Result<String> {
+    let clean = sanitize(input, false);
+    if clean.len() != 9 {
+        return Err(anyhow!("expected 9 digits (NPI body), got {}", clean.len()));
+    }
+    if !clean.chars().all(|c| c.is_ascii_digit()) {
+        return Err(anyhow!("non-digit input"));
+    }
+    let cd = luhn_check_digit_with_prefix("80840", &clean)?;
+    Ok(format!("{}{}", clean, cd))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -132,6 +219,76 @@ mod tests {
         match verify_bare("4111ABCD11111111") {
             Verdict::Invalid { .. } => {}
             _ => panic!("expected Invalid"),
+        }
+    }
+
+    #[test]
+    fn transliterate_us_is_3028() {
+        assert_eq!(transliterate_alnum("US").unwrap(), "3028");
+    }
+
+    #[test]
+    fn transliterate_all_digits_passes_through() {
+        assert_eq!(transliterate_alnum("0378331005").unwrap(), "0378331005");
+    }
+
+    #[test]
+    fn transliterate_rejects_non_alnum() {
+        assert!(transliterate_alnum("A!B").is_err());
+    }
+
+    #[test]
+    fn isin_apple_us0378331005_is_valid() {
+        match verify_isin("US0378331005") {
+            Verdict::Valid { .. } => {}
+            v => panic!("expected Valid, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn isin_rejects_bad_length() {
+        match verify_isin("US037833100") {
+            Verdict::Invalid { .. } => {}
+            v => panic!("{:?}", v),
+        }
+    }
+
+    #[test]
+    fn isin_round_trip() {
+        let body = "US037833100";
+        let full = create_isin(body, false).unwrap();
+        assert_eq!(full, "US0378331005");
+        match verify_isin(&full) {
+            Verdict::Valid { .. } => {}
+            v => panic!("{:?}", v),
+        }
+    }
+
+    #[test]
+    fn npi_1234567893_valid() {
+        match verify_npi("1234567893") {
+            Verdict::Valid { detected, .. } => assert_eq!(detected, "NPI"),
+            v => panic!("{:?}", v),
+        }
+    }
+
+    #[test]
+    fn npi_rejects_wrong_length() {
+        match verify_npi("123456789") {
+            Verdict::Invalid { .. } => {}
+            _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn npi_round_trip() {
+        let body = "123456789";
+        let full = create_npi(body, false).unwrap();
+        assert!(full.starts_with(body));
+        assert_eq!(full.len(), 10);
+        match verify_npi(&full) {
+            Verdict::Valid { .. } => {}
+            _ => panic!(),
         }
     }
 }

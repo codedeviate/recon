@@ -84,6 +84,22 @@ static SPEC_IMEI: Spec = Spec {
     create_fn: brand::create_imei,
 };
 
+static SPEC_ISIN: Spec = Spec {
+    canonical: "isin",
+    aliases: &[],
+    description: "International Securities ID (12 alnum, Luhn on letter-transliterated form)",
+    verify_fn: luhn::verify_isin,
+    create_fn: luhn::create_isin,
+};
+
+static SPEC_NPI: Spec = Spec {
+    canonical: "npi",
+    aliases: &[],
+    description: "US National Provider Identifier (10 digits, Luhn with 80840 prefix)",
+    verify_fn: luhn::verify_npi,
+    create_fn: luhn::create_npi,
+};
+
 pub static SPECS: &[&Spec] = &[
     &SPEC_LUHN,
     &SPEC_CREDITCARD,
@@ -93,6 +109,8 @@ pub static SPECS: &[&Spec] = &[
     &SPEC_DISCOVER,
     &SPEC_JCB,
     &SPEC_IMEI,
+    &SPEC_ISIN,
+    &SPEC_NPI,
 ];
 
 /// Resolve a CLI keyword (canonical or alias, case-insensitive).
