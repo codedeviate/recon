@@ -10,6 +10,7 @@ pub mod mod11;
 pub mod mod31;
 pub mod mod97;
 pub mod registry;
+pub mod vin;
 
 use anyhow::Result;
 
