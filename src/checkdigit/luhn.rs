@@ -68,11 +68,14 @@ pub fn verify_bare(input: &str) -> Verdict {
 
 pub fn create_bare(input: &str, _raw: bool) -> Result<String> {
     let clean = sanitize(input, false);
-    if !clean.chars().all(|c| c.is_ascii_digit()) {
-        return Err(anyhow!("non-digit input"));
+    if clean.len() > MAX_INPUT_LEN {
+        return Err(anyhow!("input too long"));
     }
     if clean.is_empty() {
         return Err(anyhow!("empty input"));
+    }
+    if !clean.chars().all(|c| c.is_ascii_digit()) {
+        return Err(anyhow!("non-digit input"));
     }
     let cd = luhn_check_digit(&clean)?;
     Ok(format!("{}{}", clean, cd))
