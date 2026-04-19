@@ -84,12 +84,15 @@ pub use me::{verify_me_vat, create_me_vat};
 
 use super::{sanitize, Verdict};
 
-/// The 27 EU country codes + GR as a known alias for EL — used for
-/// prefix-mismatch detection.
+/// EU-27 + GR alias + non-EU European codes — used for prefix-mismatch detection.
 const KNOWN_PREFIXES: &[&str] = &[
+    // EU-27 + GR alias (0.17.0 / 0.18.0)
     "AT", "BE", "BG", "CY", "CZ", "DE", "DK", "EE", "EL", "ES",
     "FI", "FR", "GR", "HR", "HU", "IE", "IT", "LT", "LU", "LV",
     "MT", "NL", "PL", "PT", "RO", "SE", "SI", "SK",
+    // Non-EU European additions (0.19.0)
+    "NO", "UK", "GB", "CH", "LI", "RU", "RS", "IS", "UA",
+    "TR", "MD", "BY", "MK", "ME",
 ];
 
 /// Strip an optional leading 2-letter country-code prefix. Accepts input
@@ -116,7 +119,11 @@ pub fn strip_vat_prefix(input: &str, expected_cc: &str) -> Result<String, Verdic
     if (expected == "EL" && first_two == "GR") || (expected == "GR" && first_two == "EL") {
         return Ok(clean[2..].to_string());
     }
-    // Known EU code but not the expected one → mismatch error.
+    // GB ↔ UK alias (UK VAT keyword is 'uk-vat' but users commonly type 'GB' prefix)
+    if (expected == "UK" && first_two == "GB") || (expected == "GB" && first_two == "UK") {
+        return Ok(clean[2..].to_string());
+    }
+    // Known code but not the expected one → mismatch error.
     if KNOWN_PREFIXES.contains(&first_two) {
         return Err(Verdict::Invalid {
             reason: format!(
@@ -174,5 +181,32 @@ mod mod_tests {
     fn strip_prefix_el_accepted_for_gr_request() {
         let out = strip_vat_prefix("EL094259216", "GR").unwrap();
         assert_eq!(out, "094259216");
+    }
+
+    #[test]
+    fn strip_prefix_gb_accepted_for_uk() {
+        let out = strip_vat_prefix("GB555123456", "UK").unwrap();
+        assert_eq!(out, "555123456");
+    }
+
+    #[test]
+    fn strip_prefix_uk_accepted_for_gb_request() {
+        let out = strip_vat_prefix("UK555123456", "GB").unwrap();
+        assert_eq!(out, "555123456");
+    }
+
+    #[test]
+    fn strip_prefix_rejects_eu_for_non_eu_request() {
+        // DE is a known EU prefix; should reject when user requested NO.
+        match strip_vat_prefix("DE974760673", "NO") {
+            Err(_) => {}
+            Ok(other) => panic!("expected Err, got Ok({:?})", other),
+        }
+    }
+
+    #[test]
+    fn strip_prefix_no_accepted_for_no_request() {
+        let out = strip_vat_prefix("NO974760673", "NO").unwrap();
+        assert_eq!(out, "974760673");
     }
 }
