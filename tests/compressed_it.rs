@@ -1,6 +1,6 @@
 use std::io::Write as _;
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn compressed_gzip_roundtrip() {
     let server = wiremock::MockServer::start().await;
 
