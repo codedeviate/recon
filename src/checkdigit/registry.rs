@@ -711,6 +711,30 @@ static SPEC_TR_VAT: Spec = Spec {
     create_fn: vat::create_tr_vat,
 };
 
+static SPEC_MD_VAT: Spec = Spec {
+    canonical: "md-vat",
+    aliases: &["mdvat"],
+    description: "Moldovan IDNO (13 digits, weights (7,3,1)×4 mod-10)",
+    verify_fn: vat::verify_md_vat,
+    create_fn: vat::create_md_vat,
+};
+
+static SPEC_BY_VAT: Spec = Spec {
+    canonical: "by-vat",
+    aliases: &["byvat"],
+    description: "Belarusian UNP (9 chars, alphanumeric, weights (29,23,19,17,13,7,5,3) mod-11)",
+    verify_fn: vat::verify_by_vat,
+    create_fn: vat::create_by_vat,
+};
+
+static SPEC_MK_VAT: Spec = Spec {
+    canonical: "mk-vat",
+    aliases: &["mkvat"],
+    description: "North Macedonian EDB (13 digits, weights (7,6,5,4,3,2)×2 mod-11/mod-10)",
+    verify_fn: vat::verify_mk_vat,
+    create_fn: vat::create_mk_vat,
+};
+
 pub static SPECS: &[&Spec] = &[
     &SPEC_LUHN,
     &SPEC_CREDITCARD,
@@ -798,6 +822,9 @@ pub static SPECS: &[&Spec] = &[
     &SPEC_UA_LEGAL,
     &SPEC_UA_INDIVIDUAL,
     &SPEC_TR_VAT,
+    &SPEC_MD_VAT,
+    &SPEC_BY_VAT,
+    &SPEC_MK_VAT,
 ];
 
 /// Resolve a CLI keyword (canonical or alias, case-insensitive).
