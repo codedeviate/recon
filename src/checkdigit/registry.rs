@@ -479,6 +479,30 @@ static SPEC_MT_VAT: Spec = Spec {
     create_fn: vat::create_mt_vat,
 };
 
+static SPEC_HR_VAT: Spec = Spec {
+    canonical: "hr-vat",
+    aliases: &["hrvat"],
+    description: "Croatian VAT / OIB (11 digits, ISO 7064 MOD 11,10)",
+    verify_fn: vat::verify_hr_vat,
+    create_fn: vat::create_hr_vat,
+};
+
+static SPEC_IE_VAT: Spec = Spec {
+    canonical: "ie-vat",
+    aliases: &["ievat"],
+    description: "Irish VAT (7 digits + letter, 3 historical formats)",
+    verify_fn: vat::verify_ie_vat,
+    create_fn: vat::create_ie_vat,
+};
+
+static SPEC_LT_VAT: Spec = Spec {
+    canonical: "lt-vat",
+    aliases: &["ltvat"],
+    description: "Lithuanian VAT (9 or 12 digits auto-detect, weighted mod-11 with fallback)",
+    verify_fn: vat::verify_lt_vat,
+    create_fn: vat::create_lt_vat,
+};
+
 pub static SPECS: &[&Spec] = &[
     &SPEC_LUHN,
     &SPEC_CREDITCARD,
@@ -537,6 +561,9 @@ pub static SPECS: &[&Spec] = &[
     &SPEC_EL_VAT,
     &SPEC_CY_VAT,
     &SPEC_MT_VAT,
+    &SPEC_HR_VAT,
+    &SPEC_IE_VAT,
+    &SPEC_LT_VAT,
 ];
 
 /// Resolve a CLI keyword (canonical or alias, case-insensitive).
