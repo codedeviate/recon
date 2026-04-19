@@ -71,6 +71,7 @@ pub fn verify_lv_personal(input: &str) -> Verdict {
         Verdict::Valid {
             formatted: clean,
             detected: "Latvian personal code".into(),
+            comment: String::new(),
         }
     } else {
         Verdict::Invalid {
@@ -154,6 +155,7 @@ pub fn verify_lv_business(input: &str) -> Verdict {
         Verdict::Valid {
             formatted: clean,
             detected: "Latvian business registration number".into(),
+            comment: String::new(),
         }
     } else {
         Verdict::Invalid {

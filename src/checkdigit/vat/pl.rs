@@ -23,7 +23,7 @@ pub fn verify_pl_vat(input: &str) -> Verdict {
         return Verdict::Invalid { reason: "PL NIP: computed check digit is 10 — invalid".into() };
     }
     if expected == check {
-        Verdict::Valid { formatted: format!("PL{}", clean), detected: "Polish VAT (NIP)".into() }
+        Verdict::Valid { formatted: format!("PL{}", clean), detected: "Polish VAT (NIP)".into(), comment: String::new() }
     } else {
         Verdict::Invalid { reason: format!("PL NIP check mismatch: expected {}, got {}", expected, check) }
     }

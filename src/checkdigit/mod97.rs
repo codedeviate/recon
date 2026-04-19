@@ -52,6 +52,7 @@ pub fn verify_iban(input: &str) -> Verdict {
         Ok(1) => Verdict::Valid {
             formatted: group_fixed(&clean, 4, ' '),
             detected,
+            comment: String::new(),
         },
         Ok(r) => Verdict::Invalid {
             reason: format!("IBAN mod-97 check failed (got {}, expected 1)", r),

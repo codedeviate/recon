@@ -30,6 +30,7 @@ pub fn verify_mt_vat(input: &str) -> Verdict {
         Verdict::Valid {
             formatted: format!("MT{}", clean),
             detected: "Maltese VAT".into(),
+            comment: String::new(),
         }
     } else {
         Verdict::Invalid {

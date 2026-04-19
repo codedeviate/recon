@@ -60,7 +60,7 @@ pub fn verify_bare(input: &str) -> Verdict {
         return Verdict::Invalid { reason: "non-digit input".into() };
     }
     if luhn_verify(&clean) {
-        Verdict::Valid { formatted: clean, detected: "Luhn".into() }
+        Verdict::Valid { formatted: clean, detected: "Luhn".into(), comment: String::new() }
     } else {
         Verdict::Invalid { reason: "Luhn check failed".into() }
     }
@@ -122,7 +122,7 @@ pub fn verify_isin(input: &str) -> Verdict {
         Err(e) => return Verdict::Invalid { reason: e.to_string() },
     };
     if luhn_verify(&expanded) {
-        Verdict::Valid { formatted: clean, detected: "ISIN".into() }
+        Verdict::Valid { formatted: clean, detected: "ISIN".into(), comment: String::new() }
     } else {
         Verdict::Invalid { reason: "Luhn check failed".into() }
     }
@@ -150,7 +150,7 @@ pub fn verify_npi(input: &str) -> Verdict {
         return Verdict::Invalid { reason: "non-digit input".into() };
     }
     if luhn_verify_with_prefix("80840", &clean) {
-        Verdict::Valid { formatted: clean, detected: "NPI".into() }
+        Verdict::Valid { formatted: clean, detected: "NPI".into(), comment: String::new() }
     } else {
         Verdict::Invalid { reason: "Luhn check failed (with 80840 prefix)".into() }
     }

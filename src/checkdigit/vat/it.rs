@@ -20,6 +20,7 @@ pub fn verify_it_vat(input: &str) -> Verdict {
         Verdict::Valid {
             formatted: format!("IT{}", clean),
             detected: "Italian VAT (partita IVA)".into(),
+            comment: String::new(),
         }
     } else {
         Verdict::Invalid { reason: "IT VAT Luhn check failed".into() }

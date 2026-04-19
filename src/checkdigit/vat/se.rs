@@ -18,7 +18,7 @@ pub fn verify_se_vat(input: &str) -> Verdict {
     }
     let orgnr = &clean[..10];
     if luhn_verify(orgnr) {
-        Verdict::Valid { formatted: format!("SE{}", clean), detected: "Swedish VAT".into() }
+        Verdict::Valid { formatted: format!("SE{}", clean), detected: "Swedish VAT".into(), comment: String::new() }
     } else {
         Verdict::Invalid { reason: "SE VAT Luhn check on org.nr failed".into() }
     }

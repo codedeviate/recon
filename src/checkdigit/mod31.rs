@@ -66,7 +66,7 @@ pub fn verify_henkilotunnus(input: &str) -> Verdict {
             reason: format!("check char mismatch: expected '{}', got '{}'", expected, chars[10]),
         };
     }
-    Verdict::Valid { formatted: clean, detected: "Finnish henkilötunnus".into() }
+    Verdict::Valid { formatted: clean, detected: "Finnish henkilötunnus".into(), comment: String::new() }
 }
 
 pub fn create_henkilotunnus(input: &str, _raw: bool) -> Result<String> {

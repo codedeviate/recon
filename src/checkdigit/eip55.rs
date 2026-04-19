@@ -44,6 +44,7 @@ pub fn verify_eip55(input: &str) -> Verdict {
         return Verdict::Valid {
             formatted: format!("0x{}", body),
             detected: "Ethereum address (no EIP-55 case check applied)".into(),
+            comment: String::new(),
         };
     }
     let expected = to_eip55(&lower);
@@ -51,6 +52,7 @@ pub fn verify_eip55(input: &str) -> Verdict {
         Verdict::Valid {
             formatted: format!("{}{}", prefix, expected),
             detected: "Ethereum EIP-55".into(),
+            comment: String::new(),
         }
     } else {
         Verdict::Invalid { reason: "EIP-55 mixed-case checksum mismatch".into() }

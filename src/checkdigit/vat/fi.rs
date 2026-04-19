@@ -27,6 +27,7 @@ pub fn verify_fi_vat(input: &str) -> Verdict {
         Verdict::Valid {
             formatted: format!("FI{}", clean),
             detected: "Finnish VAT (Y-tunnus)".into(),
+            comment: String::new(),
         }
     } else {
         Verdict::Invalid {

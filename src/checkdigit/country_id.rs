@@ -59,7 +59,7 @@ pub fn verify_personnummer(input: &str) -> Verdict {
     } else {
         format!("{}-{}", &clean[..8], &clean[8..])
     };
-    Verdict::Valid { formatted, detected: "Swedish personnummer".into() }
+    Verdict::Valid { formatted, detected: "Swedish personnummer".into(), comment: String::new() }
 }
 
 pub fn create_personnummer(input: &str, raw: bool) -> Result<String> {
@@ -108,7 +108,7 @@ pub fn verify_sin(input: &str) -> Verdict {
         return Verdict::Invalid { reason: "Luhn check failed".into() };
     }
     let formatted = format!("{} {} {}", &clean[..3], &clean[3..6], &clean[6..]);
-    Verdict::Valid { formatted, detected: "Canadian SIN".into() }
+    Verdict::Valid { formatted, detected: "Canadian SIN".into(), comment: String::new() }
 }
 
 pub fn create_sin(input: &str, raw: bool) -> Result<String> {
@@ -139,7 +139,7 @@ pub fn verify_sa_id(input: &str) -> Verdict {
         return Verdict::Invalid { reason: "non-digit input".into() };
     }
     if luhn_verify(&clean) {
-        Verdict::Valid { formatted: clean, detected: "South African ID".into() }
+        Verdict::Valid { formatted: clean, detected: "South African ID".into(), comment: String::new() }
     } else {
         Verdict::Invalid { reason: "Luhn check failed".into() }
     }

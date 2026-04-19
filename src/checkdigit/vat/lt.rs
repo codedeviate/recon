@@ -78,6 +78,7 @@ pub fn verify_lt_vat(input: &str) -> Verdict {
         Verdict::Valid {
             formatted: format!("LT{}", clean),
             detected: "Lithuanian VAT".into(),
+            comment: String::new(),
         }
     } else {
         Verdict::Invalid {

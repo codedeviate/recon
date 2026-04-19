@@ -21,7 +21,7 @@ pub fn verify_aba(input: &str) -> Verdict {
     }
     let digits: Vec<u32> = clean.chars().map(|c| c.to_digit(10).unwrap()).collect();
     if aba_check_sum(&digits) == 0 {
-        Verdict::Valid { formatted: clean, detected: "ABA routing number".into() }
+        Verdict::Valid { formatted: clean, detected: "ABA routing number".into(), comment: String::new() }
     } else {
         Verdict::Invalid { reason: "ABA weighted mod-10 check failed".into() }
     }

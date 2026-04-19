@@ -88,6 +88,7 @@ pub fn verify_bg_egn(input: &str) -> Verdict {
         Verdict::Valid {
             formatted: clean.clone(),
             detected: "Bulgarian EGN".into(),
+            comment: String::new(),
         }
     } else {
         Verdict::Invalid {
@@ -166,6 +167,7 @@ pub fn verify_bg_bulstat(input: &str) -> Verdict {
         Some(expected) if expected == got => Verdict::Valid {
             formatted: clean.clone(),
             detected: "Bulgarian BULSTAT".into(),
+            comment: String::new(),
         },
         Some(expected) => Verdict::Invalid {
             reason: format!("BULSTAT check mismatch: expected {}, got {}", expected, got),

@@ -40,7 +40,7 @@ fn verify_fixed_len(input: &str, n: usize, name: &str, formatter: fn(&str) -> St
         return Verdict::Invalid { reason: "non-digit input".into() };
     }
     if mod10_ean_verify(&clean) {
-        Verdict::Valid { formatted: formatter(&clean), detected: name.into() }
+        Verdict::Valid { formatted: formatter(&clean), detected: name.into(), comment: String::new() }
     } else {
         Verdict::Invalid { reason: format!("{} check digit mismatch", name) }
     }

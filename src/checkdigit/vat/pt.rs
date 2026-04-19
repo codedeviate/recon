@@ -23,7 +23,7 @@ pub fn verify_pt_vat(input: &str) -> Verdict {
         return Verdict::Invalid { reason: "PT NIF: computed check digit is 10 — invalid".into() };
     }
     if expected == check {
-        Verdict::Valid { formatted: format!("PT{}", clean), detected: "Portuguese VAT (NIF)".into() }
+        Verdict::Valid { formatted: format!("PT{}", clean), detected: "Portuguese VAT (NIF)".into(), comment: String::new() }
     } else {
         Verdict::Invalid { reason: format!("PT NIF check mismatch: expected {}, got {}", expected, check) }
     }

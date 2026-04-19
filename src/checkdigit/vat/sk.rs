@@ -16,7 +16,7 @@ pub fn verify_sk_vat(input: &str) -> Verdict {
     }
     let n: u64 = clean.parse().expect("validated above");
     if n % 11 == 0 {
-        Verdict::Valid { formatted: format!("SK{}", clean), detected: "Slovak VAT".into() }
+        Verdict::Valid { formatted: format!("SK{}", clean), detected: "Slovak VAT".into(), comment: String::new() }
     } else {
         Verdict::Invalid { reason: format!("SK VAT: {} mod 11 != 0", clean) }
     }

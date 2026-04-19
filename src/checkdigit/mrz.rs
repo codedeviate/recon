@@ -104,7 +104,7 @@ pub fn verify_mrz(input: &str) -> Verdict {
         }
     }
 
-    Verdict::Valid { formatted: input.trim().to_string(), detected: detected.into() }
+    Verdict::Valid { formatted: input.trim().to_string(), detected: detected.into(), comment: String::new() }
 }
 
 pub fn create_mrz(_input: &str, _raw: bool) -> Result<String> {

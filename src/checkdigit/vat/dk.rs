@@ -20,6 +20,7 @@ pub fn verify_dk_vat(input: &str) -> Verdict {
         Verdict::Valid {
             formatted: format!("DK{}", clean),
             detected: "Danish VAT (CVR)".into(),
+            comment: String::new(),
         }
     } else {
         Verdict::Invalid { reason: "DK VAT mod-11 check failed".into() }

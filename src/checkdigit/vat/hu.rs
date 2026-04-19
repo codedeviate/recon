@@ -20,7 +20,7 @@ pub fn verify_hu_vat(input: &str) -> Verdict {
         .sum();
     let expected = (10 - sum % 10) % 10;
     if expected == check {
-        Verdict::Valid { formatted: format!("HU{}", clean), detected: "Hungarian VAT".into() }
+        Verdict::Valid { formatted: format!("HU{}", clean), detected: "Hungarian VAT".into(), comment: String::new() }
     } else {
         Verdict::Invalid { reason: format!("HU VAT check mismatch: expected {}, got {}", expected, check) }
     }

@@ -65,6 +65,7 @@ pub fn verify_cz_legal(input: &str) -> Verdict {
         Verdict::Valid {
             formatted: clean,
             detected: "Czech IČO (legal entity)".into(),
+            comment: String::new(),
         }
     } else {
         Verdict::Invalid {
@@ -107,6 +108,7 @@ pub fn verify_cz_person(input: &str) -> Verdict {
             Verdict::Valid {
                 formatted: clean,
                 detected: "Czech rodné číslo (pre-1954, no check digit)".into(),
+                comment: String::new(),
             }
         }
         10 => {
@@ -118,6 +120,7 @@ pub fn verify_cz_person(input: &str) -> Verdict {
                 Verdict::Valid {
                     formatted: clean,
                     detected: "Czech rodné číslo (personal code)".into(),
+                    comment: String::new(),
                 }
             } else {
                 Verdict::Invalid {

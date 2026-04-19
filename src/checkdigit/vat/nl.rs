@@ -53,6 +53,7 @@ pub fn verify_nl_vat(input: &str) -> Verdict {
         Verdict::Valid {
             formatted: format!("NL{}", clean),
             detected: "Dutch VAT".into(),
+            comment: String::new(),
         }
     } else {
         Verdict::Invalid { reason: "NL VAT elfproef (mod-11) check failed".into() }

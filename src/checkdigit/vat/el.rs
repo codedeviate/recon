@@ -30,6 +30,7 @@ pub fn verify_el_vat(input: &str) -> Verdict {
         Verdict::Valid {
             formatted: format!("EL{}", clean),
             detected: "Greek VAT".into(),
+            comment: String::new(),
         }
     } else {
         Verdict::Invalid {

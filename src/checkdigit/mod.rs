@@ -23,7 +23,7 @@ use anyhow::Result;
 /// Outcome of a verify operation.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Verdict {
-    Valid { formatted: String, detected: String },
+    Valid { formatted: String, detected: String, comment: String },
     Invalid { reason: String },
 }
 
@@ -88,7 +88,7 @@ pub fn run_verify(name: &str, args: &Args) -> Result<()> {
         .ok_or_else(|| anyhow::anyhow!("unknown algorithm '{}' (use --checkdigit-list)", name))?;
     let input = read_checkdigit_input(args)?;
     match (spec.verify_fn)(&input) {
-        Verdict::Valid { formatted, detected } => {
+        Verdict::Valid { formatted, detected, .. } => {
             let out = if args.raw {
                 formatted.chars().filter(|c| !c.is_whitespace() && *c != '-').collect::<String>()
             } else {

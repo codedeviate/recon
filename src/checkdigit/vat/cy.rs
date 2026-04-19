@@ -48,6 +48,7 @@ pub fn verify_cy_vat(input: &str) -> Verdict {
         Verdict::Valid {
             formatted: format!("CY{}", clean),
             detected: "Cyprus VAT".into(),
+            comment: String::new(),
         }
     } else {
         Verdict::Invalid {

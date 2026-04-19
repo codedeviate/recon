@@ -39,7 +39,7 @@ pub fn verify_at_vat(input: &str) -> Verdict {
     let expected = (10 - (s + 4) % 10) % 10;
     let clean_digits = digits.to_string();
     if expected == check {
-        Verdict::Valid { formatted: format!("AT{}", clean_digits), detected: "Austrian VAT (UID)".into() }
+        Verdict::Valid { formatted: format!("AT{}", clean_digits), detected: "Austrian VAT (UID)".into(), comment: String::new() }
     } else {
         Verdict::Invalid { reason: format!("AT VAT check mismatch: expected {}, got {}", expected, check) }
     }

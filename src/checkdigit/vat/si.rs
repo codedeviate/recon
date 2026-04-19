@@ -24,7 +24,7 @@ pub fn verify_si_vat(input: &str) -> Verdict {
         return Verdict::Invalid { reason: "SI VAT: computed check digit is 11 — invalid".into() };
     }
     if expected == check {
-        Verdict::Valid { formatted: format!("SI{}", clean), detected: "Slovenian VAT".into() }
+        Verdict::Valid { formatted: format!("SI{}", clean), detected: "Slovenian VAT".into(), comment: String::new() }
     } else {
         Verdict::Invalid { reason: format!("SI VAT check mismatch: expected {}, got {}", expected, check) }
     }

@@ -21,6 +21,7 @@ pub fn verify_lu_vat(input: &str) -> Verdict {
         Verdict::Valid {
             formatted: format!("LU{}", clean),
             detected: "Luxembourg VAT".into(),
+            comment: String::new(),
         }
     } else {
         Verdict::Invalid {

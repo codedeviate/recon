@@ -81,6 +81,7 @@ pub fn verify_ie_vat(input: &str) -> Verdict {
                 Verdict::Valid {
                     formatted: format!("IE{}", clean),
                     detected: "Irish VAT (Format 1, old)".into(),
+                    comment: String::new(),
                 }
             } else {
                 Verdict::Invalid {
@@ -123,6 +124,7 @@ pub fn verify_ie_vat(input: &str) -> Verdict {
                 Verdict::Valid {
                     formatted: format!("IE{}", clean),
                     detected: "Irish VAT (Format 2, 2013+)".into(),
+                    comment: String::new(),
                 }
             } else {
                 Verdict::Invalid {

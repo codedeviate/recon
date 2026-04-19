@@ -24,7 +24,7 @@ pub fn verify_isbn10(input: &str) -> Verdict {
     }
     if sum % 11 == 0 {
         let formatted = group_variable(&clean, &[1, 3, 5, 1], '-');
-        Verdict::Valid { formatted, detected: "ISBN-10".into() }
+        Verdict::Valid { formatted, detected: "ISBN-10".into(), comment: String::new() }
     } else {
         Verdict::Invalid { reason: "ISBN-10 mod-11 check failed".into() }
     }
@@ -73,7 +73,7 @@ pub fn verify_bsn(input: &str) -> Verdict {
         sum += weights[i] * (c.to_digit(10).unwrap() as i32);
     }
     if sum % 11 == 0 && sum != 0 {
-        Verdict::Valid { formatted: nine, detected: "Dutch BSN".into() }
+        Verdict::Valid { formatted: nine, detected: "Dutch BSN".into(), comment: String::new() }
     } else {
         Verdict::Invalid { reason: "BSN mod-11 check failed".into() }
     }
@@ -127,7 +127,7 @@ pub fn verify_cpr(input: &str) -> Verdict {
     }
     let formatted = format!("{}-{}", &clean[..6], &clean[6..]);
     if sum % 11 == 0 {
-        Verdict::Valid { formatted, detected: "Danish CPR".into() }
+        Verdict::Valid { formatted, detected: "Danish CPR".into(), comment: String::new() }
     } else {
         Verdict::Invalid { reason: "CPR mod-11 check failed (note: post-2007 CPRs may legitimately fail)".into() }
     }
@@ -187,7 +187,7 @@ pub fn verify_fodselsnummer(input: &str) -> Verdict {
     }
 
     let formatted = format!("{} {}", &clean[..6], &clean[6..]);
-    Verdict::Valid { formatted, detected: "Norwegian fødselsnummer".into() }
+    Verdict::Valid { formatted, detected: "Norwegian fødselsnummer".into(), comment: String::new() }
 }
 
 pub fn create_fodselsnummer(input: &str, raw: bool) -> Result<String> {

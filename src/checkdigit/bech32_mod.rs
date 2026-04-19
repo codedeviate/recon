@@ -17,6 +17,7 @@ pub fn verify_bech32(input: &str) -> Verdict {
         Ok((hrp, _data)) => Verdict::Valid {
             formatted: lower,
             detected: format!("bech32 (hrp '{}')", hrp),
+            comment: String::new(),
         },
         Err(e) => Verdict::Invalid { reason: format!("bech32 decode: {}", e) },
     }

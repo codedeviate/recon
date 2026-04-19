@@ -46,6 +46,7 @@ pub fn verify_with_coin_filter(input: &str, allowed: &[u8]) -> Verdict {
             Verdict::Valid {
                 formatted: clean.to_string(),
                 detected: format!("base58check ({} — {})", coin, ty),
+                comment: String::new(),
             }
         }
         Err(e) => Verdict::Invalid { reason: e.to_string() },

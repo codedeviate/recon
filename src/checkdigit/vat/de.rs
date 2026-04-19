@@ -28,6 +28,7 @@ pub fn verify_de_vat(input: &str) -> Verdict {
         Verdict::Valid {
             formatted: format!("DE{}", clean),
             detected: "German VAT (USt-IdNr)".into(),
+            comment: String::new(),
         }
     } else {
         Verdict::Invalid {

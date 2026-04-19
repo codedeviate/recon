@@ -47,6 +47,7 @@ pub fn verify_hr_vat(input: &str) -> Verdict {
         Verdict::Valid {
             formatted: format!("HR{}", clean),
             detected: "Croatian VAT (OIB)".into(),
+            comment: String::new(),
         }
     } else {
         Verdict::Invalid {

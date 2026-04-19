@@ -133,7 +133,7 @@ pub fn verify_creditcard(input: &str) -> Verdict {
     if !luhn_verify(&clean) {
         return Verdict::Invalid { reason: "Luhn check failed".into() };
     }
-    Verdict::Valid { formatted: brand.format(&clean), detected: brand.name().into() }
+    Verdict::Valid { formatted: brand.format(&clean), detected: brand.name().into(), comment: String::new() }
 }
 
 pub fn create_creditcard(input: &str, raw: bool) -> Result<String> {
@@ -184,7 +184,7 @@ pub fn verify_brand(input: &str, brand: Brand) -> Verdict {
     if !luhn_verify(&clean) {
         return Verdict::Invalid { reason: "Luhn check failed".into() };
     }
-    Verdict::Valid { formatted: brand.format(&clean), detected: brand.name().into() }
+    Verdict::Valid { formatted: brand.format(&clean), detected: brand.name().into(), comment: String::new() }
 }
 
 pub fn create_brand(input: &str, brand: Brand, raw: bool) -> Result<String> {
@@ -220,7 +220,7 @@ pub fn verify_imei(input: &str) -> Verdict {
         return Verdict::Invalid { reason: "IMEI Luhn check failed".into() };
     }
     let formatted = group_variable(&clean, &[2, 6, 6, 1], '-');
-    Verdict::Valid { formatted, detected: "IMEI".into() }
+    Verdict::Valid { formatted, detected: "IMEI".into(), comment: String::new() }
 }
 
 pub fn create_imei(input: &str, raw: bool) -> Result<String> {
@@ -265,7 +265,7 @@ mod tests {
     #[test]
     fn verify_visa_ok() {
         match verify_brand("4111 1111 1111 1111", Brand::Visa) {
-            Verdict::Valid { formatted, detected } => {
+            Verdict::Valid { formatted, detected, .. } => {
                 assert_eq!(formatted, "4111 1111 1111 1111");
                 assert_eq!(detected, "Visa");
             }

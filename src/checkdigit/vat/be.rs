@@ -14,7 +14,7 @@ pub fn verify_be_vat(input: &str) -> Verdict {
     let body: u64 = clean[..8].parse().expect("validated above");
     let check: u64 = clean[8..].parse().expect("validated above");
     if (body + check) % 97 == 0 {
-        Verdict::Valid { formatted: format!("BE{}", clean), detected: "Belgian VAT".into() }
+        Verdict::Valid { formatted: format!("BE{}", clean), detected: "Belgian VAT".into(), comment: String::new() }
     } else {
         Verdict::Invalid { reason: format!("BE VAT check failed: ({} + {}) mod 97 != 0", body, check) }
     }

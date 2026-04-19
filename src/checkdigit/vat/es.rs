@@ -107,6 +107,7 @@ pub fn verify_es_nif(input: &str) -> Verdict {
         Verdict::Valid {
             formatted: format!("ES{}", clean),
             detected: "Spanish VAT (NIF)".into(),
+            comment: String::new(),
         }
     } else {
         Verdict::Invalid {
@@ -184,6 +185,7 @@ pub fn verify_es_nie(input: &str) -> Verdict {
         Verdict::Valid {
             formatted: format!("ES{}", clean),
             detected: "Spanish VAT (NIE)".into(),
+            comment: String::new(),
         }
     } else {
         Verdict::Invalid {
@@ -276,6 +278,7 @@ pub fn verify_es_cif(input: &str) -> Verdict {
             Verdict::Valid {
                 formatted: format!("ES{}", clean),
                 detected: "Spanish VAT (CIF)".into(),
+                comment: String::new(),
             }
         } else {
             Verdict::Invalid {
@@ -299,6 +302,7 @@ pub fn verify_es_cif(input: &str) -> Verdict {
             Verdict::Valid {
                 formatted: format!("ES{}", clean),
                 detected: "Spanish VAT (CIF)".into(),
+                comment: String::new(),
             }
         } else {
             Verdict::Invalid {
@@ -415,7 +419,7 @@ mod tests {
     fn es_nif_valid_12345678z() {
         // 12345678 % 23 = 14 → NIF_LETTERS[14] = 'Z'
         match verify_es_nif("12345678Z") {
-            Verdict::Valid { detected, formatted } => {
+            Verdict::Valid { detected, formatted, .. } => {
                 assert_eq!(detected, "Spanish VAT (NIF)");
                 assert_eq!(formatted, "ES12345678Z");
             }
@@ -448,7 +452,7 @@ mod tests {
     fn es_nie_valid_x1234567l() {
         // X→0: 01234567, 1234567 % 23 = 19 → NIF_LETTERS[19] = 'L'
         match verify_es_nie("X1234567L") {
-            Verdict::Valid { detected, formatted } => {
+            Verdict::Valid { detected, formatted, .. } => {
                 assert_eq!(detected, "Spanish VAT (NIE)");
                 assert_eq!(formatted, "ESX1234567L");
             }
@@ -474,7 +478,7 @@ mod tests {
         // body=5881850: sum_doubled=15, sum_even=14, total=29, control=1 → digit '1'
         // Entity 'A' requires digit check.
         match verify_es_cif("A58818501") {
-            Verdict::Valid { detected, formatted } => {
+            Verdict::Valid { detected, formatted, .. } => {
                 assert_eq!(detected, "Spanish VAT (CIF)");
                 assert_eq!(formatted, "ESA58818501");
             }

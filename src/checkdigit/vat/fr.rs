@@ -22,6 +22,7 @@ pub fn verify_fr_vat(input: &str) -> Verdict {
             return Verdict::Valid {
                 formatted: format!("FR{}", clean),
                 detected: "French VAT (alphanumeric key — check skipped)".into(),
+                comment: String::new(),
             };
         }
     };
@@ -29,6 +30,7 @@ pub fn verify_fr_vat(input: &str) -> Verdict {
         Verdict::Valid {
             formatted: format!("FR{}", clean),
             detected: "French VAT".into(),
+            comment: String::new(),
         }
     } else {
         Verdict::Invalid {

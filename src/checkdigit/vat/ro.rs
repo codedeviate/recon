@@ -43,6 +43,7 @@ pub fn verify_ro_vat(input: &str) -> Verdict {
         Verdict::Valid {
             formatted: format!("RO{}", clean),
             detected: "Romanian VAT (CIF)".into(),
+            comment: String::new(),
         }
     } else {
         Verdict::Invalid {

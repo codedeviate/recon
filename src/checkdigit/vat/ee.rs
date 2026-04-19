@@ -17,7 +17,7 @@ pub fn verify_ee_vat(input: &str) -> Verdict {
         .map(|(i, c)| WEIGHTS[i] * c.to_digit(10).unwrap())
         .sum();
     if sum % 10 == 0 {
-        Verdict::Valid { formatted: format!("EE{}", clean), detected: "Estonian VAT".into() }
+        Verdict::Valid { formatted: format!("EE{}", clean), detected: "Estonian VAT".into(), comment: String::new() }
     } else {
         Verdict::Invalid { reason: format!("EE VAT weighted mod-10 check failed (sum {})", sum) }
     }

@@ -73,7 +73,7 @@ pub fn verify_vin(input: &str) -> Verdict {
     v2[8] = 0;  // neutralize check digit position for computation (weight is 0 anyway)
     let expected = compute_check(&v2);
     if expected == check_val {
-        Verdict::Valid { formatted: clean, detected: "VIN".into() }
+        Verdict::Valid { formatted: clean, detected: "VIN".into(), comment: String::new() }
     } else {
         let expected_c = if expected == 10 { 'X' } else { char::from_digit(expected, 10).unwrap() };
         Verdict::Invalid {
