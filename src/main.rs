@@ -688,6 +688,10 @@ fn friendly_message(err: &anyhow::Error) -> String {
         || msg.starts_with("--jwt-validate-jti")
         || msg.starts_with("Could not parse input as")
         || msg.starts_with("No input provided")
+        || msg.starts_with("mqtt:")
+        || msg.starts_with("unsupported scheme for mqtt URL")
+        || msg.starts_with("malformed mqtt URL")
+        || msg.starts_with("mqtt URL missing host")
     {
         return msg;
     }
