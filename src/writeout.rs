@@ -202,9 +202,8 @@ mod tests {
 
     #[test]
     fn unterminated_brace_treated_as_literal() {
-        // %{no closing brace → the '%' should emit literally; assert we don't crash
-        let result = parse("%{open");
-        assert!(!result.is_empty());
+        // %{no closing brace → fall through: '%' and '{' emit as literal chars.
+        assert_eq!(parse("%{open"), vec![Token::Literal("%{open".into())]);
     }
 
     #[test]
