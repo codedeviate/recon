@@ -102,7 +102,20 @@ pub fn verify_personnummer(input: &str) -> Verdict {
     } else {
         format!("{}-{}", &clean[..8], &clean[8..])
     };
-    Verdict::Valid { formatted, detected: "Swedish personnummer".into(), comment: String::new() }
+
+    let comment = match full_year {
+        Some(y) => {
+            let age = current_year().saturating_sub(y);
+            if age >= 110 {
+                format!("person \u{2265} 110 years old \u{2014} likely data entry error (born {})", y)
+            } else {
+                String::new()
+            }
+        }
+        None => String::new(),
+    };
+
+    Verdict::Valid { formatted, detected: "Swedish personnummer".into(), comment }
 }
 
 pub fn create_personnummer(input: &str, raw: bool) -> Result<String> {
@@ -371,6 +384,41 @@ mod tests {
         let full = format!("{}{}", body, cd);
         match verify_personnummer(&full) {
             Verdict::Valid { .. } => {}
+            v => panic!("{:?}", v),
+        }
+    }
+
+    #[test]
+    fn personnummer_110plus_comment() {
+        // 12-digit form pins the birth year: 1915 → age ≥ 110 by 2026.
+        use crate::checkdigit::luhn::luhn_check_digit;
+        let body10 = "150101123";  // YYMMDDNNN for Luhn computation
+        let cd = luhn_check_digit(body10).unwrap();
+        let full12 = format!("19{}{}", body10, cd);  // "19" prefix makes it 1915
+        match verify_personnummer(&full12) {
+            Verdict::Valid { comment, .. } => {
+                assert!(
+                    comment.contains("110") || comment.contains("111") || comment.contains("110 years"),
+                    "expected 110+ comment, got {:?}",
+                    comment
+                );
+                assert!(comment.contains("1915"), "expected born year in comment, got {:?}", comment);
+            }
+            v => panic!("{:?}", v),
+        }
+    }
+
+    #[test]
+    fn personnummer_young_no_comment() {
+        // A young personnummer should have an empty comment.
+        use crate::checkdigit::luhn::luhn_check_digit;
+        let body = "950101123";
+        let cd = luhn_check_digit(body).unwrap();
+        let full = format!("{}{}", body, cd);
+        match verify_personnummer(&full) {
+            Verdict::Valid { comment, .. } => {
+                assert!(comment.is_empty(), "expected empty comment, got {:?}", comment);
+            }
             v => panic!("{:?}", v),
         }
     }
