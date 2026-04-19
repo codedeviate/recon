@@ -133,19 +133,36 @@ fn send_request(
         request = request.header(reqwest::header::COOKIE, c);
     }
 
-    // Body source priority: -T (upload-file) > -d (data, unless -G).
+    // --json: auto-add Content-Type and Accept unless user-overridden via -H
+    if args.json.is_some() {
+        let user_has_content_type = args.header.iter().any(|h| {
+            h.split_once(':')
+                .map(|(n, _)| n.trim().eq_ignore_ascii_case("Content-Type"))
+                .unwrap_or(false)
+        });
+        let user_has_accept = args.header.iter().any(|h| {
+            h.split_once(':')
+                .map(|(n, _)| n.trim().eq_ignore_ascii_case("Accept"))
+                .unwrap_or(false)
+        });
+        if !user_has_content_type {
+            request = request.header("Content-Type", "application/json");
+        }
+        if !user_has_accept {
+            request = request.header("Accept", "application/json");
+        }
+    }
+
+    // Body source priority: -T (upload-file) > --json > -d (data, unless -G).
     if let Some(path) = &args.upload_file {
         let body = fs::read(path)
             .with_context(|| format!("Failed to read upload file: {}", path.display()))?;
         request = request.body(body);
+    } else if let Some(json_data) = &args.json {
+        request = request.body(load_body_from_string(json_data)?);
     } else if !args.get_data {
         if let Some(data) = &args.data {
-            let body = if let Some(path) = data.strip_prefix('@') {
-                fs::read(path).with_context(|| format!("Failed to read file: {path}"))?
-            } else {
-                data.as_bytes().to_vec()
-            };
-            request = request.body(body);
+            request = request.body(load_body_from_string(data)?);
         }
     }
 
@@ -359,4 +376,13 @@ fn parse_header(header: &str) -> Result<(String, String)> {
     let name = header[..pos].trim().to_string();
     let value = header[pos + 1..].trim().to_string();
     Ok((name, value))
+}
+
+/// Shared body loader for -d and --json: `@file` reads file, otherwise literal bytes.
+fn load_body_from_string(s: &str) -> Result<Vec<u8>> {
+    if let Some(path) = s.strip_prefix('@') {
+        fs::read(path).with_context(|| format!("Failed to read file: {path}"))
+    } else {
+        Ok(s.as_bytes().to_vec())
+    }
 }

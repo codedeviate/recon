@@ -43,6 +43,11 @@ pub struct Args {
     #[arg(short = 'd', long = "data", help_heading = "HTTP Request")]
     pub data: Option<String>,
 
+    /// Send data as JSON — auto-sets Content-Type and Accept headers. Supports
+    /// @file / @- like -d. Stacks with -d (last body wins; headers merge).
+    #[arg(long = "json", value_name = "DATA", help_heading = "HTTP Request")]
+    pub json: Option<String>,
+
     /// Upload the given local file as the request body. Defaults method to
     /// PUT unless -X is set explicitly. Mutually exclusive with -d/--data.
     #[arg(short = 'T', long = "upload-file", value_name = "PATH", help_heading = "HTTP Request")]
@@ -650,5 +655,23 @@ mod tests {
     fn effective_method_explicit_overrides_upload_put() {
         let args = Args::try_parse_from(["recon", "https://example.com/", "-T", "Cargo.toml", "-X", "POST"]).unwrap();
         assert_eq!(args.effective_method(), "POST");
+    }
+}
+
+#[cfg(test)]
+mod json_flag_tests {
+    use super::*;
+    use clap::Parser;
+
+    #[test]
+    fn parses_json_flag() {
+        let args = Args::try_parse_from(["recon", "--json", r#"{"a":1}"#, "http://x/"]).unwrap();
+        assert_eq!(args.json.as_deref(), Some(r#"{"a":1}"#));
+    }
+
+    #[test]
+    fn parses_json_at_file() {
+        let args = Args::try_parse_from(["recon", "--json", "@body.json", "http://x/"]).unwrap();
+        assert_eq!(args.json.as_deref(), Some("@body.json"));
     }
 }
