@@ -298,6 +298,9 @@ pub struct ResolvedSample {
     pub spec: SampleSpec,
     pub format: String,
     pub count: CountSpec,
+    /// Which source the sample came from (built-in, config, overridden).
+    /// Read only by unit tests to verify resolve() picks the right source.
+    #[allow(dead_code)]
     pub source_tag: SampleSource,
 }
 

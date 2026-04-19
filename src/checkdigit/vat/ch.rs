@@ -18,7 +18,7 @@
 //!   CHE-116.281.710 → sum=132, 132%11=0, check_raw=11→0, last digit=0 ✓ (check_raw=11 case)
 //!   CHE-107.787.577 → sum=191, 191%11=4, check_raw=7, last digit=7 ✓
 
-use super::super::{sanitize, Verdict};
+use super::super::Verdict;
 use anyhow::{anyhow, Result};
 
 const WEIGHTS: [u32; 8] = [5, 4, 3, 2, 7, 6, 5, 4];
