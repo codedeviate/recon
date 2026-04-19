@@ -101,13 +101,13 @@ pub fn run_verify(name: &str, args: &Args) -> Result<()> {
     };
     let input = read_checkdigit_input(args)?;
     match (spec.verify_fn)(&input) {
-        Verdict::Valid { formatted, detected, .. } => {
+        Verdict::Valid { formatted, detected, comment } => {
             let out = if args.raw {
                 formatted.chars().filter(|c| !c.is_whitespace() && *c != '-').collect::<String>()
             } else {
                 formatted
             };
-            println!("{}|{}|valid", out, detected);
+            println!("{}|{}|valid|{}", out, detected, comment);
             Ok(())
         }
         Verdict::Invalid { reason } => Err(anyhow::anyhow!("{}", reason)),
