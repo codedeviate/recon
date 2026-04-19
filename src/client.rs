@@ -135,20 +135,10 @@ fn send_request(
 
     // --json: auto-add Content-Type and Accept unless user-overridden via -H
     if args.json.is_some() {
-        let user_has_content_type = args.header.iter().any(|h| {
-            h.split_once(':')
-                .map(|(n, _)| n.trim().eq_ignore_ascii_case("Content-Type"))
-                .unwrap_or(false)
-        });
-        let user_has_accept = args.header.iter().any(|h| {
-            h.split_once(':')
-                .map(|(n, _)| n.trim().eq_ignore_ascii_case("Accept"))
-                .unwrap_or(false)
-        });
-        if !user_has_content_type {
+        if !user_has_header(&args.header, "Content-Type") {
             request = request.header("Content-Type", "application/json");
         }
-        if !user_has_accept {
+        if !user_has_header(&args.header, "Accept") {
             request = request.header("Accept", "application/json");
         }
     }
@@ -378,11 +368,27 @@ fn parse_header(header: &str) -> Result<(String, String)> {
     Ok((name, value))
 }
 
-/// Shared body loader for -d and --json: `@file` reads file, otherwise literal bytes.
+/// Shared body loader for -d and --json.
+/// - `@-` reads from stdin
+/// - `@file` reads from file
+/// - anything else is literal bytes
 fn load_body_from_string(s: &str) -> Result<Vec<u8>> {
-    if let Some(path) = s.strip_prefix('@') {
-        fs::read(path).with_context(|| format!("Failed to read file: {path}"))
-    } else {
-        Ok(s.as_bytes().to_vec())
+    if s == "@-" {
+        let mut buf = Vec::new();
+        std::io::Read::read_to_end(&mut std::io::stdin(), &mut buf)
+            .context("Failed to read body from stdin")?;
+        return Ok(buf);
     }
+    if let Some(path) = s.strip_prefix('@') {
+        return fs::read(path).with_context(|| format!("Failed to read file: {path}"));
+    }
+    Ok(s.as_bytes().to_vec())
+}
+
+fn user_has_header(headers: &[String], name: &str) -> bool {
+    headers.iter().any(|h| {
+        h.split_once(':')
+            .map(|(n, _)| n.trim().eq_ignore_ascii_case(name))
+            .unwrap_or(false)
+    })
 }

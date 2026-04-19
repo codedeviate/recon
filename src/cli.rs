@@ -670,7 +670,7 @@ mod json_flag_tests {
     }
 
     #[test]
-    fn parses_json_at_file() {
+    fn stores_json_at_file_verbatim() {
         let args = Args::try_parse_from(["recon", "--json", "@body.json", "http://x/"]).unwrap();
         assert_eq!(args.json.as_deref(), Some("@body.json"));
     }
