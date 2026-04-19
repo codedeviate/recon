@@ -191,7 +191,13 @@ pub fn write_response_to(
         None
     };
 
-    if print_body {
+    // Run the body-write inside an IIFE so we can stamp response_end even
+    // when the body I/O fails. Without this, a mid-transfer error would leave
+    // response_end = None and `-w` would report time_total = 0.
+    let body_io_result: Result<()> = (|| -> Result<()> {
+        if !print_body {
+            return Ok(());
+        }
         if args.prettify {
             let content_type_str = response
                 .headers()
@@ -245,10 +251,12 @@ pub fn write_response_to(
                 io::copy(&mut response, &mut cw)?;
             }
         }
-    }
+        Ok(())
+    })();
 
     // All exit paths below represent "body/headers done": stamp response_end once.
     metrics.response_end = Some(std::time::Instant::now());
+    body_io_result?;
 
     // --remote-time: apply Last-Modified to the saved file
     if let (Some(path), Some(mtime)) = (&final_path, last_modified_ts) {

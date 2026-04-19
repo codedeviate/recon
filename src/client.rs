@@ -84,8 +84,10 @@ pub fn execute(args: &Args) -> Result<(Response, RequestMetrics)> {
         .map(CookieJar::open)
         .transpose()?;
 
-    let mut metrics = RequestMetrics::default();
-    metrics.request_start = Some(std::time::Instant::now());
+    let mut metrics = RequestMetrics {
+        request_start: Some(std::time::Instant::now()),
+        ..RequestMetrics::default()
+    };
 
     if args.lhead {
         execute_lhead(args, &client, method, jar.as_ref(), &start_url, &mut metrics)

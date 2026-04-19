@@ -375,8 +375,12 @@ fn fmt_time(secs: f64) -> String {
     format!("{:.6}", secs)
 }
 
-/// Render %{json}: all variables as a JSON object with stable alphabetical keys.
-/// Numeric variables are typed as numbers; strings as strings.
+///// Render `%{json}`: emit all variables as a JSON object with keys sorted
+/// alphabetically. Stable ordering is intentional — don't "optimize" to
+/// HashMap iteration order; downstream tooling parses this output and curl's
+/// own `%{json}` emits alphabetically too.
+/// Numeric variables (see `NUMERIC` allowlist) are typed as JSON numbers;
+/// everything else is a string.
 fn render_json(vars: &std::collections::HashMap<String, String>) -> String {
     const NUMERIC: &[&str] = &[
         "http_code",
