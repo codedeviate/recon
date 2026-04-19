@@ -592,7 +592,9 @@ impl Args {
     /// Priority:
     ///   1. Explicit `-X/--request` if supplied.
     ///   2. PUT when `-T/--upload-file` is set.
-    ///   3. POST when `-d/--data` is present and `-G/--get` is not.
+    ///   3. POST when any body-bearing flag (`-d`, `--json`, `--data-raw`,
+    ///      `--data-binary`, `--data-urlencode`) is present and `-G/--get`
+    ///      is not. Matches curl: all five flags imply POST by default.
     ///   4. GET.
     pub fn effective_method(&self) -> String {
         if let Some(m) = &self.method {
@@ -601,7 +603,12 @@ impl Args {
         if self.upload_file.is_some() {
             return "PUT".to_string();
         }
-        if self.data.is_some() && !self.get_data {
+        let has_body_flag = self.data.is_some()
+            || self.json.is_some()
+            || self.data_raw.is_some()
+            || self.data_binary.is_some()
+            || !self.data_urlencode.is_empty();
+        if has_body_flag && !self.get_data {
             return "POST".to_string();
         }
         "GET".to_string()
@@ -698,6 +705,36 @@ mod tests {
     fn effective_method_explicit_overrides_upload_put() {
         let args = Args::try_parse_from(["recon", "https://example.com/", "-T", "Cargo.toml", "-X", "POST"]).unwrap();
         assert_eq!(args.effective_method(), "POST");
+    }
+
+    #[test]
+    fn effective_method_promotes_to_post_on_json() {
+        let args = Args::try_parse_from(["recon", "https://example.com/", "--json", "{}"]).unwrap();
+        assert_eq!(args.effective_method(), "POST");
+    }
+
+    #[test]
+    fn effective_method_promotes_to_post_on_data_raw() {
+        let args = Args::try_parse_from(["recon", "https://example.com/", "--data-raw", "x"]).unwrap();
+        assert_eq!(args.effective_method(), "POST");
+    }
+
+    #[test]
+    fn effective_method_promotes_to_post_on_data_binary() {
+        let args = Args::try_parse_from(["recon", "https://example.com/", "--data-binary", "x"]).unwrap();
+        assert_eq!(args.effective_method(), "POST");
+    }
+
+    #[test]
+    fn effective_method_promotes_to_post_on_data_urlencode() {
+        let args = Args::try_parse_from(["recon", "https://example.com/", "--data-urlencode", "a=b"]).unwrap();
+        assert_eq!(args.effective_method(), "POST");
+    }
+
+    #[test]
+    fn effective_method_json_stays_get_with_dash_g() {
+        let args = Args::try_parse_from(["recon", "https://example.com/", "--json", "{}", "-G"]).unwrap();
+        assert_eq!(args.effective_method(), "GET");
     }
 }
 
