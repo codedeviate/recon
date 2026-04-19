@@ -607,6 +607,38 @@ static SPEC_LV_BUSINESS: Spec = Spec {
     create_fn: vat::create_lv_business,
 };
 
+static SPEC_NO_VAT: Spec = Spec {
+    canonical: "no-vat",
+    aliases: &["novat"],
+    description: "Norwegian VAT / MVA (9 digits, weighted mod-11)",
+    verify_fn: vat::verify_no_vat,
+    create_fn: vat::create_no_vat,
+};
+
+static SPEC_UK_VAT: Spec = Spec {
+    canonical: "uk-vat",
+    aliases: &["ukvat", "gb-vat", "gbvat"],
+    description: "UK VAT (9 or 12 digits, dual mod-97 algorithms)",
+    verify_fn: vat::verify_uk_vat,
+    create_fn: vat::create_uk_vat,
+};
+
+static SPEC_CH_VAT: Spec = Spec {
+    canonical: "ch-vat",
+    aliases: &["chvat"],
+    description: "Swiss UID / IDE (9 digits, weighted mod-11; CHE- prefix optional)",
+    verify_fn: vat::verify_ch_vat,
+    create_fn: vat::create_ch_vat,
+};
+
+static SPEC_LI_VAT: Spec = Spec {
+    canonical: "li-vat",
+    aliases: &["livat"],
+    description: "Liechtenstein VAT (uses Swiss UID system)",
+    verify_fn: vat::verify_li_vat,
+    create_fn: vat::create_li_vat,
+};
+
 pub static SPECS: &[&Spec] = &[
     &SPEC_LUHN,
     &SPEC_CREDITCARD,
@@ -681,6 +713,10 @@ pub static SPECS: &[&Spec] = &[
     &SPEC_LV_VAT,
     &SPEC_LV_PERSONAL,
     &SPEC_LV_BUSINESS,
+    &SPEC_NO_VAT,
+    &SPEC_UK_VAT,
+    &SPEC_CH_VAT,
+    &SPEC_LI_VAT,
 ];
 
 /// Resolve a CLI keyword (canonical or alias, case-insensitive).

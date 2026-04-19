@@ -27,6 +27,10 @@ pub mod lt;
 pub mod es;
 pub mod cz;
 pub mod lv;
+pub mod no;
+pub mod uk;
+pub mod ch;
+pub mod li;
 
 pub use bg::{verify_bg_vat, create_bg_vat, verify_bg_egn, create_bg_egn, verify_bg_bulstat, create_bg_bulstat};
 pub use se::{verify_se_vat, create_se_vat};
@@ -55,6 +59,10 @@ pub use lt::{verify_lt_vat, create_lt_vat};
 pub use es::{verify_es_vat, create_es_vat, verify_es_nif, create_es_nif, verify_es_nie, create_es_nie, verify_es_cif, create_es_cif};
 pub use cz::{verify_cz_vat, create_cz_vat, verify_cz_legal, create_cz_legal, verify_cz_person, create_cz_person};
 pub use lv::{verify_lv_vat, create_lv_vat, verify_lv_personal, create_lv_personal, verify_lv_business, create_lv_business};
+pub use no::{verify_no_vat, create_no_vat};
+pub use uk::{verify_uk_vat, create_uk_vat};
+pub use ch::{verify_ch_vat, create_ch_vat};
+pub use li::{verify_li_vat, create_li_vat};
 
 use super::{sanitize, Verdict};
 
