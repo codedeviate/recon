@@ -26,6 +26,7 @@ pub struct RequestMetrics {
     /// When the full response was consumed.
     pub response_end: Option<Instant>,
     /// Cumulative time spent in redirect hops (excluding the final hop).
+    /// Zero when no redirects occurred.
     pub redirect_duration: Duration,
     /// Number of redirect hops followed.
     pub num_redirects: u32,
@@ -46,10 +47,6 @@ pub struct RequestMetrics {
 }
 
 impl RequestMetrics {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     /// Wall-clock total duration (start → end).
     pub fn time_total(&self) -> Duration {
         match (self.request_start, self.response_end) {
@@ -73,7 +70,7 @@ mod tests {
 
     #[test]
     fn defaults_are_zero() {
-        let m = RequestMetrics::new();
+        let m = RequestMetrics::default();
         assert_eq!(m.time_total(), Duration::ZERO);
         assert_eq!(m.time_starttransfer(), Duration::ZERO);
         assert_eq!(m.num_redirects, 0);
@@ -83,7 +80,7 @@ mod tests {
 
     #[test]
     fn time_total_computes_from_start_and_end() {
-        let mut m = RequestMetrics::new();
+        let mut m = RequestMetrics::default();
         let t0 = Instant::now();
         m.request_start = Some(t0);
         m.response_end = Some(t0 + Duration::from_millis(250));
@@ -92,8 +89,17 @@ mod tests {
 
     #[test]
     fn time_total_zero_without_end() {
-        let mut m = RequestMetrics::new();
+        let mut m = RequestMetrics::default();
         m.request_start = Some(Instant::now());
         assert_eq!(m.time_total(), Duration::ZERO);
+    }
+
+    #[test]
+    fn time_starttransfer_computes_from_start_and_first_byte() {
+        let mut m = RequestMetrics::default();
+        let t0 = Instant::now();
+        m.request_start = Some(t0);
+        m.first_response_byte = Some(t0 + Duration::from_millis(100));
+        assert_eq!(m.time_starttransfer(), Duration::from_millis(100));
     }
 }
