@@ -660,9 +660,28 @@ pub fn print() {
         "recon --checkdigit bech32 bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4",
     ]);
 
-    example("EU VAT", &[
-        "recon --checkdigit dk-vat 13585628    # Denmark",
-        "recon --checkdigit-create fr-vat 123456789    # France (key computed)",
+    example("EU VAT — single-algorithm countries", &[
+        "recon --checkdigit pl-vat 5261040828          # Poland (NIP)",
+        "recon --checkdigit it-vat 00743110157         # Italy (Luhn)",
+        "recon --checkdigit-create fr-vat 123456789    # France: key computed from SIREN",
+        "recon --checkdigit at-vat ATU12345675         # Austria: ATU prefix accepted",
+    ]);
+
+    example("EU VAT — multi-variant auto-detect", &[
+        "recon --checkdigit es-vat 12345678Z           # Spain: auto-detects NIF",
+        "recon --checkdigit es-vat X1234567L           # Spain: auto-detects NIE",
+        "recon --checkdigit es-vat A58818501           # Spain: auto-detects CIF",
+        "recon --checkdigit bg-vat 7523169263          # Bulgaria: auto-detects EGN",
+        "recon --checkdigit bg-vat 175074752           # Bulgaria: auto-detects BULSTAT",
+        "recon --checkdigit cz-vat 46505334            # Czech: IČO (8 digits)",
+        "recon --checkdigit cz-vat 7301011234          # Czech: rodné číslo (10)",
+    ]);
+
+    example("EU VAT — explicit sub-keyword", &[
+        "recon --checkdigit es-nif 12345678Z",
+        "recon --checkdigit bg-egn 7523169263",
+        "recon --checkdigit cz-legal 46505334",
+        "recon --checkdigit lv-business 40003032949",
     ]);
 
     example("IMEI, ABA routing, ISIN, NPI", &[

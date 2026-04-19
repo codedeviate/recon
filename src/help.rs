@@ -843,7 +843,27 @@ static TOPIC_CHECKDIGIT: Topic = Topic {
     title: "Check-Digit Verification and Computation",
     description: "Verify or compute check digits for 40 canonical identifier schemes\n\
                   (55 total lookup strings with aliases). Input comes from the normal\n\
-                  source layer: positional argument, '-' or pipe for stdin, URL, or file://.",
+                  source layer: positional argument, '-' or pipe for stdin, URL, or file://.\n\
+                  \n\
+                  EU VAT (full — 27 countries):\n\
+                    se-vat (Sweden)                at-vat (Austria)             be-vat (Belgium)\n\
+                    bg-vat (Bulgaria, auto)        cy-vat (Cyprus)              cz-vat (Czech, auto)\n\
+                    de-vat (Germany)               dk-vat (Denmark)             ee-vat (Estonia)\n\
+                    el-vat (Greece; alias gr-vat)  es-vat (Spain, auto)         fi-vat (Finland)\n\
+                    fr-vat (France)                hr-vat (Croatia)             hu-vat (Hungary)\n\
+                    ie-vat (Ireland)               it-vat (Italy)               lt-vat (Lithuania)\n\
+                    lu-vat (Luxembourg)            lv-vat (Latvia, auto)        mt-vat (Malta)\n\
+                    nl-vat (Netherlands)           pl-vat (Poland / NIP)        pt-vat (Portugal / NIF)\n\
+                    ro-vat (Romania / CIF)         si-vat (Slovenia)            sk-vat (Slovakia)\n\
+                  \n\
+                  Multi-variant sub-keywords (explicit selection):\n\
+                    es-nif, es-nie, es-cif         Spain: NIF (citizen) / NIE (foreigner) / CIF (entity)\n\
+                    bg-egn, bg-bulstat             Bulgaria: EGN (personal) / BULSTAT (legal)\n\
+                    cz-person, cz-legal            Czech: rodné číslo / IČO\n\
+                    lv-person, lv-business         Latvia: personal / business\n\
+                  \n\
+                  Non-EU European VAT — reserved for 0.18.0 (NO, UK, CH, IS, LI, RS, UA,\n\
+                  TR, RU, BY, MD, MK, ME, AL, BA, XK).",
     flags: &[
         FlagHelp {
             flags: "--checkdigit <NAME> [INPUT]",

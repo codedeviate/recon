@@ -8,6 +8,41 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-04-19
+
+### Added
+
+- Complete EU-27 VAT check-digit coverage — 22 new country algorithms:
+  - Primary keywords (auto-detect where the country has sub-variants):
+    `at-vat`, `be-vat`, `bg-vat`, `cy-vat`, `cz-vat`, `ee-vat`, `el-vat`
+    (alias `gr-vat`), `es-vat`, `hr-vat`, `hu-vat`, `ie-vat`, `it-vat`,
+    `lt-vat`, `lu-vat`, `lv-vat`, `mt-vat`, `nl-vat`, `pl-vat`, `pt-vat`,
+    `ro-vat`, `si-vat`, `sk-vat`.
+  - Explicit sub-variant keywords for multi-variant countries:
+    - Spain: `es-nif` (citizen), `es-nie` (foreigner), `es-cif` (entity).
+    - Bulgaria: `bg-egn` (personal, date-validated), `bg-bulstat` (legal).
+    - Czech Republic: `cz-person`, `cz-legal`.
+    - Latvia: `lv-person`, `lv-business`.
+- Each country uses its native algorithm — weighted mod-11, weighted
+  mod-10, mod-89, mod-97, mod-26 letter lookup, ISO 7064 MOD 11-10,
+  or Luhn. Auto-detect surfaces the matched variant in the verify
+  output's type field.
+- Help topic updated with all 27 EU VAT keywords and sub-variants.
+- ~116 new unit tests covering known VAT vectors per country.
+
+### Changed
+
+- `src/checkdigit/vat.rs` (a single file in 0.16.0) is now a directory
+  `src/checkdigit/vat/` with one file per country (27 total). Each
+  country's algorithm and tests live in a focused file. The five 0.16.0
+  countries migrated with no logic change.
+
+### Reserved for 0.18.0
+
+- Non-EU European VAT / company-ID jurisdictions — NO, UK, CH, IS, LI,
+  RS, UA, TR, RU, BY, MD, MK, ME, AL, BA, XK — will land as a follow-up
+  release.
+
 ## [0.16.0] - 2026-04-19
 
 ### Added
