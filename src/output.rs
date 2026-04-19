@@ -4,6 +4,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::blocking::Response;
 use std::fs::File;
 use std::io::{self, Write};
+use std::path::PathBuf;
 
 use crate::cli::Args;
 use crate::fail::FailMode;
@@ -146,6 +147,8 @@ pub fn write_response_to(
         ));
     }
 
+    let final_path = resolve_output_path(args, &response.url().to_string(), None)?;
+
     if print_body {
         if args.prettify {
             let content_type_str = response
@@ -157,7 +160,15 @@ pub fn write_response_to(
             let body = response.text().context("Failed to read response body")?;
             let format = crate::prettify::detect(&content_type_str, &body);
             let out_text = crate::prettify::run(&body, format).unwrap_or(body);
-            if let Some(path) = &args.output {
+            if let Some(path) = &final_path {
+                if args.create_dirs {
+                    if let Some(parent) = path.parent() {
+                        if !parent.as_os_str().is_empty() {
+                            std::fs::create_dir_all(parent)
+                                .with_context(|| format!("create-dirs failed for {}", parent.display()))?;
+                        }
+                    }
+                }
                 let mut file = File::create(path)?;
                 write!(file, "{out_text}")?;
                 if !args.silent {
@@ -174,7 +185,15 @@ pub fn write_response_to(
                 .and_then(|v| v.to_str().ok())
                 .and_then(|s| s.parse::<u64>().ok());
 
-            if let Some(path) = &args.output {
+            if let Some(path) = &final_path {
+                if args.create_dirs {
+                    if let Some(parent) = path.parent() {
+                        if !parent.as_os_str().is_empty() {
+                            std::fs::create_dir_all(parent)
+                                .with_context(|| format!("create-dirs failed for {}", parent.display()))?;
+                        }
+                    }
+                }
                 let mut file = File::create(path)?;
                 if args.progress {
                     let pb = make_progress_bar(content_length);
@@ -244,4 +263,100 @@ pub(crate) fn copy_with_progress(
         pb.inc(n as u64);
     }
     Ok(())
+}
+
+/// Resolve the final output path for the response, applying curl's precedence rules:
+/// 1. If `-o <path>` is set, use it. Prefix with `--output-dir` if set.
+/// 2. Else if `-O` is set (unit-test path only; main.rs pre-resolves -O in real runs),
+///    derive basename from Content-Disposition if `--remote-header-name` + `header_filename`
+///    set, otherwise from URL path. Prefix with `--output-dir` if set.
+/// 3. Else return None (output goes to stdout).
+pub fn resolve_output_path(
+    args: &Args,
+    url: &str,
+    header_filename: Option<&str>,
+) -> anyhow::Result<Option<PathBuf>> {
+    if let Some(explicit) = &args.output {
+        let final_path = match &args.output_dir {
+            Some(dir) => dir.join(explicit),
+            None => explicit.clone(),
+        };
+        return Ok(Some(final_path));
+    }
+
+    if args.remote_name {
+        let basename = if args.remote_header_name {
+            header_filename
+                .map(str::to_string)
+                .unwrap_or_else(|| basename_from_url(url))
+        } else {
+            basename_from_url(url)
+        };
+        let final_path = match &args.output_dir {
+            Some(dir) => dir.join(&basename),
+            None => PathBuf::from(&basename),
+        };
+        return Ok(Some(final_path));
+    }
+
+    Ok(None)
+}
+
+fn basename_from_url(url: &str) -> String {
+    let parsed = url::Url::parse(url).ok();
+    let path = parsed.as_ref().map(|u| u.path()).unwrap_or("/");
+    let last = path.rsplit('/').next().unwrap_or("").to_string();
+    if last.is_empty() {
+        "index.html".to_string()
+    } else {
+        last
+    }
+}
+
+#[cfg(test)]
+mod path_tests {
+    use super::*;
+
+    fn args_with(output: Option<&str>, output_dir: Option<&str>, remote_name: bool) -> Args {
+        let mut a = Args::test_default();
+        a.output = output.map(PathBuf::from);
+        a.output_dir = output_dir.map(PathBuf::from);
+        a.remote_name = remote_name;
+        a
+    }
+
+    #[test]
+    fn output_only_uses_path_as_is() {
+        let a = args_with(Some("file.txt"), None, false);
+        let p = resolve_output_path(&a, "https://example.com/stuff/page.html", None).unwrap();
+        assert_eq!(p, Some(PathBuf::from("file.txt")));
+    }
+
+    #[test]
+    fn output_dir_prefixes_output() {
+        let a = args_with(Some("file.txt"), Some("./dl"), false);
+        let p = resolve_output_path(&a, "https://example.com/page.html", None).unwrap();
+        assert_eq!(p, Some(PathBuf::from("./dl/file.txt")));
+    }
+
+    #[test]
+    fn remote_name_derives_basename_from_url() {
+        let a = args_with(None, None, true);
+        let p = resolve_output_path(&a, "https://example.com/downloads/archive.tar.gz", None).unwrap();
+        assert_eq!(p, Some(PathBuf::from("archive.tar.gz")));
+    }
+
+    #[test]
+    fn remote_name_with_output_dir() {
+        let a = args_with(None, Some("./dl"), true);
+        let p = resolve_output_path(&a, "https://example.com/archive.tar.gz", None).unwrap();
+        assert_eq!(p, Some(PathBuf::from("./dl/archive.tar.gz")));
+    }
+
+    #[test]
+    fn remote_name_empty_url_path_defaults_to_index() {
+        let a = args_with(None, None, true);
+        let p = resolve_output_path(&a, "https://example.com/", None).unwrap();
+        assert_eq!(p, Some(PathBuf::from("index.html")));
+    }
 }

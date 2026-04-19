@@ -133,6 +133,18 @@ pub struct Args {
     #[arg(short = 'O', long = "remote-name", help_heading = "Output")]
     pub remote_name: bool,
 
+    /// Create missing parent directories for -o output path.
+    #[arg(long = "create-dirs", help_heading = "Output")]
+    pub create_dirs: bool,
+
+    /// Prefix for -o / -O output paths (e.g., --output-dir ./dl places files there).
+    #[arg(long = "output-dir", value_name = "DIR", help_heading = "Output")]
+    pub output_dir: Option<PathBuf>,
+
+    /// Use Content-Disposition filename (RFC 6266) with -O instead of URL basename.
+    #[arg(short = 'J', long = "remote-header-name", help_heading = "Output")]
+    pub remote_header_name: bool,
+
     /// Silent mode: suppress progress and informational output
     #[arg(short = 's', long = "silent", help_heading = "Output")]
     pub silent: bool,
