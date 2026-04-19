@@ -13,6 +13,10 @@ pub mod ee;
 pub mod hu;
 pub mod at;
 pub mod be;
+pub mod lu;
+pub mod nl;
+pub mod it;
+pub mod ro;
 
 pub use se::{verify_se_vat, create_se_vat};
 pub use dk::{verify_dk_vat, create_dk_vat};
@@ -27,3 +31,7 @@ pub use ee::{verify_ee_vat, create_ee_vat};
 pub use hu::{verify_hu_vat, create_hu_vat};
 pub use at::{verify_at_vat, create_at_vat};
 pub use be::{verify_be_vat, create_be_vat};
+pub use lu::{verify_lu_vat, create_lu_vat};
+pub use nl::{verify_nl_vat, create_nl_vat};
+pub use it::{verify_it_vat, create_it_vat};
+pub use ro::{verify_ro_vat, create_ro_vat};

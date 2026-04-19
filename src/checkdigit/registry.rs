@@ -423,6 +423,38 @@ static SPEC_BE_VAT: Spec = Spec {
     create_fn: vat::create_be_vat,
 };
 
+static SPEC_LU_VAT: Spec = Spec {
+    canonical: "lu-vat",
+    aliases: &["luvat"],
+    description: "Luxembourg VAT (8 digits, last 2 = first 6 mod 89)",
+    verify_fn: vat::verify_lu_vat,
+    create_fn: vat::create_lu_vat,
+};
+
+static SPEC_NL_VAT: Spec = Spec {
+    canonical: "nl-vat",
+    aliases: &["nlvat"],
+    description: "Dutch VAT (9 digits + 'B' + 2-digit suffix, mod-11 elfproef on first 9; distinct from bsn)",
+    verify_fn: vat::verify_nl_vat,
+    create_fn: vat::create_nl_vat,
+};
+
+static SPEC_IT_VAT: Spec = Spec {
+    canonical: "it-vat",
+    aliases: &["itvat"],
+    description: "Italian VAT / partita IVA (11 digits, Luhn)",
+    verify_fn: vat::verify_it_vat,
+    create_fn: vat::create_it_vat,
+};
+
+static SPEC_RO_VAT: Spec = Spec {
+    canonical: "ro-vat",
+    aliases: &["rovat"],
+    description: "Romanian VAT / CIF (2-10 digits, weighted mod-11 with left-padding)",
+    verify_fn: vat::verify_ro_vat,
+    create_fn: vat::create_ro_vat,
+};
+
 pub static SPECS: &[&Spec] = &[
     &SPEC_LUHN,
     &SPEC_CREDITCARD,
@@ -474,6 +506,10 @@ pub static SPECS: &[&Spec] = &[
     &SPEC_HU_VAT,
     &SPEC_AT_VAT,
     &SPEC_BE_VAT,
+    &SPEC_LU_VAT,
+    &SPEC_NL_VAT,
+    &SPEC_IT_VAT,
+    &SPEC_RO_VAT,
 ];
 
 /// Resolve a CLI keyword (canonical or alias, case-insensitive).
