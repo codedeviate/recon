@@ -17,6 +17,7 @@ mod help;
 mod jwt;
 mod lorem;
 mod metrics;
+mod mqtt;
 mod netstatus;
 mod output;
 mod ping;
@@ -539,6 +540,10 @@ fn main() {
         whois::run(args.target_url())
     } else if args.has_composable() {
         run_composable(&args)
+    } else if args.target_url().starts_with("mqtt://")
+        || args.target_url().starts_with("mqtts://")
+    {
+        mqtt::run(args.target_url(), &args)
     } else if args.target_url().starts_with("scp://") {
         scp::download(args.target_url(), &args)
     } else if args.target_url().starts_with("ssh://") {
