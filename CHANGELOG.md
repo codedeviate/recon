@@ -8,6 +8,16 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-04-19
+
+### Added
+
+- `--version-short` — prints just `recon <version>` (the single-line form previously produced by `--version`). For scripts that only need the number.
+
+### Changed
+
+- `-V` / `--version` now prints a curl-compatible multi-line banner: version line with the underlying `reqwest` / `rustls` majors, `Release-Date:`, `Protocols:`, `Features:`. Enables curl-style introspection like `recon --version | grep HTTP2`. Scripts that previously matched only the first line still work (the first line still starts with `recon <version>`); scripts that expected the entire output to equal `recon <version>` should switch to `--version-short`.
+
 ## [0.20.1] - 2026-04-19
 
 ### Fixed

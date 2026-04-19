@@ -33,6 +33,7 @@ mod telnet;
 mod tls_probe;
 mod traceroute;
 mod util;
+mod version;
 mod whois;
 
 use clap::{CommandFactory, Parser};
@@ -59,6 +60,21 @@ fn main() {
                     return;
                 }
             }
+        }
+    }
+
+    // --version / -V / --version-short don't require a URL; intercept before
+    // clap validates required args. --version-short takes precedence if both
+    // are passed.
+    {
+        let args: Vec<String> = std::env::args().collect();
+        if args.iter().any(|a| a == "--version-short") {
+            version::print_short();
+            return;
+        }
+        if args.iter().any(|a| a == "--version" || a == "-V") {
+            version::print_full();
+            return;
         }
     }
 

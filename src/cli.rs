@@ -582,9 +582,13 @@ pub struct Args {
     #[arg(short = 'h', long = "help", action = clap::ArgAction::Help, help_heading = "Options")]
     pub help: Option<bool>,
 
-    /// Print version
-    #[arg(short = 'V', long = "version", action = clap::ArgAction::Version, help_heading = "Options")]
-    pub version: Option<bool>,
+    /// Print version banner (curl-compatible multi-line format)
+    #[arg(short = 'V', long = "version", help_heading = "Options")]
+    pub version: bool,
+
+    /// Print just the version number (e.g. "recon 0.21.0")
+    #[arg(long = "version-short", help_heading = "Options")]
+    pub version_short: bool,
 }
 
 impl Args {
