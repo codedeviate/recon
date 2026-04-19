@@ -694,6 +694,21 @@ pub fn print() {
         "recon --checkdigit se-vat 556036079302        # comment: 'suffix 02 (unusual)'",
     ]);
 
+    example("Non-EU European VAT — single-algorithm", &[
+        "recon --checkdigit no-vat 974760673             # Norway MVA",
+        "recon --checkdigit uk-vat GB333289454           # UK VAT (GB prefix accepted)",
+        "recon --checkdigit ch-vat CHE-100.155.212       # Swiss UID",
+        "recon --checkdigit rs-vat 101134702             # Serbia PIB",
+        "recon --checkdigit tr-vat 0010213576            # Turkey VKN",
+    ]);
+
+    example("Non-EU European VAT — multi-variant auto-detect", &[
+        "recon --checkdigit ru-vat 7830002293            # Russia: auto-detects legal (10)",
+        "recon --checkdigit ru-vat 500100732259          # Russia: auto-detects individual (12)",
+        "recon --checkdigit ua-vat 32855961              # Ukraine: auto-detects EDRPOU (8)",
+        "recon --checkdigit ua-vat 1759013776            # Ukraine: auto-detects RNOKPP (10)",
+    ]);
+
     example("IMEI, ABA routing, ISIN, NPI", &[
         "recon --checkdigit imei 490154203237518",
         "recon --checkdigit aba 122105155",

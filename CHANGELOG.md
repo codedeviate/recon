@@ -8,6 +8,50 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-04-19
+
+### Added
+
+- Non-EU European VAT check-digit support — 13 new country primary keywords:
+  - `no-vat` — Norway MVA / orgnr (9 digits, weighted mod-11).
+  - `uk-vat` (aliases `ukvat`, `gb-vat`, `gbvat`) — UK VAT (9 or 12 digits);
+    dual algorithm (classic mod-97 + 97-55). Post-Brexit GB prefix accepted.
+  - `ch-vat` — Swiss UID / IDE (9 digits, weighted mod-11); `CHE-` prefix
+    and optional `MWST`/`IVA`/`TVA` suffix handled locally.
+  - `li-vat` — Liechtenstein (uses the Swiss UID system; thin wrapper).
+  - `ru-vat` — Russian INN; auto-detect 10-digit legal / 12-digit individual.
+  - `ru-legal`, `ru-individual` — explicit sub-keywords for Russia.
+  - `rs-vat` — Serbian PIB (9 digits, ISO 7064 MOD 11,10).
+  - `is-vat` — Icelandic kennitala (10 digits, weighted mod-11).
+  - `ua-vat` — Ukrainian; auto-detect 8-digit EDRPOU / 10-digit RNOKPP.
+  - `ua-legal`, `ua-individual` — explicit sub-keywords for Ukraine.
+  - `tr-vat` — Turkish VKN (10 digits, position-specific transforms).
+  - `md-vat` — Moldovan IDNO (13 digits, weighted mod-10).
+  - `by-vat` — Belarusian UNP (9 chars, weighted mod-11; alphanumeric
+    second-character variant supported).
+  - `mk-vat` — North Macedonian EDB (13 digits, weighted mod-11).
+  - `me-vat` — Montenegrin PIB (8 digits, weighted mod-11).
+- `KNOWN_PREFIXES` grew from 28 (EU-27 + GR) to 42 with the 14 non-EU
+  European codes added. `strip_vat_prefix` gained a `GB ↔ UK` alias (mirror
+  of the existing `EL ↔ GR` pattern).
+
+### Not implemented
+
+The following jurisdictions were researched but deferred because no
+verifiable algorithmic check digit could be found:
+
+- `al-vat` — Albania NIPT. The check letter algorithm is not publicly
+  documented; stdnum-js's `al/nipt.ts` explicitly marks the check
+  calculation as "not understood".
+- `ba-vat` — Bosnia and Herzegovina JIB. No check digit algorithm found
+  in any accessible source; neither python-stdnum nor stdnum-js has a
+  module.
+- `xk-vat` — Kosovo NUI. Newer system (introduced ~2019); no public
+  algorithm documentation; no stdnum module exists.
+
+These may ship in a future release if authoritative algorithm documentation
+becomes available.
+
 ## [0.18.0] - 2026-04-19
 
 ### Breaking

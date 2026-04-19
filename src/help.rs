@@ -862,8 +862,21 @@ static TOPIC_CHECKDIGIT: Topic = Topic {
                     cz-person, cz-legal            Czech: rodné číslo / IČO\n\
                     lv-person, lv-business         Latvia: personal / business\n\
                   \n\
-                  Non-EU European VAT — reserved for 0.19.0 (NO, UK, CH, IS, LI, RS, UA,\n\
-                  TR, RU, BY, MD, MK, ME, AL, BA, XK).\n\
+                  Non-EU European VAT (13 jurisdictions):\n\
+                    no-vat (Norway MVA)                   uk-vat (UK; aliases gb-vat, gbvat)\n\
+                    ch-vat (Switzerland UID)              li-vat (Liechtenstein, shares CH alg.)\n\
+                    ru-vat (Russia INN, auto-detect)      rs-vat (Serbia PIB)\n\
+                    is-vat (Iceland kennitala)            ua-vat (Ukraine, auto-detect)\n\
+                    tr-vat (Turkey VKN)                   md-vat (Moldova IDNO)\n\
+                    by-vat (Belarus UNP, alphanumeric OK) mk-vat (North Macedonia EDB)\n\
+                    me-vat (Montenegro PIB)\n\
+                  \n\
+                  Multi-variant sub-keywords (non-EU):\n\
+                    ru-legal, ru-individual               Russia INN: 10-digit legal / 12-digit individual\n\
+                    ua-legal, ua-individual               Ukraine: 8-digit EDRPOU / 10-digit RNOKPP\n\
+                  \n\
+                  Not implemented in 0.19.0 (no verified algorithm found):\n\
+                    Albania NIPT, Bosnia JIB, Kosovo NUI.\n\
                   \n\
                   Output format (verify):\n\
                     <formatted>|<type>|<valid|invalid>|<comment>\n\

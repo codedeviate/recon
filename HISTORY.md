@@ -52,6 +52,24 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 23. Non-EU European VAT Check-Digit Support (0.19.0)
+
+13 new country-code VAT / company-ID check-digit algorithms covering the non-EU
+European jurisdictions (NO, UK, CH, LI, RU, RS, IS, UA, TR, MD, BY, MK, ME).
+
+- Four multi-variant algorithms with auto-detection: `ru-vat` (10-digit legal / 12-digit
+  individual), `ua-vat` (8-digit EDRPOU / 10-digit RNOKPP), each with explicit
+  sub-keywords (`ru-legal`, `ru-individual`, `ua-legal`, `ua-individual`).
+- UK VAT supports dual check-digit algorithms (classic mod-97 and 97-55) and
+  accepts both `GB` and `UK` prefixes on input (`GB ↔ UK` alias mirroring `EL ↔ GR`).
+- Swiss UID handles `CHE-` prefix and optional `MWST`/`IVA`/`TVA` suffix; Liechtenstein
+  is a thin wrapper over the same algorithm.
+- `KNOWN_PREFIXES` grew from 28 to 42 with the 14 new non-EU country codes.
+- Three jurisdictions deferred: Albania NIPT (no verified check letter algorithm),
+  Bosnia JIB (no algorithm in any public source), Kosovo NUI (no public documentation).
+
+---
+
 ### 22. JWT Tokens (`--jwt-view`, `--jwt-sign`, `--jwt-validate`) (0.6.0)
 
 Sign, validate, and inspect JWT tokens without leaving the terminal.
