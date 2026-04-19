@@ -122,6 +122,10 @@ pub struct Args {
     #[arg(short = 'f', long = "fail", help_heading = "Output")]
     pub fail_on_error: bool,
 
+    /// Like -f, but also write the response body to stdout/file on HTTP errors
+    #[arg(long = "fail-with-body", help_heading = "Output")]
+    pub fail_with_body: bool,
+
     /// Print only the HTTP status code
     #[arg(short = 'S', long = "status", help_heading = "Output")]
     pub status_only: bool,
@@ -590,6 +594,14 @@ impl Args {
     /// Returns the count of exclusive flags set (for mutual exclusion check).
     pub fn exclusive_count(&self) -> usize {
         [self.ping, self.traceroute, self.whois].iter().filter(|&&f| f).count()
+    }
+}
+
+#[cfg(test)]
+impl Args {
+    pub fn test_default() -> Self {
+        use clap::Parser;
+        Args::try_parse_from(["recon", "http://example.com/"]).expect("test default parses")
     }
 }
 

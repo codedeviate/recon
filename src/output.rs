@@ -133,7 +133,9 @@ pub fn write_response_to(
         }
     }
 
-    if args.fail_on_error && status.as_u16() >= 400 {
+    use crate::fail::FailMode;
+    let fail_mode = FailMode::from_args(args);
+    if fail_mode == FailMode::OnError && status.as_u16() >= 400 {
         return Err(anyhow!(
             "HTTP error {} {}",
             status.as_u16(),

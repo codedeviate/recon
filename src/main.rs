@@ -11,6 +11,7 @@ mod encode;
 mod checkdigit;
 mod encrypt;
 mod examples;
+mod fail;
 mod hash;
 mod help;
 mod jwt;
