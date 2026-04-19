@@ -158,6 +158,17 @@ pub fn write_response_to(
     };
     let final_path = resolve_output_path(args, response.url().as_str(), cd_filename.as_deref())?;
 
+    // Capture Last-Modified now before the body consumes `response`.
+    let last_modified_ts: Option<i64> = if args.remote_time {
+        response
+            .headers()
+            .get(reqwest::header::LAST_MODIFIED)
+            .and_then(|v| v.to_str().ok())
+            .and_then(parse_http_date)
+    } else {
+        None
+    };
+
     if print_body {
         if args.prettify {
             let content_type_str = response
@@ -209,6 +220,12 @@ pub fn write_response_to(
                 io::copy(&mut response, &mut out)?;
             }
         }
+    }
+
+    // --remote-time: apply Last-Modified to the saved file
+    if let (Some(path), Some(mtime)) = (&final_path, last_modified_ts) {
+        let ft = filetime::FileTime::from_unix_time(mtime, 0);
+        let _ = filetime::set_file_mtime(path, ft); // silent no-op on failure
     }
 
     // --fail-with-body: body written above, NOW return error so process exits non-zero
@@ -333,6 +350,15 @@ fn basename_from_url(url: &str) -> String {
     } else {
         last
     }
+}
+
+/// Parse an HTTP-date (RFC 7231 §7.1.1.1): IMF-fixdate, RFC 850, asctime.
+/// Returns Unix timestamp (seconds since epoch) or None.
+fn parse_http_date(s: &str) -> Option<i64> {
+    httpdate::parse_http_date(s)
+        .ok()
+        .and_then(|sys| sys.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs() as i64)
 }
 
 #[cfg(test)]

@@ -145,6 +145,10 @@ pub struct Args {
     #[arg(short = 'J', long = "remote-header-name", help_heading = "Output")]
     pub remote_header_name: bool,
 
+    /// Apply response Last-Modified as mtime on saved output file.
+    #[arg(long = "remote-time", help_heading = "Output")]
+    pub remote_time: bool,
+
     /// Silent mode: suppress progress and informational output
     #[arg(short = 's', long = "silent", help_heading = "Output")]
     pub silent: bool,
