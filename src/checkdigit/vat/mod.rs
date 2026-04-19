@@ -33,6 +33,9 @@ pub mod ch;
 pub mod li;
 pub mod ru;
 pub mod rs;
+pub mod is;
+pub mod ua;
+pub mod tr;
 
 pub use bg::{verify_bg_vat, create_bg_vat, verify_bg_egn, create_bg_egn, verify_bg_bulstat, create_bg_bulstat};
 pub use se::{verify_se_vat, create_se_vat};
@@ -67,6 +70,9 @@ pub use ch::{verify_ch_vat, create_ch_vat};
 pub use li::{verify_li_vat, create_li_vat};
 pub use ru::{verify_ru_vat, create_ru_vat, verify_ru_legal, create_ru_legal, verify_ru_individual, create_ru_individual};
 pub use rs::{verify_rs_vat, create_rs_vat};
+pub use is::{verify_is_vat, create_is_vat};
+pub use ua::{verify_ua_vat, create_ua_vat, verify_ua_legal, create_ua_legal, verify_ua_individual, create_ua_individual};
+pub use tr::{verify_tr_vat, create_tr_vat};
 
 use super::{sanitize, Verdict};
 

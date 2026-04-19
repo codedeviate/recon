@@ -671,6 +671,46 @@ static SPEC_RS_VAT: Spec = Spec {
     create_fn: vat::create_rs_vat,
 };
 
+static SPEC_IS_VAT: Spec = Spec {
+    canonical: "is-vat",
+    aliases: &["isvat"],
+    description: "Icelandic VAT / kennitala (10 digits, weighted mod-11)",
+    verify_fn: vat::verify_is_vat,
+    create_fn: vat::create_is_vat,
+};
+
+static SPEC_UA_VAT: Spec = Spec {
+    canonical: "ua-vat",
+    aliases: &["uavat"],
+    description: "Ukrainian VAT (auto-detect EDRPOU 8 digits or RNOKPP 10 digits)",
+    verify_fn: vat::verify_ua_vat,
+    create_fn: vat::create_ua_vat,
+};
+
+static SPEC_UA_LEGAL: Spec = Spec {
+    canonical: "ua-legal",
+    aliases: &[],
+    description: "Ukrainian EDRPOU — legal entity (8 digits, weighted mod-11)",
+    verify_fn: vat::verify_ua_legal,
+    create_fn: vat::create_ua_legal,
+};
+
+static SPEC_UA_INDIVIDUAL: Spec = Spec {
+    canonical: "ua-individual",
+    aliases: &[],
+    description: "Ukrainian RNOKPP — individual taxpayer (10 digits, weighted mod-11)",
+    verify_fn: vat::verify_ua_individual,
+    create_fn: vat::create_ua_individual,
+};
+
+static SPEC_TR_VAT: Spec = Spec {
+    canonical: "tr-vat",
+    aliases: &["trvat"],
+    description: "Turkish VAT / VKN (10 digits, position-specific algorithm)",
+    verify_fn: vat::verify_tr_vat,
+    create_fn: vat::create_tr_vat,
+};
+
 pub static SPECS: &[&Spec] = &[
     &SPEC_LUHN,
     &SPEC_CREDITCARD,
@@ -753,6 +793,11 @@ pub static SPECS: &[&Spec] = &[
     &SPEC_RU_LEGAL,
     &SPEC_RU_INDIVIDUAL,
     &SPEC_RS_VAT,
+    &SPEC_IS_VAT,
+    &SPEC_UA_VAT,
+    &SPEC_UA_LEGAL,
+    &SPEC_UA_INDIVIDUAL,
+    &SPEC_TR_VAT,
 ];
 
 /// Resolve a CLI keyword (canonical or alias, case-insensitive).
