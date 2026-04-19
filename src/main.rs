@@ -540,7 +540,7 @@ fn main() {
         } else {
             eprintln!("error: {}", friendly_message(&err));
         }
-        std::process::exit(1);
+        std::process::exit(exit_code_for_http_error(&err));
     }
 }
 
@@ -597,6 +597,24 @@ fn run_cookie_mgmt(args: &Args, jar_name: &str) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+/// Returns the curl-compatible exit code for a given error.
+/// - 28 CURLE_OPERATION_TIMEDOUT
+/// - 7  CURLE_COULDNT_CONNECT
+/// - 1  generic failure (default)
+fn exit_code_for_http_error(e: &anyhow::Error) -> i32 {
+    for cause in e.chain() {
+        if let Some(rq_err) = cause.downcast_ref::<reqwest::Error>() {
+            if rq_err.is_timeout() {
+                return 28;
+            }
+            if rq_err.is_connect() {
+                return 7;
+            }
+        }
+    }
+    1
 }
 
 fn friendly_message(err: &anyhow::Error) -> String {

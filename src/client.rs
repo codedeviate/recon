@@ -16,7 +16,12 @@ pub fn execute(args: &Args) -> Result<Response> {
     let mut builder = Client::builder()
         .use_rustls_tls()
         .danger_accept_invalid_certs(args.insecure)
-        .timeout(Duration::from_secs(args.timeout));
+        .connect_timeout(Duration::from_secs(args.timeout));
+
+    // --max-time: total operation timeout. Accepts fractional seconds.
+    if let Some(max) = args.max_time {
+        builder = builder.timeout(Duration::from_millis((max * 1000.0) as u64));
+    }
 
     // --LHEAD follows redirects manually; otherwise use reqwest's built-in policy
     builder = builder.redirect(if args.follow_redirects && !args.lhead {

@@ -87,6 +87,11 @@ pub struct Args {
     #[arg(long = "connect-timeout", default_value_t = 30, help_heading = "HTTP Request")]
     pub timeout: u64,
 
+    /// Total operation timeout in seconds (DNS + TLS + request + body).
+    /// Accepts fractional seconds. Exit 28 on timeout.
+    #[arg(long = "max-time", value_name = "SECONDS", help_heading = "HTTP Request")]
+    pub max_time: Option<f64>,
+
     /// Send -d data as a URL query string with GET instead of as a request body
     #[arg(short = 'G', long = "get", help_heading = "HTTP Request")]
     pub get_data: bool,
