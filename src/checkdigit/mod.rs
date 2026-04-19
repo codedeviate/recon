@@ -1,8 +1,11 @@
 //! Check-digit verification and computation across 40+ identifier schemes.
 
 pub mod aba;
+pub mod base58check;
+pub mod bech32_mod;
 pub mod brand;
 pub mod country_id;
+pub mod eip55;
 pub mod format;
 pub mod iban_countries;
 pub mod luhn;

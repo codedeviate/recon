@@ -1,7 +1,10 @@
 //! Static registry of all check-digit specs. Resolve by canonical name or alias.
 
 use super::brand::Brand;
-use super::{aba, brand, country_id, luhn, mod10_ean, mod11, mod31, mod97, mrz, vin, Spec, Verdict};
+use super::{
+    aba, base58check, bech32_mod, brand, country_id, eip55, luhn, mod10_ean, mod11, mod31, mod97,
+    mrz, vin, Spec, Verdict,
+};
 use anyhow::Result;
 
 static SPEC_LUHN: Spec = Spec {
@@ -276,6 +279,46 @@ static SPEC_ABA: Spec = Spec {
     create_fn: aba::create_aba,
 };
 
+static SPEC_BTC: Spec = Spec {
+    canonical: "btc",
+    aliases: &["bitcoin"],
+    description: "Bitcoin address (base58check; P2PKH and P2SH)",
+    verify_fn: base58check::verify_btc,
+    create_fn: base58check::create_unsupported,
+};
+
+static SPEC_LTC: Spec = Spec {
+    canonical: "ltc",
+    aliases: &["litecoin"],
+    description: "Litecoin address (base58check)",
+    verify_fn: base58check::verify_ltc,
+    create_fn: base58check::create_unsupported,
+};
+
+static SPEC_DOGE: Spec = Spec {
+    canonical: "doge",
+    aliases: &["dogecoin"],
+    description: "Dogecoin address (base58check)",
+    verify_fn: base58check::verify_doge,
+    create_fn: base58check::create_unsupported,
+};
+
+static SPEC_ETH: Spec = Spec {
+    canonical: "eth",
+    aliases: &["ethereum", "eip55"],
+    description: "Ethereum address (EIP-55 mixed-case checksum)",
+    verify_fn: eip55::verify_eip55,
+    create_fn: eip55::create_eip55,
+};
+
+static SPEC_BECH32: Spec = Spec {
+    canonical: "bech32",
+    aliases: &["segwit"],
+    description: "Bech32 / SegWit address (BIP-173)",
+    verify_fn: bech32_mod::verify_bech32,
+    create_fn: bech32_mod::create_unsupported,
+};
+
 pub static SPECS: &[&Spec] = &[
     &SPEC_LUHN,
     &SPEC_CREDITCARD,
@@ -309,6 +352,11 @@ pub static SPECS: &[&Spec] = &[
     &SPEC_VIN,
     &SPEC_MRZ,
     &SPEC_ABA,
+    &SPEC_BTC,
+    &SPEC_LTC,
+    &SPEC_DOGE,
+    &SPEC_ETH,
+    &SPEC_BECH32,
 ];
 
 /// Resolve a CLI keyword (canonical or alias, case-insensitive).
