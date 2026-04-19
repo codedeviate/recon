@@ -8,6 +8,12 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.21.1] - 2026-04-19
+
+### Fixed
+
+- `--version` `Protocols:` line now lists `file` — already-supported (via `src/source.rs::resolve_file_url`, used by `--compress`, `--hash`, `--checkdigit`, etc.) but previously missing from the banner.
+
 ## [0.21.0] - 2026-04-19
 
 ### Added

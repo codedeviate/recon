@@ -12,8 +12,11 @@ const RELEASE_DATE: &str = "2026-04-19";
 const REQWEST_VERSION: &str = "0.12";
 const RUSTLS_VERSION: &str = "0.23";
 
-/// Protocols recon can speak, in the order curl prints them.
-const PROTOCOLS: &[&str] = &["http", "https", "scp", "ssh", "telnet"];
+/// Protocols recon can speak. Keep this list in sync with the URL-scheme
+/// dispatch in `main.rs` (and the `source::resolve_file_url` branch for
+/// `file://`). When adding or removing protocol support, update this list
+/// so `recon --version | grep <proto>` stays accurate.
+const PROTOCOLS: &[&str] = &["file", "http", "https", "scp", "ssh", "telnet"];
 
 /// Feature tokens. Kept curl-compatible where the concept overlaps (HTTP2,
 /// HTTPS, IPv6, SSL, gzip, deflate, brotli, zstd) and recon-specific
