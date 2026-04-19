@@ -1,6 +1,7 @@
 //! Check-digit verification and computation across 40+ identifier schemes.
 
 pub mod brand;
+pub mod country_id;
 pub mod format;
 pub mod luhn;
 pub mod registry;

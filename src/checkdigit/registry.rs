@@ -1,7 +1,7 @@
 //! Static registry of all check-digit specs. Resolve by canonical name or alias.
 
 use super::brand::Brand;
-use super::{brand, luhn, Spec, Verdict};
+use super::{brand, country_id, luhn, Spec, Verdict};
 use anyhow::Result;
 
 static SPEC_LUHN: Spec = Spec {
@@ -100,6 +100,30 @@ static SPEC_NPI: Spec = Spec {
     create_fn: luhn::create_npi,
 };
 
+static SPEC_PERSONNUMMER: Spec = Spec {
+    canonical: "personnummer",
+    aliases: &["se-id"],
+    description: "Swedish personnummer (10 or 12 digits, Luhn on last 10; + separator for ≥100 yrs)",
+    verify_fn: country_id::verify_personnummer,
+    create_fn: country_id::create_personnummer,
+};
+
+static SPEC_SIN: Spec = Spec {
+    canonical: "sin",
+    aliases: &["ca-sin"],
+    description: "Canadian Social Insurance Number (9 digits, Luhn)",
+    verify_fn: country_id::verify_sin,
+    create_fn: country_id::create_sin,
+};
+
+static SPEC_SA_ID: Spec = Spec {
+    canonical: "sa-id",
+    aliases: &[],
+    description: "South African ID (13 digits, Luhn)",
+    verify_fn: country_id::verify_sa_id,
+    create_fn: country_id::create_sa_id,
+};
+
 pub static SPECS: &[&Spec] = &[
     &SPEC_LUHN,
     &SPEC_CREDITCARD,
@@ -111,6 +135,9 @@ pub static SPECS: &[&Spec] = &[
     &SPEC_IMEI,
     &SPEC_ISIN,
     &SPEC_NPI,
+    &SPEC_PERSONNUMMER,
+    &SPEC_SIN,
+    &SPEC_SA_ID,
 ];
 
 /// Resolve a CLI keyword (canonical or alias, case-insensitive).
