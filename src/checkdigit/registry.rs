@@ -1,10 +1,17 @@
 //! Static registry of all check-digit specs. Resolve by canonical name or alias.
 
-use super::Spec;
+use super::{luhn, Spec};
 
-/// All registered Specs. Populated as algorithm modules come online.
+static SPEC_LUHN: Spec = Spec {
+    canonical: "luhn",
+    aliases: &[],
+    description: "Bare Luhn mod-10 check on any digit string",
+    verify_fn: luhn::verify_bare,
+    create_fn: luhn::create_bare,
+};
+
 pub static SPECS: &[&Spec] = &[
-    // Populated by later tasks.
+    &SPEC_LUHN,
 ];
 
 /// Resolve a CLI keyword (canonical or alias, case-insensitive).
@@ -32,7 +39,14 @@ mod tests {
     }
 
     #[test]
-    fn empty_registry_resolves_nothing() {
-        assert_eq!(SPECS.len(), 0);
+    fn resolve_luhn_returns_spec() {
+        let spec = resolve("luhn").expect("luhn should resolve");
+        assert_eq!(spec.canonical, "luhn");
+    }
+
+    #[test]
+    fn resolve_is_case_insensitive() {
+        assert!(resolve("LUHN").is_some());
+        assert!(resolve("Luhn").is_some());
     }
 }

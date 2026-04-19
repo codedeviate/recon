@@ -1,6 +1,7 @@
 //! Check-digit verification and computation across 40+ identifier schemes.
 
 pub mod format;
+pub mod luhn;
 pub mod registry;
 
 use anyhow::Result;
