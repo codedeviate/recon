@@ -39,6 +39,7 @@ pub mod tr;
 pub mod md;
 pub mod by;
 pub mod mk;
+pub mod me;
 
 pub use bg::{verify_bg_vat, create_bg_vat, verify_bg_egn, create_bg_egn, verify_bg_bulstat, create_bg_bulstat};
 pub use se::{verify_se_vat, create_se_vat};
@@ -79,6 +80,7 @@ pub use tr::{verify_tr_vat, create_tr_vat};
 pub use md::{verify_md_vat, create_md_vat};
 pub use by::{verify_by_vat, create_by_vat};
 pub use mk::{verify_mk_vat, create_mk_vat};
+pub use me::{verify_me_vat, create_me_vat};
 
 use super::{sanitize, Verdict};
 

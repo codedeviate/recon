@@ -735,6 +735,14 @@ static SPEC_MK_VAT: Spec = Spec {
     create_fn: vat::create_mk_vat,
 };
 
+static SPEC_ME_VAT: Spec = Spec {
+    canonical: "me-vat",
+    aliases: &["mevat"],
+    description: "Montenegrin PIB (8 digits, weights (8,7,6,5,4,3,2) mod-11/mod-10)",
+    verify_fn: vat::verify_me_vat,
+    create_fn: vat::create_me_vat,
+};
+
 pub static SPECS: &[&Spec] = &[
     &SPEC_LUHN,
     &SPEC_CREDITCARD,
@@ -825,6 +833,7 @@ pub static SPECS: &[&Spec] = &[
     &SPEC_MD_VAT,
     &SPEC_BY_VAT,
     &SPEC_MK_VAT,
+    &SPEC_ME_VAT,
 ];
 
 /// Resolve a CLI keyword (canonical or alias, case-insensitive).
