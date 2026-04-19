@@ -135,7 +135,10 @@ pub fn write_response_to(
     }
 
     let fail_mode = FailMode::from_args(args);
-    if fail_mode == FailMode::OnError && status.as_u16() >= 400 {
+    let is_error = status.as_u16() >= 400;
+
+    // -f: abort BEFORE body write
+    if fail_mode == FailMode::OnError && is_error {
         return Err(anyhow!(
             "HTTP error {} {}",
             status.as_u16(),
@@ -143,54 +146,60 @@ pub fn write_response_to(
         ));
     }
 
-    if !print_body {
-        return Ok(());
-    }
-
-    if args.prettify {
-        let content_type_str = response
-            .headers()
-            .get(reqwest::header::CONTENT_TYPE)
-            .and_then(|v| v.to_str().ok())
-            .unwrap_or("")
-            .to_string();
-        let body = response.text().context("Failed to read response body")?;
-        let format = crate::prettify::detect(&content_type_str, &body);
-        let out_text = crate::prettify::run(&body, format).unwrap_or(body);
-        if let Some(path) = &args.output {
-            let mut file = File::create(path)?;
-            write!(file, "{out_text}")?;
-            if !args.silent {
-                eprintln!("Saved to {}", path.display());
+    if print_body {
+        if args.prettify {
+            let content_type_str = response
+                .headers()
+                .get(reqwest::header::CONTENT_TYPE)
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("")
+                .to_string();
+            let body = response.text().context("Failed to read response body")?;
+            let format = crate::prettify::detect(&content_type_str, &body);
+            let out_text = crate::prettify::run(&body, format).unwrap_or(body);
+            if let Some(path) = &args.output {
+                let mut file = File::create(path)?;
+                write!(file, "{out_text}")?;
+                if !args.silent {
+                    eprintln!("Saved to {}", path.display());
+                }
+            } else {
+                let mut out = sink.writer();
+                write!(out, "{out_text}")?;
             }
         } else {
-            let mut out = sink.writer();
-            write!(out, "{out_text}")?;
+            let content_length = response
+                .headers()
+                .get(reqwest::header::CONTENT_LENGTH)
+                .and_then(|v| v.to_str().ok())
+                .and_then(|s| s.parse::<u64>().ok());
+
+            if let Some(path) = &args.output {
+                let mut file = File::create(path)?;
+                if args.progress {
+                    let pb = make_progress_bar(content_length);
+                    copy_with_progress(&mut response, &mut file, &pb)?;
+                    pb.finish_and_clear();
+                } else {
+                    io::copy(&mut response, &mut file)?;
+                }
+                if !args.silent {
+                    eprintln!("Saved to {}", path.display());
+                }
+            } else {
+                let mut out = sink.writer();
+                io::copy(&mut response, &mut out)?;
+            }
         }
-        return Ok(());
     }
 
-    let content_length = response
-        .headers()
-        .get(reqwest::header::CONTENT_LENGTH)
-        .and_then(|v| v.to_str().ok())
-        .and_then(|s| s.parse::<u64>().ok());
-
-    if let Some(path) = &args.output {
-        let mut file = File::create(path)?;
-        if args.progress {
-            let pb = make_progress_bar(content_length);
-            copy_with_progress(&mut response, &mut file, &pb)?;
-            pb.finish_and_clear();
-        } else {
-            io::copy(&mut response, &mut file)?;
-        }
-        if !args.silent {
-            eprintln!("Saved to {}", path.display());
-        }
-    } else {
-        let mut out = sink.writer();
-        io::copy(&mut response, &mut out)?;
+    // --fail-with-body: body written above, NOW return error so process exits non-zero
+    if fail_mode == FailMode::OnErrorKeepBody && is_error {
+        return Err(anyhow!(
+            "HTTP error {} {}",
+            status.as_u16(),
+            status.canonical_reason().unwrap_or("")
+        ));
     }
 
     Ok(())
