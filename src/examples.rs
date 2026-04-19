@@ -608,6 +608,81 @@ pub fn print() {
     ]);
     note("The --passphrase <TEXT> flag is intentionally not offered (secrets on the command line leak to process lists and shell history). Use --passphrase-file, $RECON_PASSPHRASE, or the interactive prompt.");
 
+    section("CHECK DIGITS");
+
+    example("Verify a credit card number", &[
+        "recon --checkdigit creditcard 4111111111111111",
+        "recon --checkdigit visa 4111111111111111",
+        "recon --checkdigit amex 378282246310005",
+    ]);
+
+    example("Create a credit card number from 15 body digits", &[
+        "recon --checkdigit-create visa 411111111111111",
+        "recon --checkdigit-create amex 37828224631000",
+    ]);
+
+    example("IBAN verification (accepts spaces in input)", &[
+        "recon --checkdigit iban SE3550000000054910000003",
+        "recon --checkdigit iban 'SE35 5000 0000 0549 1000 0003'",
+        "recon --checkdigit iban GB82WEST12345698765432",
+    ]);
+
+    example("Create an IBAN — accepts both placeholder and omit form", &[
+        "recon --checkdigit-create iban SE0050000000054910000003",
+        "recon --checkdigit-create iban SE500000000054910000003",
+    ]);
+
+    example("Swedish personnummer (10 or 12 digits, + separator for >=100 yrs)", &[
+        "recon --checkdigit personnummer 811228-9874",
+        "recon --checkdigit personnummer 19811228-9874",
+        "recon --checkdigit-create personnummer 811228987",
+    ]);
+
+    example("Other national IDs", &[
+        "recon --checkdigit fodselsnummer 15076500565    # Norway",
+        "recon --checkdigit henkilotunnus 131052-308T    # Finland",
+        "recon --checkdigit sin 046454286                # Canada",
+        "recon --checkdigit sa-id 8001015009087          # South Africa",
+    ]);
+
+    example("Vehicle Identification Number (VIN)", &[
+        "recon --checkdigit vin 1HGBH41JXMN109186",
+        "recon --checkdigit-create vin 1HGBH41JMN109186",
+    ]);
+
+    example("Passport / ID MRZ (TD1/TD2/TD3)", &[
+        "echo 'P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<\\nL898902C36UTO7408122F1204159ZE184226B<<<<<10' | recon --checkdigit mrz",
+    ]);
+
+    example("Cryptocurrency addresses", &[
+        "recon --checkdigit btc 1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa",
+        "recon --checkdigit eth 0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+        "recon --checkdigit bech32 bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4",
+    ]);
+
+    example("EU VAT", &[
+        "recon --checkdigit dk-vat 13585628    # Denmark",
+        "recon --checkdigit-create fr-vat 123456789    # France (key computed)",
+    ]);
+
+    example("IMEI, ABA routing, ISIN, NPI", &[
+        "recon --checkdigit imei 490154203237518",
+        "recon --checkdigit aba 122105155",
+        "recon --checkdigit isin US0378331005",
+        "recon --checkdigit npi 1234567893",
+    ]);
+
+    example("List all supported algorithms", &[
+        "recon --checkdigit-list",
+    ]);
+
+    example("Raw output (strip grouping/hyphens)", &[
+        "recon --checkdigit creditcard 4111111111111111 --raw",
+        "recon --checkdigit-create iban SE500000000054910000003 --raw",
+    ]);
+
+    note("Verify output format: <formatted>|<type>|<valid|invalid>. Exit 0 valid, 1 invalid, 2 misuse.");
+
     section("SAMPLE DATA");
 
     example("10 customers in JSON (default)", &[

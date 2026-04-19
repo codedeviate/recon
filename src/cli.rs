@@ -21,7 +21,7 @@ pub struct Args {
     // ── Positional (renders under Arguments; no help_heading) ────────────────
 
     /// URL to request (or use --url)
-    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni", "jwt_view", "jwt_sign", "jwt_validate", "netstatus", "editor_cleanup", "sample", "sample_list", "hash", "hash_list", "compress", "decompress", "compress_list", "encode", "encode_list", "encrypt", "decrypt", "encrypt_keygen"])]
+    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni", "jwt_view", "jwt_sign", "jwt_validate", "netstatus", "editor_cleanup", "sample", "sample_list", "hash", "hash_list", "compress", "decompress", "compress_list", "encode", "encode_list", "encrypt", "decrypt", "encrypt_keygen", "checkdigit", "checkdigit_create", "checkdigit_list"])]
     pub url: Option<String>,
 
     // ── HTTP Request ─────────────────────────────────────────────────────────
@@ -450,6 +450,25 @@ pub struct Args {
     /// Generate a fresh X25519 key pair (age-compatible) and print it (standalone action).
     #[arg(long = "encrypt-keygen", help_heading = "Encryption")]
     pub encrypt_keygen: bool,
+
+    // ── Check Digits ─────────────────────────────────────────────────────────
+
+    /// Verify a check digit. Value is the algorithm keyword (luhn, visa, iban, …).
+    /// Use --checkdigit-list to see all supported keywords.
+    #[arg(long = "checkdigit", value_name = "NAME", help_heading = "Check Digits")]
+    pub checkdigit: Option<String>,
+
+    /// Compute and append/insert a check digit. Value is the algorithm keyword.
+    #[arg(long = "checkdigit-create", value_name = "NAME", help_heading = "Check Digits")]
+    pub checkdigit_create: Option<String>,
+
+    /// List all supported check-digit algorithms and exit (standalone action).
+    #[arg(long = "checkdigit-list", help_heading = "Check Digits")]
+    pub checkdigit_list: bool,
+
+    /// Print raw output without standard grouping/hyphens (applies to --checkdigit and --checkdigit-create).
+    #[arg(long = "raw", help_heading = "Check Digits")]
+    pub raw: bool,
 
     // ── Sample Data ──────────────────────────────────────────────────────────
 

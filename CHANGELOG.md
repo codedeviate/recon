@@ -12,11 +12,49 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ### Added
 
-- Foundation for `--checkdigit` / `--checkdigit-create` feature: new
-  `src/checkdigit/` module with `Spec`, `Verdict`, `sanitize()`, format
-  helpers (`group_fixed`, `group_variable`), and an empty algorithm registry.
-  Algorithm modules follow in subsequent tasks.
-- New dependencies: `bs58 = "0.5"`, `bech32 = "0.11"`.
+- `--checkdigit <NAME>` / `--checkdigit-create <NAME>` — verify or compute
+  check digits across 40 canonical algorithms (55 total keywords with aliases):
+  - Luhn family: `luhn`, `creditcard` (auto-detect), `visa`, `mastercard`
+    (alias `mc`), `amex`, `discover`, `jcb`, `imei`, `isin`, `npi`,
+    `personnummer` (`se-id`), `sin` (`ca-sin`), `sa-id`.
+  - EAN / GTIN family (mod 10 alternating 1×/3×): `ean13` (`ean`),
+    `ean8`, `upca` (`upc`), `upce`, `isbn13`, `gtin8`, `gtin12`,
+    `gtin13`, `gtin14` (`gtin`), `sscc`.
+  - `isbn10` — mod 11, allows `X` as check digit.
+  - Personal IDs via mod 11: `cpr` (`dk-id`), `bsn` (`nl-id`),
+    `fodselsnummer` (`no-id`, two check digits). Post-2007 Danish CPRs
+    may legitimately fail the check — noted in the help topic.
+  - `henkilotunnus` (`fi-id`) — Finnish mod-31 with extended 2023 century
+    markers (`A`-`F` for 2000s).
+  - `iban` — mod 97 with 80+ country length table.
+  - `vin` — transliterate + weighted mod 11; check at position 9; `I`,
+    `O`, `Q` disallowed.
+  - `mrz` — ICAO Doc 9303 passport / ID MRZ (TD1/TD2/TD3 formats).
+  - `aba` (`us-routing`) — US bank routing number.
+  - Cryptocurrency: `btc` (`bitcoin`), `ltc` (`litecoin`), `doge`
+    (`dogecoin`) — base58check; `eth` (`ethereum`, `eip55`) — EIP-55
+    mixed-case; `bech32` (`segwit`) — BIP-173.
+  - EU VAT starter (5 countries): `se-vat`, `dk-vat`, `fi-vat`, `de-vat`,
+    `fr-vat`. Remaining 22 EU countries + non-EU European jurisdictions
+    reserved for 0.17.0.
+- `--checkdigit-list` — standalone action: prints the full algorithm /
+  alias table.
+- `--raw` — strips grouping from output (applies to `--checkdigit` and
+  `--checkdigit-create` only).
+- New `recon --help checkdigit` help topic with complete documentation.
+- New `CHECK DIGITS` section in `recon --examples`.
+- New dependencies: `bs58 = "0.5"`, `bech32 = "0.11"`. Existing `sha2`
+  and `sha3` reused for Bitcoin SHA-256d and Ethereum Keccak-256.
+
+### Changed
+
+- New `src/checkdigit/` module directory (17 files) following the same
+  pattern as `src/email/` and `src/serve/`. 121 new unit tests.
+
+### Internal
+
+- `source::read_all` is now used by `--checkdigit` (matching `--hash` /
+  `--encrypt`'s source-layer integration).
 
 ## [0.15.2] - 2026-04-19
 

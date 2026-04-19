@@ -839,6 +839,47 @@ static TOPIC_EDITOR: Topic = Topic {
     ],
 };
 
+static TOPIC_CHECKDIGIT: Topic = Topic {
+    title: "Check-Digit Verification and Computation",
+    description: "Verify or compute check digits for 40 canonical identifier schemes\n\
+                  (55 total lookup strings with aliases). Input comes from the normal\n\
+                  source layer: positional argument, '-' or pipe for stdin, URL, or file://.",
+    flags: &[
+        FlagHelp {
+            flags: "--checkdigit <NAME> [INPUT]",
+            description: "Verify a check digit. NAME is the algorithm keyword (e.g. luhn, visa, iban).\n\
+                          Output format: <formatted>|<type>|valid\n\
+                          On invalid input, prints error to stderr and exits 1.",
+        },
+        FlagHelp {
+            flags: "--checkdigit-create <NAME> [INPUT]",
+            description: "Compute and append/insert a check digit.\n\
+                          For most algorithms the input is the body digits without the check digit.",
+        },
+        FlagHelp {
+            flags: "--checkdigit-list",
+            description: "Standalone action: print all supported algorithms and aliases.\n\
+                          Does not require a URL or input.",
+        },
+        FlagHelp {
+            flags: "--raw",
+            description: "Strip grouping characters (spaces, hyphens) from output.\n\
+                          Applies to --checkdigit and --checkdigit-create.",
+        },
+    ],
+    related: &["--hash", "--encode"],
+    examples: &[
+        ExampleHelp { description: "Verify a credit card number", command: "recon --checkdigit creditcard 4111111111111111" },
+        ExampleHelp { description: "Verify a Visa card", command: "recon --checkdigit visa 4111111111111111" },
+        ExampleHelp { description: "Verify an IBAN (spaces accepted)", command: "recon --checkdigit iban 'SE35 5000 0000 0549 1000 0003'" },
+        ExampleHelp { description: "Create an Amex check digit", command: "recon --checkdigit-create amex 37828224631000" },
+        ExampleHelp { description: "Verify a Swedish personnummer", command: "recon --checkdigit personnummer 811228-9874" },
+        ExampleHelp { description: "Verify from stdin", command: "echo '4111111111111111' | recon --checkdigit luhn" },
+        ExampleHelp { description: "List all supported algorithms", command: "recon --checkdigit-list" },
+        ExampleHelp { description: "Raw output (strip grouping)", command: "recon --checkdigit creditcard 4111111111111111 --raw" },
+    ],
+};
+
 // ── Topic resolution ─────────────────────────────────────────────────────────
 
 fn resolve_topic(key: &str) -> Option<&'static Topic> {
@@ -871,6 +912,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "editor" | "editor-output" => Some(&TOPIC_EDITOR),
         "serve" | "server" => Some(&TOPIC_SERVE),
         "serve-tls" | "serve-https" | "https-server" => Some(&TOPIC_SERVE_TLS),
+        "checkdigit" | "check-digit" | "checksum" => Some(&TOPIC_CHECKDIGIT),
         _ => None,
     }
 }
@@ -932,6 +974,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "compression",
         "encoding",
         "encryption",
+        "checkdigit",
         "sample",
         "editor",
         "serve",

@@ -322,6 +322,73 @@ fn main() {
         return;
     }
 
+    // ── --checkdigit-list ────────────────────────────────────────────────────
+    if args.checkdigit_list {
+        if args.checkdigit.is_some() || args.checkdigit_create.is_some() {
+            eprintln!("recon: --checkdigit-list is standalone; do not combine with --checkdigit / --checkdigit-create");
+            std::process::exit(2);
+        }
+        checkdigit::print_list();
+        return;
+    }
+
+    // ── --checkdigit <NAME> ─────────────────────────────────────────────────
+    if let Some(name) = &args.checkdigit.clone() {
+        let mutex: &[(&str, bool)] = &[
+            ("--hash", args.hash.is_some()),
+            ("--compress", args.compress.is_some()),
+            ("--decompress", args.decompress.is_some()),
+            ("--encode", args.encode.is_some()),
+            ("--encrypt", args.encrypt),
+            ("--decrypt", args.decrypt),
+            ("-O/--remote-name", args.remote_name),
+            ("--sample", args.sample.is_some()),
+            ("--editor", args.editor.is_some()),
+            ("--checkdigit-create", args.checkdigit_create.is_some()),
+        ];
+        for (other, present) in mutex {
+            if *present {
+                eprintln!("recon: --checkdigit and {} are mutually exclusive", other);
+                std::process::exit(2);
+            }
+        }
+        match checkdigit::run_verify(name, &args) {
+            Ok(()) => return,
+            Err(e) => {
+                eprintln!("recon: --checkdigit: {}", e);
+                std::process::exit(1);
+            }
+        }
+    }
+
+    // ── --checkdigit-create <NAME> ──────────────────────────────────────────
+    if let Some(name) = &args.checkdigit_create.clone() {
+        let mutex: &[(&str, bool)] = &[
+            ("--hash", args.hash.is_some()),
+            ("--compress", args.compress.is_some()),
+            ("--decompress", args.decompress.is_some()),
+            ("--encode", args.encode.is_some()),
+            ("--encrypt", args.encrypt),
+            ("--decrypt", args.decrypt),
+            ("-O/--remote-name", args.remote_name),
+            ("--sample", args.sample.is_some()),
+            ("--editor", args.editor.is_some()),
+        ];
+        for (other, present) in mutex {
+            if *present {
+                eprintln!("recon: --checkdigit-create and {} are mutually exclusive", other);
+                std::process::exit(2);
+            }
+        }
+        match checkdigit::run_create(name, &args) {
+            Ok(()) => return,
+            Err(e) => {
+                eprintln!("recon: --checkdigit-create: {}", e);
+                std::process::exit(1);
+            }
+        }
+    }
+
     // ── Sample data: fetch / generate ────────────────────────────────────────
     if args.sample.is_some() {
         let result = run_sample(&args);

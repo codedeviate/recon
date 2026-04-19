@@ -39,6 +39,77 @@ pub struct Spec {
     pub create_fn: fn(&str, raw: bool) -> Result<String>,
 }
 
+use crate::cli::Args;
+use crate::source;
+
+/// Read check-digit input from args.
+///
+/// If the positional argument looks like a literal identifier value (not a
+/// file path, not a URL, and not "-"), use it directly as the input string.
+/// Otherwise delegate to the normal source layer (file, file://, http://, stdin).
+fn read_checkdigit_input(args: &Args) -> Result<String> {
+    let positional = args.target_url();
+
+    if !positional.is_empty() && positional != "-" {
+        let lower = positional.to_ascii_lowercase();
+        let is_url = lower.starts_with("http://")
+            || lower.starts_with("https://")
+            || lower.starts_with("file://");
+        let is_path = positional.starts_with('/')
+            || positional.starts_with("..");
+        if !is_url && !is_path && !std::path::Path::new(positional).exists() {
+            // Treat it as a literal value.
+            return Ok(positional.to_string());
+        }
+    }
+
+    // Fall back to source layer (stdin pipe, file, URL, file://).
+    let bytes = source::read_all(args)?;
+    std::str::from_utf8(&bytes)
+        .map(|s| s.to_string())
+        .map_err(|_| anyhow::anyhow!("input is not valid UTF-8"))
+}
+
+pub fn print_list() {
+    println!("\nCheck-digit algorithms supported by recon:\n");
+    for spec in registry::SPECS {
+        let aliases = if spec.aliases.is_empty() {
+            String::new()
+        } else {
+            format!(" ({})", spec.aliases.join(", "))
+        };
+        println!("  {:18}{:20}  {}", spec.canonical, aliases, spec.description);
+    }
+    println!();
+}
+
+pub fn run_verify(name: &str, args: &Args) -> Result<()> {
+    let spec = registry::resolve(name)
+        .ok_or_else(|| anyhow::anyhow!("unknown algorithm '{}' (use --checkdigit-list)", name))?;
+    let input = read_checkdigit_input(args)?;
+    match (spec.verify_fn)(&input) {
+        Verdict::Valid { formatted, detected } => {
+            let out = if args.raw {
+                formatted.chars().filter(|c| !c.is_whitespace() && *c != '-').collect::<String>()
+            } else {
+                formatted
+            };
+            println!("{}|{}|valid", out, detected);
+            Ok(())
+        }
+        Verdict::Invalid { reason } => Err(anyhow::anyhow!("{}", reason)),
+    }
+}
+
+pub fn run_create(name: &str, args: &Args) -> Result<()> {
+    let spec = registry::resolve(name)
+        .ok_or_else(|| anyhow::anyhow!("unknown algorithm '{}' (use --checkdigit-list)", name))?;
+    let input = read_checkdigit_input(args)?;
+    let out = (spec.create_fn)(input.trim(), args.raw)?;
+    println!("{}", out);
+    Ok(())
+}
+
 /// Strip whitespace, hyphens, en-dashes, NBSP, dots. Uppercase A-Z/a-z if `upper`.
 pub fn sanitize(input: &str, upper: bool) -> String {
     let mut out = String::with_capacity(input.len());
