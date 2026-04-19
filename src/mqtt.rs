@@ -1,8 +1,8 @@
 //! MQTT client: probe, publish, subscribe.
 //!
-//! Dispatched from `main.rs` on `mqtt://` and `mqtts://` URLs. See the
-//! design document at:
-//! /Users/thomas/Development/Starweb/superpowers/recon/specs/2026-04-19-mqtt-support-design.md
+//! Dispatched from `main.rs` on `mqtt://` and `mqtts://` URLs. Three modes
+//! gated by CLI flags: probe (default), publish (with `-d` + topic in URL),
+//! subscribe (with `--subscribe <filter>`).
 
 use anyhow::{anyhow, Result};
 
