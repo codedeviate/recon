@@ -119,9 +119,10 @@ pub fn dispatch_mode(args: &Args, cfg: &MqttConfig) -> Result<Mode> {
 
 fn generate_client_id() -> String {
     use rand::Rng;
+    let mut rng = rand::thread_rng();
     let suffix: String = (0..6)
         .map(|_| {
-            let n: u8 = rand::thread_rng().gen_range(0..16);
+            let n: u8 = rng.gen_range(0..16);
             if n < 10 {
                 (b'0' + n) as char
             } else {
