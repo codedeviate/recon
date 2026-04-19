@@ -100,6 +100,14 @@ fn sanitize_digits_or_error(input: &str) -> Result<String, Verdict> {
     Ok(clean)
 }
 
+fn sanitize_digits_or_anyhow(input: &str) -> Result<String> {
+    match sanitize_digits_or_error(input) {
+        Ok(s) => Ok(s),
+        Err(Verdict::Invalid { reason }) => Err(anyhow!("{}", reason)),
+        Err(_) => unreachable!("sanitize_digits_or_error only returns Invalid"),
+    }
+}
+
 /// Generic creditcard: auto-detect brand then validate.
 pub fn verify_creditcard(input: &str) -> Verdict {
     let clean = match sanitize_digits_or_error(input) {
@@ -129,16 +137,7 @@ pub fn verify_creditcard(input: &str) -> Verdict {
 }
 
 pub fn create_creditcard(input: &str, raw: bool) -> Result<String> {
-    let clean = sanitize(input, false);
-    if clean.is_empty() {
-        return Err(anyhow!("empty input"));
-    }
-    if clean.len() > MAX_INPUT_LEN {
-        return Err(anyhow!("input too long"));
-    }
-    if !clean.chars().all(|c| c.is_ascii_digit()) {
-        return Err(anyhow!("non-digit input"));
-    }
+    let clean = sanitize_digits_or_anyhow(input)?;
     let brand = Brand::detect(&clean);
     if brand == Brand::Unknown {
         return Err(anyhow!(
@@ -146,21 +145,12 @@ pub fn create_creditcard(input: &str, raw: bool) -> Result<String> {
             clean.get(..4).unwrap_or(&clean)
         ));
     }
-    // body length must be (target - 1); use the smallest valid length to resolve
-    let target_len = brand
-        .valid_lengths()
-        .iter()
-        .copied()
-        .find(|&n| n == clean.len() + 1)
-        .ok_or_else(|| {
-            anyhow!(
-                "body length {} doesn't produce a valid {} length ({:?})",
-                clean.len(),
-                brand.name(),
-                brand.valid_lengths()
-            )
-        })?;
-    let _ = target_len; // just length-validated
+    if !brand.valid_lengths().iter().any(|&n| n == clean.len() + 1) {
+        return Err(anyhow!(
+            "body length {} doesn't produce a valid {} length ({:?})",
+            clean.len(), brand.name(), brand.valid_lengths()
+        ));
+    }
     let cd = luhn_check_digit(&clean)?;
     let full = format!("{}{}", clean, cd);
     if raw { Ok(full) } else { Ok(brand.format(&full)) }
@@ -198,16 +188,7 @@ pub fn verify_brand(input: &str, brand: Brand) -> Verdict {
 }
 
 pub fn create_brand(input: &str, brand: Brand, raw: bool) -> Result<String> {
-    let clean = sanitize(input, false);
-    if clean.is_empty() {
-        return Err(anyhow!("empty input"));
-    }
-    if clean.len() > MAX_INPUT_LEN {
-        return Err(anyhow!("input too long"));
-    }
-    if !clean.chars().all(|c| c.is_ascii_digit()) {
-        return Err(anyhow!("non-digit input"));
-    }
+    let clean = sanitize_digits_or_anyhow(input)?;
     if !brand.valid_lengths().iter().any(|&n| n == clean.len() + 1) {
         return Err(anyhow!(
             "body length {} doesn't produce a valid {} length ({:?})",
@@ -221,7 +202,10 @@ pub fn create_brand(input: &str, brand: Brand, raw: bool) -> Result<String> {
     if raw { Ok(full) } else { Ok(brand.format(&full)) }
 }
 
-/// IMEI: 15 digits, Luhn, format XX-XXXXXX-XXXXXX-X.
+/// IMEI: 15 digits, Luhn. Formatted as `XX-XXXXXX-XXXXXX-X` (traditional
+/// consumer-facing display — RBI | TAC-remainder | SNR | check-digit; the
+/// current 3GPP structural split is TAC(8) | SNR(6) | CD(1), but the
+/// traditional grouping is what users expect to see).
 pub fn verify_imei(input: &str) -> Verdict {
     let clean = match sanitize_digits_or_error(input) {
         Ok(c) => c,
@@ -240,15 +224,9 @@ pub fn verify_imei(input: &str) -> Verdict {
 }
 
 pub fn create_imei(input: &str, raw: bool) -> Result<String> {
-    let clean = sanitize(input, false);
-    if clean.is_empty() {
-        return Err(anyhow!("empty input"));
-    }
+    let clean = sanitize_digits_or_anyhow(input)?;
     if clean.len() != 14 {
         return Err(anyhow!("IMEI body must be 14 digits, got {}", clean.len()));
-    }
-    if !clean.chars().all(|c| c.is_ascii_digit()) {
-        return Err(anyhow!("non-digit input"));
     }
     let cd = luhn_check_digit(&clean)?;
     let full = format!("{}{}", clean, cd);
