@@ -91,6 +91,10 @@ pub struct Args {
     #[arg(short = 'G', long = "get", help_heading = "HTTP Request")]
     pub get_data: bool,
 
+    /// Request compressed response (gzip, deflate, br, zstd) and auto-decompress.
+    #[arg(long = "compressed", help_heading = "HTTP Request")]
+    pub compressed: bool,
+
     // ── Auth & TLS ───────────────────────────────────────────────────────────
 
     /// Skip TLS/SSH host key verification (insecure — equivalent to curl -k)

@@ -31,6 +31,14 @@ pub fn execute(args: &Args) -> Result<Response> {
         builder = builder.user_agent(concat!("recon/", env!("CARGO_PKG_VERSION")));
     }
 
+    if !args.compressed {
+        builder = builder
+            .no_gzip()
+            .no_deflate()
+            .no_brotli()
+            .no_zstd();
+    }
+
     let client = builder.build().context("Failed to build HTTP client")?;
     let method = resolve_method(args)?;
     let start_url = effective_url(args);
@@ -141,6 +149,11 @@ fn send_request(
         if !user_has_header(&args.header, "Accept") {
             request = request.header("Accept", "application/json");
         }
+    }
+
+    // --compressed: advertise supported encodings unless user set their own
+    if args.compressed && !user_has_header(&args.header, "Accept-Encoding") {
+        request = request.header("Accept-Encoding", "gzip, deflate, br, zstd");
     }
 
     // Body source priority: -T > --json > --data-raw > --data-binary > --data-urlencode > -d (unless -G).
