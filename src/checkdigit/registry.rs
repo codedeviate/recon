@@ -345,7 +345,7 @@ static SPEC_BG_BULSTAT: Spec = Spec {
 
 static SPEC_SE_VAT: Spec = Spec {
     canonical: "se-vat",
-    aliases: &["svat"],
+    aliases: &["sevat"],
     description: "Swedish VAT (12 digits, org.nr + '01'; Luhn on org.nr)",
     verify_fn: vat::verify_se_vat,
     create_fn: vat::create_se_vat,
@@ -353,7 +353,7 @@ static SPEC_SE_VAT: Spec = Spec {
 
 static SPEC_DK_VAT: Spec = Spec {
     canonical: "dk-vat",
-    aliases: &["dvat"],
+    aliases: &["dkvat"],
     description: "Danish VAT / CVR (8 digits, weighted mod-11 on full number)",
     verify_fn: vat::verify_dk_vat,
     create_fn: vat::create_dk_vat,
@@ -696,6 +696,66 @@ pub fn resolve(name: &str) -> Option<&'static Spec> {
         }
     }
     None
+}
+
+/// Old-alias → new-alias hints, surfaced when a user tries a deprecated keyword.
+const ALIAS_MIGRATIONS: &[(&str, &str)] = &[
+    ("svat", "sevat"),
+    ("dvat", "dkvat"),
+];
+
+/// Like `resolve(name)` but when no spec matches, checks the migration table
+/// and returns a structured hint. Callers use this to produce a friendly
+/// "did you mean 'newname'?" error.
+pub fn resolve_with_suggestion(name: &str) -> Result<&'static Spec, Option<&'static str>> {
+    if let Some(spec) = resolve(name) {
+        return Ok(spec);
+    }
+    for (old, new) in ALIAS_MIGRATIONS {
+        if old.eq_ignore_ascii_case(name) {
+            return Err(Some(new));
+        }
+    }
+    Err(None)
+}
+
+#[cfg(test)]
+mod migration_tests {
+    use super::*;
+
+    #[test]
+    fn old_svat_returns_hint() {
+        match resolve_with_suggestion("svat") {
+            Err(Some(new)) => assert_eq!(new, "sevat"),
+            _ => panic!("expected Err(Some(\"sevat\"))"),
+        }
+    }
+
+    #[test]
+    fn old_dvat_returns_hint() {
+        match resolve_with_suggestion("dvat") {
+            Err(Some(new)) => assert_eq!(new, "dkvat"),
+            _ => panic!("expected Err(Some(\"dkvat\"))"),
+        }
+    }
+
+    #[test]
+    fn new_sevat_resolves() {
+        assert!(resolve_with_suggestion("sevat").is_ok());
+    }
+
+    #[test]
+    fn new_dkvat_resolves() {
+        assert!(resolve_with_suggestion("dkvat").is_ok());
+    }
+
+    #[test]
+    fn totally_unknown_returns_no_hint() {
+        match resolve_with_suggestion("zzvat") {
+            Err(None) => {}
+            _ => panic!("expected Err(None)"),
+        }
+    }
 }
 
 #[cfg(test)]

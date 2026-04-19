@@ -84,8 +84,21 @@ pub fn print_list() {
 }
 
 pub fn run_verify(name: &str, args: &Args) -> Result<()> {
-    let spec = registry::resolve(name)
-        .ok_or_else(|| anyhow::anyhow!("unknown algorithm '{}' (use --checkdigit-list)", name))?;
+    let spec = match registry::resolve_with_suggestion(name) {
+        Ok(s) => s,
+        Err(Some(new)) => {
+            return Err(anyhow::anyhow!(
+                "unknown algorithm '{}' — did you mean '{}'?",
+                name, new
+            ));
+        }
+        Err(None) => {
+            return Err(anyhow::anyhow!(
+                "unknown algorithm '{}' (use --checkdigit-list)",
+                name
+            ));
+        }
+    };
     let input = read_checkdigit_input(args)?;
     match (spec.verify_fn)(&input) {
         Verdict::Valid { formatted, detected, .. } => {
@@ -102,8 +115,21 @@ pub fn run_verify(name: &str, args: &Args) -> Result<()> {
 }
 
 pub fn run_create(name: &str, args: &Args) -> Result<()> {
-    let spec = registry::resolve(name)
-        .ok_or_else(|| anyhow::anyhow!("unknown algorithm '{}' (use --checkdigit-list)", name))?;
+    let spec = match registry::resolve_with_suggestion(name) {
+        Ok(s) => s,
+        Err(Some(new)) => {
+            return Err(anyhow::anyhow!(
+                "unknown algorithm '{}' — did you mean '{}'?",
+                name, new
+            ));
+        }
+        Err(None) => {
+            return Err(anyhow::anyhow!(
+                "unknown algorithm '{}' (use --checkdigit-list)",
+                name
+            ));
+        }
+    };
     let input = read_checkdigit_input(args)?;
     let out = (spec.create_fn)(input.trim(), args.raw)?;
     println!("{}", out);
