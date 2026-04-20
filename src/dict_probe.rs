@@ -24,6 +24,9 @@ pub(crate) enum Command {
     ShowDatabases,
     ShowStrategies,
     ShowInfo { db: String },
+    /// No path supplied — run SHOW SERVER + SHOW DATABASES + SHOW STRATEGIES
+    /// in sequence as a server-info overview.
+    ServerInfo,
 }
 
 pub(crate) struct DictUrl {
@@ -53,13 +56,11 @@ pub(crate) fn parse_url(raw: &str) -> Result<DictUrl> {
         None => (authority.to_string(), DEFAULT_PORT),
     };
 
-    if path.is_empty() {
-        return Err(anyhow!(
-            "dict: URL needs a command path: /d:WORD, /m:WORD, or /show:…"
-        ));
-    }
-
-    let command = parse_command(path)?;
+    let command = if path.is_empty() {
+        Command::ServerInfo
+    } else {
+        parse_command(path)?
+    };
     Ok(DictUrl { host, port, command })
 }
 
@@ -140,6 +141,7 @@ fn wire_command(c: &Command) -> String {
         Command::ShowDatabases => "SHOW DB\r\n".into(),
         Command::ShowStrategies => "SHOW STRAT\r\n".into(),
         Command::ShowInfo { db } => format!("SHOW INFO {db}\r\n"),
+        Command::ServerInfo => unreachable!("ServerInfo is expanded before wire encoding"),
     }
 }
 
@@ -184,15 +186,39 @@ pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
         .context("dict: write CLIENT")?;
     let _ = read_status_line(&mut reader)?; // 250 ok
 
-    // Send real command
-    let cmd_line = wire_command(&parsed.command);
+    let commands: Vec<Command> = match parsed.command {
+        Command::ServerInfo => vec![
+            Command::ShowServer,
+            Command::ShowDatabases,
+            Command::ShowStrategies,
+        ],
+        other => vec![other],
+    };
+
+    for (i, cmd) in commands.iter().enumerate() {
+        if i > 0 {
+            println!();
+        }
+        run_command(&mut reader, &mut writer, cmd)?;
+    }
+
+    // Polite QUIT
+    let _ = writer.write_all(b"QUIT\r\n");
+    Ok(())
+}
+
+fn run_command<R: BufRead, W: Write>(
+    reader: &mut R,
+    writer: &mut W,
+    cmd: &Command,
+) -> Result<()> {
+    let cmd_line = wire_command(cmd);
     writer
         .write_all(cmd_line.as_bytes())
         .context("dict: write command")?;
 
-    // Read response until 250 terminator or 5xx
     loop {
-        let line = read_line(&mut reader)?;
+        let line = read_line(reader)?;
         if line.is_empty() {
             return Err(anyhow!("dict: server closed connection mid-response"));
         }
@@ -204,9 +230,6 @@ pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
             _ => continue,
         }
     }
-
-    // Polite QUIT
-    let _ = writer.write_all(b"QUIT\r\n");
     Ok(())
 }
 
@@ -320,9 +343,15 @@ mod tests {
     }
 
     #[test]
-    fn rejects_missing_path() {
-        assert!(parse_url("dict://dict.org").is_err());
-        assert!(parse_url("dict://dict.org/").is_err());
+    fn bare_url_is_server_info() {
+        assert_eq!(
+            parse_url("dict://dict.org").unwrap().command,
+            Command::ServerInfo
+        );
+        assert_eq!(
+            parse_url("dict://dict.org/").unwrap().command,
+            Command::ServerInfo
+        );
     }
 
     #[test]

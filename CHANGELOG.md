@@ -8,6 +8,12 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.24.14] - 2026-04-20
+
+### Changed
+
+- **`dict://host/` without a command path now runs a server-info probe** — emits SHOW SERVER, SHOW DATABASES, and SHOW STRATEGIES in sequence. Previously this errored out with "URL needs a command path". The explicit command paths (`/d:WORD`, `/m:WORD`, `/show:…`) continue to work as before. Makes `recon dict://dict.dict.org/` a useful at-a-glance overview of a DICT server, mirroring how `memcached://host/` or `ntp://host/` behave without extra arguments.
+
 ## [0.24.13] - 2026-04-20
 
 ### Added
