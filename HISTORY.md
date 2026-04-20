@@ -52,6 +52,34 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 28. Embedded Rhai scripting engine — `--script PATH.rhai` (0.25.0 → 0.25.18)
+
+An embedded scripting layer that turns recon into a single-binary Bruno/Postman alternative. A Rhai script can call every probe recon ships as a function returning a structured map, chain requests, branch on results, loop, and produce a process exit code via `return N`. `--script` is mutually exclusive with a positional URL.
+
+Shipped as nineteen incremental patch releases (0.25.0 through 0.25.18). Each release lands one binding + changelog entry; the pattern follows the same TDD-lite cadence the 0.24.x batch used.
+
+**Crate pick: Rhai.** Embedded, sandboxed, no stdlib of its own, scripts stay data-driven. Default features used (no `sync` — the engine is `!Send` / `!Sync` which matters for tests that cross tokio's `spawn_blocking` boundary; see notes below). Clean rustls story — Rhai pulls nothing in the network layer.
+
+**API surface registered on the engine:**
+- HTTP: `http(url)`, `http(url, opts)`, `https(...)`, `request(opts)` — full curl semantics (cookies, redirects, body, headers), returns `#{url, final_url, status, body, headers, http_version, duration_ms}`.
+- Probes (one per protocol recon supports): `tcp`, `ping`, `dns`, `tls`, `ntp`, `redis`, `ws` / `wss`, `dict`, `ldap` / `ldaps`, `whois`, `memcached`, `rtsp` / `rtsps`, `mqtt_pub` / `mqtt_sub`, `file_read`.
+- Helpers: `print` (Rhai built-in), `sleep_ms`, `env`, `now`, `now_ms`, `assert`, `json_parse`, `json_stringify`.
+
+**Probe-extraction pattern.** Task 5 established the template the rest of the tasks follow: for each probe module that previously did "network work + stdout + return unit", extract a pure `probe()` / `fetch_*()` function that returns a typed result struct, then rewrite `run()` as `probe() + print`. Across twelve modules this adds ~600 lines net (struct definitions + thin `run()` wrappers) but the pure cores are now reusable by the script binding. The one deliberate exception is `mqtt.rs` (44KB): mqtt bindings wrap `mqtt::run` by synthesising an `Args` struct, so mqtt_sub's protocol output still flows through stdout rather than being collected into the return map. Carving a pure-collection subscribe codepath out of `mqtt.rs` is deferred.
+
+**Errors and exit codes.** Task 3 installed a thread-local `LAST_PROTOCOL_EXIT_CODE` that `convert::anyhow_to_rhai` populates when it walks the anyhow chain: if a frame is a `ProtocolExitCode` (MQTT/RTSP/etc. tag that from the 0.22.0 design), that integer is stashed; otherwise `reqwest::Error::is_connect()` / `is_timeout()` falls back to 7 / 28. The engine's top-level error path consumes the stash when an uncaught exception bubbles out of the script. So `https("bad://")` or `tcp("tcp://127.0.0.1:1")` raises a Rhai exception that — if the script doesn't `try`/catch it — produces the same process exit code the CLI's `exit_code_for_http_error` would have.
+
+**CLI-flag inheritance.** `ScriptDefaults::from_args` snapshots the relevant Args fields once at engine-build time (`-H`, `-k`, `--connect-timeout`, `--max-time`, `-L`, `-A`, `-e`, `-u`, `--wait-time`, `--ping-count`, verbosity, method). Each binding captures a `Clone` of this struct in its closure, then overlays per-call opts maps on top. This matches the user's explicit brainstorm preference ("inherited as defaults") over the alternative "scripts are self-contained" — so `recon -H 'X-Api-Key: abc' --script flow.rhai` behaves the way an HTTP-heavy user expects.
+
+**Test shape.** Unit tests for the HTTP binding hop into `tokio::task::spawn_blocking` because blocking reqwest inside a wiremock tokio runtime panics ("Cannot drop a runtime in a context where blocking is not allowed"). Inside the spawn_blocking closure we build the engine and extract `(status, body)` as plain types, since `rhai::Map` is `!Send` and can't cross the boundary. Tests for ldap, memcached, mqtt, rtsp, dict, ntp, whois are live-network-gated or minimal (protocol-specific mocks are out of scope for this release).
+
+**What's not in 0.25.x (deliberate).**
+- No async/await in scripts — all probes are blocking, same as the CLI.
+- No `file_write` — scripts are read-only. Principle of least surprise.
+- No remote script URLs (`--script https://...`) — security hazard for the first cut.
+- No sandbox config for network egress — scripts can hit anything recon can.
+- No structured per-message return from mqtt_sub (see above).
+
 ### 27. Second protocol batch — file, whois, dns/dig/drill, dict, redis, memcached, ws/wss, ldap/ldaps, rtsp/rtsps (0.24.0 → 0.24.14)
 
 A wide second pass on recon's protocol surface, shipped as fifteen incremental patch releases. Brings the `--version` `Protocols:` banner from 14 entries to 25 and covers the remaining commonly-needed URL schemes that curl or its adjacent tools expose.

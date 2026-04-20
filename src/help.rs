@@ -1031,6 +1031,53 @@ static TOPIC_MQTT: Topic = Topic {
     ],
 };
 
+static TOPIC_SCRIPT: Topic = Topic {
+    title: "Scripting (--script)",
+    description: "Run a Rhai script that drives the recon probe API. Scripts can\n\
+                  chain requests, branch on results, loop, and build multi-step\n\
+                  health checks. The script's `return N` (integer) becomes the\n\
+                  process exit code; uncaught exceptions map to the same exit\n\
+                  codes as the CLI (7 connect-refused, 28 timeout, 67 auth).\n\
+                  `--script` is mutually exclusive with a positional URL.\n\
+                  CLI flags (-H, -k, --connect-timeout, etc.) act as defaults\n\
+                  that per-call opts maps can override.",
+    flags: &[
+        FlagHelp { flags: "--script <PATH>", description: "Load and run a .rhai file.\nExample: recon --script checks.rhai" },
+
+        FlagHelp { flags: "http(url) / http(url, opts)", description: "HTTP(S) request. Returns #{ url, final_url, status, body, headers,\nhttp_version, duration_ms }. opts: #{ method, headers, body,\ntimeout_ms, connect_timeout, insecure, follow_redirects }.\nHTTP non-2xx is a result; network errors throw." },
+        FlagHelp { flags: "https(...) / request(opts)", description: "Aliases. request() requires opts.url." },
+
+        FlagHelp { flags: "tcp(url) / tcp(url, opts)", description: "TCP connect probe. Returns #{ ok, host, port, resolved_ip,\nlocal_addr, duration_ms }." },
+        FlagHelp { flags: "ping(host) / ping(host, count)", description: "TCP ping (host:port) or ICMP ping (bare host).\nReturns #{ protocol, host, sent, received, loss_pct,\nmin_ms, avg_ms, max_ms, replies: [#{seq, ms}] }." },
+        FlagHelp { flags: "dns(host) / dns(host, types)", description: "DNS lookup. Types default to A, AAAA, CNAME, MX, NS, TXT, SOA;\npass an array like [\"A\"] to query specific types.\nReturns #{ host, records: #{...}, errors: #{...}, duration_ms }." },
+        FlagHelp { flags: "tls(host) / tls(host, port)", description: "TLS cert inspection (host-verify off). Returns #{ subject, issuer,\nnot_before, not_after, days_remaining, is_expired, san, cert_pem,\nsignature_algorithm, public_key, ... }." },
+        FlagHelp { flags: "ntp(url)", description: "SNTPv4 probe. Returns #{ host, port, stratum, precision,\npoll_interval, ref_id, reference_ts, offset_ms, delay_ms }." },
+
+        FlagHelp { flags: "redis(url) / redis(url, cmd)", description: "PING by default, or a shell-split RESP command when `cmd` is\ngiven. Returns #{ host, port, connect_ms, auth_reply,\ncommand, reply, command_ms }." },
+        FlagHelp { flags: "ws(url) / wss(url)", description: "WebSocket handshake + Ping/Pong round-trip.\nReturns #{ connect_ms, handshake_ms, http_status, headers,\npong_nonce_matched, ping_ms }." },
+        FlagHelp { flags: "dict(url)", description: "RFC 2229 DICT. Bare URL runs the server-info aggregate.\nReturns #{ banner, responses: [#{ command, lines, final_status }] }." },
+        FlagHelp { flags: "ldap(url) / ldaps(url)", description: "Anonymous bind + RootDSE. Returns #{ url, connect_ms,\nattrs: #{ namingContexts, supportedLDAPVersion, ... } }." },
+        FlagHelp { flags: "whois(host)", description: "Two-hop whois with registrar referral. Returns #{ host, server, body }." },
+        FlagHelp { flags: "memcached(url)", description: "Memcached version (+ /stats). Returns #{ host, port, connect_ms,\nversion, version_ms, stats: #{...} }." },
+        FlagHelp { flags: "rtsp(url) / rtsps(url)", description: "RTSP OPTIONS. Returns #{ host, port, tls, connect_ms,\nstatus_line, status_code, headers, methods }." },
+        FlagHelp { flags: "mqtt_pub(url, payload) / mqtt_sub(url, max_ms)", description: "MQTT publish / subscribe. Runs the full CLI codepath; protocol\noutput flows to stdout. Returns #{ ok, duration_ms }." },
+        FlagHelp { flags: "file_read(path)", description: "Read local file (or file:// URL) as a Rhai Blob (Vec<u8>)." },
+
+        FlagHelp { flags: "print(x)", description: "Rhai built-in. Writes x + newline to stdout." },
+        FlagHelp { flags: "sleep_ms(n)", description: "Block the current thread for n milliseconds." },
+        FlagHelp { flags: "env(name) / env(name, default)", description: "Read an environment variable. Empty string (or default) when unset." },
+        FlagHelp { flags: "now() / now_ms()", description: "Unix seconds or milliseconds as i64." },
+        FlagHelp { flags: "assert(cond, msg)", description: "Throw a Rhai exception when cond is false." },
+        FlagHelp { flags: "json_parse(s) / json_stringify(x)", description: "Round-trip JSON text ↔ Rhai values (null ↔ (), bool, int, float,\nstring, array, object ↔ map)." },
+    ],
+    related: &["--script", "-H", "-k", "--connect-timeout", "--max-time", "-L"],
+    examples: &[
+        ExampleHelp { description: "Hello world", command: "echo 'return 0;' > hi.rhai && recon --script hi.rhai" },
+        ExampleHelp { description: "Health-check a URL, exit 1 on non-2xx", command: r#"recon --script check.rhai"# },
+        ExampleHelp { description: "Multi-step flow: DNS → HTTP → assert", command: "recon --examples  # see SCRIPTING section" },
+    ],
+};
+
 static TOPIC_PROTOCOLS: Topic = Topic {
     title: "Protocol URL Schemes (probes and aliases)",
     description: "In addition to http(s):// and mqtt(s)://, recon dispatches a family\n\
@@ -1127,6 +1174,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "serve-tls" | "serve-https" | "https-server" => Some(&TOPIC_SERVE_TLS),
         "checkdigit" | "check-digit" | "checksum" => Some(&TOPIC_CHECKDIGIT),
         "write-out" | "writeout" | "write_out" => Some(&TOPIC_WRITE_OUT),
+        "script" | "scripting" | "rhai" => Some(&TOPIC_SCRIPT),
         _ => None,
     }
 }
@@ -1196,6 +1244,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "serve",
         "serve-tls",
         "write-out",
+        "script",
     ]
 }
 

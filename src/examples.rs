@@ -929,6 +929,64 @@ pub fn print() {
     ]);
     note("Sends OPTIONS, prints status line + response headers (Public: listed methods, Server:). rtsps:// uses TLS on port 322 and honours -k.");
 
+    section("SCRIPTING (--script)");
+
+    example("Run a Rhai script", &[
+        "recon --script workflow.rhai",
+    ]);
+    note("Script's `return N` (integer) becomes the process exit code. Uncaught exceptions exit 1 (or 7/28/67 if a network error carries a ProtocolExitCode). --script is mutually exclusive with a positional URL.");
+
+    example("Minimal health check (bruno-style)", &[
+        r#"cat > /tmp/health.rhai <<'EOF'
+let r = https("https://example.com");
+if r.status != 200 {
+    print(`got ${r.status}, expected 200`);
+    return 1;
+}
+return 0;
+EOF
+recon --script /tmp/health.rhai"#,
+    ]);
+
+    example("Chain DNS → TCP → HTTP", &[
+        r#"cat > /tmp/chain.rhai <<'EOF'
+let d = dns("example.com", ["A"]);
+assert(d.records.A.len() > 0, "no A records");
+let t = tcp("tcp://example.com:443");
+assert(t.ok, "tcp failed");
+let r = https("https://example.com");
+print(`${d.records.A.len()} IPs, tcp ok, http ${r.status}`);
+return 0;
+EOF
+recon --script /tmp/chain.rhai"#,
+    ]);
+
+    example("Poll a status endpoint until ready", &[
+        r#"cat > /tmp/poll.rhai <<'EOF'
+for i in 0..10 {
+    let r = http("http://localhost:8080/health");
+    if r.status == 200 { return 0; }
+    sleep_ms(1000);
+}
+return 1;
+EOF
+recon --script /tmp/poll.rhai"#,
+    ]);
+
+    example("Inspect a cert and branch on days_remaining", &[
+        r#"cat > /tmp/cert.rhai <<'EOF'
+let c = tls("example.com", 443);
+if c.days_remaining < 30 {
+    print(`CERT EXPIRES IN ${c.days_remaining} DAYS`);
+    return 2;
+}
+return 0;
+EOF
+recon --script /tmp/cert.rhai"#,
+    ]);
+
+    note("Available functions: http/https/request, tcp, ping, dns, tls, ntp, redis, ws/wss, dict, ldap/ldaps, whois, memcached, rtsp/rtsps, mqtt_pub/mqtt_sub, file_read. Helpers: print, sleep_ms, env, now, now_ms, assert, json_parse, json_stringify. See `recon --help script`.");
+
     section("EDITOR OUTPUT");
 
     example("Open the response in an editor (--editor [EDITOR])", &[

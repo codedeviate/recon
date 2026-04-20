@@ -8,6 +8,14 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.25.19] - 2026-04-20
+
+### Changed
+
+- Added `recon --help script` topic documenting the full Rhai API (http / tcp / ping / dns / tls / ntp / redis / ws / dict / ldap / whois / memcached / rtsp / mqtt / file_read + helpers) with per-function signatures and return shapes.
+- Added a `SCRIPTING (--script)` section to `recon --examples` with a bruno-style health check, a DNS → TCP → HTTP chain, a polling loop, and a cert-days-remaining branch.
+- Added `HISTORY.md` entry #28 with the design narrative: crate pick (Rhai), probe-extraction pattern established in Task 5, exit-code plumbing via the thread-local + `anyhow_to_rhai`, CLI-flag inheritance decision, test-shape notes (spawn_blocking + !Send caveats), and the deliberate-out-of-scope list (no async, no file_write, no remote scripts, no mqtt_sub structured return).
+
 ## [0.25.18] - 2026-04-20
 
 ### Added
