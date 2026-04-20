@@ -30,6 +30,7 @@ mod serve;
 mod source;
 mod ssh;
 mod ssh_auth;
+mod tcp_probe;
 mod telnet;
 mod tls_probe;
 mod traceroute;
@@ -551,6 +552,8 @@ fn main() {
         scp::download(args.target_url(), &args)
     } else if args.target_url().starts_with("ssh://") {
         ssh::connect(args.target_url(), &args)
+    } else if args.target_url().starts_with("tcp://") {
+        tcp_probe::run(args.target_url(), args.timeout)
     } else if args.target_url().starts_with("telnet://") {
         telnet::connect(args.target_url(), &args)
     } else if args.target_url().starts_with("tls://") {
@@ -741,6 +744,7 @@ fn friendly_message(err: &anyhow::Error) -> String {
         || msg.starts_with("--jwt-validate-jti")
         || msg.starts_with("Could not parse input as")
         || msg.starts_with("No input provided")
+        || msg.starts_with("tcp:")
         || msg.starts_with("mqtt:")
         || msg.starts_with("mqtt probe")
         || msg.starts_with("mqtt publish")
