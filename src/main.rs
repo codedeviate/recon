@@ -651,8 +651,12 @@ fn run_cookie_mgmt(args: &Args, jar_name: &str) -> anyhow::Result<()> {
 /// so we must call `downcast_ref` on the `anyhow::Error` directly for the
 /// tag, and fall back to the chain for the reqwest error.
 fn exit_code_for_http_error(e: &anyhow::Error) -> i32 {
-    if let Some(mqtt_code) = e.downcast_ref::<crate::mqtt::MqttExitCode>() {
-        return *mqtt_code as i32;
+    // MqttExitCode implements StdError, so the anyhow chain exposes it —
+    // search every frame (not just the top). Robust against future code that
+    // adds another `.context(...)` after the tag, which would push the tag
+    // out of the top slot.
+    if let Some(code) = mqtt_exit_code(e) {
+        return code as i32;
     }
     for cause in e.chain() {
         if let Some(rq_err) = cause.downcast_ref::<reqwest::Error>() {
@@ -667,20 +671,35 @@ fn exit_code_for_http_error(e: &anyhow::Error) -> i32 {
     1
 }
 
-fn friendly_message(err: &anyhow::Error) -> String {
-    // If the top-level anyhow message is just the MqttExitCode tag (e.g.
-    // "mqtt-exit-7"), skip past it and use the next cause — that's the
-    // actual human-readable "mqtt probe: ..." text. Without this, the
-    // user sees "error: mqtt-exit-7" instead of the useful message.
-    let msg = {
-        let top = err.to_string();
-        if top.starts_with("mqtt-exit-") {
-            err.source()
-                .map(|s| s.to_string())
-                .unwrap_or(top)
-        } else {
-            top
+/// Find the first `MqttExitCode` tag anywhere in the error chain.
+fn mqtt_exit_code(e: &anyhow::Error) -> Option<crate::mqtt::MqttExitCode> {
+    // Check the top-level anyhow error first — `.context(...)` wrappers
+    // sometimes obscure the tag from the `.chain()` iterator.
+    if let Some(c) = e.downcast_ref::<crate::mqtt::MqttExitCode>() {
+        return Some(*c);
+    }
+    for cause in e.chain() {
+        if let Some(c) = cause.downcast_ref::<crate::mqtt::MqttExitCode>() {
+            return Some(*c);
         }
+    }
+    None
+}
+
+fn friendly_message(err: &anyhow::Error) -> String {
+    // If the top-level anyhow error IS an MqttExitCode tag, its Display
+    // impl ("mqtt-exit-N") is not useful to the user. Skip to the wrapped
+    // source to get the real "mqtt probe: ..." message. Using the typed
+    // downcast (not a string-prefix check) means a future rename of the
+    // Display impl won't silently leak the tag into user output.
+    let msg = if mqtt_exit_code(err).is_some()
+        && err.downcast_ref::<crate::mqtt::MqttExitCode>().is_some()
+    {
+        err.source()
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| err.to_string())
+    } else {
+        err.to_string()
     };
     let root = err.root_cause().to_string();
 
