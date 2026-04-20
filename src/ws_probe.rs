@@ -18,10 +18,25 @@ use tungstenite::{
     stream::MaybeTlsStream,
 };
 
-pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
-    // tungstenite's rustls connector picks up the process-level default
-    // CryptoProvider; install once (idempotent — later calls return Err
-    // which we ignore).
+/// Selected response headers from the server's upgrade response.
+pub struct WsHeader {
+    pub name: String,
+    pub value: String,
+}
+
+pub struct WsProbeOk {
+    pub host: String,
+    pub port: u16,
+    pub scheme: &'static str,
+    pub connect_ms: f64,
+    pub handshake_ms: f64,
+    pub http_status: u16,
+    pub headers: Vec<WsHeader>,
+    pub pong_nonce_matched: bool,
+    pub ping_round_trip_ms: f64,
+}
+
+pub fn probe(url: &str, timeout_secs: u64) -> Result<WsProbeOk> {
     let _ = rustls::crypto::ring::default_provider().install_default();
 
     let scheme = if url.starts_with("wss://") { "wss" } else { "ws" };
@@ -29,9 +44,6 @@ pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
         .into_client_request()
         .with_context(|| format!("ws: invalid URL {url}"))?;
 
-    // Resolve host:port for a manual TCP connect with timeout, then hand
-    // the stream to tungstenite's client_with_config. This lets us honour
-    // --connect-timeout without giving up handshake + TLS semantics.
     let uri = request.uri();
     let host = uri
         .host()
@@ -74,21 +86,25 @@ pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
     };
     let handshake_ms = handshake_start.elapsed().as_secs_f64() * 1000.0;
 
-    println!(
-        "Connected to {host}:{port} in {connect_ms:.1}ms (TCP), handshake {handshake_ms:.1}ms"
-    );
-    println!("  HTTP status: {}", response.status());
+    let mut collected_headers: Vec<WsHeader> = Vec::new();
     for (k, v) in response.headers() {
         let name = k.as_str().to_ascii_lowercase();
         if matches!(
             name.as_str(),
-            "sec-websocket-accept" | "sec-websocket-protocol" | "sec-websocket-extensions" | "server"
+            "sec-websocket-accept"
+                | "sec-websocket-protocol"
+                | "sec-websocket-extensions"
+                | "server"
         ) {
             if let Ok(s) = v.to_str() {
-                println!("  {}: {s}", k.as_str());
+                collected_headers.push(WsHeader {
+                    name: k.as_str().to_string(),
+                    value: s.to_string(),
+                });
             }
         }
     }
+    let http_status = response.status().as_u16();
 
     let nonce = b"reconprb".to_vec();
     let ping_start = Instant::now();
@@ -96,28 +112,55 @@ pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
         .send(Message::Ping(nonce.clone().into()))
         .context("ws: send Ping")?;
 
-    // Tungstenite auto-responds to server Pings internally. Wait for
-    // OUR Pong (matching payload) or give up if the server closes.
-    loop {
+    let (matched, rt_ms) = loop {
         let msg = socket.read().context("ws: read while waiting for Pong")?;
         match msg {
             Message::Pong(payload) => {
                 let rt = ping_start.elapsed().as_secs_f64() * 1000.0;
                 let matched = payload.as_ref() == nonce.as_slice();
-                println!(
-                    "Pong: {}  round-trip {rt:.1}ms",
-                    if matched { "matched nonce" } else { "unexpected payload" }
-                );
-                break;
+                break (matched, rt);
             }
             Message::Close(_) => {
                 return Err(anyhow!("ws: server closed before Pong"));
             }
             _ => continue,
         }
-    }
+    };
 
     let _ = socket.close(None);
+
+    Ok(WsProbeOk {
+        host,
+        port,
+        scheme: if scheme == "wss" { "wss" } else { "ws" },
+        connect_ms,
+        handshake_ms,
+        http_status,
+        headers: collected_headers,
+        pong_nonce_matched: matched,
+        ping_round_trip_ms: rt_ms,
+    })
+}
+
+pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
+    let r = probe(url, timeout_secs)?;
+    println!(
+        "Connected to {}:{} in {:.1}ms (TCP), handshake {:.1}ms",
+        r.host, r.port, r.connect_ms, r.handshake_ms
+    );
+    println!("  HTTP status: {}", r.http_status);
+    for h in &r.headers {
+        println!("  {}: {}", h.name, h.value);
+    }
+    println!(
+        "Pong: {}  round-trip {:.1}ms",
+        if r.pong_nonce_matched {
+            "matched nonce"
+        } else {
+            "unexpected payload"
+        },
+        r.ping_round_trip_ms
+    );
     Ok(())
 }
 

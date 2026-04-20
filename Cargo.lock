@@ -2577,7 +2577,7 @@ dependencies = [
 
 [[package]]
 name = "recon"
-version = "0.25.8"
+version = "0.25.9"
 dependencies = [
  "age",
  "anyhow",

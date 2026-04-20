@@ -8,6 +8,16 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.25.10] - 2026-04-20
+
+### Added
+
+- **`ws(url)` / `wss(url)` script binding.** Both accept an optional `opts` map with `timeout`. Returns `#{ host, port, scheme, connect_ms, handshake_ms, http_status, headers, pong_nonce_matched, ping_ms }`. Handshake rejection (401/403) carries exit 67; connect refused = 7; timeout = 28.
+
+### Changed
+
+- `ws_probe.rs` refactored to `probe()`/`run()` split: `probe()` returns `WsProbeOk` with full connect/handshake/ping timings and selected response headers; `run()` prints from it with the same formatting.
+
 ## [0.25.9] - 2026-04-20
 
 ### Added
