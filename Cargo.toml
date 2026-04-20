@@ -1,6 +1,6 @@
 [package]
 name = "recon"
-version = "0.25.12"
+version = "0.25.13"
 edition = "2021"
 
 [[bin]]

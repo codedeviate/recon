@@ -6,42 +6,42 @@ use std::time::Duration;
 
 use crate::util::parse_target;
 
-pub fn run(input: &str) -> Result<()> {
+pub struct WhoisProbeOk {
+    pub host: String,
+    pub server: String,
+    pub body: String,
+}
+
+pub fn probe(input: &str) -> Result<WhoisProbeOk> {
     let (host, _) = parse_target(input);
 
-    println!("WHOIS for {}", host.bold());
-    println!("{}", "═".repeat(50));
-    println!();
+    let iana = query("whois.iana.org", &host).context("Failed to reach whois.iana.org")?;
 
-    // Query IANA to find the authoritative WHOIS server
-    let iana = query("whois.iana.org", &host)
-        .context("Failed to reach whois.iana.org")?;
-
-    match parse_refer(&iana) {
-        None => {
-            // IANA is itself the authority
-            println!("{iana}");
-        }
+    let (server, body) = match parse_refer(&iana) {
+        None => ("whois.iana.org".to_string(), iana),
         Some(server1) => {
-            let resp1 =
-                query(&server1, &host).with_context(|| format!("Failed to query {server1}"))?;
-
-            // Some registries (e.g. Verisign for .com) embed a referral to the registrar
-            let server2 = parse_registrar_whois(&resp1)
-                .filter(|s| s != &server1);
-
-            match server2 {
-                Some(reg_server) => {
-                    match query(&reg_server, &host) {
-                        Ok(resp2) => println!("{resp2}"),
-                        Err(_) => println!("{resp1}"), // fall back to registry response
-                    }
-                }
-                None => println!("{resp1}"),
+            let resp1 = query(&server1, &host)
+                .with_context(|| format!("Failed to query {server1}"))?;
+            let registrar = parse_registrar_whois(&resp1).filter(|s| s != &server1);
+            match registrar {
+                Some(reg) => match query(&reg, &host) {
+                    Ok(resp2) => (reg, resp2),
+                    Err(_) => (server1, resp1),
+                },
+                None => (server1, resp1),
             }
         }
-    }
+    };
 
+    Ok(WhoisProbeOk { host, server, body })
+}
+
+pub fn run(input: &str) -> Result<()> {
+    let r = probe(input)?;
+    println!("WHOIS for {}", r.host.bold());
+    println!("{}", "═".repeat(50));
+    println!();
+    println!("{}", r.body);
     Ok(())
 }
 

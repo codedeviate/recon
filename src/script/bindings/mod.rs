@@ -10,4 +10,5 @@ pub mod ping;
 pub mod redis;
 pub mod tcp;
 pub mod tls;
+pub mod whois;
 pub mod ws;

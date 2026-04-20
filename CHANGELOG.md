@@ -8,6 +8,16 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.25.13] - 2026-04-20
+
+### Added
+
+- **`whois(host)` script binding.** Auto-discovers the authoritative WHOIS server via IANA, follows a registrar-WHOIS referral if present (same behaviour as `--whois`). Returns `#{ host, server, body }`.
+
+### Changed
+
+- `whois.rs` refactored to `probe()`/`run()` split. `probe()` returns `WhoisProbeOk { host, server, body }`.
+
 ## [0.25.12] - 2026-04-20
 
 ### Added

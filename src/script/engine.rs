@@ -48,6 +48,7 @@ pub fn build_engine(defaults: &ScriptDefaults) -> rhai::Engine {
     super::bindings::redis::register(&mut engine, defaults.clone());
     super::bindings::tcp::register(&mut engine, defaults.clone());
     super::bindings::tls::register(&mut engine);
+    super::bindings::whois::register(&mut engine);
     super::bindings::ws::register(&mut engine, defaults.clone());
     engine
 }
