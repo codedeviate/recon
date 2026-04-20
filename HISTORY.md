@@ -52,6 +52,25 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 25. MQTT protocol support (0.22.0)
+
+recon gains a first-class MQTT client covering the three common use cases against a broker: probe (recon's characteristic "connect and report" shape), publish, and subscribe. Both MQTT 3.1.1 and 5.0 are supported, selected via `--mqtt-version`.
+
+Key design choices:
+
+- **URL-driven mode dispatch**: probe is the default, `-d` + URL-topic means publish, `--subscribe <filter>` means subscribe. Reuses recon's existing `-u`, `-k`, `-d @file`, `-v`, `--connect-timeout` semantics verbatim — no fork in CLI grammar.
+- **rumqttc sync wrapper over tokio** — rumqttc 0.24 is async-native; we spin up a current-thread tokio runtime per operation via the shared `build_mqtt_runtime` helper. Keeps the MQTT module's public surface blocking (matches the rest of recon) without a crate-wide async migration.
+- **Shared setup helpers** — `setup_options_v5` / `setup_options_v3` / `build_mqtt_runtime` collapsed four initial copies of the MqttOptions assembly into one place before subscribe would have added two more. Explicit dedup commit landed pre-subscribe.
+- **Dedicated `--mqtt-json` flag** instead of overloading `--json` (which takes a value for HTTP body). Cleaner than the alternative and unambiguous.
+- **`MqttExitCode` context tag** — errors attach `.context(MqttExitCode::...)` so `exit_code_for_http_error` can map to curl-compatible exit codes (7 connect-refused, 28 timeout, 67 auth-denied, 130 Ctrl-C) alongside the existing reqwest classifications. Chain-walked rather than top-only downcasted so a future `.context(...)` wrap cannot hide the tag.
+- **`writeout.rs`-style token helpers** — publish topic from URL path, subscribe filters from repeatable flag. `emit_subscribe_text` and `emit_subscribe_json` mirror the `-w` renderer split (text vs JSON) established in 0.20.0.
+
+rumqttc 0.24 pins rustls 0.22, while recon's HTTPS stack (via reqwest) uses rustls 0.23. Rather than adding a second direct `rustls` dep, the MQTT module aliases `rumqttc::tokio_rustls::rustls as mqtt_rustls` internally. Both majors coexist in the binary; adds ~300 KB until rumqttc bumps (tracked in OUT-OF-SCOPE.md).
+
+MQTT 5 features deferred to OUT-OF-SCOPE.md for now: user properties, will/testament messages, session expiry interval, content-type / response-topic / correlation-data properties, enhanced authentication. Client certificates (mTLS) deferred consistent with HTTP's current surface.
+
+---
+
 ### 24. curl compatibility quick-wins batch (0.20.0)
 
 Twelve high-frequency curl flags shipped in one release, making recon a credible curl drop-in for the 80/20 HTTP(S) use case. Architectural foundations introduced to support this batch (and future telemetry work) rather than one-off wiring:

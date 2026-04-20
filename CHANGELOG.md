@@ -8,6 +8,33 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-04-20
+
+### Added
+
+- **MQTT protocol support** — recon now speaks MQTT 3.1.1 and 5.0 against brokers at `mqtt://` (port 1883) and `mqtts://` (port 8883, TLS via rustls). Three modes:
+  - **Probe** (default, no other MQTT flag): connect, dump CONNACK details, disconnect. Works for both protocol versions; MQTT 5 shows richer broker properties (Assigned Client ID, Maximum QoS, Retain Available, Maximum Packet Size, Topic Alias Maximum).
+  - **Publish** (when `-d/--data` is set and the URL path has a topic): send one message with configurable `--qos 0|1|2` and `--retain`. QoS 1 waits for PubAck, QoS 2 for PubComp.
+  - **Subscribe** (when `--subscribe <filter>` is set, repeatable): stream matching messages to stdout until Ctrl-C or `--count N` is reached. Default output is payload-only; `-v` prefixes topics (mosquitto_sub-style).
+- `--mqtt-json` — structured output for probe (one JSON object) and subscribe (NDJSON). Non-UTF-8 subscribe payloads wrap as `{"base64": "..."}`.
+- New flags: `--mqtt-version 3|5` (default 5), `--client-id <id>`, `--keepalive <secs>`, `--qos 0|1|2`, `--retain`, `--subscribe <filter>` (repeatable), `--count <N>`, `--mqtt-json`.
+- Reuses existing flags: `-u user:pass` (MQTT username/password), `-k` (skip broker TLS verification), `-d` / `@file` / `@-` (publish payload), `--connect-timeout`, `-v`.
+- `recon --help mqtt` topic and `MQTT (0.22.0)` section under `recon --examples`.
+- `--version` `Protocols:` line now lists `mqtt` and `mqtts`.
+
+### Changed
+
+- `exit_code_for_http_error` extended to cover MQTT: exit 67 on CONNACK auth-failure reason codes (0x86 / 0x87), exit 130 on Ctrl-C during subscribe, exit 7 on TCP connect failure, exit 28 on timeout.
+- `friendly_message` now cleanly surfaces MQTT error messages (via typed `MqttExitCode` downcast rather than string-prefix sniffing).
+
+### Known limitations
+
+- mqtts:// TLS is built against rustls 0.22 (pinned by rumqttc 0.24) in addition to recon's direct rustls 0.23 used by HTTPS/tls_probe/serve. Both majors coexist in the binary until rumqttc upgrades; adds ~300 KB. Documented in OUT-OF-SCOPE.md.
+
+### Dependencies
+
+- Added: `rumqttc = "0.24"` (MQTT client), `rand = "0.8"` (direct; client-id suffix), `ctrlc = "3"` (SIGINT handler for subscribe), `webpki-roots = "1"` (Mozilla CA roots for mqtts://, elevated from transitive).
+
 ## [0.21.1] - 2026-04-19
 
 ### Fixed
