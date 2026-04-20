@@ -1040,9 +1040,15 @@ static TOPIC_SCRIPT: Topic = Topic {
                   codes as the CLI (7 connect-refused, 28 timeout, 67 auth).\n\
                   `--script` is mutually exclusive with a positional URL.\n\
                   CLI flags (-H, -k, --connect-timeout, etc.) act as defaults\n\
-                  that per-call opts maps can override.",
+                  that per-call opts maps can override.\n\
+                  \n\
+                  Script resolution: when PATH isn't found as given, recon\n\
+                  looks in ~/.recon/script/PATH (and auto-appends .rhai when\n\
+                  PATH has no extension). Drop reusable scripts in\n\
+                  ~/.recon/script/ and call them by bare name:\n\
+                    recon --script health",
     flags: &[
-        FlagHelp { flags: "--script <PATH>", description: "Load and run a .rhai file.\nExample: recon --script checks.rhai" },
+        FlagHelp { flags: "--script <PATH>", description: "Load and run a .rhai file. Falls back to\n~/.recon/script/<PATH> when the path doesn't exist as given\n(with auto-.rhai extension when PATH has none).\nExample: recon --script checks.rhai\n         recon --script health     # -> ~/.recon/script/health.rhai" },
 
         FlagHelp { flags: "http(url) / http(url, opts)", description: "HTTP(S) request. Returns #{ url, final_url, status, body, headers,\nhttp_version, duration_ms }. opts: #{ method, headers, body,\ntimeout_ms, connect_timeout, insecure, follow_redirects }.\nHTTP non-2xx is a result; network errors throw." },
         FlagHelp { flags: "https(...) / request(opts)", description: "Aliases. request() requires opts.url." },

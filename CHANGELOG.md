@@ -8,6 +8,12 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-04-21
+
+### Added
+
+- **Global script directory at `~/.recon/script/`.** When `--script PATH` isn't found as given, recon now falls back to `~/.recon/script/PATH` and (when `PATH` has no extension) `~/.recon/script/PATH.rhai`. Drop reusable scripts in `~/.recon/script/` and call them by bare name: `recon --script health` resolves to `~/.recon/script/health.rhai`. Script-not-found errors list every path that was tried. Directory sits next to `~/.recon/config.toml` so one location holds both CLI config and reusable automation.
+
 ## [0.25.19] - 2026-04-20
 
 ### Changed

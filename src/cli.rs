@@ -616,7 +616,9 @@ pub struct Args {
 
     /// Run a Rhai script instead of performing a request. Exposes `http()`,
     /// `tcp()`, `ping()`, `dns()`, `tls()`, `redis()`, `ws()` and more;
-    /// script `return N` becomes the process exit code. See `--help script`.
+    /// script `return N` becomes the process exit code. If PATH isn't found
+    /// as given, falls back to `~/.recon/script/PATH` (and `.rhai` is
+    /// auto-appended when PATH has no extension). See `--help script`.
     #[arg(long = "script", value_name = "PATH", help_heading = "Meta")]
     pub script: Option<PathBuf>,
 
