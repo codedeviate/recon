@@ -949,12 +949,129 @@ fn qos_v5_to_u8(qos: rumqttc::v5::mqttbytes::QoS) -> u8 {
     }
 }
 
-fn configure_tls_v5(_options: &mut rumqttc::v5::MqttOptions, _insecure: bool) -> Result<()> {
-    bail!("mqtt: mqtts:// TLS not yet implemented; use mqtt:// for now")
+// TLS plumbing for mqtts://.
+//
+// rumqttc 0.24 pulls in rustls **0.22** (via tokio-rustls 0.25). Recon's direct
+// `rustls = "0.23"` dep (used by `tls_probe.rs` / `serve/https.rs`) is a different
+// version in the dep graph, so the `Arc<ClientConfig>` stored in
+// `rumqttc::TlsConfiguration::Rustls(..)` must be a **0.22** ClientConfig.
+//
+// We reach that rustls via rumqttc's re-export: `rumqttc::tokio_rustls::rustls`
+// (rumqttc → tokio_rustls → rustls). No new direct dep needed for rustls 0.22.
+//
+// `webpki-roots = "1"` (added as a direct dep, previously transitive via reqwest)
+// provides `TrustAnchor<'static>` entries built on `rustls-pki-types = "1"`, which
+// **both** rustls 0.22 and 0.23 use — so the trust anchors are portable between
+// the two rustls versions.
+use rumqttc::tokio_rustls::rustls as mqtt_rustls;
+
+/// Build a rustls (0.22) ClientConfig for MQTT-over-TLS. Trusts the Mozilla root
+/// CA set via webpki-roots. When `insecure` is true, attaches a verifier that
+/// accepts every server certificate — matches recon's HTTPS `-k` flag.
+///
+/// Uses `builder_with_provider(ring)` (matching `tls_probe.rs` / `serve/https.rs`)
+/// so we don't rely on a process-global rustls `CryptoProvider` having been
+/// installed: each ClientConfig carries its own provider.
+fn build_rustls_config(insecure: bool) -> Result<mqtt_rustls::ClientConfig> {
+    use std::sync::Arc;
+
+    let provider = Arc::new(mqtt_rustls::crypto::ring::default_provider());
+
+    if insecure {
+        let config = mqtt_rustls::ClientConfig::builder_with_provider(provider)
+            .with_safe_default_protocol_versions()
+            .context("mqtt TLS: failed to configure protocol versions")?
+            .dangerous()
+            .with_custom_certificate_verifier(Arc::new(NoCertificateVerification))
+            .with_no_client_auth();
+        Ok(config)
+    } else {
+        let mut roots = mqtt_rustls::RootCertStore::empty();
+        // webpki-roots 1.x: TLS_SERVER_ROOTS is &[TrustAnchor<'static>] on
+        // rustls-pki-types 1.x — compatible with rustls 0.22's RootCertStore.
+        roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+        let config = mqtt_rustls::ClientConfig::builder_with_provider(provider)
+            .with_safe_default_protocol_versions()
+            .context("mqtt TLS: failed to configure protocol versions")?
+            .with_root_certificates(roots)
+            .with_no_client_auth();
+        Ok(config)
+    }
 }
 
-fn configure_tls_v3(_options: &mut rumqttc::MqttOptions, _insecure: bool) -> Result<()> {
-    bail!("mqtt: mqtts:// TLS not yet implemented; use mqtt:// for now")
+/// Certificate verifier that accepts everything. Used only when the user
+/// passes `-k / --insecure`. Same stance as recon's HTTPS path under `-k`.
+///
+/// Types are imported via `mqtt_rustls` (rustls 0.22) because `ClientConfig`'s
+/// `dangerous().with_custom_certificate_verifier(..)` expects the 0.22 trait.
+#[derive(Debug)]
+struct NoCertificateVerification;
+
+impl mqtt_rustls::client::danger::ServerCertVerifier for NoCertificateVerification {
+    fn verify_server_cert(
+        &self,
+        _end_entity: &mqtt_rustls::pki_types::CertificateDer<'_>,
+        _intermediates: &[mqtt_rustls::pki_types::CertificateDer<'_>],
+        _server_name: &mqtt_rustls::pki_types::ServerName<'_>,
+        _ocsp_response: &[u8],
+        _now: mqtt_rustls::pki_types::UnixTime,
+    ) -> std::result::Result<mqtt_rustls::client::danger::ServerCertVerified, mqtt_rustls::Error>
+    {
+        Ok(mqtt_rustls::client::danger::ServerCertVerified::assertion())
+    }
+
+    fn verify_tls12_signature(
+        &self,
+        _message: &[u8],
+        _cert: &mqtt_rustls::pki_types::CertificateDer<'_>,
+        _dss: &mqtt_rustls::DigitallySignedStruct,
+    ) -> std::result::Result<
+        mqtt_rustls::client::danger::HandshakeSignatureValid,
+        mqtt_rustls::Error,
+    > {
+        Ok(mqtt_rustls::client::danger::HandshakeSignatureValid::assertion())
+    }
+
+    fn verify_tls13_signature(
+        &self,
+        _message: &[u8],
+        _cert: &mqtt_rustls::pki_types::CertificateDer<'_>,
+        _dss: &mqtt_rustls::DigitallySignedStruct,
+    ) -> std::result::Result<
+        mqtt_rustls::client::danger::HandshakeSignatureValid,
+        mqtt_rustls::Error,
+    > {
+        Ok(mqtt_rustls::client::danger::HandshakeSignatureValid::assertion())
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<mqtt_rustls::SignatureScheme> {
+        vec![
+            mqtt_rustls::SignatureScheme::RSA_PKCS1_SHA256,
+            mqtt_rustls::SignatureScheme::RSA_PKCS1_SHA384,
+            mqtt_rustls::SignatureScheme::RSA_PKCS1_SHA512,
+            mqtt_rustls::SignatureScheme::ECDSA_NISTP256_SHA256,
+            mqtt_rustls::SignatureScheme::ECDSA_NISTP384_SHA384,
+            mqtt_rustls::SignatureScheme::ED25519,
+        ]
+    }
+}
+
+fn configure_tls_v5(options: &mut rumqttc::v5::MqttOptions, insecure: bool) -> Result<()> {
+    let config = build_rustls_config(insecure)?;
+    let transport = rumqttc::Transport::tls_with_config(rumqttc::TlsConfiguration::Rustls(
+        std::sync::Arc::new(config),
+    ));
+    options.set_transport(transport);
+    Ok(())
+}
+
+fn configure_tls_v3(options: &mut rumqttc::MqttOptions, insecure: bool) -> Result<()> {
+    let config = build_rustls_config(insecure)?;
+    let transport = rumqttc::Transport::tls_with_config(rumqttc::TlsConfiguration::Rustls(
+        std::sync::Arc::new(config),
+    ));
+    options.set_transport(transport);
+    Ok(())
 }
 
 #[cfg(test)]
