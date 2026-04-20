@@ -8,6 +8,12 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.25.3] - 2026-04-20
+
+### Added
+
+- **`http(url)` / `http(url, opts)` / `https(...)` / `request(opts)` script bindings.** Wraps `client::execute` so scripts get the same request semantics as the CLI (cookies, redirects, body handling) with an opts-map overlay — `method`, `headers`, `body`, `timeout_ms`, `connect_timeout`, `insecure`, `follow_redirects`. Returns `#{ url, final_url, status, body, headers, http_version, duration_ms }`. HTTP-level non-2xx is a result (not an exception) with the `status` field set; network failures (connect refused, DNS failure, timeout, TLS error) raise Rhai exceptions whose exit codes match the CLI (`7` for connect-refused, `28` for timeout) via `ProtocolExitCode` stashing + `reqwest::Error::is_connect/is_timeout` detection.
+
 ## [0.25.2] - 2026-04-20
 
 ### Added

@@ -18,18 +18,33 @@ thread_local! {
     static LAST_PROTOCOL_EXIT_CODE: Cell<Option<i32>> = const { Cell::new(None) };
 }
 
-/// Convert an `anyhow::Error` into a Rhai runtime error. If the error chain
-/// contains a `ProtocolExitCode` tag, stash the numeric code so the engine's
-/// error handler can use it as the process exit code.
+/// Convert an `anyhow::Error` into a Rhai runtime error. Walks the error
+/// chain for:
+///   1. A `ProtocolExitCode` tag (MQTT/RTSP/etc. use this explicitly).
+///   2. A `reqwest::Error` whose `is_connect()` / `is_timeout()` resolves to
+///      a curl-compatible code (7 / 28).
+/// The first match is stashed in a thread-local for the engine's error path
+/// to consume as the process exit code.
 pub fn anyhow_to_rhai(e: anyhow::Error) -> Box<EvalAltResult> {
     let mut code: Option<i32> = None;
     if let Some(c) = e.downcast_ref::<ProtocolExitCode>() {
         code = Some(*c as i32);
-    } else {
+    }
+    if code.is_none() {
         for cause in e.chain() {
             if let Some(c) = cause.downcast_ref::<ProtocolExitCode>() {
                 code = Some(*c as i32);
                 break;
+            }
+            if let Some(rq) = cause.downcast_ref::<reqwest::Error>() {
+                if rq.is_timeout() {
+                    code = Some(28);
+                    break;
+                }
+                if rq.is_connect() {
+                    code = Some(7);
+                    break;
+                }
             }
         }
     }

@@ -36,9 +36,10 @@ pub fn run_file(path: &Path, args: &Args) -> i32 {
 /// Build a Rhai engine with recon helpers registered. Protocol probe
 /// bindings are layered on in subsequent tasks; each probe module takes
 /// the `ScriptDefaults` so it can read CLI flag inheritance at call time.
-pub fn build_engine(_defaults: &ScriptDefaults) -> rhai::Engine {
+pub fn build_engine(defaults: &ScriptDefaults) -> rhai::Engine {
     let mut engine = rhai::Engine::new();
     super::bindings::helpers::register(&mut engine);
+    super::bindings::http::register(&mut engine, defaults.clone());
     engine
 }
 
