@@ -45,7 +45,16 @@ pub(crate) fn parse_url(raw: &str) -> Result<MemcachedUrl> {
     Ok(MemcachedUrl { host, port, want_stats })
 }
 
-pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
+pub struct MemcachedProbeOk {
+    pub host: String,
+    pub port: u16,
+    pub connect_ms: f64,
+    pub version_line: String,
+    pub version_ms: f64,
+    pub stats: std::collections::BTreeMap<String, String>,
+}
+
+pub fn probe(url: &str, timeout_secs: u64) -> Result<MemcachedProbeOk> {
     let parsed = parse_url(url)?;
     let addr = (parsed.host.as_str(), parsed.port)
         .to_socket_addrs()
@@ -78,20 +87,18 @@ pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
     let mut reader = BufReader::new(stream.try_clone().context("memcached: clone stream")?);
     let mut writer = stream;
 
-    println!("Connected to {}:{} in {:.1}ms", parsed.host, parsed.port, connect_ms);
-
     let cmd_start = Instant::now();
     writer
         .write_all(b"version\r\n")
         .context("memcached: write version")?;
-    let mut line = String::new();
+    let mut version_line = String::new();
     reader
-        .read_line(&mut line)
+        .read_line(&mut version_line)
         .context("memcached: read version reply")?;
-    let cmd_ms = cmd_start.elapsed().as_secs_f64() * 1000.0;
-    print!("{line}");
-    println!("  roundtrip: {cmd_ms:.1}ms");
+    let version_ms = cmd_start.elapsed().as_secs_f64() * 1000.0;
 
+    let mut stats: std::collections::BTreeMap<String, String> =
+        std::collections::BTreeMap::new();
     if parsed.want_stats {
         writer
             .write_all(b"stats\r\n")
@@ -104,14 +111,44 @@ pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
             if n == 0 {
                 break;
             }
-            print!("{l}");
             if l.starts_with("END") || l.starts_with("ERROR") {
                 break;
+            }
+            // "STAT key value\r\n"
+            if let Some(rest) = l.trim_end_matches(['\r', '\n']).strip_prefix("STAT ") {
+                if let Some((k, v)) = rest.split_once(' ') {
+                    stats.insert(k.to_string(), v.to_string());
+                }
             }
         }
     }
 
     let _ = writer.write_all(b"quit\r\n");
+
+    Ok(MemcachedProbeOk {
+        host: parsed.host,
+        port: parsed.port,
+        connect_ms,
+        version_line: version_line.trim_end_matches(['\r', '\n']).to_string(),
+        version_ms,
+        stats,
+    })
+}
+
+pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
+    let r = probe(url, timeout_secs)?;
+    println!(
+        "Connected to {}:{} in {:.1}ms",
+        r.host, r.port, r.connect_ms
+    );
+    println!("{}", r.version_line);
+    println!("  roundtrip: {:.1}ms", r.version_ms);
+    if !r.stats.is_empty() {
+        for (k, v) in &r.stats {
+            println!("STAT {k} {v}");
+        }
+        println!("END");
+    }
     Ok(())
 }
 

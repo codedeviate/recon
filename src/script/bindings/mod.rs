@@ -5,6 +5,7 @@ pub mod dns;
 pub mod helpers;
 pub mod http;
 pub mod ldap;
+pub mod memcached;
 pub mod ntp;
 pub mod ping;
 pub mod redis;

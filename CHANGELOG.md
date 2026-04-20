@@ -8,6 +8,16 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.25.14] - 2026-04-20
+
+### Added
+
+- **`memcached(url)` / `memcached(url, opts)` script binding.** Returns `#{ host, port, connect_ms, version, version_ms, stats: #{...} }`. When URL path is `/stats`, the full parsed `STAT key value` map is included.
+
+### Changed
+
+- `memcached_probe.rs` refactored to `probe()`/`run()` split with a `MemcachedProbeOk` struct; stats lines are parsed into a `BTreeMap<String, String>` rather than streamed.
+
 ## [0.25.13] - 2026-04-20
 
 ### Added
