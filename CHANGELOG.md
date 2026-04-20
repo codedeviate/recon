@@ -8,6 +8,16 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.25.12] - 2026-04-20
+
+### Added
+
+- **`ldap(url)` / `ldaps(url)` script binding.** Anonymous simple bind + RootDSE query (`objectClass=*` at scope=base). Returns `#{ url, connect_ms, attrs: #{ "namingContexts": [...], "supportedLDAPVersion": [...], "vendorName": [...], "vendorVersion": [...], "supportedSASLMechanisms": [...] } }`. Optional `opts.timeout` overrides the inherited default.
+
+### Changed
+
+- `ldap_probe.rs` refactored to `probe()`/`run()` split. `probe()` returns `LdapProbeOk { display_url, connect_ms, attrs: BTreeMap<String, Vec<String>> }`; `run()` prints from it.
+
 ## [0.25.11] - 2026-04-20
 
 ### Added

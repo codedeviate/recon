@@ -10,7 +10,13 @@ use anyhow::{anyhow, Result};
 use ldap3::{LdapConn, LdapConnSettings, Scope, SearchEntry};
 use std::time::{Duration, Instant};
 
-pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
+pub struct LdapProbeOk {
+    pub display_url: String,
+    pub connect_ms: f64,
+    pub attrs: std::collections::BTreeMap<String, Vec<String>>,
+}
+
+pub fn probe(url: &str, timeout_secs: u64) -> Result<LdapProbeOk> {
     let (scheme, rest) = if let Some(r) = url.strip_prefix("ldaps://") {
         ("ldaps", r)
     } else if let Some(r) = url.strip_prefix("ldap://") {
@@ -27,8 +33,6 @@ pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
         return Err(anyhow!("ldap: URL missing host"));
     }
 
-    // Build a clean URL tungstenite-style so we don't depend on ldap3's own parser
-    // for the path/query; we only query the RootDSE.
     let display_url = format!("{scheme}://{authority}");
 
     let t0 = Instant::now();
@@ -37,9 +41,6 @@ pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
         .map_err(|e| classify_ldap_err(e, authority, "connect"))?;
     let connect_ms = t0.elapsed().as_secs_f64() * 1000.0;
 
-    println!("Connected to {display_url} in {connect_ms:.1}ms");
-
-    // Anonymous simple bind (empty DN + empty password).
     conn.simple_bind("", "")
         .map_err(|e| classify_ldap_err(e, authority, "bind"))?
         .success()
@@ -58,21 +59,36 @@ pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
         .success()
         .map_err(|e| classify_ldap_err(e, authority, "search"))?;
 
-    if rs.is_empty() {
-        println!("(RootDSE returned no entries)");
-    } else {
-        for e in rs {
-            let entry = SearchEntry::construct(e);
-            println!("RootDSE:");
-            for (attr, values) in entry.attrs {
-                for v in values {
-                    println!("  {attr}: {v}");
-                }
-            }
+    let mut collected: std::collections::BTreeMap<String, Vec<String>> =
+        std::collections::BTreeMap::new();
+    for e in rs {
+        let entry = SearchEntry::construct(e);
+        for (attr, values) in entry.attrs {
+            collected.entry(attr).or_default().extend(values);
         }
     }
 
     let _ = conn.unbind();
+    Ok(LdapProbeOk {
+        display_url,
+        connect_ms,
+        attrs: collected,
+    })
+}
+
+pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
+    let r = probe(url, timeout_secs)?;
+    println!("Connected to {} in {:.1}ms", r.display_url, r.connect_ms);
+    if r.attrs.is_empty() {
+        println!("(RootDSE returned no entries)");
+    } else {
+        println!("RootDSE:");
+        for (attr, values) in &r.attrs {
+            for v in values {
+                println!("  {attr}: {v}");
+            }
+        }
+    }
     Ok(())
 }
 
