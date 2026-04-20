@@ -55,7 +55,23 @@ pub(crate) fn parse_url(raw: &str) -> Result<RedisUrl> {
     Ok(RedisUrl { host, port, password })
 }
 
-pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
+pub fn run(url: &str, args: &crate::cli::Args) -> Result<()> {
+    let timeout_secs = args.timeout;
+    let command_args: Option<Vec<String>> = match &args.data {
+        Some(d) => {
+            let bytes = crate::client::load_body_from_string(d)?;
+            let text = String::from_utf8(bytes)
+                .map_err(|_| anyhow!("redis: -d payload must be valid UTF-8"))?;
+            let toks = shell_split(&text)
+                .ok_or_else(|| anyhow!("redis: unbalanced quotes in -d command"))?;
+            if toks.is_empty() {
+                return Err(anyhow!("redis: -d was empty"));
+            }
+            Some(toks)
+        }
+        None => None,
+    };
+
     let parsed = parse_url(url)?;
     let addr = (parsed.host.as_str(), parsed.port)
         .to_socket_addrs()
@@ -105,16 +121,71 @@ pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
         println!("AUTH: {}", reply.trim_end());
     }
 
-    let ping_start = Instant::now();
+    let (label, wire) = match &command_args {
+        Some(toks) => {
+            let refs: Vec<&str> = toks.iter().map(String::as_str).collect();
+            (toks.join(" "), resp_array(&refs))
+        }
+        None => ("PING".to_string(), resp_array(&["PING"])),
+    };
+
+    let cmd_start = Instant::now();
     writer
-        .write_all(&resp_array(&["PING"]))
-        .context("redis: write PING")?;
+        .write_all(&wire)
+        .with_context(|| format!("redis: write {label}"))?;
     let reply = read_reply(&mut reader)?;
-    let ping_ms = ping_start.elapsed().as_secs_f64() * 1000.0;
-    println!("PING: {} ({:.1}ms)", reply.trim_end(), ping_ms);
+    let cmd_ms = cmd_start.elapsed().as_secs_f64() * 1000.0;
+    println!("{label}: {} ({:.1}ms)", reply.trim_end(), cmd_ms);
 
     let _ = writer.write_all(&resp_array(&["QUIT"]));
     Ok(())
+}
+
+/// Simple shell-style splitter: splits on whitespace, supports
+/// "double quoted" and 'single quoted' tokens, and backslash escapes
+/// (`\"`, `\ `, `\\`). Returns None on unbalanced quotes.
+fn shell_split(input: &str) -> Option<Vec<String>> {
+    #[derive(PartialEq)]
+    enum State {
+        Normal,
+        InDouble,
+        InSingle,
+    }
+    let mut state = State::Normal;
+    let mut out = Vec::new();
+    let mut cur = String::new();
+    let mut chars = input.chars().peekable();
+    while let Some(c) = chars.next() {
+        match (&state, c) {
+            (State::Normal, ch) if ch.is_whitespace() => {
+                if !cur.is_empty() {
+                    out.push(std::mem::take(&mut cur));
+                }
+            }
+            (State::Normal, '"') => state = State::InDouble,
+            (State::Normal, '\'') => state = State::InSingle,
+            (State::Normal, '\\') => {
+                if let Some(n) = chars.next() {
+                    cur.push(n);
+                }
+            }
+            (State::InDouble, '"') => state = State::Normal,
+            (State::InDouble, '\\') => {
+                if let Some(n) = chars.next() {
+                    cur.push(n);
+                }
+            }
+            (State::InSingle, '\'') => state = State::Normal,
+            (_, ch) => cur.push(ch),
+        }
+    }
+    if state != State::Normal {
+        return None;
+    }
+    if !cur.is_empty() {
+        out.push(cur);
+    }
+    Some(out)
 }
 
 /// RESP2 array encoding: *N\r\n$len\r\nARG\r\n…
@@ -207,5 +278,52 @@ mod tests {
             resp_array(&["AUTH", "x"]),
             b"*2\r\n$4\r\nAUTH\r\n$1\r\nx\r\n".to_vec()
         );
+    }
+
+    #[test]
+    fn shell_split_simple() {
+        assert_eq!(
+            shell_split("SET key value"),
+            Some(vec!["SET".into(), "key".into(), "value".into()])
+        );
+    }
+
+    #[test]
+    fn shell_split_double_quoted() {
+        assert_eq!(
+            shell_split("SET key \"hello world\""),
+            Some(vec!["SET".into(), "key".into(), "hello world".into()])
+        );
+    }
+
+    #[test]
+    fn shell_split_single_quoted() {
+        assert_eq!(
+            shell_split("SET key 'a b c'"),
+            Some(vec!["SET".into(), "key".into(), "a b c".into()])
+        );
+    }
+
+    #[test]
+    fn shell_split_backslash_escape() {
+        assert_eq!(
+            shell_split(r#"SET key value\ with\ spaces"#),
+            Some(vec![
+                "SET".into(),
+                "key".into(),
+                "value with spaces".into()
+            ])
+        );
+    }
+
+    #[test]
+    fn shell_split_unbalanced() {
+        assert_eq!(shell_split("SET key \"unterminated"), None);
+    }
+
+    #[test]
+    fn shell_split_empty() {
+        assert_eq!(shell_split(""), Some(vec![]));
+        assert_eq!(shell_split("   "), Some(vec![]));
     }
 }

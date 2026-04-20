@@ -577,7 +577,7 @@ fn main() {
     } else if args.target_url().starts_with("memcached://") {
         memcached_probe::run(args.target_url(), args.timeout)
     } else if args.target_url().starts_with("redis://") {
-        redis_probe::run(args.target_url(), args.timeout)
+        redis_probe::run(args.target_url(), &args)
     } else if args.target_url().starts_with("ping://") {
         parse_plain_host(args.target_url())
             .and_then(|host| ping::run(&host, args.ping_count))

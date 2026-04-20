@@ -8,6 +8,12 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.24.13] - 2026-04-20
+
+### Added
+
+- **`redis://` accepts `-d` for an arbitrary RESP command.** Default behaviour (no `-d`) remains PING. With `-d`, recon splits the argument shell-style (whitespace, `"…"`, `'…'`, `\`-escapes) and sends the tokens as a RESP2 command. Examples: `recon redis://localhost -d PING`, `recon redis://localhost -d 'SET foo bar'`, `recon redis://localhost -d 'SET key "hello world"'`. The reply line is labelled with the echoed command, so `CLIENT: +OK` vs `CONFIG: ...` is self-describing.
+
 ## [0.24.12] - 2026-04-20
 
 ### Added
