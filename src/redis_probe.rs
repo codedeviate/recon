@@ -55,23 +55,25 @@ pub(crate) fn parse_url(raw: &str) -> Result<RedisUrl> {
     Ok(RedisUrl { host, port, password })
 }
 
-pub fn run(url: &str, args: &crate::cli::Args) -> Result<()> {
-    let timeout_secs = args.timeout;
-    let command_args: Option<Vec<String>> = match &args.data {
-        Some(d) => {
-            let bytes = crate::client::load_body_from_string(d)?;
-            let text = String::from_utf8(bytes)
-                .map_err(|_| anyhow!("redis: -d payload must be valid UTF-8"))?;
-            let toks = shell_split(&text)
-                .ok_or_else(|| anyhow!("redis: unbalanced quotes in -d command"))?;
-            if toks.is_empty() {
-                return Err(anyhow!("redis: -d was empty"));
-            }
-            Some(toks)
-        }
-        None => None,
-    };
+/// Structured result of a redis exchange.
+pub struct RedisProbeOk {
+    pub host: String,
+    pub port: u16,
+    pub peer: Option<std::net::SocketAddr>,
+    pub connect_ms: f64,
+    pub auth_reply: Option<String>,
+    pub command_label: String,
+    pub reply: String,
+    pub command_ms: f64,
+}
 
+/// Pure core — no stdout. If `command_args` is `None`, runs `PING`; else
+/// sends the given tokens as a RESP2 command array.
+pub fn probe(
+    url: &str,
+    command_args: Option<Vec<String>>,
+    timeout_secs: u64,
+) -> Result<RedisProbeOk> {
     let parsed = parse_url(url)?;
     let addr = (parsed.host.as_str(), parsed.port)
         .to_socket_addrs()
@@ -105,12 +107,7 @@ pub fn run(url: &str, args: &crate::cli::Args) -> Result<()> {
     let mut reader = BufReader::new(stream.try_clone().context("redis: clone stream")?);
     let mut writer = stream;
 
-    println!("Connected to {}:{} in {:.1}ms", parsed.host, parsed.port, connect_ms);
-    if let Some(p) = peer {
-        println!("  peer: {p}");
-    }
-
-    if let Some(pw) = &parsed.password {
+    let auth_reply = if let Some(pw) = &parsed.password {
         let cmd = resp_array(&["AUTH", pw]);
         writer.write_all(&cmd).context("redis: write AUTH")?;
         let reply = read_reply(&mut reader)?;
@@ -118,8 +115,10 @@ pub fn run(url: &str, args: &crate::cli::Args) -> Result<()> {
             return Err(anyhow!("redis: AUTH rejected: {}", reply.trim_end()))
                 .context(crate::mqtt::ProtocolExitCode::LoginDenied);
         }
-        println!("AUTH: {}", reply.trim_end());
-    }
+        Some(reply.trim_end().to_string())
+    } else {
+        None
+    };
 
     let (label, wire) = match &command_args {
         Some(toks) => {
@@ -134,17 +133,57 @@ pub fn run(url: &str, args: &crate::cli::Args) -> Result<()> {
         .write_all(&wire)
         .with_context(|| format!("redis: write {label}"))?;
     let reply = read_reply(&mut reader)?;
-    let cmd_ms = cmd_start.elapsed().as_secs_f64() * 1000.0;
-    println!("{label}: {} ({:.1}ms)", reply.trim_end(), cmd_ms);
+    let command_ms = cmd_start.elapsed().as_secs_f64() * 1000.0;
 
     let _ = writer.write_all(&resp_array(&["QUIT"]));
+
+    Ok(RedisProbeOk {
+        host: parsed.host,
+        port: parsed.port,
+        peer,
+        connect_ms,
+        auth_reply,
+        command_label: label,
+        reply: reply.trim_end().to_string(),
+        command_ms,
+    })
+}
+
+pub fn run(url: &str, args: &crate::cli::Args) -> Result<()> {
+    let command_args: Option<Vec<String>> = match &args.data {
+        Some(d) => {
+            let bytes = crate::client::load_body_from_string(d)?;
+            let text = String::from_utf8(bytes)
+                .map_err(|_| anyhow!("redis: -d payload must be valid UTF-8"))?;
+            let toks = shell_split(&text)
+                .ok_or_else(|| anyhow!("redis: unbalanced quotes in -d command"))?;
+            if toks.is_empty() {
+                return Err(anyhow!("redis: -d was empty"));
+            }
+            Some(toks)
+        }
+        None => None,
+    };
+
+    let r = probe(url, command_args, args.timeout)?;
+    println!(
+        "Connected to {}:{} in {:.1}ms",
+        r.host, r.port, r.connect_ms
+    );
+    if let Some(p) = r.peer {
+        println!("  peer: {p}");
+    }
+    if let Some(auth) = &r.auth_reply {
+        println!("AUTH: {auth}");
+    }
+    println!("{}: {} ({:.1}ms)", r.command_label, r.reply, r.command_ms);
     Ok(())
 }
 
 /// Simple shell-style splitter: splits on whitespace, supports
 /// "double quoted" and 'single quoted' tokens, and backslash escapes
 /// (`\"`, `\ `, `\\`). Returns None on unbalanced quotes.
-fn shell_split(input: &str) -> Option<Vec<String>> {
+pub(crate) fn shell_split(input: &str) -> Option<Vec<String>> {
     #[derive(PartialEq)]
     enum State {
         Normal,

@@ -8,6 +8,16 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.25.9] - 2026-04-20
+
+### Added
+
+- **`redis(url)` / `redis(url, command)` / `redis(url, command, opts)` script binding.** With no command, sends PING. With a command string, splits it shell-style (whitespace + `"…"` + `'…'` + `\`-escapes — same splitter the CLI `-d` path uses) and sends the tokens as a RESP2 array. Returns `#{ host, port, connect_ms, auth_reply, command, reply, command_ms }`. Connect refused = 7, timeout = 28, AUTH rejected = 67.
+
+### Changed
+
+- `redis_probe.rs` refactored to `probe()`/`run()` split. `probe()` returns a `RedisProbeOk` struct with connect timing, AUTH reply, command label/reply, and command timing; `run()` prints from it. `shell_split` is now `pub(crate)` so the script binding can reuse the same tokenizer.
+
 ## [0.25.8] - 2026-04-20
 
 ### Added
