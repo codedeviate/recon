@@ -8,6 +8,16 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.24.8] - 2026-04-20
+
+### Added
+
+- **`ws://` URL scheme.** Opens a WebSocket connection, sends a Ping frame with an 8-byte nonce, waits for matching Pong, closes cleanly. Reports TCP connect latency, handshake latency, selected `Sec-WebSocket-*` headers, and Ping round-trip. Uses `tungstenite`. Exit 0 on successful Ping/Pong, 7 refused, 28 timed out, 67 on 401/403 handshake rejection. Listed in the `--version` `Protocols:` banner.
+
+### Dependencies
+
+- Added `tungstenite = "0.29"` with `rustls-tls-webpki-roots` for `wss://` support in the next release.
+
 ## [0.24.7] - 2026-04-20
 
 ### Added

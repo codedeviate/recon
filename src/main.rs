@@ -43,6 +43,7 @@ mod udp_probe;
 mod util;
 mod version;
 mod whois;
+mod ws_probe;
 
 use clap::{CommandFactory, Parser};
 use cli::Args;
@@ -592,6 +593,8 @@ fn main() {
         udp_probe::run(args.target_url(), &args)
     } else if args.target_url().starts_with("whois://") {
         parse_plain_host(args.target_url()).and_then(|host| whois::run(&host))
+    } else if args.target_url().starts_with("ws://") {
+        ws_probe::run(args.target_url(), args.timeout)
     } else {
         let t0 = std::time::Instant::now();
         client::execute(&args).and_then(|(response, mut metrics)| -> anyhow::Result<()> {
@@ -778,6 +781,7 @@ fn friendly_message(err: &anyhow::Error) -> String {
         || msg.starts_with("dict:")
         || msg.starts_with("memcached:")
         || msg.starts_with("redis:")
+        || msg.starts_with("ws:")
         || msg.starts_with("tcp:")
         || msg.starts_with("udp:")
         || msg.starts_with("ntp:")
