@@ -150,7 +150,7 @@ pub fn run(url: &str, args: &Args) -> Result<()> {
     match mode {
         Mode::Probe => probe(&cfg, version, &client_id, args),
         Mode::Publish => publish(&cfg, version, &client_id, args),
-        Mode::Subscribe => Err(anyhow!("mqtt subscribe: not yet implemented")),
+        Mode::Subscribe => subscribe(&cfg, version, &client_id, args),
     }
 }
 
@@ -556,6 +556,210 @@ fn probe_v3(cfg: &MqttConfig, client_id: &str, args: &Args) -> Result<()> {
     })
 }
 
+fn subscribe(cfg: &MqttConfig, version: MqttVersion, client_id: &str, args: &Args) -> Result<()> {
+    let qos_level = parse_qos_u8(args.qos)?;
+
+    let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    {
+        let stop_clone = stop.clone();
+        ctrlc::set_handler(move || {
+            stop_clone.store(true, std::sync::atomic::Ordering::SeqCst);
+        })
+        .context("failed to install Ctrl-C handler")?;
+    }
+
+    match version {
+        MqttVersion::V5 => subscribe_v5(cfg, client_id, args, qos_level, stop),
+        MqttVersion::V311 => subscribe_v3(cfg, client_id, args, qos_level, stop),
+    }
+}
+
+fn subscribe_v3(
+    cfg: &MqttConfig,
+    client_id: &str,
+    args: &Args,
+    qos: u8,
+    stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+) -> Result<()> {
+    use rumqttc::{AsyncClient, Event, Incoming, QoS};
+    use std::sync::atomic::Ordering;
+    use std::time::Duration;
+
+    let qos_enum = match qos {
+        0 => QoS::AtMostOnce,
+        1 => QoS::AtLeastOnce,
+        2 => QoS::ExactlyOnce,
+        _ => unreachable!("parse_qos_u8 already validated"),
+    };
+
+    let (options, net_options) = setup_options_v3(cfg, client_id, args)?;
+    let rt = build_mqtt_runtime("subscribe")?;
+
+    let topics: Vec<String> = args.subscribe.clone();
+    let count_limit = args.count;
+    let verbose = args.verbose >= 1;
+
+    rt.block_on(async move {
+        let (client, mut event_loop) = AsyncClient::new(options, 100);
+        event_loop.set_network_options(net_options);
+
+        // Wait for ConnAck
+        loop {
+            if stop.load(Ordering::SeqCst) {
+                return Ok(());
+            }
+            match event_loop.poll().await {
+                Ok(Event::Incoming(Incoming::ConnAck(_))) => break,
+                Ok(_) => continue,
+                Err(e) => return Err(anyhow!("mqtt subscribe (connect): {e}")),
+            }
+        }
+
+        for filter in &topics {
+            client
+                .subscribe(filter, qos_enum)
+                .await
+                .with_context(|| format!("mqtt subscribe: failed on filter '{filter}'"))?;
+        }
+
+        let mut received: u32 = 0;
+        let mut stdout = std::io::stdout();
+        while !stop.load(Ordering::SeqCst) {
+            let event = tokio::time::timeout(Duration::from_millis(200), event_loop.poll()).await;
+            let event = match event {
+                Err(_) => continue, // timeout tick — loop re-checks `stop`
+                Ok(Err(e)) => return Err(anyhow!("mqtt subscribe: {e}")),
+                Ok(Ok(ev)) => ev,
+            };
+            if let Event::Incoming(Incoming::Publish(pub_msg)) = event {
+                emit_subscribe_text(&mut stdout, verbose, &pub_msg.topic, &pub_msg.payload)?;
+                received += 1;
+                if let Some(n) = count_limit {
+                    if received >= n {
+                        break;
+                    }
+                }
+            }
+        }
+
+        let _ = client.disconnect().await;
+        let _ = tokio::time::timeout(Duration::from_millis(500), event_loop.poll()).await;
+        if stop.load(Ordering::SeqCst) {
+            bail!("interrupted");
+        }
+        Ok(())
+    })
+}
+
+fn subscribe_v5(
+    cfg: &MqttConfig,
+    client_id: &str,
+    args: &Args,
+    qos: u8,
+    stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+) -> Result<()> {
+    use rumqttc::v5::mqttbytes::v5::Packet;
+    use rumqttc::v5::mqttbytes::QoS;
+    use rumqttc::v5::{AsyncClient, Event};
+    use std::sync::atomic::Ordering;
+    use std::time::Duration;
+
+    let qos_enum = match qos {
+        0 => QoS::AtMostOnce,
+        1 => QoS::AtLeastOnce,
+        2 => QoS::ExactlyOnce,
+        _ => unreachable!("parse_qos_u8 already validated"),
+    };
+
+    let options = setup_options_v5(cfg, client_id, args)?;
+    let rt = build_mqtt_runtime("subscribe")?;
+
+    let topics: Vec<String> = args.subscribe.clone();
+    let count_limit = args.count;
+    let verbose = args.verbose >= 1;
+
+    rt.block_on(async move {
+        let (client, mut event_loop) = AsyncClient::new(options, 100);
+
+        loop {
+            if stop.load(Ordering::SeqCst) {
+                return Ok(());
+            }
+            match event_loop.poll().await {
+                Ok(Event::Incoming(Packet::ConnAck(_))) => break,
+                Ok(_) => continue,
+                Err(e) => return Err(anyhow!("mqtt subscribe (connect): {e}")),
+            }
+        }
+
+        for filter in &topics {
+            client
+                .subscribe(filter, qos_enum)
+                .await
+                .with_context(|| format!("mqtt subscribe: failed on filter '{filter}'"))?;
+        }
+
+        let mut received: u32 = 0;
+        let mut stdout = std::io::stdout();
+        while !stop.load(Ordering::SeqCst) {
+            let event = tokio::time::timeout(Duration::from_millis(200), event_loop.poll()).await;
+            let event = match event {
+                Err(_) => continue,
+                Ok(Err(e)) => return Err(anyhow!("mqtt subscribe: {e}")),
+                Ok(Ok(ev)) => ev,
+            };
+            if let Event::Incoming(Packet::Publish(pub_msg)) = event {
+                // v5: topic is Bytes; convert to str for display
+                let topic_str = std::str::from_utf8(&pub_msg.topic)
+                    .unwrap_or("<invalid-utf8-topic>");
+                emit_subscribe_text(&mut stdout, verbose, topic_str, &pub_msg.payload)?;
+                received += 1;
+                if let Some(n) = count_limit {
+                    if received >= n {
+                        break;
+                    }
+                }
+            }
+        }
+
+        let _ = client.disconnect().await;
+        let _ = tokio::time::timeout(Duration::from_millis(500), event_loop.poll()).await;
+        if stop.load(Ordering::SeqCst) {
+            bail!("interrupted");
+        }
+        Ok(())
+    })
+}
+
+fn emit_subscribe_text<W: std::io::Write>(
+    out: &mut W,
+    verbose: bool,
+    topic: &str,
+    payload: &[u8],
+) -> Result<()> {
+    let text = match std::str::from_utf8(payload) {
+        Ok(s) => s.to_string(),
+        Err(_) => {
+            // Non-UTF-8: escape non-printable bytes as \xHH
+            let mut s = String::with_capacity(payload.len() * 4);
+            for b in payload {
+                if *b >= 0x20 && *b < 0x7f {
+                    s.push(*b as char);
+                } else {
+                    s.push_str(&format!("\\x{:02x}", b));
+                }
+            }
+            s
+        }
+    };
+    if verbose {
+        writeln!(out, "{topic} {text}")?;
+    } else {
+        writeln!(out, "{text}")?;
+    }
+    Ok(())
+}
+
 fn configure_tls_v5(_options: &mut rumqttc::v5::MqttOptions, _insecure: bool) -> Result<()> {
     bail!("mqtt: mqtts:// TLS not yet implemented; use mqtt:// for now")
 }
@@ -673,5 +877,40 @@ mod dispatch_tests {
         let cfg = MqttConfig::from_url("mqtt://broker/topic").unwrap();
         let err = dispatch_mode(&args, &cfg).unwrap_err().to_string();
         assert!(err.contains("mutually exclusive"), "got: {err}");
+    }
+}
+
+#[cfg(test)]
+mod subscribe_tests {
+    use super::*;
+
+    #[test]
+    fn emits_utf8_plain_without_prefix_when_not_verbose() {
+        let mut buf = Vec::new();
+        emit_subscribe_text(&mut buf, false, "some/topic", b"hello").unwrap();
+        assert_eq!(&buf, b"hello\n");
+    }
+
+    #[test]
+    fn emits_topic_prefix_when_verbose() {
+        let mut buf = Vec::new();
+        emit_subscribe_text(&mut buf, true, "some/topic", b"hello").unwrap();
+        assert_eq!(&buf, b"some/topic hello\n");
+    }
+
+    #[test]
+    fn escapes_non_utf8_payload_as_hex() {
+        let mut buf = Vec::new();
+        // 0xFF is not valid UTF-8 on its own — forces the escape path
+        emit_subscribe_text(&mut buf, false, "t", &[0xff, b'a']).unwrap();
+        assert_eq!(&buf, b"\\xffa\n");
+    }
+
+    #[test]
+    fn escapes_control_chars_in_non_utf8_branch() {
+        let mut buf = Vec::new();
+        // \xff (non-UTF-8) + control char 0x01
+        emit_subscribe_text(&mut buf, false, "t", &[0xff, 0x01]).unwrap();
+        assert_eq!(&buf, b"\\xff\\x01\n");
     }
 }
