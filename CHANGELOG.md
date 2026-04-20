@@ -8,6 +8,16 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.25.7] - 2026-04-20
+
+### Added
+
+- **`tls(host)` / `tls(host, port)` script binding.** Default port 443; alternate via second arg or `host:port` syntax. Returns `#{ host, port, subject, issuer, not_before, not_after, not_before_ts, not_after_ts, days_remaining, is_expired, san, serial_hex, signature_algorithm, public_key, cert_pem }`. Subject/issuer are maps with `common_name`, `organization`, `organizational_unit`, `country`, `state`, `locality`. Handshake runs with hostname-verification off so self-signed / expired certs can still be inspected.
+
+### Changed
+
+- `cert.rs` split into `parse_target` + `fetch_der` + `fetch_and_print`. The DER-fetching TCP + TLS logic is now reusable by the script binding.
+
 ## [0.25.6] - 2026-04-20
 
 ### Added

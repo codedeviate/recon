@@ -5,30 +5,33 @@ use std::net::TcpStream;
 use url::Url;
 use x509_parser::prelude::*;
 
-pub fn fetch_and_print(url_str: &str) -> Result<()> {
-    // Allow bare hostnames like "example.com" or "example.com:8443"
+/// Resolve a user-provided target (bare host / host:port / https URL) into
+/// `(host, port)`. Errors if the scheme is not https.
+pub fn parse_target(url_str: &str) -> Result<(String, u16)> {
     let normalised = if url_str.contains("://") {
         url_str.to_string()
     } else {
         format!("https://{url_str}")
     };
-
-    let parsed = Url::parse(&normalised)
-        .with_context(|| format!("Invalid URL: {url_str}"))?;
-
+    let parsed = Url::parse(&normalised).with_context(|| format!("Invalid URL: {url_str}"))?;
     if parsed.scheme() != "https" {
         return Err(anyhow!(
             "--cert only works with HTTPS URLs (got: {}://)",
             parsed.scheme()
         ));
     }
-
     let host = parsed
         .host_str()
-        .ok_or_else(|| anyhow!("Could not extract host from URL"))?;
+        .ok_or_else(|| anyhow!("Could not extract host from URL"))?
+        .to_string();
     let port = parsed.port().unwrap_or(443);
+    Ok((host, port))
+}
 
-    // Disable cert verification so we can inspect even expired or self-signed certs
+/// Connect, perform a TLS handshake (hostname verification off, so that
+/// self-signed / expired / mismatched certs can still be inspected), and
+/// return the peer certificate's DER bytes.
+pub fn fetch_der(host: &str, port: u16) -> Result<Vec<u8>> {
     let connector = TlsConnector::builder()
         .danger_accept_invalid_certs(true)
         .danger_accept_invalid_hostnames(true)
@@ -47,14 +50,17 @@ pub fn fetch_and_print(url_str: &str) -> Result<()> {
         .context("Failed to retrieve server certificate")?
         .ok_or_else(|| anyhow!("Server did not send a certificate"))?;
 
-    let der = native_cert
+    native_cert
         .to_der()
-        .context("Failed to export certificate as DER")?;
+        .context("Failed to export certificate as DER")
+}
 
+pub fn fetch_and_print(url_str: &str) -> Result<()> {
+    let (host, port) = parse_target(url_str)?;
+    let der = fetch_der(&host, port)?;
     let (_, cert) = X509Certificate::from_der(&der)
         .map_err(|e| anyhow!("Failed to parse certificate: {e}"))?;
-
-    print_cert(&cert, host, port);
+    print_cert(&cert, &host, port);
     Ok(())
 }
 

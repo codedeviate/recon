@@ -43,6 +43,7 @@ pub fn build_engine(defaults: &ScriptDefaults) -> rhai::Engine {
     super::bindings::http::register(&mut engine, defaults.clone());
     super::bindings::ping::register(&mut engine, defaults.clone());
     super::bindings::tcp::register(&mut engine, defaults.clone());
+    super::bindings::tls::register(&mut engine);
     engine
 }
 
