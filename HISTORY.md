@@ -52,6 +52,21 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 26. Protocol URL schemes batch (0.23.0)
+
+Six new URL-scheme probes round out recon's protocol surface: three convenience aliases for existing flags (`tls://` ≈ `--cert`, `ping://` ≈ `--ping`, `traceroute://` ≈ `--traceroute`) and three new standalone probes (`tcp://`, `udp://`, `ntp://`).
+
+Design choices worth noting:
+
+- **Unified exit-code tag.** `MqttExitCode` → `ProtocolExitCode`. All probe failures carry the same `anyhow` context tag, which `main.rs::exit_code_for_http_error` walks via the typed chain lookup established for MQTT. TCP / UDP / NTP error classification reuses the existing `is_connect_io_kind` helper from `mqtt.rs` for consistent `io::ErrorKind` → curl-compat exit code mapping.
+- **Hand-rolled SNTPv4.** A single 48-byte request with a straightforward response parse; no point in pulling in `sntpc` just for that. Reports stratum, reference identifier (ASCII code for stratum 1, IPv4 of upstream peer for stratum ≥ 2), offset, round-trip delay, precision, poll interval, reference timestamp. RFC 4330 §5 offset/delay formulas.
+- **UDP semantics are deliberately weak.** UDP has no connection; "port reachable" is ambiguous. The probe sends one datagram, waits `--wait-time` seconds, and reports whatever it received (or explicitly reports ambiguous silence). Exit 0 in all cases unless `send_to` itself fails.
+- **Thin TLS/ping/traceroute wrappers** route through existing modules via tiny `parse_plain_host` / `rewrite_tls_scheme` helpers. No duplication.
+
+This batch completes the original user-requested protocol list (`tcp`, `udp`, `ntp`, `tls`, `mqtt`, `mqtts`, `ping`, `traceroute`) — `mqtt` / `mqtts` were already in place from 0.22.0.
+
+---
+
 ### 25. MQTT protocol support (0.22.0)
 
 recon gains a first-class MQTT client covering the three common use cases against a broker: probe (recon's characteristic "connect and report" shape), publish, and subscribe. Both MQTT 3.1.1 and 5.0 are supported, selected via `--mqtt-version`.

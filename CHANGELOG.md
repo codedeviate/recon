@@ -8,6 +8,28 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-04-20
+
+### Added
+
+- **Six new URL-scheme protocols.** All listed in the `--version` `Protocols:` banner:
+  - `tls://host[:port]/` — TLS handshake + certificate inspection. Equivalent to `recon --cert https://host:port/`. Default port 443.
+  - `ping://host` — ICMP ping. Equivalent to `recon --ping <host>`.
+  - `traceroute://host` — Traceroute. Equivalent to `recon --traceroute <host>`.
+  - `tcp://host:port/` — **New** TCP connect probe. Reports connect latency + resolved/local addresses. Exits 0 on connect, 7 refused, 28 timed out.
+  - `udp://host:port[/path]` — **New** UDP send-and-wait probe. Sends payload from `-d` (or empty) and waits `--wait-time` seconds (default 1s) for any response. Exits 0 regardless of response; UDP silence is ambiguous.
+  - `ntp://host[:port]/` — **New** SNTPv4 probe. Reports stratum, reference identifier, offset from local clock, round-trip delay, precision, poll interval, and reference time. Default port 123.
+- New flag `--wait-time <SECS>` under a `Protocol Probes` help heading (used by `udp://`).
+- `recon --help protocols` topic and `PROTOCOLS (0.23.0)` section under `recon --examples`.
+
+### Changed
+
+- Internal `MqttExitCode` renamed to `ProtocolExitCode` so the exit-code tag is reusable across TCP / UDP / NTP probes. Display strings changed from `mqtt-exit-N` to `exit-N`. User-facing errors unaffected (`friendly_message` uses a typed downcast, not a string prefix).
+
+### Dependencies
+
+- None added — NTP is hand-rolled in ~80 lines (single 48-byte SNTPv4 request + parse).
+
 ## [0.22.0] - 2026-04-20
 
 ### Added

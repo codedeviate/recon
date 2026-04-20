@@ -847,6 +847,38 @@ pub fn print() {
         "recon mqtts://self-signed.broker/ -k",
     ]);
 
+    section("PROTOCOLS (0.23.0)");
+
+    example("TCP connect probe", &[
+        "recon tcp://github.com:443/",
+        "recon tcp://localhost:22/",
+    ]);
+    note("Reports connect latency, resolved address, local address. Exit 0 on connect, 7 refused, 28 timed out.");
+
+    example("UDP send-and-wait probe", &[
+        "recon udp://8.8.8.8:53/",
+        "recon udp://8.8.8.8:53/ --wait-time 2",
+        r#"recon udp://example.com:1234/ -d "hello""#,
+    ]);
+    note("UDP silence is ambiguous — exit 0 regardless of response unless send fails.");
+
+    example("NTP (SNTPv4) server probe", &[
+        "recon ntp://pool.ntp.org/",
+        "recon ntp://time.google.com/",
+    ]);
+    note("Reports stratum, reference identifier, offset from local clock, round-trip delay.");
+
+    example("TLS handshake / certificate inspection", &[
+        "recon tls://github.com:443/",
+    ]);
+    note("tls:// is shorthand for `--cert https://...`.");
+
+    example("ICMP ping and traceroute as URL schemes", &[
+        "recon ping://google.com",
+        "recon traceroute://google.com",
+    ]);
+    note("ping:// and traceroute:// alias the --ping and --traceroute flags.");
+
     section("EDITOR OUTPUT");
 
     example("Open the response in an editor (--editor [EDITOR])", &[

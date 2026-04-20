@@ -1031,6 +1031,32 @@ static TOPIC_MQTT: Topic = Topic {
     ],
 };
 
+static TOPIC_PROTOCOLS: Topic = Topic {
+    title: "Protocol URL Schemes (probes and aliases)",
+    description: "Beyond http(s):// and mqtt(s)://, recon dispatches six additional URL\n\
+                  schemes for point-probe diagnostics. Three are convenience aliases for\n\
+                  existing flags (tls://, ping://, traceroute://); three are standalone\n\
+                  probes (tcp://, udp://, ntp://).",
+    flags: &[
+        FlagHelp { flags: "tls://host[:port]/", description: "TLS handshake + certificate inspection.\nEquivalent to `recon --cert https://host[:port]/`. Default port 443." },
+        FlagHelp { flags: "ping://host", description: "ICMP ping. Equivalent to `recon --ping <host>`.\nPort in URL is ignored." },
+        FlagHelp { flags: "traceroute://host", description: "Traceroute. Equivalent to `recon --traceroute <host>`." },
+        FlagHelp { flags: "tcp://host:port/", description: "TCP connect probe. Reports connect latency and resolved/local address.\nExits 0 on connect, 7 refused, 28 timed out. Port is required." },
+        FlagHelp { flags: "udp://host:port[/path]", description: "UDP send-and-wait probe. Sends payload from -d/--data (or empty),\nwaits --wait-time seconds for any response. Exits 0 regardless of\nresponse (UDP silence is ambiguous). Port is required." },
+        FlagHelp { flags: "ntp://host[:port]/", description: "SNTPv4 probe. Reports stratum, reference identifier, offset from\nlocal clock, round-trip delay, precision, poll interval, and the\nserver's reference time. Default port 123." },
+        FlagHelp { flags: "--wait-time <SECS>", description: "(udp:// only) Seconds to wait for a response datagram after sending.\nAccepts fractional values. Default: 1.0." },
+        FlagHelp { flags: "--connect-timeout <SECS>", description: "Socket connect / response deadline for tcp://, udp://, ntp://, tls://." },
+    ],
+    related: &["--cert", "--ping", "--traceroute"],
+    examples: &[
+        ExampleHelp { description: "Check whether a TCP port accepts connections", command: "recon tcp://github.com:443/" },
+        ExampleHelp { description: "Query an NTP server and report clock offset", command: "recon ntp://pool.ntp.org/" },
+        ExampleHelp { description: "Probe a UDP service with a custom payload", command: r#"recon udp://example.com:1234/ -d "ping""# },
+        ExampleHelp { description: "Dump a TLS certificate (shorthand for --cert)", command: "recon tls://github.com:443/" },
+        ExampleHelp { description: "Ping and traceroute", command: "recon ping://8.8.8.8 && recon traceroute://8.8.8.8" },
+    ],
+};
+
 // ── Topic resolution ─────────────────────────────────────────────────────────
 
 fn resolve_topic(key: &str) -> Option<&'static Topic> {
@@ -1047,6 +1073,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "dkim" => Some(&TOPIC_DKIM),
         "mta-sts" | "mtasts" => Some(&TOPIC_MTA_STS),
         "mqtt" => Some(&TOPIC_MQTT),
+        "protocols" | "protocol" => Some(&TOPIC_PROTOCOLS),
         "bimi" => Some(&TOPIC_BIMI),
         "tls-rpt" | "tlsrpt" => Some(&TOPIC_TLS_RPT),
         "email" | "email-protection" => Some(&TOPIC_EMAIL),
@@ -1116,6 +1143,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "dkim",
         "mta-sts",
         "mqtt",
+        "protocols",
         "bimi",
         "tls-rpt",
         "email",
