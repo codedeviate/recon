@@ -8,6 +8,16 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.24.10] - 2026-04-20
+
+### Added
+
+- **`ldap://` and `ldaps://` URL schemes.** Anonymous simple bind, then reads the RootDSE (objectClass=* at scope=base). Reports namingContexts, supportedLDAPVersion, vendorName/vendorVersion, supportedSASLMechanisms. Default ports 389 / 636. Exit 7/28/67 classification. Uses `ldap3` crate with rustls-ring backend. Both listed in the `--version` `Protocols:` banner.
+
+### Dependencies
+
+- Added `ldap3 = "0.12"` with `sync` + `tls-rustls-ring` features (no native-tls).
+
 ## [0.24.9] - 2026-04-20
 
 ### Added

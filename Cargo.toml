@@ -1,6 +1,6 @@
 [package]
 name = "recon"
-version = "0.24.9"
+version = "0.24.10"
 edition = "2021"
 
 [[bin]]
@@ -64,6 +64,7 @@ rand = "0.8"
 rumqttc = "0.24"
 webpki-roots = "1"
 tungstenite = { version = "0.29.0", default-features = false, features = ["handshake", "rustls-tls-webpki-roots"] }
+ldap3 = { version = "0.12.1", default-features = false, features = ["sync", "tls-rustls-ring"] }
 
 [dev-dependencies]
 tempfile = "3"
