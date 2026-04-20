@@ -14,6 +14,116 @@ pub enum MqttVersion {
     V5,
 }
 
+/// Context tag attached to anyhow errors returned from MQTT operations,
+/// used by `main.rs::exit_code_for_http_error` to map to curl-compatible
+/// exit codes. Attached via `.context(MqttExitCode::...)` on the MQTT
+/// error paths; `main` recovers it via `downcast_ref::<MqttExitCode>`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MqttExitCode {
+    CouldntConnect = 7,
+    OperationTimedOut = 28,
+    LoginDenied = 67,
+    Interrupted = 130,
+}
+
+impl std::fmt::Display for MqttExitCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::CouldntConnect => write!(f, "mqtt-exit-7"),
+            Self::OperationTimedOut => write!(f, "mqtt-exit-28"),
+            Self::LoginDenied => write!(f, "mqtt-exit-67"),
+            Self::Interrupted => write!(f, "mqtt-exit-130"),
+        }
+    }
+}
+
+impl std::error::Error for MqttExitCode {}
+
+/// Classify a v3 rumqttc ConnectionError into an optional exit-code tag.
+///
+/// - `Io(kind)` with typical connect-failure kinds → CouldntConnect (7)
+/// - `NetworkTimeout` → OperationTimedOut (28)
+/// - `ConnectionRefused(BadUserNamePassword | NotAuthorized)` → LoginDenied (67)
+///
+/// Note: in rumqttc 0.24, a non-Success ConnAck is surfaced through the
+/// `ConnectionError::ConnectionRefused(code)` variant — the consumer never
+/// sees the raw ConnAck packet via `poll()` for auth failures — so we do
+/// the auth classification here rather than inspecting ConnAck packets.
+fn classify_connection_error_v3(e: &rumqttc::ConnectionError) -> Option<MqttExitCode> {
+    use rumqttc::{ConnectReturnCode, ConnectionError};
+    match e {
+        ConnectionError::Io(io_err) if is_connect_io_kind(io_err.kind()) => {
+            Some(MqttExitCode::CouldntConnect)
+        }
+        ConnectionError::NetworkTimeout | ConnectionError::FlushTimeout => {
+            Some(MqttExitCode::OperationTimedOut)
+        }
+        ConnectionError::ConnectionRefused(
+            ConnectReturnCode::BadUserNamePassword | ConnectReturnCode::NotAuthorized,
+        ) => Some(MqttExitCode::LoginDenied),
+        _ => None,
+    }
+}
+
+/// Classify a v5 rumqttc ConnectionError — see `classify_connection_error_v3`.
+/// The v5 variant uses `Timeout(Elapsed)` (not `NetworkTimeout`) and the v5
+/// `ConnectReturnCode` has a much larger variant set, but the two login
+/// failures have the same names.
+fn classify_connection_error_v5(e: &rumqttc::v5::ConnectionError) -> Option<MqttExitCode> {
+    use rumqttc::v5::mqttbytes::v5::ConnectReturnCode;
+    use rumqttc::v5::ConnectionError;
+    match e {
+        ConnectionError::Io(io_err) if is_connect_io_kind(io_err.kind()) => {
+            Some(MqttExitCode::CouldntConnect)
+        }
+        ConnectionError::Timeout(_) => Some(MqttExitCode::OperationTimedOut),
+        ConnectionError::ConnectionRefused(
+            ConnectReturnCode::BadUserNamePassword | ConnectReturnCode::NotAuthorized,
+        ) => Some(MqttExitCode::LoginDenied),
+        _ => None,
+    }
+}
+
+/// io::ErrorKind values that indicate "couldn't open / maintain a TCP
+/// connection to the broker". Used by both v3 and v5 classifiers.
+fn is_connect_io_kind(kind: std::io::ErrorKind) -> bool {
+    use std::io::ErrorKind;
+    matches!(
+        kind,
+        ErrorKind::ConnectionRefused
+            | ErrorKind::ConnectionReset
+            | ErrorKind::ConnectionAborted
+            | ErrorKind::TimedOut
+            | ErrorKind::NotFound
+            | ErrorKind::NotConnected
+            | ErrorKind::HostUnreachable
+            | ErrorKind::NetworkUnreachable
+            | ErrorKind::AddrNotAvailable
+    )
+}
+
+/// Build an anyhow error for a v3 connect-phase failure, tagged with the
+/// matching MqttExitCode (if any). Used at the `Err(e) => return ...`
+/// arms of the ConnAck-wait loops in probe/publish/subscribe.
+fn connect_err_v3(phase: &str, e: rumqttc::ConnectionError) -> anyhow::Error {
+    let tag = classify_connection_error_v3(&e);
+    let err = anyhow!("mqtt {phase}: {e}");
+    match tag {
+        Some(code) => err.context(code),
+        None => err,
+    }
+}
+
+/// v5 counterpart of `connect_err_v3`.
+fn connect_err_v5(phase: &str, e: rumqttc::v5::ConnectionError) -> anyhow::Error {
+    let tag = classify_connection_error_v5(&e);
+    let err = anyhow!("mqtt {phase}: {e}");
+    match tag {
+        Some(code) => err.context(code),
+        None => err,
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mode {
     Probe,
@@ -269,7 +379,7 @@ fn publish_v5(
             match event_loop.poll().await {
                 Ok(Event::Incoming(Packet::ConnAck(_))) => break,
                 Ok(_) => continue,
-                Err(e) => return Err(anyhow!("mqtt publish (connect): {e}")),
+                Err(e) => return Err(connect_err_v5("publish (connect)", e)),
             }
         }
 
@@ -296,7 +406,10 @@ fn publish_v5(
             match result {
                 Ok(Ok(())) => {}
                 Ok(Err(e)) => return Err(e),
-                Err(_) => bail!("mqtt: publish timeout waiting for broker ACK"),
+                Err(_) => {
+                    return Err(anyhow!("mqtt: publish timeout waiting for broker ACK")
+                        .context(MqttExitCode::OperationTimedOut));
+                }
             }
         }
 
@@ -335,7 +448,7 @@ fn publish_v3(
             match event_loop.poll().await {
                 Ok(Event::Incoming(Incoming::ConnAck(_))) => break,
                 Ok(_) => continue,
-                Err(e) => return Err(anyhow!("mqtt publish (connect): {e}")),
+                Err(e) => return Err(connect_err_v3("publish (connect)", e)),
             }
         }
 
@@ -360,7 +473,10 @@ fn publish_v3(
             match result {
                 Ok(Ok(())) => {}
                 Ok(Err(e)) => return Err(e),
-                Err(_) => bail!("mqtt: publish timeout waiting for broker ACK"),
+                Err(_) => {
+                    return Err(anyhow!("mqtt: publish timeout waiting for broker ACK")
+                        .context(MqttExitCode::OperationTimedOut));
+                }
             }
         }
 
@@ -397,7 +513,7 @@ fn probe_v5(cfg: &MqttConfig, client_id: &str, args: &Args) -> Result<()> {
                     return Ok(());
                 }
                 Ok(_other) => continue,
-                Err(e) => return Err(anyhow!("mqtt probe: {e}")),
+                Err(e) => return Err(connect_err_v5("probe", e)),
             }
         }
     })
@@ -550,7 +666,7 @@ fn probe_v3(cfg: &MqttConfig, client_id: &str, args: &Args) -> Result<()> {
                     return Ok(());
                 }
                 Ok(_other) => continue,
-                Err(e) => return Err(anyhow!("mqtt probe: {e}")),
+                Err(e) => return Err(connect_err_v3("probe", e)),
             }
         }
     })
@@ -612,7 +728,7 @@ fn subscribe_v3(
             match event_loop.poll().await {
                 Ok(Event::Incoming(Incoming::ConnAck(_))) => break,
                 Ok(_) => continue,
-                Err(e) => return Err(anyhow!("mqtt subscribe (connect): {e}")),
+                Err(e) => return Err(connect_err_v3("subscribe (connect)", e)),
             }
         }
 
@@ -656,7 +772,7 @@ fn subscribe_v3(
         let _ = client.disconnect().await;
         let _ = tokio::time::timeout(Duration::from_millis(500), event_loop.poll()).await;
         if stop.load(Ordering::SeqCst) {
-            bail!("interrupted");
+            return Err(anyhow!("interrupted").context(MqttExitCode::Interrupted));
         }
         Ok(())
     })
@@ -700,7 +816,7 @@ fn subscribe_v5(
             match event_loop.poll().await {
                 Ok(Event::Incoming(Packet::ConnAck(_))) => break,
                 Ok(_) => continue,
-                Err(e) => return Err(anyhow!("mqtt subscribe (connect): {e}")),
+                Err(e) => return Err(connect_err_v5("subscribe (connect)", e)),
             }
         }
 
@@ -747,7 +863,7 @@ fn subscribe_v5(
         let _ = client.disconnect().await;
         let _ = tokio::time::timeout(Duration::from_millis(500), event_loop.poll()).await;
         if stop.load(Ordering::SeqCst) {
-            bail!("interrupted");
+            return Err(anyhow!("interrupted").context(MqttExitCode::Interrupted));
         }
         Ok(())
     })

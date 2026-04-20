@@ -638,10 +638,22 @@ fn run_cookie_mgmt(args: &Args, jar_name: &str) -> anyhow::Result<()> {
 }
 
 /// Returns the curl-compatible exit code for a given error.
-/// - 28 CURLE_OPERATION_TIMEDOUT
-/// - 7  CURLE_COULDNT_CONNECT
-/// - 1  generic failure (default)
+/// - 7   CURLE_COULDNT_CONNECT
+/// - 28  CURLE_OPERATION_TIMEDOUT
+/// - 67  CURLE_LOGIN_DENIED (MQTT auth failure)
+/// - 130 Ctrl-C (SIGINT convention)
+/// - 1   generic failure (default)
+///
+/// HTTP errors (reqwest) are matched by iterating the `StdError` chain and
+/// downcasting. MQTT errors carry an `MqttExitCode` tag attached via
+/// `anyhow::Error::context(...)`; anyhow's own `downcast_ref` sees through
+/// context wrappers, while the `&dyn StdError` chain iterator does not —
+/// so we must call `downcast_ref` on the `anyhow::Error` directly for the
+/// tag, and fall back to the chain for the reqwest error.
 fn exit_code_for_http_error(e: &anyhow::Error) -> i32 {
+    if let Some(mqtt_code) = e.downcast_ref::<crate::mqtt::MqttExitCode>() {
+        return *mqtt_code as i32;
+    }
     for cause in e.chain() {
         if let Some(rq_err) = cause.downcast_ref::<reqwest::Error>() {
             if rq_err.is_timeout() {
@@ -656,7 +668,20 @@ fn exit_code_for_http_error(e: &anyhow::Error) -> i32 {
 }
 
 fn friendly_message(err: &anyhow::Error) -> String {
-    let msg = err.to_string();
+    // If the top-level anyhow message is just the MqttExitCode tag (e.g.
+    // "mqtt-exit-7"), skip past it and use the next cause — that's the
+    // actual human-readable "mqtt probe: ..." text. Without this, the
+    // user sees "error: mqtt-exit-7" instead of the useful message.
+    let msg = {
+        let top = err.to_string();
+        if top.starts_with("mqtt-exit-") {
+            err.source()
+                .map(|s| s.to_string())
+                .unwrap_or(top)
+        } else {
+            top
+        }
+    };
     let root = err.root_cause().to_string();
 
     if msg.starts_with("Could not connect to")
@@ -689,9 +714,13 @@ fn friendly_message(err: &anyhow::Error) -> String {
         || msg.starts_with("Could not parse input as")
         || msg.starts_with("No input provided")
         || msg.starts_with("mqtt:")
+        || msg.starts_with("mqtt probe")
+        || msg.starts_with("mqtt publish")
+        || msg.starts_with("mqtt subscribe")
         || msg.starts_with("unsupported scheme for mqtt URL")
         || msg.starts_with("malformed mqtt URL")
         || msg.starts_with("mqtt URL missing host")
+        || msg == "interrupted"
     {
         return msg;
     }
