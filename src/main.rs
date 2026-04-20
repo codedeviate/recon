@@ -544,26 +544,16 @@ fn main() {
         whois::run(args.target_url())
     } else if args.has_composable() {
         run_composable(&args)
-    } else if args.target_url().starts_with("dig://") {
-        parse_dns_url(&args.target_url().replacen("dig://", "dns://", 1))
-            .and_then(|(host, path_types)| {
-                let types = if !args.dns_type.is_empty() {
-                    args.dns_type.clone()
-                } else {
-                    path_types
-                };
-                dns::run(&host, &types)
-            })
-    } else if args.target_url().starts_with("dns://") {
-        parse_dns_url(args.target_url())
-            .and_then(|(host, path_types)| {
-                let types = if !args.dns_type.is_empty() {
-                    args.dns_type.clone()
-                } else {
-                    path_types
-                };
-                dns::run(&host, &types)
-            })
+    } else if let Some(rest) = dns_scheme_rest(args.target_url()) {
+        let normalized = format!("dns://{rest}");
+        parse_dns_url(&normalized).and_then(|(host, path_types)| {
+            let types = if !args.dns_type.is_empty() {
+                args.dns_type.clone()
+            } else {
+                path_types
+            };
+            dns::run(&host, &types)
+        })
     } else if args.target_url().starts_with("file://") {
         file_url::run(args.target_url(), &args)
     } else if args.target_url().starts_with("mqtt://")
@@ -844,8 +834,17 @@ fn run_jwt(args: &Args) -> anyhow::Result<()> {
 
 /// Parse `protocol://host[:port]/...` → host only. Used by ping:// and
 /// traceroute:// where the port is meaningless (ICMP).
+/// Match `dns://`, `dig://`, `drill://` and return the rest (after `scheme://`).
+fn dns_scheme_rest(url: &str) -> Option<&str> {
+    for scheme in ["dns://", "dig://", "drill://"] {
+        if let Some(rest) = url.strip_prefix(scheme) {
+            return Some(rest);
+        }
+    }
+    None
+}
+
 /// Parse `dns://host[/TYPE[,TYPE…]]`. Returns (host, types-from-path).
-/// Also accepts `drill://`, `dig://` — the arm strips its own scheme before calling.
 fn parse_dns_url(url: &str) -> anyhow::Result<(String, Vec<String>)> {
     use anyhow::Context;
     let parsed = url::Url::parse(url)

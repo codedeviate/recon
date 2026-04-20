@@ -8,6 +8,16 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.24.4] - 2026-04-20
+
+### Added
+
+- **`drill://` URL scheme.** Alias for `dns://`. Same semantics. Listed in the `--version` `Protocols:` banner.
+
+### Changed
+
+- Internal: `dns://`, `dig://`, `drill://` dispatch now share one arm via `dns_scheme_rest` helper. No user-visible change.
+
 ## [0.24.3] - 2026-04-20
 
 ### Added
