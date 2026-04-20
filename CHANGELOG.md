@@ -8,6 +8,16 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.25.15] - 2026-04-20
+
+### Added
+
+- **`rtsp(url)` / `rtsps(url)` script bindings.** Sends `OPTIONS *` and parses the response. Returns `#{ host, port, tls, connect_ms, status_line, status_code, headers, methods }`. `methods` pre-parses the comma-separated `Public:` header for easy branching. `opts.insecure` / `opts.timeout` overlay inherited defaults.
+
+### Changed
+
+- `rtsp_probe.rs` refactored to `probe()`/`run()` split. `probe()` returns `RtspProbeOk { host, port, tls, connect_ms, status_line, headers }`; `run()` prints from the struct.
+
 ## [0.25.14] - 2026-04-20
 
 ### Added

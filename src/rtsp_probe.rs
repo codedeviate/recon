@@ -59,7 +59,16 @@ pub(crate) fn parse_url(raw: &str) -> Result<RtspUrl> {
     })
 }
 
-pub fn run(url: &str, insecure: bool, timeout_secs: u64) -> Result<()> {
+pub struct RtspProbeOk {
+    pub host: String,
+    pub port: u16,
+    pub tls: bool,
+    pub connect_ms: f64,
+    pub status_line: String,
+    pub headers: Vec<(String, String)>,
+}
+
+pub fn probe(url: &str, insecure: bool, timeout_secs: u64) -> Result<RtspProbeOk> {
     let parsed = parse_url(url)?;
     let addr = (parsed.host.as_str(), parsed.port)
         .to_socket_addrs()
@@ -99,9 +108,7 @@ pub fn run(url: &str, insecure: bool, timeout_secs: u64) -> Result<()> {
         env!("CARGO_PKG_VERSION")
     );
 
-    println!("Connected to {}:{} in {connect_ms:.1}ms", parsed.host, parsed.port);
-
-    if parsed.tls {
+    let (status_line, headers) = if parsed.tls {
         let config = build_rustls_config(insecure)?;
         let server_name = ServerName::try_from(parsed.host.clone())
             .map_err(|_| anyhow!("rtsp: invalid TLS server name '{}'", parsed.host))?;
@@ -114,38 +121,57 @@ pub fn run(url: &str, insecure: bool, timeout_secs: u64) -> Result<()> {
         stream
             .write_all(req.as_bytes())
             .context("rtsp: write OPTIONS over TLS")?;
-        read_response(&mut stream)
+        read_response(&mut stream)?
     } else {
         let mut reader = BufReader::new(tcp.try_clone().context("rtsp: clone stream")?);
         let mut writer = tcp;
         writer
             .write_all(req.as_bytes())
             .context("rtsp: write OPTIONS")?;
-        read_response(&mut reader)
-    }
+        read_response(&mut reader)?
+    };
+
+    Ok(RtspProbeOk {
+        host: parsed.host,
+        port: parsed.port,
+        tls: parsed.tls,
+        connect_ms,
+        status_line,
+        headers,
+    })
 }
 
-fn read_response<R: Read>(r: &mut R) -> Result<()> {
+pub fn run(url: &str, insecure: bool, timeout_secs: u64) -> Result<()> {
+    let r = probe(url, insecure, timeout_secs)?;
+    println!("Connected to {}:{} in {:.1}ms", r.host, r.port, r.connect_ms);
+    print!("{}", r.status_line);
+    for (k, v) in &r.headers {
+        print!("{k}: {v}\r\n");
+    }
+    print!("\r\n");
+    Ok(())
+}
+
+fn read_response<R: Read>(r: &mut R) -> Result<(String, Vec<(String, String)>)> {
     let mut reader = std::io::BufReader::new(r);
     let mut status = String::new();
     let n = reader.read_line(&mut status).context("rtsp: read status")?;
     if n == 0 {
         return Err(anyhow!("rtsp: server closed without replying"));
     }
-    print!("{status}");
 
+    let mut headers: Vec<(String, String)> = Vec::new();
     loop {
         let mut line = String::new();
         let n = reader.read_line(&mut line).context("rtsp: read header")?;
-        if n == 0 {
+        if n == 0 || line == "\r\n" || line == "\n" {
             break;
         }
-        print!("{line}");
-        if line == "\r\n" || line == "\n" {
-            break;
+        if let Some((k, v)) = line.trim_end_matches(['\r', '\n']).split_once(':') {
+            headers.push((k.trim().to_string(), v.trim().to_string()));
         }
     }
-    Ok(())
+    Ok((status, headers))
 }
 
 fn build_rustls_config(insecure: bool) -> Result<ClientConfig> {
