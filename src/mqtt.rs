@@ -598,6 +598,7 @@ fn subscribe_v3(
     let topics: Vec<String> = args.subscribe.clone();
     let count_limit = args.count;
     let verbose = args.verbose >= 1;
+    let mqtt_json = args.mqtt_json;
 
     rt.block_on(async move {
         let (client, mut event_loop) = AsyncClient::new(options, 100);
@@ -632,7 +633,22 @@ fn subscribe_v3(
                 Ok(Ok(ev)) => ev,
             };
             if let Event::Incoming(Incoming::Publish(pub_msg)) = event {
-                emit_subscribe_text(&mut stdout, verbose, &pub_msg.topic, &pub_msg.payload)?;
+                if mqtt_json {
+                    let qos_u8 = match pub_msg.qos {
+                        rumqttc::QoS::AtMostOnce => 0,
+                        rumqttc::QoS::AtLeastOnce => 1,
+                        rumqttc::QoS::ExactlyOnce => 2,
+                    };
+                    emit_subscribe_json(
+                        &mut stdout,
+                        &pub_msg.topic,
+                        qos_u8,
+                        pub_msg.retain,
+                        &pub_msg.payload,
+                    )?;
+                } else {
+                    emit_subscribe_text(&mut stdout, verbose, &pub_msg.topic, &pub_msg.payload)?;
+                }
                 received += 1;
                 if let Some(n) = count_limit {
                     if received >= n {
@@ -677,6 +693,7 @@ fn subscribe_v5(
     let topics: Vec<String> = args.subscribe.clone();
     let count_limit = args.count;
     let verbose = args.verbose >= 1;
+    let mqtt_json = args.mqtt_json;
 
     rt.block_on(async move {
         let (client, mut event_loop) = AsyncClient::new(options, 100);
@@ -712,7 +729,23 @@ fn subscribe_v5(
                 // v5: topic is Bytes; convert to str for display
                 let topic_str = std::str::from_utf8(&pub_msg.topic)
                     .unwrap_or("<invalid-utf8-topic>");
-                emit_subscribe_text(&mut stdout, verbose, topic_str, &pub_msg.payload)?;
+                if mqtt_json {
+                    use rumqttc::v5::mqttbytes::QoS as V5QoS;
+                    let qos_u8 = match pub_msg.qos {
+                        V5QoS::AtMostOnce => 0,
+                        V5QoS::AtLeastOnce => 1,
+                        V5QoS::ExactlyOnce => 2,
+                    };
+                    emit_subscribe_json(
+                        &mut stdout,
+                        topic_str,
+                        qos_u8,
+                        pub_msg.retain,
+                        &pub_msg.payload,
+                    )?;
+                } else {
+                    emit_subscribe_text(&mut stdout, verbose, topic_str, &pub_msg.payload)?;
+                }
                 received += 1;
                 if let Some(n) = count_limit {
                     if received >= n {
@@ -757,6 +790,33 @@ fn emit_subscribe_text<W: std::io::Write>(
     } else {
         writeln!(out, "{text}")?;
     }
+    Ok(())
+}
+
+/// Emit one subscribe message as a single JSON object on its own line
+/// (NDJSON). Non-UTF-8 payloads are wrapped as `{"base64": "..."}` so the
+/// JSON stays well-formed while remaining self-describing.
+fn emit_subscribe_json<W: std::io::Write>(
+    out: &mut W,
+    topic: &str,
+    qos: u8,
+    retain: bool,
+    payload: &[u8],
+) -> Result<()> {
+    use serde_json::{json, Map, Value};
+    let mut map = Map::new();
+    map.insert("topic".into(), json!(topic));
+    map.insert("qos".into(), json!(qos));
+    map.insert("retain".into(), json!(retain));
+    let payload_value = match std::str::from_utf8(payload) {
+        Ok(s) => json!(s),
+        Err(_) => {
+            use base64::{engine::general_purpose::STANDARD, Engine as _};
+            json!({ "base64": STANDARD.encode(payload) })
+        }
+    };
+    map.insert("payload".into(), payload_value);
+    writeln!(out, "{}", Value::Object(map))?;
     Ok(())
 }
 
@@ -912,5 +972,41 @@ mod subscribe_tests {
         // \xff (non-UTF-8) + control char 0x01
         emit_subscribe_text(&mut buf, false, "t", &[0xff, 0x01]).unwrap();
         assert_eq!(&buf, b"\\xff\\x01\n");
+    }
+
+    #[test]
+    fn json_utf8_payload() {
+        let mut buf = Vec::new();
+        emit_subscribe_json(&mut buf, "some/topic", 1, false, b"hello").unwrap();
+        let s = String::from_utf8(buf).unwrap();
+        let v: serde_json::Value = serde_json::from_str(s.trim()).unwrap();
+        assert_eq!(v["topic"], "some/topic");
+        assert_eq!(v["qos"], 1);
+        assert_eq!(v["retain"], false);
+        assert_eq!(v["payload"], "hello");
+    }
+
+    #[test]
+    fn json_binary_payload_wraps_base64() {
+        let mut buf = Vec::new();
+        // 0xFF is not valid UTF-8 — forces base64 wrap
+        emit_subscribe_json(&mut buf, "t", 0, true, &[0xff, 0x01]).unwrap();
+        let s = String::from_utf8(buf).unwrap();
+        let v: serde_json::Value = serde_json::from_str(s.trim()).unwrap();
+        assert_eq!(v["retain"], true);
+        assert!(v["payload"].is_object(), "payload should be an object for non-UTF-8");
+        assert_eq!(v["payload"]["base64"], "/wE=");
+    }
+
+    #[test]
+    fn json_emits_one_line_per_message() {
+        let mut buf = Vec::new();
+        emit_subscribe_json(&mut buf, "a", 0, false, b"x").unwrap();
+        emit_subscribe_json(&mut buf, "b", 0, false, b"y").unwrap();
+        let lines: Vec<&str> = std::str::from_utf8(&buf).unwrap().lines().collect();
+        assert_eq!(lines.len(), 2);
+        for line in &lines {
+            serde_json::from_str::<serde_json::Value>(line).expect("each line must be valid JSON");
+        }
     }
 }
