@@ -1,26 +1,37 @@
-//! RTSP probe. Opens a TCP connection and sends `OPTIONS *` (RFC 2326).
-//! Reports server banner, status line, and supported methods.
+//! RTSP probe. Opens a TCP (or TLS for rtsps://) connection and sends
+//! `OPTIONS *` (RFC 2326). Reports server banner, status line, and
+//! supported methods.
 //!
-//! URL grammar: `rtsp://host[:port][/path]`. Default port 554.
+//! URL grammar: `rtsp://host[:port][/path]` (default 554) or
+//! `rtsps://host[:port][/path]` (default 322, RTSP over TLS per IANA).
 //! Exit 0 on any RTSP response; 7 refused; 28 timed out.
 
 use anyhow::{anyhow, Context, Result};
-use std::io::{BufRead, BufReader, ErrorKind, Write};
+use rustls::pki_types::ServerName;
+use rustls::{ClientConfig, ClientConnection, StreamOwned};
+use std::io::{BufRead, BufReader, ErrorKind, Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-const DEFAULT_PORT: u16 = 554;
+const DEFAULT_PORT_PLAIN: u16 = 554;
+const DEFAULT_PORT_TLS: u16 = 322;
 
 pub(crate) struct RtspUrl {
     pub host: String,
     pub port: u16,
     pub path: String,
+    pub tls: bool,
 }
 
 pub(crate) fn parse_url(raw: &str) -> Result<RtspUrl> {
-    let rest = raw
-        .strip_prefix("rtsp://")
-        .ok_or_else(|| anyhow!("rtsp: URL must start with rtsp://"))?;
+    let (tls, rest) = if let Some(r) = raw.strip_prefix("rtsps://") {
+        (true, r)
+    } else if let Some(r) = raw.strip_prefix("rtsp://") {
+        (false, r)
+    } else {
+        return Err(anyhow!("rtsp: URL must start with rtsp:// or rtsps://"));
+    };
 
     let (authority, path) = match rest.find('/') {
         Some(i) => (&rest[..i], &rest[i..]),
@@ -30,23 +41,25 @@ pub(crate) fn parse_url(raw: &str) -> Result<RtspUrl> {
         return Err(anyhow!("rtsp: URL missing host"));
     }
 
+    let default_port = if tls { DEFAULT_PORT_TLS } else { DEFAULT_PORT_PLAIN };
     let (host, port) = match authority.rsplit_once(':') {
         Some((h, p)) => (
             h.to_string(),
             p.parse::<u16>()
                 .map_err(|_| anyhow!("rtsp: invalid port '{p}'"))?,
         ),
-        None => (authority.to_string(), DEFAULT_PORT),
+        None => (authority.to_string(), default_port),
     };
 
     Ok(RtspUrl {
         host,
         port,
         path: path.to_string(),
+        tls,
     })
 }
 
-pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
+pub fn run(url: &str, insecure: bool, timeout_secs: u64) -> Result<()> {
     let parsed = parse_url(url)?;
     let addr = (parsed.host.as_str(), parsed.port)
         .to_socket_addrs()
@@ -56,7 +69,7 @@ pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
 
     let timeout = Duration::from_secs(timeout_secs);
     let connect_start = Instant::now();
-    let stream = match TcpStream::connect_timeout(&addr, timeout) {
+    let tcp = match TcpStream::connect_timeout(&addr, timeout) {
         Ok(s) => s,
         Err(e) if e.kind() == ErrorKind::TimedOut => {
             return Err(anyhow!("rtsp: connection to {} timed out", parsed.host))
@@ -73,10 +86,11 @@ pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
     };
     let connect_ms = connect_start.elapsed().as_secs_f64() * 1000.0;
 
-    stream.set_read_timeout(Some(timeout)).ok();
-    stream.set_write_timeout(Some(timeout)).ok();
+    tcp.set_read_timeout(Some(timeout)).ok();
+    tcp.set_write_timeout(Some(timeout)).ok();
 
-    let target = format!("rtsp://{}:{}{}", parsed.host, parsed.port, parsed.path);
+    let scheme = if parsed.tls { "rtsps" } else { "rtsp" };
+    let target = format!("{scheme}://{}:{}{}", parsed.host, parsed.port, parsed.path);
     let req = format!(
         "OPTIONS {target} RTSP/1.0\r\n\
          CSeq: 1\r\n\
@@ -85,17 +99,34 @@ pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
         env!("CARGO_PKG_VERSION")
     );
 
-    let mut reader = BufReader::new(stream.try_clone().context("rtsp: clone stream")?);
-    let mut writer = stream;
-
     println!("Connected to {}:{} in {connect_ms:.1}ms", parsed.host, parsed.port);
 
-    writer
-        .write_all(req.as_bytes())
-        .context("rtsp: write OPTIONS")?;
+    if parsed.tls {
+        let config = build_rustls_config(insecure)?;
+        let server_name = ServerName::try_from(parsed.host.clone())
+            .map_err(|_| anyhow!("rtsp: invalid TLS server name '{}'", parsed.host))?;
+        let mut conn = ClientConnection::new(Arc::new(config), server_name)
+            .context("rtsp: create TLS client connection")?;
+        let mut tcp_for_handshake = tcp;
+        conn.complete_io(&mut tcp_for_handshake)
+            .with_context(|| format!("rtsp: TLS handshake with {} failed", parsed.host))?;
+        let mut stream = StreamOwned::new(conn, tcp_for_handshake);
+        stream
+            .write_all(req.as_bytes())
+            .context("rtsp: write OPTIONS over TLS")?;
+        read_response(&mut stream)
+    } else {
+        let mut reader = BufReader::new(tcp.try_clone().context("rtsp: clone stream")?);
+        let mut writer = tcp;
+        writer
+            .write_all(req.as_bytes())
+            .context("rtsp: write OPTIONS")?;
+        read_response(&mut reader)
+    }
+}
 
-    // Read status line + headers until blank line. Don't read beyond —
-    // OPTIONS has no body for any server we care about.
+fn read_response<R: Read>(r: &mut R) -> Result<()> {
+    let mut reader = std::io::BufReader::new(r);
     let mut status = String::new();
     let n = reader.read_line(&mut status).context("rtsp: read status")?;
     if n == 0 {
@@ -114,8 +145,71 @@ pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
             break;
         }
     }
-
     Ok(())
+}
+
+fn build_rustls_config(insecure: bool) -> Result<ClientConfig> {
+    let provider = Arc::new(rustls::crypto::ring::default_provider());
+
+    if insecure {
+        let config = ClientConfig::builder_with_provider(provider)
+            .with_safe_default_protocol_versions()
+            .context("rtsp TLS: failed to configure protocol versions")?
+            .dangerous()
+            .with_custom_certificate_verifier(Arc::new(NoCertificateVerification))
+            .with_no_client_auth();
+        Ok(config)
+    } else {
+        let mut roots = rustls::RootCertStore::empty();
+        roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+        let config = ClientConfig::builder_with_provider(provider)
+            .with_safe_default_protocol_versions()
+            .context("rtsp TLS: failed to configure protocol versions")?
+            .with_root_certificates(roots)
+            .with_no_client_auth();
+        Ok(config)
+    }
+}
+
+/// Accepts every server certificate — used only under -k / --insecure.
+#[derive(Debug)]
+struct NoCertificateVerification;
+
+impl rustls::client::danger::ServerCertVerifier for NoCertificateVerification {
+    fn verify_server_cert(
+        &self,
+        _end_entity: &rustls::pki_types::CertificateDer<'_>,
+        _intermediates: &[rustls::pki_types::CertificateDer<'_>],
+        _server_name: &rustls::pki_types::ServerName<'_>,
+        _ocsp_response: &[u8],
+        _now: rustls::pki_types::UnixTime,
+    ) -> std::result::Result<rustls::client::danger::ServerCertVerified, rustls::Error> {
+        Ok(rustls::client::danger::ServerCertVerified::assertion())
+    }
+
+    fn verify_tls12_signature(
+        &self,
+        _: &[u8],
+        _: &rustls::pki_types::CertificateDer<'_>,
+        _: &rustls::DigitallySignedStruct,
+    ) -> std::result::Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
+        Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
+    }
+
+    fn verify_tls13_signature(
+        &self,
+        _: &[u8],
+        _: &rustls::pki_types::CertificateDer<'_>,
+        _: &rustls::DigitallySignedStruct,
+    ) -> std::result::Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
+        Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
+        rustls::crypto::ring::default_provider()
+            .signature_verification_algorithms
+            .supported_schemes()
+    }
 }
 
 #[cfg(test)]
@@ -128,6 +222,21 @@ mod tests {
         assert_eq!(u.host, "example.com");
         assert_eq!(u.port, 554);
         assert_eq!(u.path, "/");
+        assert!(!u.tls);
+    }
+
+    #[test]
+    fn parses_rtsps() {
+        let u = parse_url("rtsps://example.com").unwrap();
+        assert_eq!(u.port, 322);
+        assert!(u.tls);
+    }
+
+    #[test]
+    fn parses_rtsps_custom_port() {
+        let u = parse_url("rtsps://example.com:443/").unwrap();
+        assert_eq!(u.port, 443);
+        assert!(u.tls);
     }
 
     #[test]

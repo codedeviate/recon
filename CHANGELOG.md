@@ -8,6 +8,12 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.24.12] - 2026-04-20
+
+### Added
+
+- **`rtsps://` URL scheme — RTSP over TLS.** Default port 322 (per IANA). Wraps the TCP connection in rustls before sending OPTIONS. Honours `-k` / `--insecure` to skip certificate verification. Listed in the `--version` `Protocols:` banner.
+
 ## [0.24.11] - 2026-04-20
 
 ### Added

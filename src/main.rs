@@ -581,8 +581,10 @@ fn main() {
     } else if args.target_url().starts_with("ping://") {
         parse_plain_host(args.target_url())
             .and_then(|host| ping::run(&host, args.ping_count))
-    } else if args.target_url().starts_with("rtsp://") {
-        rtsp_probe::run(args.target_url(), args.timeout)
+    } else if args.target_url().starts_with("rtsp://")
+        || args.target_url().starts_with("rtsps://")
+    {
+        rtsp_probe::run(args.target_url(), args.insecure, args.timeout)
     } else if args.target_url().starts_with("scp://") {
         scp::download(args.target_url(), &args)
     } else if args.target_url().starts_with("ssh://") {

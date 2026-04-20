@@ -19,8 +19,8 @@ const RUSTLS_VERSION: &str = "0.23";
 const PROTOCOLS: &[&str] = &[
     "dict", "dig", "dns", "drill", "file", "http", "https", "ldap", "ldaps", "memcached",
     "mqtt", "mqtts", "ntp",
-    "ping", "redis", "rtsp", "scp", "ssh", "tcp", "telnet", "tls", "traceroute", "udp", "whois",
-    "ws", "wss",
+    "ping", "redis", "rtsp", "rtsps", "scp", "ssh", "tcp", "telnet", "tls", "traceroute", "udp",
+    "whois", "ws", "wss",
 ];
 
 /// Feature tokens. Kept curl-compatible where the concept overlaps (HTTP2,
