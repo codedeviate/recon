@@ -645,17 +645,17 @@ fn run_cookie_mgmt(args: &Args, jar_name: &str) -> anyhow::Result<()> {
 /// - 1   generic failure (default)
 ///
 /// HTTP errors (reqwest) are matched by iterating the `StdError` chain and
-/// downcasting. MQTT errors carry an `MqttExitCode` tag attached via
+/// downcasting. Protocol errors carry a `ProtocolExitCode` tag attached via
 /// `anyhow::Error::context(...)`; anyhow's own `downcast_ref` sees through
 /// context wrappers, while the `&dyn StdError` chain iterator does not —
 /// so we must call `downcast_ref` on the `anyhow::Error` directly for the
 /// tag, and fall back to the chain for the reqwest error.
 fn exit_code_for_http_error(e: &anyhow::Error) -> i32 {
-    // MqttExitCode implements StdError, so the anyhow chain exposes it —
+    // ProtocolExitCode implements StdError, so the anyhow chain exposes it —
     // search every frame (not just the top). Robust against future code that
     // adds another `.context(...)` after the tag, which would push the tag
     // out of the top slot.
-    if let Some(code) = mqtt_exit_code(e) {
+    if let Some(code) = protocol_exit_code(e) {
         return code as i32;
     }
     for cause in e.chain() {
@@ -671,15 +671,15 @@ fn exit_code_for_http_error(e: &anyhow::Error) -> i32 {
     1
 }
 
-/// Find the first `MqttExitCode` tag anywhere in the error chain.
-fn mqtt_exit_code(e: &anyhow::Error) -> Option<crate::mqtt::MqttExitCode> {
+/// Find the first `ProtocolExitCode` tag anywhere in the error chain.
+fn protocol_exit_code(e: &anyhow::Error) -> Option<crate::mqtt::ProtocolExitCode> {
     // Check the top-level anyhow error first — `.context(...)` wrappers
     // sometimes obscure the tag from the `.chain()` iterator.
-    if let Some(c) = e.downcast_ref::<crate::mqtt::MqttExitCode>() {
+    if let Some(c) = e.downcast_ref::<crate::mqtt::ProtocolExitCode>() {
         return Some(*c);
     }
     for cause in e.chain() {
-        if let Some(c) = cause.downcast_ref::<crate::mqtt::MqttExitCode>() {
+        if let Some(c) = cause.downcast_ref::<crate::mqtt::ProtocolExitCode>() {
             return Some(*c);
         }
     }
@@ -687,13 +687,13 @@ fn mqtt_exit_code(e: &anyhow::Error) -> Option<crate::mqtt::MqttExitCode> {
 }
 
 fn friendly_message(err: &anyhow::Error) -> String {
-    // If the top-level anyhow error IS an MqttExitCode tag, its Display
-    // impl ("mqtt-exit-N") is not useful to the user. Skip to the wrapped
+    // If the top-level anyhow error IS a ProtocolExitCode tag, its Display
+    // impl ("exit-N") is not useful to the user. Skip to the wrapped
     // source to get the real "mqtt probe: ..." message. Using the typed
     // downcast (not a string-prefix check) means a future rename of the
     // Display impl won't silently leak the tag into user output.
-    let msg = if mqtt_exit_code(err).is_some()
-        && err.downcast_ref::<crate::mqtt::MqttExitCode>().is_some()
+    let msg = if protocol_exit_code(err).is_some()
+        && err.downcast_ref::<crate::mqtt::ProtocolExitCode>().is_some()
     {
         err.source()
             .map(|s| s.to_string())

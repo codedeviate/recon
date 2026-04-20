@@ -14,30 +14,30 @@ pub enum MqttVersion {
     V5,
 }
 
-/// Context tag attached to anyhow errors returned from MQTT operations,
+/// Context tag attached to anyhow errors returned from protocol operations,
 /// used by `main.rs::exit_code_for_http_error` to map to curl-compatible
-/// exit codes. Attached via `.context(MqttExitCode::...)` on the MQTT
-/// error paths; `main` recovers it via `downcast_ref::<MqttExitCode>`.
+/// exit codes. Attached via `.context(ProtocolExitCode::...)` on the
+/// error paths; `main` recovers it via `downcast_ref::<ProtocolExitCode>`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MqttExitCode {
+pub enum ProtocolExitCode {
     CouldntConnect = 7,
     OperationTimedOut = 28,
     LoginDenied = 67,
     Interrupted = 130,
 }
 
-impl std::fmt::Display for MqttExitCode {
+impl std::fmt::Display for ProtocolExitCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::CouldntConnect => write!(f, "mqtt-exit-7"),
-            Self::OperationTimedOut => write!(f, "mqtt-exit-28"),
-            Self::LoginDenied => write!(f, "mqtt-exit-67"),
-            Self::Interrupted => write!(f, "mqtt-exit-130"),
+            Self::CouldntConnect => write!(f, "exit-7"),
+            Self::OperationTimedOut => write!(f, "exit-28"),
+            Self::LoginDenied => write!(f, "exit-67"),
+            Self::Interrupted => write!(f, "exit-130"),
         }
     }
 }
 
-impl std::error::Error for MqttExitCode {}
+impl std::error::Error for ProtocolExitCode {}
 
 /// Classify a v3 rumqttc ConnectionError into an optional exit-code tag.
 ///
@@ -49,18 +49,18 @@ impl std::error::Error for MqttExitCode {}
 /// `ConnectionError::ConnectionRefused(code)` variant — the consumer never
 /// sees the raw ConnAck packet via `poll()` for auth failures — so we do
 /// the auth classification here rather than inspecting ConnAck packets.
-fn classify_connection_error_v3(e: &rumqttc::ConnectionError) -> Option<MqttExitCode> {
+fn classify_connection_error_v3(e: &rumqttc::ConnectionError) -> Option<ProtocolExitCode> {
     use rumqttc::{ConnectReturnCode, ConnectionError};
     match e {
         ConnectionError::Io(io_err) if is_connect_io_kind(io_err.kind()) => {
-            Some(MqttExitCode::CouldntConnect)
+            Some(ProtocolExitCode::CouldntConnect)
         }
         ConnectionError::NetworkTimeout | ConnectionError::FlushTimeout => {
-            Some(MqttExitCode::OperationTimedOut)
+            Some(ProtocolExitCode::OperationTimedOut)
         }
         ConnectionError::ConnectionRefused(
             ConnectReturnCode::BadUserNamePassword | ConnectReturnCode::NotAuthorized,
-        ) => Some(MqttExitCode::LoginDenied),
+        ) => Some(ProtocolExitCode::LoginDenied),
         _ => None,
     }
 }
@@ -69,17 +69,17 @@ fn classify_connection_error_v3(e: &rumqttc::ConnectionError) -> Option<MqttExit
 /// The v5 variant uses `Timeout(Elapsed)` (not `NetworkTimeout`) and the v5
 /// `ConnectReturnCode` has a much larger variant set, but the two login
 /// failures have the same names.
-fn classify_connection_error_v5(e: &rumqttc::v5::ConnectionError) -> Option<MqttExitCode> {
+fn classify_connection_error_v5(e: &rumqttc::v5::ConnectionError) -> Option<ProtocolExitCode> {
     use rumqttc::v5::mqttbytes::v5::ConnectReturnCode;
     use rumqttc::v5::ConnectionError;
     match e {
         ConnectionError::Io(io_err) if is_connect_io_kind(io_err.kind()) => {
-            Some(MqttExitCode::CouldntConnect)
+            Some(ProtocolExitCode::CouldntConnect)
         }
-        ConnectionError::Timeout(_) => Some(MqttExitCode::OperationTimedOut),
+        ConnectionError::Timeout(_) => Some(ProtocolExitCode::OperationTimedOut),
         ConnectionError::ConnectionRefused(
             ConnectReturnCode::BadUserNamePassword | ConnectReturnCode::NotAuthorized,
-        ) => Some(MqttExitCode::LoginDenied),
+        ) => Some(ProtocolExitCode::LoginDenied),
         _ => None,
     }
 }
@@ -103,7 +103,7 @@ fn is_connect_io_kind(kind: std::io::ErrorKind) -> bool {
 }
 
 /// Build an anyhow error for a v3 connect-phase failure, tagged with the
-/// matching MqttExitCode (if any). Used at the `Err(e) => return ...`
+/// matching ProtocolExitCode (if any). Used at the `Err(e) => return ...`
 /// arms of the ConnAck-wait loops in probe/publish/subscribe.
 fn connect_err_v3(phase: &str, e: rumqttc::ConnectionError) -> anyhow::Error {
     let tag = classify_connection_error_v3(&e);
@@ -408,7 +408,7 @@ fn publish_v5(
                 Ok(Err(e)) => return Err(e),
                 Err(_) => {
                     return Err(anyhow!("mqtt: publish timeout waiting for broker ACK")
-                        .context(MqttExitCode::OperationTimedOut));
+                        .context(ProtocolExitCode::OperationTimedOut));
                 }
             }
         }
@@ -475,7 +475,7 @@ fn publish_v3(
                 Ok(Err(e)) => return Err(e),
                 Err(_) => {
                     return Err(anyhow!("mqtt: publish timeout waiting for broker ACK")
-                        .context(MqttExitCode::OperationTimedOut));
+                        .context(ProtocolExitCode::OperationTimedOut));
                 }
             }
         }
@@ -772,7 +772,7 @@ fn subscribe_v3(
         let _ = client.disconnect().await;
         let _ = tokio::time::timeout(Duration::from_millis(500), event_loop.poll()).await;
         if stop.load(Ordering::SeqCst) {
-            return Err(anyhow!("interrupted").context(MqttExitCode::Interrupted));
+            return Err(anyhow!("interrupted").context(ProtocolExitCode::Interrupted));
         }
         Ok(())
     })
@@ -863,7 +863,7 @@ fn subscribe_v5(
         let _ = client.disconnect().await;
         let _ = tokio::time::timeout(Duration::from_millis(500), event_loop.poll()).await;
         if stop.load(Ordering::SeqCst) {
-            return Err(anyhow!("interrupted").context(MqttExitCode::Interrupted));
+            return Err(anyhow!("interrupted").context(ProtocolExitCode::Interrupted));
         }
         Ok(())
     })
