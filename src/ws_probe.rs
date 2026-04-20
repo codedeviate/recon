@@ -12,12 +12,18 @@ use std::net::TcpStream;
 use std::time::{Duration, Instant};
 use tungstenite::{
     client::{client_with_config, IntoClientRequest},
+    client_tls_with_config,
     handshake::HandshakeError,
     protocol::{Message, WebSocketConfig},
     stream::MaybeTlsStream,
 };
 
 pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
+    // tungstenite's rustls connector picks up the process-level default
+    // CryptoProvider; install once (idempotent — later calls return Err
+    // which we ignore).
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     let scheme = if url.starts_with("wss://") { "wss" } else { "ws" };
     let request = url
         .into_client_request()
@@ -43,21 +49,29 @@ pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
     tcp.set_read_timeout(Some(timeout)).ok();
     tcp.set_write_timeout(Some(timeout)).ok();
 
-    // For ws://, tungstenite will just use the plain TCP stream. For
-    // wss://, client_with_config performs TLS negotiation internally
-    // when the scheme is wss:// and the rustls feature is active.
     let handshake_start = Instant::now();
-    let (mut socket, response) = client_with_config(
-        request,
-        MaybeTlsStream::Plain(tcp),
-        Some(WebSocketConfig::default()),
-    )
-    .map_err(|e| match e {
-        HandshakeError::Failure(err) => classify_handshake_error(err, &host),
-        HandshakeError::Interrupted(_) => {
-            anyhow!("ws: handshake to {host} interrupted")
-        }
-    })?;
+    let (mut socket, response) = if scheme == "wss" {
+        client_tls_with_config(request, tcp, Some(WebSocketConfig::default()), None).map_err(
+            |e| match e {
+                HandshakeError::Failure(err) => classify_handshake_error(err, &host),
+                HandshakeError::Interrupted(_) => {
+                    anyhow!("ws: handshake to {host} interrupted")
+                }
+            },
+        )?
+    } else {
+        client_with_config(
+            request,
+            MaybeTlsStream::Plain(tcp),
+            Some(WebSocketConfig::default()),
+        )
+        .map_err(|e| match e {
+            HandshakeError::Failure(err) => classify_handshake_error(err, &host),
+            HandshakeError::Interrupted(_) => {
+                anyhow!("ws: handshake to {host} interrupted")
+            }
+        })?
+    };
     let handshake_ms = handshake_start.elapsed().as_secs_f64() * 1000.0;
 
     println!(

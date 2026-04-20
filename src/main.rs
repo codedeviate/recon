@@ -593,7 +593,9 @@ fn main() {
         udp_probe::run(args.target_url(), &args)
     } else if args.target_url().starts_with("whois://") {
         parse_plain_host(args.target_url()).and_then(|host| whois::run(&host))
-    } else if args.target_url().starts_with("ws://") {
+    } else if args.target_url().starts_with("ws://")
+        || args.target_url().starts_with("wss://")
+    {
         ws_probe::run(args.target_url(), args.timeout)
     } else {
         let t0 = std::time::Instant::now();

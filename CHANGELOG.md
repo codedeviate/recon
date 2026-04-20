@@ -8,6 +8,12 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.24.9] - 2026-04-20
+
+### Added
+
+- **`wss://` URL scheme.** Same semantics as `ws://` but over TLS. Uses tungstenite's `client_tls_with_config` with rustls-webpki-roots. Default port 443. Listed in the `--version` `Protocols:` banner.
+
 ## [0.24.8] - 2026-04-20
 
 ### Added
