@@ -29,6 +29,7 @@ mod ping;
 mod prettify;
 mod redis_probe;
 mod remote_name;
+mod rtsp_probe;
 mod writeout;
 mod sampledata;
 mod scp;
@@ -580,6 +581,8 @@ fn main() {
     } else if args.target_url().starts_with("ping://") {
         parse_plain_host(args.target_url())
             .and_then(|host| ping::run(&host, args.ping_count))
+    } else if args.target_url().starts_with("rtsp://") {
+        rtsp_probe::run(args.target_url(), args.timeout)
     } else if args.target_url().starts_with("scp://") {
         scp::download(args.target_url(), &args)
     } else if args.target_url().starts_with("ssh://") {
@@ -789,6 +792,7 @@ fn friendly_message(err: &anyhow::Error) -> String {
         || msg.starts_with("ldap:")
         || msg.starts_with("memcached:")
         || msg.starts_with("redis:")
+        || msg.starts_with("rtsp:")
         || msg.starts_with("ws:")
         || msg.starts_with("tcp:")
         || msg.starts_with("udp:")

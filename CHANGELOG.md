@@ -8,6 +8,12 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.24.11] - 2026-04-20
+
+### Added
+
+- **`rtsp://` URL scheme.** Sends `OPTIONS <url> RTSP/1.0` over a plain TCP socket (RFC 2326), prints status line + response headers (e.g. `Public:` listing supported methods, `Server:`). Default port 554. Exit 7/28 classification. Hand-rolled; no new dependencies. Listed in the `--version` `Protocols:` banner.
+
 ## [0.24.10] - 2026-04-20
 
 ### Added
