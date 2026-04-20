@@ -8,6 +8,12 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.24.2] - 2026-04-20
+
+### Added
+
+- **`dns://` URL scheme.** `recon dns://example.com` is equivalent to `recon --dns example.com`. Path shorthand for record types: `dns://example.com/MX` or `dns://example.com/A,AAAA`. `--dns-type` flag, if supplied, overrides the path. Listed in the `--version` `Protocols:` banner.
+
 ## [0.24.1] - 2026-04-20
 
 ### Added
