@@ -8,6 +8,12 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.25.16] - 2026-04-20
+
+### Added
+
+- **`mqtt_pub(url, payload)` and `mqtt_sub(url, max_ms)` script bindings.** Wrap the existing MQTT publish/subscribe codepath by synthesising an `Args` struct from `ScriptDefaults` + optional opts map. Opts: `qos`, `retain`, `version` (`"3"` or `"5"`), `client_id`, `keepalive`, `timeout`, `insecure`, `username` / `password`; `mqtt_sub` also accepts `count` for "stop after N messages". Return map is `#{ ok: true, duration_ms }`. The MQTT module's stdout output (connect banner, received messages) flows to stdout — scripts that need structured per-message data can capture stdout themselves; carving a pure-collection subscribe codepath out of `mqtt.rs` is deliberately deferred to avoid churning the 44KB module for this release.
+
 ## [0.25.15] - 2026-04-20
 
 ### Added
