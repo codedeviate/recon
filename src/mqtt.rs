@@ -1045,14 +1045,12 @@ impl mqtt_rustls::client::danger::ServerCertVerifier for NoCertificateVerificati
     }
 
     fn supported_verify_schemes(&self) -> Vec<mqtt_rustls::SignatureScheme> {
-        vec![
-            mqtt_rustls::SignatureScheme::RSA_PKCS1_SHA256,
-            mqtt_rustls::SignatureScheme::RSA_PKCS1_SHA384,
-            mqtt_rustls::SignatureScheme::RSA_PKCS1_SHA512,
-            mqtt_rustls::SignatureScheme::ECDSA_NISTP256_SHA256,
-            mqtt_rustls::SignatureScheme::ECDSA_NISTP384_SHA384,
-            mqtt_rustls::SignatureScheme::ED25519,
-        ]
+        // Mirror the provider's actual scheme list (including RSA-PSS) rather
+        // than hardcoding a subset. Matches the pattern in `tls_probe.rs` and
+        // keeps TLS 1.3 handshake compatibility broad under `-k`.
+        mqtt_rustls::crypto::ring::default_provider()
+            .signature_verification_algorithms
+            .supported_schemes()
     }
 }
 
