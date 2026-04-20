@@ -4,13 +4,29 @@ use hickory_resolver::TokioAsyncResolver;
 use hickory_resolver::config::{ResolverConfig, ResolverOpts};
 use hickory_resolver::error::ResolveErrorKind;
 use hickory_resolver::proto::rr::{RData, RecordType};
+use std::collections::BTreeMap;
 use std::str::FromStr;
 
 use crate::util::parse_target;
 
 const DEFAULT_TYPES: &[&str] = &["A", "AAAA", "CNAME", "MX", "NS", "TXT", "SOA"];
 
-pub fn run(input: &str, requested_types: &[String]) -> Result<()> {
+/// Structured DNS query outcome.
+#[derive(Debug)]
+pub struct DnsResults {
+    pub host: String,
+    pub queried_types: Vec<String>,
+    /// Record type → list of formatted record strings. Missing means error.
+    pub records: BTreeMap<String, Vec<String>>,
+    /// Record type → error message, for types that failed with anything
+    /// other than NoRecordsFound (which is represented as an empty vec in
+    /// `records`).
+    pub errors: BTreeMap<String, String>,
+}
+
+/// Resolve one or more DNS record types for `input` (host or host:port).
+/// Pure core — no stdout. Used by the CLI's `run()` and the script binding.
+pub fn probe(input: &str, requested_types: &[String]) -> Result<DnsResults> {
     let (host, _) = parse_target(input);
 
     let types: Vec<String> = if requested_types.is_empty() {
@@ -19,24 +35,18 @@ pub fn run(input: &str, requested_types: &[String]) -> Result<()> {
         requested_types.iter().map(|s| s.to_uppercase()).collect()
     };
 
-    let explicit = !requested_types.is_empty();
-
-    println!("DNS lookup for {}", host.bold());
-    println!("{}", "═".repeat(50));
-    println!();
-
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .context("Failed to create async runtime")?;
 
-    let found_any = rt.block_on(async {
-        let resolver = TokioAsyncResolver::tokio_from_system_conf()
-            .unwrap_or_else(|_| {
-                TokioAsyncResolver::tokio(ResolverConfig::default(), ResolverOpts::default())
-            });
+    let (records, errors) = rt.block_on(async {
+        let resolver = TokioAsyncResolver::tokio_from_system_conf().unwrap_or_else(|_| {
+            TokioAsyncResolver::tokio(ResolverConfig::default(), ResolverOpts::default())
+        });
 
-        let mut found_any = false;
+        let mut records = BTreeMap::<String, Vec<String>>::new();
+        let mut errors = BTreeMap::<String, String>::new();
 
         for type_str in &types {
             let record_type = RecordType::from_str(type_str)
@@ -44,44 +54,64 @@ pub fn run(input: &str, requested_types: &[String]) -> Result<()> {
 
             match resolver.lookup(host.as_str(), record_type).await {
                 Ok(lookup) => {
-                    let records: Vec<String> = lookup.iter().map(format_rdata).collect();
-                    if !records.is_empty() {
-                        println!("{}", type_str.green().bold());
-                        for r in &records {
-                            println!("  {r}");
-                        }
-                        println!();
-                        found_any = true;
-                    } else if explicit {
-                        println!("{}", type_str.green().bold());
-                        println!("  (no records)");
-                        println!();
-                    }
+                    let rrs: Vec<String> = lookup.iter().map(format_rdata).collect();
+                    records.insert(type_str.clone(), rrs);
                 }
                 Err(e) => {
-                    let is_no_records = matches!(
-                        e.kind(),
-                        ResolveErrorKind::NoRecordsFound { .. }
-                    );
-                    if explicit {
-                        println!("{}", type_str.green().bold());
-                        if is_no_records {
-                            println!("  (no records)");
-                        } else {
-                            println!("  error: {e}");
-                        }
-                        println!();
+                    if matches!(e.kind(), ResolveErrorKind::NoRecordsFound { .. }) {
+                        records.insert(type_str.clone(), Vec::new());
+                    } else {
+                        errors.insert(type_str.clone(), e.to_string());
                     }
-                    // Silently skip for default types
                 }
             }
         }
 
-        Ok::<bool, anyhow::Error>(found_any)
+        Ok::<_, anyhow::Error>((records, errors))
     })?;
 
+    Ok(DnsResults {
+        host,
+        queried_types: types,
+        records,
+        errors,
+    })
+}
+
+pub fn run(input: &str, requested_types: &[String]) -> Result<()> {
+    let result = probe(input, requested_types)?;
+    let explicit = !requested_types.is_empty();
+
+    println!("DNS lookup for {}", result.host.bold());
+    println!("{}", "═".repeat(50));
+    println!();
+
+    let mut found_any = false;
+    for type_str in &result.queried_types {
+        if let Some(rrs) = result.records.get(type_str) {
+            if !rrs.is_empty() {
+                println!("{}", type_str.green().bold());
+                for r in rrs {
+                    println!("  {r}");
+                }
+                println!();
+                found_any = true;
+            } else if explicit {
+                println!("{}", type_str.green().bold());
+                println!("  (no records)");
+                println!();
+            }
+        } else if let Some(err) = result.errors.get(type_str) {
+            if explicit {
+                println!("{}", type_str.green().bold());
+                println!("  error: {err}");
+                println!();
+            }
+        }
+    }
+
     if !found_any && !explicit {
-        println!("No DNS records found for {host}");
+        println!("No DNS records found for {}", result.host);
     }
 
     Ok(())

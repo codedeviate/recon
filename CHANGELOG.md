@@ -8,6 +8,16 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.25.6] - 2026-04-20
+
+### Added
+
+- **`dns(host)` / `dns(host, types)` script binding.** Returns `#{ host, records: #{ "A": [...], "AAAA": [...], … }, errors: #{ "TYPE": "msg" }, duration_ms }`. Default types are the standard set (A, AAAA, CNAME, MX, NS, TXT, SOA) — pass a Rhai array like `["A", "MX"]` to query specific types. No-records and lookup-errors are surfaced distinctly (empty array vs. entry in `errors`).
+
+### Changed
+
+- `dns.rs` refactored to the `probe()`/`run()` split: `probe()` returns a `DnsResults` struct; `run()` formats the printed output as before. The explicit-types error path is preserved (unknown/error records still print under explicit mode).
+
 ## [0.25.5] - 2026-04-20
 
 ### Added
