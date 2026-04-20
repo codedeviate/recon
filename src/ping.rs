@@ -2,32 +2,96 @@ use anyhow::{anyhow, Result};
 use colored::Colorize;
 use socket2::{Domain, Protocol, Socket, Type};
 use std::mem::MaybeUninit;
-use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
+use std::net::{IpAddr, SocketAddr, TcpStream, ToSocketAddrs};
 use std::time::{Duration, Instant};
 
 use crate::util::parse_target;
 
+/// Structured per-reply record.
+#[derive(Clone, Copy, Debug)]
+pub struct PingReply {
+    pub seq: u32,
+    pub ms: f64,
+}
+
+/// Aggregated probe result consumed by the CLI's printed stats and by the
+/// script binding's return map.
+#[derive(Debug)]
+pub struct PingResult {
+    pub protocol: &'static str, // "tcp" | "icmp"
+    pub host: String,
+    pub resolved_ip: Option<IpAddr>,
+    pub port: Option<u16>,
+    pub sent: u32,
+    pub received: u32,
+    pub loss_pct: u32,
+    pub replies: Vec<PingReply>,
+}
+
+impl PingResult {
+    pub fn min_ms(&self) -> Option<f64> {
+        self.replies
+            .iter()
+            .map(|r| r.ms)
+            .fold(None, |acc: Option<f64>, x| {
+                Some(acc.map_or(x, |a| a.min(x)))
+            })
+    }
+    pub fn max_ms(&self) -> Option<f64> {
+        self.replies
+            .iter()
+            .map(|r| r.ms)
+            .fold(None, |acc: Option<f64>, x| {
+                Some(acc.map_or(x, |a| a.max(x)))
+            })
+    }
+    pub fn avg_ms(&self) -> Option<f64> {
+        if self.replies.is_empty() {
+            None
+        } else {
+            Some(self.replies.iter().map(|r| r.ms).sum::<f64>() / self.replies.len() as f64)
+        }
+    }
+}
+
 pub fn run(input: &str, count: u32) -> Result<()> {
     let (host, port) = parse_target(input);
     if let Some(port) = port {
-        tcp_ping(&host, port, count)
+        let result = tcp_probe(&host, port, count, true)?;
+        print_tcp_stats(&result);
+        Ok(())
     } else {
-        icmp_ping(&host, count)
+        let result = icmp_probe(&host, count, true)?;
+        print_icmp_stats(&result);
+        Ok(())
+    }
+}
+
+/// Run a ping and return structured results without printing. Used by the
+/// `ping()` script binding. For TCP (host:port) or ICMP (bare host).
+pub fn probe(input: &str, count: u32) -> Result<PingResult> {
+    let (host, port) = parse_target(input);
+    if let Some(port) = port {
+        tcp_probe(&host, port, count, false)
+    } else {
+        icmp_probe(&host, count, false)
     }
 }
 
 // ── TCP ping ─────────────────────────────────────────────────────────────────
 
-fn tcp_ping(host: &str, port: u16, count: u32) -> Result<()> {
+fn tcp_probe(host: &str, port: u16, count: u32, emit_per_reply: bool) -> Result<PingResult> {
     let addr: SocketAddr = format!("{host}:{port}")
         .to_socket_addrs()?
         .next()
         .ok_or_else(|| anyhow!("Could not resolve {host}"))?;
 
-    println!("TCP ping to {}:{}", host.bold(), port);
-    println!("{}", "═".repeat(50));
+    if emit_per_reply {
+        println!("TCP ping to {}:{}", host.bold(), port);
+        println!("{}", "═".repeat(50));
+    }
 
-    let mut rtts: Vec<f64> = Vec::new();
+    let mut replies: Vec<PingReply> = Vec::new();
     let mut failures = 0u32;
 
     for seq in 0..count {
@@ -35,14 +99,18 @@ fn tcp_ping(host: &str, port: u16, count: u32) -> Result<()> {
         match TcpStream::connect_timeout(&addr, Duration::from_secs(3)) {
             Ok(_) => {
                 let rtt = start.elapsed().as_secs_f64() * 1000.0;
-                println!(
-                    "Connected to {}:{}: seq={} time={:.3}ms",
-                    host, port, seq, rtt
-                );
-                rtts.push(rtt);
+                if emit_per_reply {
+                    println!(
+                        "Connected to {}:{}: seq={} time={:.3}ms",
+                        host, port, seq, rtt
+                    );
+                }
+                replies.push(PingReply { seq, ms: rtt });
             }
             Err(e) => {
-                println!("seq={}: {}", seq, e.to_string().red());
+                if emit_per_reply {
+                    println!("seq={}: {}", seq, e.to_string().red());
+                }
                 failures += 1;
             }
         }
@@ -51,23 +119,39 @@ fn tcp_ping(host: &str, port: u16, count: u32) -> Result<()> {
         }
     }
 
-    println!();
-    println!("--- {}:{} TCP ping statistics ---", host, port);
-    let received = rtts.len() as u32;
+    let received = replies.len() as u32;
     let loss_pct = if count > 0 { 100 * failures / count } else { 0 };
-    println!("{count} attempts, {received} connected, {loss_pct}% failure rate");
-    if !rtts.is_empty() {
-        let min = rtts.iter().cloned().fold(f64::INFINITY, f64::min);
-        let max = rtts.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-        let avg = rtts.iter().sum::<f64>() / rtts.len() as f64;
+    Ok(PingResult {
+        protocol: "tcp",
+        host: host.to_string(),
+        resolved_ip: Some(addr.ip()),
+        port: Some(port),
+        sent: count,
+        received,
+        loss_pct,
+        replies,
+    })
+}
+
+fn print_tcp_stats(r: &PingResult) {
+    println!();
+    println!(
+        "--- {}:{} TCP ping statistics ---",
+        r.host,
+        r.port.unwrap_or(0)
+    );
+    println!(
+        "{} attempts, {} connected, {}% failure rate",
+        r.sent, r.received, r.loss_pct
+    );
+    if let (Some(min), Some(avg), Some(max)) = (r.min_ms(), r.avg_ms(), r.max_ms()) {
         println!("round-trip min/avg/max = {min:.3}/{avg:.3}/{max:.3} ms");
     }
-    Ok(())
 }
 
 // ── ICMP ping ─────────────────────────────────────────────────────────────────
 
-fn icmp_ping(host: &str, count: u32) -> Result<()> {
+fn icmp_probe(host: &str, count: u32, emit_per_reply: bool) -> Result<PingResult> {
     let addr: SocketAddr = format!("{host}:0")
         .to_socket_addrs()?
         .next()
@@ -78,33 +162,36 @@ fn icmp_ping(host: &str, count: u32) -> Result<()> {
 
     // SOCK_DGRAM + ICMP works without root on macOS (since 10.14).
     // On Linux it requires net.ipv4.ping_group_range or root.
-    let socket = Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::ICMPV4))
-        .map_err(|e| {
-            if e.kind() == std::io::ErrorKind::PermissionDenied {
-                anyhow!(
-                    "ICMP ping requires elevated privileges on this system.\n\
-                     Tip: use --ping {host}:<port> to do a TCP ping instead."
-                )
-            } else {
-                anyhow!("Failed to create ICMP socket: {e}")
-            }
-        })?;
+    let socket = Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::ICMPV4)).map_err(|e| {
+        if e.kind() == std::io::ErrorKind::PermissionDenied {
+            anyhow!(
+                "ICMP ping requires elevated privileges on this system.\n\
+                 Tip: use --ping {host}:<port> to do a TCP ping instead."
+            )
+        } else {
+            anyhow!("Failed to create ICMP socket: {e}")
+        }
+    })?;
 
     socket.set_read_timeout(Some(Duration::from_secs(2)))?;
 
     let pid = (std::process::id() & 0xffff) as u16;
 
-    println!("PING {} ({}): 16 data bytes", host.bold(), ip);
-    println!("{}", "═".repeat(50));
+    if emit_per_reply {
+        println!("PING {} ({}): 16 data bytes", host.bold(), ip);
+        println!("{}", "═".repeat(50));
+    }
 
-    let mut rtts: Vec<f64> = Vec::new();
+    let mut replies: Vec<PingReply> = Vec::new();
 
     for seq in 0..count {
         let packet = build_icmp_echo(pid, seq as u16);
         let start = Instant::now();
 
         if let Err(e) = socket.send_to(&packet, &target) {
-            println!("seq={seq}: send error: {e}");
+            if emit_per_reply {
+                println!("seq={seq}: send error: {e}");
+            }
             continue;
         }
 
@@ -115,20 +202,23 @@ fn icmp_ping(host: &str, count: u32) -> Result<()> {
                 let data: &[u8] =
                     unsafe { std::slice::from_raw_parts(buf.as_ptr() as *const u8, n) };
 
-                // Skip IP header if present (DGRAM on macOS includes it)
                 let offset = ip_header_len(data);
                 let icmp = &data[offset..];
 
                 if icmp.len() >= 8 && icmp[0] == 0 {
-                    // type 0 = echo reply
                     let reply_id = u16::from_be_bytes([icmp[4], icmp[5]]);
                     let reply_seq = u16::from_be_bytes([icmp[6], icmp[7]]);
                     if reply_id == pid {
-                        println!(
-                            "16 bytes from {ip}: icmp_seq={reply_seq} time={:.3}ms",
-                            rtt
-                        );
-                        rtts.push(rtt);
+                        if emit_per_reply {
+                            println!(
+                                "16 bytes from {ip}: icmp_seq={reply_seq} time={:.3}ms",
+                                rtt
+                            );
+                        }
+                        replies.push(PingReply {
+                            seq: reply_seq as u32,
+                            ms: rtt,
+                        });
                     }
                 }
             }
@@ -136,7 +226,9 @@ fn icmp_ping(host: &str, count: u32) -> Result<()> {
                 if e.kind() == std::io::ErrorKind::TimedOut
                     || e.kind() == std::io::ErrorKind::WouldBlock =>
             {
-                println!("Request timeout for icmp_seq={seq}");
+                if emit_per_reply {
+                    println!("Request timeout for icmp_seq={seq}");
+                }
             }
             Err(e) => return Err(anyhow!("Receive error: {e}")),
         }
@@ -146,22 +238,34 @@ fn icmp_ping(host: &str, count: u32) -> Result<()> {
         }
     }
 
-    println!();
-    println!("--- {host} ping statistics ---");
-    let received = rtts.len() as u32;
+    let received = replies.len() as u32;
     let loss_pct = if count > 0 {
         100 * (count - received) / count
     } else {
         0
     };
-    println!("{count} packets transmitted, {received} received, {loss_pct}% packet loss");
-    if !rtts.is_empty() {
-        let min = rtts.iter().cloned().fold(f64::INFINITY, f64::min);
-        let max = rtts.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-        let avg = rtts.iter().sum::<f64>() / rtts.len() as f64;
+    Ok(PingResult {
+        protocol: "icmp",
+        host: host.to_string(),
+        resolved_ip: Some(ip),
+        port: None,
+        sent: count,
+        received,
+        loss_pct,
+        replies,
+    })
+}
+
+fn print_icmp_stats(r: &PingResult) {
+    println!();
+    println!("--- {} ping statistics ---", r.host);
+    println!(
+        "{} packets transmitted, {} received, {}% packet loss",
+        r.sent, r.received, r.loss_pct
+    );
+    if let (Some(min), Some(avg), Some(max)) = (r.min_ms(), r.avg_ms(), r.max_ms()) {
         println!("round-trip min/avg/max = {min:.3}/{avg:.3}/{max:.3} ms");
     }
-    Ok(())
 }
 
 fn build_icmp_echo(id: u16, seq: u16) -> Vec<u8> {

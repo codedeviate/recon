@@ -8,6 +8,16 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.25.5] - 2026-04-20
+
+### Added
+
+- **`ping(host)` / `ping(host, count)` script binding.** Host may be `host:port` (TCP ping) or bare `host` (ICMP — unprivileged on macOS; requires `net.ipv4.ping_group_range` or root on Linux). Returns `#{ protocol, host, resolved_ip, port, sent, received, loss_pct, replies: [#{seq, ms}], min_ms, avg_ms, max_ms }`. Default count inherits `--ping-count`.
+
+### Changed
+
+- `ping.rs` refactored to the `probe()`/`run()` split pattern established by Task 5: `probe()` returns a `PingResult` struct with per-reply `PingReply { seq, ms }`; `run()` wraps it with the existing stdout formatting. Public API for the CLI is unchanged.
+
 ## [0.25.4] - 2026-04-20
 
 ### Added
