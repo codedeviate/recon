@@ -40,6 +40,7 @@ pub fn build_engine(defaults: &ScriptDefaults) -> rhai::Engine {
     let mut engine = rhai::Engine::new();
     super::bindings::helpers::register(&mut engine);
     super::bindings::http::register(&mut engine, defaults.clone());
+    super::bindings::tcp::register(&mut engine, defaults.clone());
     engine
 }
 

@@ -8,6 +8,12 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.25.4] - 2026-04-20
+
+### Added
+
+- **`tcp(url)` / `tcp(url, opts)` script binding.** Returns `#{ ok, host, port, resolved_ip, local_addr, duration_ms }`. Connect failures / timeouts raise Rhai exceptions with the matching `ProtocolExitCode` (7 / 28). Extracted a structured `tcp_probe::probe()` core out of `tcp_probe::run()` — `run()` is now a thin wrapper that prints the probe result. This split establishes the pattern that subsequent probe bindings (dns, ntp, ldap, …) follow.
+
 ## [0.25.3] - 2026-04-20
 
 ### Added

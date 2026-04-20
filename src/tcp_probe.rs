@@ -6,10 +6,23 @@
 
 use anyhow::{anyhow, Context, Result};
 use std::io::ErrorKind;
-use std::net::{TcpStream, ToSocketAddrs};
+use std::net::{IpAddr, TcpStream, ToSocketAddrs};
 use std::time::{Duration, Instant};
 
-pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
+/// Structured outcome of a successful TCP connect — consumed by both the
+/// CLI's printed output and the script binding's return map.
+pub struct TcpProbeOk {
+    pub host: String,
+    pub port: u16,
+    pub resolved_ip: IpAddr,
+    pub local_addr: String,
+    pub duration: Duration,
+}
+
+/// Core probe: network work only, no stdout side effects. Returns
+/// `TcpProbeOk` on success; errors tagged with `ProtocolExitCode` where
+/// applicable for exit-code mapping.
+pub fn probe(url: &str, timeout_secs: u64) -> Result<TcpProbeOk> {
     let (host, port) = parse_url(url)?;
 
     let addr = format!("{host}:{port}")
@@ -28,11 +41,13 @@ pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
                 .local_addr()
                 .map(|a| a.to_string())
                 .unwrap_or_else(|_| "?".to_string());
-            println!("* Connected to {host}:{port} ({})", fmt_elapsed(elapsed));
-            println!("* Resolved address: {}", addr.ip());
-            println!("* Local address: {local}");
-            // Stream drops here → TCP FIN sent cleanly.
-            Ok(())
+            Ok(TcpProbeOk {
+                host,
+                port,
+                resolved_ip: addr.ip(),
+                local_addr: local,
+                duration: elapsed,
+            })
         }
         Err(e) if e.kind() == ErrorKind::TimedOut => Err(anyhow!(
             "tcp: connection to {host}:{port} timed out after {}s",
@@ -55,6 +70,19 @@ pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
         }
         Err(e) => Err(anyhow!("tcp: {e}")),
     }
+}
+
+pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
+    let ok = probe(url, timeout_secs)?;
+    println!(
+        "* Connected to {}:{} ({})",
+        ok.host,
+        ok.port,
+        fmt_elapsed(ok.duration)
+    );
+    println!("* Resolved address: {}", ok.resolved_ip);
+    println!("* Local address: {}", ok.local_addr);
+    Ok(())
 }
 
 fn parse_url(url: &str) -> Result<(String, u16)> {
