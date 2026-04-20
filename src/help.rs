@@ -1033,27 +1033,61 @@ static TOPIC_MQTT: Topic = Topic {
 
 static TOPIC_PROTOCOLS: Topic = Topic {
     title: "Protocol URL Schemes (probes and aliases)",
-    description: "Beyond http(s):// and mqtt(s)://, recon dispatches six additional URL\n\
-                  schemes for point-probe diagnostics. Three are convenience aliases for\n\
-                  existing flags (tls://, ping://, traceroute://); three are standalone\n\
-                  probes (tcp://, udp://, ntp://).",
+    description: "In addition to http(s):// and mqtt(s)://, recon dispatches a family\n\
+                  of URL schemes for point-probe diagnostics. Some are thin aliases\n\
+                  for existing flags (tls://, ping://, traceroute://, whois://,\n\
+                  dns:// / dig:// / drill://); the rest are standalone probes\n\
+                  (tcp, udp, ntp, dict, redis, memcached, ws, wss, ldap, ldaps,\n\
+                  rtsp, rtsps). file:// reads local files. See `recon --version`\n\
+                  for the full list compiled in.",
     flags: &[
-        FlagHelp { flags: "tls://host[:port]/", description: "TLS handshake + certificate inspection.\nEquivalent to `recon --cert https://host[:port]/`. Default port 443." },
-        FlagHelp { flags: "ping://host", description: "ICMP ping. Equivalent to `recon --ping <host>`.\nPort in URL is ignored." },
-        FlagHelp { flags: "traceroute://host", description: "Traceroute. Equivalent to `recon --traceroute <host>`." },
-        FlagHelp { flags: "tcp://host:port/", description: "TCP connect probe. Reports connect latency and resolved/local address.\nExits 0 on connect, 7 refused, 28 timed out. Port is required." },
-        FlagHelp { flags: "udp://host:port[/path]", description: "UDP send-and-wait probe. Sends payload from -d/--data (or empty),\nwaits --wait-time seconds for any response. Exits 0 regardless of\nresponse (UDP silence is ambiguous). Port is required." },
-        FlagHelp { flags: "ntp://host[:port]/", description: "SNTPv4 probe. Reports stratum, reference identifier, offset from\nlocal clock, round-trip delay, precision, poll interval, and the\nserver's reference time. Default port 123." },
-        FlagHelp { flags: "--wait-time <SECS>", description: "(udp:// only) Seconds to wait for a response datagram after sending.\nAccepts fractional values. Default: 1.0." },
-        FlagHelp { flags: "--connect-timeout <SECS>", description: "Socket connect / response deadline for tcp://, udp://, ntp://, tls://." },
+        FlagHelp { flags: "file:///path", description: "Read a local file and write its bytes to stdout (or -o <path>).\nAccepts file://localhost/path too. Curl-compatible." },
+
+        FlagHelp { flags: "whois://HOST", description: "Whois lookup. Equivalent to `recon --whois HOST`." },
+        FlagHelp { flags: "dns://HOST[/TYPE[,TYPE…]]", description: "DNS lookup. Path is a comma-separated record-type shorthand\n(e.g. dns://example.com/MX,AAAA). `--dns-type` overrides the path\nwhen both are given. Defaults to the standard record-type bundle." },
+        FlagHelp { flags: "dig://HOST[/TYPE…]", description: "Alias for dns://. Same semantics." },
+        FlagHelp { flags: "drill://HOST[/TYPE…]", description: "Alias for dns://. Same semantics." },
+
+        FlagHelp { flags: "tls://HOST[:PORT]/", description: "TLS handshake + certificate inspection.\nEquivalent to `recon --cert https://HOST[:PORT]/`. Default port 443." },
+        FlagHelp { flags: "ping://HOST", description: "ICMP ping. Equivalent to `recon --ping <host>`.\nPort in URL is ignored." },
+        FlagHelp { flags: "traceroute://HOST", description: "Traceroute. Equivalent to `recon --traceroute <host>`." },
+
+        FlagHelp { flags: "tcp://HOST:PORT/", description: "TCP connect probe. Reports connect latency and resolved/local\naddress. Exit 0 on connect, 7 refused, 28 timed out.\nPort is required." },
+        FlagHelp { flags: "udp://HOST:PORT[/path]", description: "UDP send-and-wait probe. Sends payload from -d (or empty),\nwaits --wait-time seconds for any response. Exit 0 regardless\nof response (UDP silence is ambiguous). Port is required." },
+        FlagHelp { flags: "ntp://HOST[:PORT]/", description: "SNTPv4 probe. Reports stratum, reference identifier, offset from\nlocal clock, round-trip delay, precision, poll interval, and the\nserver's reference time. Default port 123." },
+
+        FlagHelp { flags: "dict://HOST[:PORT]/CMD", description: "RFC 2229 DICT client (curl URL grammar). Commands:\n  /d:WORD[:DB[:STRAT]] — DEFINE\n  /m:WORD[:DB[:STRAT]] — MATCH\n  /show:server|databases|strategies|info:DB\nBare dict://HOST/ runs SHOW SERVER + SHOW DATABASES +\nSHOW STRATEGIES as an overview. Default port 2628." },
+        FlagHelp { flags: "redis://[:PASS@]HOST[:PORT]", description: "Redis probe (RESP2). No -d → connect + PING. With\n-d 'SET key value' → sends that RESP command (shell-split,\nhonours \"quoted\" tokens). Optional password from URL userinfo\nsends AUTH first. Default port 6379. Exit 7/28/67." },
+        FlagHelp { flags: "memcached://HOST[:PORT][/stats]", description: "Memcached text-protocol probe: sends `version`, reports server\nversion + roundtrip. Append /stats to also dump `stats` output.\nDefault port 11211." },
+
+        FlagHelp { flags: "ws://HOST[:PORT][/path]", description: "WebSocket probe: TCP connect → HTTP Upgrade handshake → send\nPing frame with nonce → wait for matching Pong → close. Reports\nlatencies + selected Sec-WebSocket-* headers. Default port 80." },
+        FlagHelp { flags: "wss://HOST[:PORT][/path]", description: "Same as ws:// but over TLS. Default port 443. Honours -k." },
+
+        FlagHelp { flags: "ldap://HOST[:PORT]/", description: "Anonymous simple bind → RootDSE query (objectClass=* at scope=\nbase). Reports namingContexts, supportedLDAPVersion,\nvendorName/Version, supportedSASLMechanisms. Default port 389." },
+        FlagHelp { flags: "ldaps://HOST[:PORT]/", description: "Same as ldap:// but over TLS. Default port 636." },
+
+        FlagHelp { flags: "rtsp://HOST[:PORT][/path]", description: "RTSP OPTIONS probe (RFC 2326). Prints status line + response\nheaders (Public: supported methods, Server:). Default port 554." },
+        FlagHelp { flags: "rtsps://HOST[:PORT][/path]", description: "Same as rtsp:// but over TLS. Default port 322. Honours -k\n(skips certificate verification)." },
+
+        FlagHelp { flags: "--wait-time <SECS>", description: "(udp:// only) Seconds to wait for a response datagram after\nsending. Accepts fractional values. Default: 1.0." },
+        FlagHelp { flags: "--connect-timeout <SECS>", description: "Socket connect / response deadline for tcp, udp, ntp, tls,\ndict, redis, memcached, ws, wss, rtsp, rtsps probes." },
+        FlagHelp { flags: "-k, --insecure", description: "Skip TLS certificate verification for wss://, ldaps://, rtsps://,\nmqtts://, and https:// connections." },
     ],
-    related: &["--cert", "--ping", "--traceroute"],
+    related: &["--cert", "--ping", "--traceroute", "--whois", "--dns"],
     examples: &[
+        ExampleHelp { description: "Read a local file like curl's file:// scheme", command: "recon file:///etc/hosts" },
         ExampleHelp { description: "Check whether a TCP port accepts connections", command: "recon tcp://github.com:443/" },
         ExampleHelp { description: "Query an NTP server and report clock offset", command: "recon ntp://pool.ntp.org/" },
-        ExampleHelp { description: "Probe a UDP service with a custom payload", command: r#"recon udp://example.com:1234/ -d "ping""# },
-        ExampleHelp { description: "Dump a TLS certificate (shorthand for --cert)", command: "recon tls://github.com:443/" },
-        ExampleHelp { description: "Ping and traceroute", command: "recon ping://8.8.8.8 && recon traceroute://8.8.8.8" },
+        ExampleHelp { description: "DICT define (curl URL grammar)", command: "recon dict://dict.dict.org/d:recon" },
+        ExampleHelp { description: "DICT server overview (bare URL)", command: "recon dict://dict.dict.org/" },
+        ExampleHelp { description: "Redis PING", command: "recon redis://localhost/" },
+        ExampleHelp { description: "Redis arbitrary RESP command via -d", command: r#"recon redis://localhost/ -d "SET key \"hello world\"""# },
+        ExampleHelp { description: "Memcached version + stats", command: "recon memcached://localhost/stats" },
+        ExampleHelp { description: "WebSocket ping/pong round-trip", command: "recon wss://ws.postman-echo.com/raw" },
+        ExampleHelp { description: "LDAP RootDSE (anonymous)", command: "recon ldap://ldap.forumsys.com:389/" },
+        ExampleHelp { description: "RTSP OPTIONS (supported methods)", command: "recon rtsp://example.com:554/stream" },
+        ExampleHelp { description: "DNS with path shorthand for record type", command: "recon dns://example.com/MX,AAAA" },
+        ExampleHelp { description: "Ping and traceroute as URL schemes", command: "recon ping://8.8.8.8 && recon traceroute://8.8.8.8" },
     ],
 };
 

@@ -8,6 +8,14 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.24.15] - 2026-04-20
+
+### Changed
+
+- Rewrote `recon --help protocols` to cover every URL scheme shipped in 0.24.0–0.24.14 (file, whois, dns/dig/drill, dict, redis, memcached, ws/wss, ldap/ldaps, rtsp/rtsps) — previously the topic still listed only the six schemes from 0.23.0.
+- Rewrote the `PROTOCOL URL SCHEMES` section of `recon --examples` with examples for each new scheme.
+- Added `HISTORY.md` entry #27 documenting the 0.24.x batch, the design decisions (ProtocolExitCode reuse across modules, `-d` reuse for redis arbitrary command, bare-URL → server-info UX for dict://, rustls crypto-provider installation pattern, explicit rtsps handshake completion), and the crate choices (tungstenite 0.29, ldap3 0.12, hand-rolled for the rest).
+
 ## [0.24.14] - 2026-04-20
 
 ### Changed

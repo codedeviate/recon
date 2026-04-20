@@ -52,6 +52,31 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 27. Second protocol batch — file, whois, dns/dig/drill, dict, redis, memcached, ws/wss, ldap/ldaps, rtsp/rtsps (0.24.0 → 0.24.14)
+
+A wide second pass on recon's protocol surface, shipped as fifteen incremental patch releases. Brings the `--version` `Protocols:` banner from 14 entries to 25 and covers the remaining commonly-needed URL schemes that curl or its adjacent tools expose.
+
+Rough groupings:
+
+- **Aliases for existing flags** (no new behaviour, just URL-scheme entry points): `file://` (curl-style), `whois://`, `dns://` / `dig://` / `drill://`. The DNS family accepts a path-as-type shorthand (`dns://example.com/MX,AAAA`) overridden by `--dns-type` when both are supplied. `dig://` and `drill://` fold into a single `dns_scheme_rest` helper so all three share one dispatch arm.
+- **Standalone probes (hand-rolled, no new deps)**: `dict://` (RFC 2229 with curl's full URL grammar — `/d:WORD[:DB[:STRAT]]`, `/m:WORD[:DB[:STRAT]]`, `/show:server|databases|strategies|info:DB`), `memcached://` (text protocol `version` + optional `/stats`), `rtsp://` / `rtsps://` (OPTIONS request over TCP / TLS, port 322 for rtsps per IANA).
+- **Standalone probes pulling one crate**: `redis://` (RESP2, connect + `PING`, optional `AUTH` from URL userinfo, optional arbitrary command via shell-split `-d`), `ws://` / `wss://` (tungstenite 0.29; TCP connect → HTTP Upgrade → Ping frame with nonce → wait for matching Pong), `ldap://` / `ldaps://` (ldap3 0.12, anonymous simple bind + RootDSE at scope=base).
+
+Design choices worth noting:
+
+- **`ProtocolExitCode` tag reused everywhere.** All new probe modules attach `.context(ProtocolExitCode::…)` for curl-compat exit codes (7/28/67/130). The typed chain-walking lookup established for MQTT in 0.22.0 handles them without changes.
+- **`-d` as the natural extension point for redis command passthrough.** Rather than introducing `--redis-cmd`, reuse `-d`; split shell-style (whitespace + `"…"` + `'…'` + `\`-escapes), send as a RESP2 array, label the reply line with the echoed command for self-describing output. Mirrors the UDP probe's reuse of `-d`.
+- **`dict://host/` with no command path = server-info probe.** Originally errored out; now emits SHOW SERVER + SHOW DATABASES + SHOW STRATEGIES in sequence, matching the bare-URL UX of `memcached://host/` and `ntp://host/` (you point at a server, it tells you what's there).
+- **rustls crypto-provider installation is now lazy per module.** `ws_probe` and `rtsp_probe` each call `rustls::crypto::ring::default_provider().install_default().ok()` on their TLS path. Idempotent; keeps recon's rustls usage consistent with `tls_probe.rs` and `mqtt.rs`.
+- **`ldap3` pulls its own `tls-rustls-ring` feature;** rustls 0.23 matches recon's direct version so no dual-major situation (unlike MQTT via rumqttc). Tungstenite 0.29 also lands on rustls 0.23, clean.
+- **`rtsps://` handshake is completed explicitly** (`ClientConnection::complete_io`) before the first write, so cert-verify failures surface as "TLS handshake with HOST failed" rather than "write OPTIONS over TLS" (the error you get if the handshake is only triggered by the first write).
+
+The `--version` protocol list is alphabetized: `dict dig dns drill file http https ldap ldaps memcached mqtt mqtts ntp ping redis rtsp rtsps scp ssh tcp telnet tls traceroute udp whois ws wss`.
+
+Each release shipped after `cargo build && cargo build --release && cargo test` all passed, and each new probe was smoke-verified against a real server — public (dict.dict.org, ldap.forumsys.com, ws.postman-echo.com, pool.ntp.org), local daemon (redis-server, memcached), or a nc-simulated server (RTSP). Tests 767 → 811.
+
+---
+
 ### 26. Protocol URL schemes batch (0.23.0)
 
 Six new URL-scheme probes round out recon's protocol surface: three convenience aliases for existing flags (`tls://` ≈ `--cert`, `ping://` ≈ `--ping`, `traceroute://` ≈ `--traceroute`) and three new standalone probes (`tcp://`, `udp://`, `ntp://`).

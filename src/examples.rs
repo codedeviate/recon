@@ -847,7 +847,24 @@ pub fn print() {
         "recon mqtts://self-signed.broker/ -k",
     ]);
 
-    section("PROTOCOLS (0.23.0)");
+    section("PROTOCOL URL SCHEMES");
+
+    example("Read a local file (file://)", &[
+        "recon file:///etc/hosts",
+        "recon file:///tmp/data.bin -o /tmp/copy.bin",
+    ]);
+    note("Cat-like semantics; empty or 'localhost' host only. Other hosts error out.");
+
+    example("Aliases for existing flags", &[
+        "recon whois://example.com",
+        "recon dns://example.com/MX",
+        "recon dig://example.com/A,AAAA",
+        "recon drill://example.com",
+        "recon tls://github.com:443/",
+        "recon ping://8.8.8.8",
+        "recon traceroute://google.com",
+    ]);
+    note("whois://, dns://dig://drill://, tls://, ping://, traceroute:// wrap the corresponding flags. dns://HOST/TYPE path is a record-type shorthand; --dns-type overrides when both are given.");
 
     example("TCP connect probe", &[
         "recon tcp://github.com:443/",
@@ -868,16 +885,49 @@ pub fn print() {
     ]);
     note("Reports stratum, reference identifier, offset from local clock, round-trip delay.");
 
-    example("TLS handshake / certificate inspection", &[
-        "recon tls://github.com:443/",
+    example("DICT (RFC 2229, curl URL grammar)", &[
+        "recon dict://dict.dict.org/",
+        "recon dict://dict.dict.org/d:recon",
+        "recon dict://dict.dict.org/d:hello:wn",
+        "recon dict://dict.dict.org/m:recon",
+        "recon dict://dict.dict.org/show:databases",
     ]);
-    note("tls:// is shorthand for `--cert https://...`.");
+    note("Bare URL runs SHOW SERVER + SHOW DATABASES + SHOW STRATEGIES. Otherwise: /d:WORD[:DB[:STRAT]] defines, /m:WORD[…] matches, /show:… introspects.");
 
-    example("ICMP ping and traceroute as URL schemes", &[
-        "recon ping://google.com",
-        "recon traceroute://google.com",
+    example("Redis (RESP2)", &[
+        "recon redis://localhost/",
+        "recon redis://:password@localhost/",
+        r#"recon redis://localhost/ -d "SET foo bar""#,
+        r#"recon redis://localhost/ -d "GET foo""#,
+        r#"recon redis://localhost/ -d "CLIENT LIST""#,
+        r#"recon redis://localhost/ -d "SET key \"hello world\"""#,
     ]);
-    note("ping:// and traceroute:// alias the --ping and --traceroute flags.");
+    note("Without -d: connect + PING. With -d: shell-split the string (whitespace, \"…\", '…', \\-escapes) and send as RESP array. Password in userinfo sends AUTH first.");
+
+    example("Memcached (text protocol)", &[
+        "recon memcached://localhost/",
+        "recon memcached://localhost/stats",
+    ]);
+    note("Default: issues `version` and reports the reply + roundtrip. Path `/stats` also dumps `stats` output.");
+
+    example("WebSocket handshake + ping/pong", &[
+        "recon ws://127.0.0.1:9876/",
+        "recon wss://ws.postman-echo.com/raw",
+    ]);
+    note("TCP connect → HTTP Upgrade → Ping frame with 8-byte nonce → wait for matching Pong → close. Reports handshake info and Ping RTT. wss:// honours -k.");
+
+    example("LDAP anonymous RootDSE", &[
+        "recon ldap://ldap.forumsys.com:389/",
+        "recon ldaps://ldap.example.com/",
+    ]);
+    note("Anonymous simple bind then searches RootDSE (scope=base, objectClass=*). Reports namingContexts, supportedLDAPVersion, vendorName/Version, supportedSASLMechanisms.");
+
+    example("RTSP OPTIONS (RFC 2326)", &[
+        "recon rtsp://example.com:554/stream",
+        "recon rtsps://example.com/stream",
+        "recon rtsps://self-signed.example.com/stream -k",
+    ]);
+    note("Sends OPTIONS, prints status line + response headers (Public: listed methods, Server:). rtsps:// uses TLS on port 322 and honours -k.");
 
     section("EDITOR OUTPUT");
 
