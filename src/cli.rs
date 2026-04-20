@@ -21,7 +21,7 @@ pub struct Args {
     // ── Positional (renders under Arguments; no help_heading) ────────────────
 
     /// URL to request (or use --url)
-    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni", "jwt_view", "jwt_sign", "jwt_validate", "netstatus", "editor_cleanup", "sample", "sample_list", "hash", "hash_list", "compress", "decompress", "compress_list", "encode", "encode_list", "encrypt", "decrypt", "encrypt_keygen", "checkdigit", "checkdigit_create", "checkdigit_list"])]
+    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni", "jwt_view", "jwt_sign", "jwt_validate", "netstatus", "editor_cleanup", "sample", "sample_list", "hash", "hash_list", "compress", "decompress", "compress_list", "encode", "encode_list", "encrypt", "decrypt", "encrypt_keygen", "checkdigit", "checkdigit_create", "checkdigit_list", "script"])]
     pub url: Option<String>,
 
     // ── HTTP Request ─────────────────────────────────────────────────────────
@@ -613,6 +613,12 @@ pub struct Args {
     /// Show detailed usage examples for all flags and commands
     #[arg(long = "examples", help_heading = "Meta")]
     pub examples: bool,
+
+    /// Run a Rhai script instead of performing a request. Exposes `http()`,
+    /// `tcp()`, `ping()`, `dns()`, `tls()`, `redis()`, `ws()` and more;
+    /// script `return N` becomes the process exit code. See `--help script`.
+    #[arg(long = "script", value_name = "PATH", help_heading = "Meta")]
+    pub script: Option<PathBuf>,
 
     // ── Options (manual -h / -V; keeps Options at tail of --help) ────────────
 

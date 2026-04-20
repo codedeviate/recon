@@ -8,6 +8,12 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-04-20
+
+### Added
+
+- **`--script PATH.rhai` scaffolding** — mutually exclusive with the positional URL. Loads and executes a Rhai script; `return N` becomes the process exit code. The engine is currently empty (no bindings) — subsequent 0.25.x patch releases register `http()`, `tcp()`, `dns()`, `tls()`, `redis()`, `ws()`, `ldap()`, and the rest of the probe surface as callable functions with structured return maps. This task ships the flag, module layout, and exit-code wiring so later tasks can layer bindings in without churning the CLI surface.
+
 ## [0.24.15] - 2026-04-20
 
 ### Changed

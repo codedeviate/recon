@@ -32,6 +32,7 @@ mod remote_name;
 mod rtsp_probe;
 mod writeout;
 mod sampledata;
+mod script;
 mod scp;
 mod serve;
 mod source;
@@ -539,6 +540,14 @@ fn main() {
             eprintln!("error: --max-time must be a non-negative finite number");
             std::process::exit(2);
         }
+    }
+
+    // ── Script mode ──────────────────────────────────────────────────────────
+    // `--script PATH.rhai` runs an embedded Rhai script against the recon
+    // probe API and exits with the script's return code. Mutually exclusive
+    // with URL-based dispatch.
+    if args.script.is_some() {
+        std::process::exit(script::run(&args));
     }
 
     // ── Dispatch ──────────────────────────────────────────────────────────────
