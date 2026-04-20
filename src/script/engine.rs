@@ -1,10 +1,12 @@
 //! Engine setup and script execution.
 
+use super::convert::{clear_protocol_exit_code, take_protocol_exit_code};
+use super::defaults::ScriptDefaults;
 use crate::cli::Args;
 use std::path::Path;
 
 /// Execute a script file. Returns the process exit code.
-pub fn run_file(path: &Path, _args: &Args) -> i32 {
+pub fn run_file(path: &Path, args: &Args) -> i32 {
     let source = match std::fs::read_to_string(path) {
         Ok(s) => s,
         Err(e) => {
@@ -13,11 +15,12 @@ pub fn run_file(path: &Path, _args: &Args) -> i32 {
         }
     };
 
-    let engine = build_engine();
+    clear_protocol_exit_code();
+    let defaults = ScriptDefaults::from_args(args);
+    let engine = build_engine(&defaults);
     match engine.eval::<rhai::Dynamic>(&source) {
         Ok(val) => {
             if let Ok(n) = val.as_int() {
-                // Rhai i64 — clamp to reasonable exit code range
                 (n & 0xff) as i32
             } else {
                 0
@@ -25,14 +28,15 @@ pub fn run_file(path: &Path, _args: &Args) -> i32 {
         }
         Err(e) => {
             eprintln!("error: {e}");
-            1
+            take_protocol_exit_code().unwrap_or(1)
         }
     }
 }
 
 /// Build a Rhai engine with recon helpers registered. Protocol probe
-/// bindings are layered on in subsequent tasks.
-pub fn build_engine() -> rhai::Engine {
+/// bindings are layered on in subsequent tasks; each probe module takes
+/// the `ScriptDefaults` so it can read CLI flag inheritance at call time.
+pub fn build_engine(_defaults: &ScriptDefaults) -> rhai::Engine {
     let mut engine = rhai::Engine::new();
     super::bindings::helpers::register(&mut engine);
     engine

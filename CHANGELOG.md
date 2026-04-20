@@ -8,6 +8,12 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.25.2] - 2026-04-20
+
+### Added
+
+- **`ScriptDefaults` + `convert` module** — internal scaffolding ahead of per-probe bindings. `ScriptDefaults::from_args` snapshots the relevant CLI flags (`-H`, `-k`, `--connect-timeout`, `--max-time`, `-L`, `-A`, `-e`, `-u`, `--wait-time`, `--ping-count`, `--max-hops`, verbosity) so script bindings inherit them as per-call defaults. `convert::anyhow_to_rhai` walks the anyhow chain for `ProtocolExitCode`, stashes the exit code in a thread-local, and formats the error for Rhai; `take_protocol_exit_code` in the engine's error path produces the right process exit (7 for connection-refused, 28 for timeout) from uncaught probe exceptions.
+
 ## [0.25.1] - 2026-04-20
 
 ### Added
