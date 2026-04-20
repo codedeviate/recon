@@ -544,6 +544,16 @@ fn main() {
         whois::run(args.target_url())
     } else if args.has_composable() {
         run_composable(&args)
+    } else if args.target_url().starts_with("dig://") {
+        parse_dns_url(&args.target_url().replacen("dig://", "dns://", 1))
+            .and_then(|(host, path_types)| {
+                let types = if !args.dns_type.is_empty() {
+                    args.dns_type.clone()
+                } else {
+                    path_types
+                };
+                dns::run(&host, &types)
+            })
     } else if args.target_url().starts_with("dns://") {
         parse_dns_url(args.target_url())
             .and_then(|(host, path_types)| {

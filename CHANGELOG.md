@@ -8,6 +8,12 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.24.3] - 2026-04-20
+
+### Added
+
+- **`dig://` URL scheme.** Alias for `dns://`. Same semantics (path shorthand for record types, `--dns-type` override). Listed in the `--version` `Protocols:` banner.
+
 ## [0.24.2] - 2026-04-20
 
 ### Added
