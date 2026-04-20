@@ -8,6 +8,12 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.24.1] - 2026-04-20
+
+### Added
+
+- **`whois://` URL scheme.** `recon whois://example.com` is equivalent to `recon --whois example.com`. Listed in the `--version` `Protocols:` banner.
+
 ## [0.24.0] - 2026-04-20
 
 ### Added

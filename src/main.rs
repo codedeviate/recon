@@ -571,6 +571,8 @@ fn main() {
             .and_then(|host| traceroute::run(&host, args.max_hops))
     } else if args.target_url().starts_with("udp://") {
         udp_probe::run(args.target_url(), &args)
+    } else if args.target_url().starts_with("whois://") {
+        parse_plain_host(args.target_url()).and_then(|host| whois::run(&host))
     } else {
         let t0 = std::time::Instant::now();
         client::execute(&args).and_then(|(response, mut metrics)| -> anyhow::Result<()> {
