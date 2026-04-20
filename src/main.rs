@@ -4,6 +4,7 @@ mod client;
 mod compression;
 mod config;
 mod cookiejar;
+mod dict_probe;
 mod dns;
 mod editor;
 mod email;
@@ -544,6 +545,8 @@ fn main() {
         whois::run(args.target_url())
     } else if args.has_composable() {
         run_composable(&args)
+    } else if args.target_url().starts_with("dict://") {
+        dict_probe::run(args.target_url(), args.timeout)
     } else if let Some(rest) = dns_scheme_rest(args.target_url()) {
         let normalized = format!("dns://{rest}");
         parse_dns_url(&normalized).and_then(|(host, path_types)| {
@@ -766,6 +769,7 @@ fn friendly_message(err: &anyhow::Error) -> String {
         || msg.starts_with("Could not parse input as")
         || msg.starts_with("No input provided")
         || msg.starts_with("file:")
+        || msg.starts_with("dict:")
         || msg.starts_with("tcp:")
         || msg.starts_with("udp:")
         || msg.starts_with("ntp:")

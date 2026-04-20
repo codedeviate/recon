@@ -8,6 +8,17 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.24.5] - 2026-04-20
+
+### Added
+
+- **`dict://` URL scheme (RFC 2229).** Matches curl's URL grammar:
+  - `dict://host[:port]/d:WORD[:DB[:STRAT]]` — DEFINE
+  - `dict://host[:port]/m:WORD[:DB[:STRAT]]` — MATCH
+  - `dict://host[:port]/show:server|databases|strategies|info:DB` — SHOW variants
+  Default port 2628. Exit 0 on success, 7 on connect refused, 28 on timeout.
+- Listed in the `--version` `Protocols:` banner.
+
 ## [0.24.4] - 2026-04-20
 
 ### Added
