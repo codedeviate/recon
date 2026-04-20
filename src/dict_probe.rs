@@ -145,7 +145,20 @@ fn wire_command(c: &Command) -> String {
     }
 }
 
-pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
+pub struct DictResponse {
+    pub command: String,
+    pub lines: Vec<String>,
+    pub final_status: Option<u16>,
+}
+
+pub struct DictProbeOk {
+    pub host: String,
+    pub port: u16,
+    pub banner: String,
+    pub responses: Vec<DictResponse>,
+}
+
+pub fn probe(url: &str, timeout_secs: u64) -> Result<DictProbeOk> {
     let parsed = parse_url(url)?;
     let addr = (parsed.host.as_str(), parsed.port)
         .to_socket_addrs()
@@ -176,15 +189,12 @@ pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
     let mut reader = BufReader::new(stream.try_clone().context("dict: clone stream")?);
     let mut writer = stream;
 
-    // Server banner (220 <text>)
     let banner = read_status_line(&mut reader)?;
-    println!("{banner}");
 
-    // Send CLIENT announcement (RFC 2229 recommended)
     writer
         .write_all(b"CLIENT recon\r\n")
         .context("dict: write CLIENT")?;
-    let _ = read_status_line(&mut reader)?; // 250 ok
+    let _ = read_status_line(&mut reader)?;
 
     let commands: Vec<Command> = match parsed.command {
         Command::ServerInfo => vec![
@@ -195,42 +205,77 @@ pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
         other => vec![other],
     };
 
-    for (i, cmd) in commands.iter().enumerate() {
+    let mut responses: Vec<DictResponse> = Vec::new();
+    for cmd in &commands {
+        let label = command_label(cmd);
+        let (lines, final_status) = run_command(&mut reader, &mut writer, cmd)?;
+        responses.push(DictResponse {
+            command: label,
+            lines,
+            final_status,
+        });
+    }
+
+    let _ = writer.write_all(b"QUIT\r\n");
+    Ok(DictProbeOk {
+        host: parsed.host,
+        port: parsed.port,
+        banner,
+        responses,
+    })
+}
+
+pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
+    let r = probe(url, timeout_secs)?;
+    println!("{}", r.banner);
+    for (i, resp) in r.responses.iter().enumerate() {
         if i > 0 {
             println!();
         }
-        run_command(&mut reader, &mut writer, cmd)?;
+        for line in &resp.lines {
+            print!("{line}");
+        }
     }
-
-    // Polite QUIT
-    let _ = writer.write_all(b"QUIT\r\n");
     Ok(())
+}
+
+fn command_label(c: &Command) -> String {
+    match c {
+        Command::Define { word, db } => format!("DEFINE {db} {word}"),
+        Command::Match { word, db, strat } => format!("MATCH {db} {strat} {word}"),
+        Command::ShowServer => "SHOW SERVER".into(),
+        Command::ShowDatabases => "SHOW DATABASES".into(),
+        Command::ShowStrategies => "SHOW STRATEGIES".into(),
+        Command::ShowInfo { db } => format!("SHOW INFO {db}"),
+        Command::ServerInfo => "SERVER_INFO".into(),
+    }
 }
 
 fn run_command<R: BufRead, W: Write>(
     reader: &mut R,
     writer: &mut W,
     cmd: &Command,
-) -> Result<()> {
+) -> Result<(Vec<String>, Option<u16>)> {
     let cmd_line = wire_command(cmd);
     writer
         .write_all(cmd_line.as_bytes())
         .context("dict: write command")?;
 
-    loop {
+    let mut lines: Vec<String> = Vec::new();
+    let final_status = loop {
         let line = read_line(reader)?;
         if line.is_empty() {
             return Err(anyhow!("dict: server closed connection mid-response"));
         }
-        print!("{line}");
         let code = status_code(&line);
+        lines.push(line);
         match code {
-            Some(c) if c == 250 => break,
-            Some(c) if (500..600).contains(&c) => break,
+            Some(250) => break Some(250_u16),
+            Some(c) if (500..600).contains(&c) => break Some(c),
             _ => continue,
         }
-    }
-    Ok(())
+    };
+    Ok((lines, final_status))
 }
 
 fn read_status_line<R: BufRead>(r: &mut R) -> Result<String> {

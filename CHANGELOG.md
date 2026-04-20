@@ -8,6 +8,16 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.25.11] - 2026-04-20
+
+### Added
+
+- **`dict(url)` / `dict(url, opts)` script binding.** Returns `#{ host, port, banner, responses: [#{ command, lines: [String], final_status: i64 }] }`. Bare `dict://host/` runs the server-info aggregate (SHOW SERVER + SHOW DATABASES + SHOW STRATEGIES). Command path grammar matches curl (`d:WORD`, `m:WORD`, `show:…`). Transient streaming of response lines is captured into the `lines` array per command.
+
+### Changed
+
+- `dict_probe.rs` refactored to `probe()`/`run()` split: `probe()` returns `DictProbeOk { host, port, banner, responses }`; `run()` prints from it. Each `DictResponse` captures the command label, all lines received, and the final status code (250 ok or 5xx error).
+
 ## [0.25.10] - 2026-04-20
 
 ### Added
