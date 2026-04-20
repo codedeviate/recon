@@ -15,7 +15,20 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 /// Seconds between the NTP epoch (1900-01-01) and the Unix epoch (1970-01-01).
 const NTP_UNIX_DELTA: u64 = 2_208_988_800;
 
-pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
+/// Structured SNTPv4 probe result.
+pub struct NtpProbeOk {
+    pub host: String,
+    pub port: u16,
+    pub stratum: u8,
+    pub poll_interval: i8,
+    pub precision: i8,
+    pub ref_id_formatted: String,
+    pub reference_ts: f64,
+    pub offset_secs: f64,
+    pub delay_secs: f64,
+}
+
+pub fn probe(url: &str, timeout_secs: u64) -> Result<NtpProbeOk> {
     let (host, port) = parse_url(url)?;
 
     let addr = format!("{host}:{port}")
@@ -37,8 +50,6 @@ pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
         .connect(addr)
         .with_context(|| format!("ntp: connect failed to {host}:{port}"))?;
 
-    // SNTPv4 request (RFC 4330 §4). 48 bytes total. Only the first byte
-    // matters for the request: LI(0) | VN(4) | Mode(3=client) = 0b00_100_011 = 0x23.
     let mut request = [0u8; 48];
     request[0] = 0x23;
 
@@ -74,9 +85,8 @@ pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
     let stratum = response[1];
     let poll_interval = response[2] as i8;
     let precision = response[3] as i8;
-    let ref_id = &response[12..16];
+    let ref_id_formatted = format_ref_id(stratum, &response[12..16]);
 
-    // Big-endian 64-bit NTP timestamps. Byte layout: [secs(4) | frac(4)].
     let reference_ts = ntp_to_unix_secs(&response[16..24]);
     let receive_ts = ntp_to_unix_secs(&response[32..40]);
     let transmit_ts = ntp_to_unix_secs(&response[40..48]);
@@ -90,33 +100,48 @@ pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
         .map(|d| d.as_secs_f64())
         .unwrap_or(0.0);
 
-    // RFC 4330 §5 clock offset + round-trip delay.
-    // T1 = local_send, T2 = receive_ts, T3 = transmit_ts, T4 = local_recv
     let offset = ((receive_ts - local_send) + (transmit_ts - local_recv)) / 2.0;
     let delay = (local_recv - local_send) - (transmit_ts - receive_ts);
 
-    println!("* Connected to {host}:{port} (NTP)");
-    println!("< Stratum: {stratum} ({})", stratum_name(stratum));
-    println!("< Reference ID: {}", format_ref_id(stratum, ref_id));
+    Ok(NtpProbeOk {
+        host,
+        port,
+        stratum,
+        poll_interval,
+        precision,
+        ref_id_formatted,
+        reference_ts,
+        offset_secs: offset,
+        delay_secs: delay,
+    })
+}
+
+pub fn run(url: &str, timeout_secs: u64) -> Result<()> {
+    let p = probe(url, timeout_secs)?;
+    println!("* Connected to {}:{} (NTP)", p.host, p.port);
+    println!("< Stratum: {} ({})", p.stratum, stratum_name(p.stratum));
+    println!("< Reference ID: {}", p.ref_id_formatted);
     println!(
-        "< Precision: 2^{precision} s = {:.6}s",
-        2f64.powi(precision as i32)
+        "< Precision: 2^{} s = {:.6}s",
+        p.precision,
+        2f64.powi(p.precision as i32)
     );
     println!(
-        "< Poll Interval: 2^{poll_interval} s = {}s",
-        1i64.checked_shl(poll_interval.max(0) as u32).unwrap_or(i64::MAX)
+        "< Poll Interval: 2^{} s = {}s",
+        p.poll_interval,
+        1i64.checked_shl(p.poll_interval.max(0) as u32).unwrap_or(i64::MAX)
     );
-    println!("< Reference Time: {}", format_ts(reference_ts));
+    println!("< Reference Time: {}", format_ts(p.reference_ts));
     println!(
         "< Offset: {:+.6}s (local clock is {})",
-        offset,
-        if offset > 0.0 {
+        p.offset_secs,
+        if p.offset_secs > 0.0 {
             "behind server"
         } else {
             "ahead of server"
         }
     );
-    println!("< Round-trip Delay: {:.6}s", delay.abs());
+    println!("< Round-trip Delay: {:.6}s", p.delay_secs.abs());
     Ok(())
 }
 

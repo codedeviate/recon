@@ -8,6 +8,16 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.25.8] - 2026-04-20
+
+### Added
+
+- **`ntp(url)` / `ntp(url, opts)` script binding.** Accepts `ntp://host` or bare `host`. Returns `#{ host, port, stratum, precision, poll_interval, ref_id, reference_ts, offset_ms, delay_ms }`. `opts.timeout` overrides the inherited `--connect-timeout`. Exit code on timeout is 28, on unreachable is 7.
+
+### Changed
+
+- `ntp_probe.rs` refactored to the `probe()`/`run()` split pattern: `probe()` returns an `NtpProbeOk` struct; `run()` prints the existing formatted fields from it.
+
 ## [0.25.7] - 2026-04-20
 
 ### Added
