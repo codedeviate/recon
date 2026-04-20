@@ -184,6 +184,60 @@ fn parse_qos_u8(n: u8) -> Result<u8> {
     Ok(n)
 }
 
+/// Build a current-thread tokio runtime for a one-shot MQTT operation.
+/// Each probe/publish/subscribe call builds and drops its own runtime; this
+/// keeps the MQTT module sync-on-the-outside while letting rumqttc use tokio
+/// internally.
+fn build_mqtt_runtime(label: &str) -> Result<tokio::runtime::Runtime> {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .with_context(|| format!("failed to build tokio runtime for mqtt {label}"))
+}
+
+/// Assemble a v5 `MqttOptions` from config + args.
+fn setup_options_v5(
+    cfg: &MqttConfig,
+    client_id: &str,
+    args: &Args,
+) -> Result<rumqttc::v5::MqttOptions> {
+    use std::time::Duration;
+    let mut options = rumqttc::v5::MqttOptions::new(client_id, &cfg.host, cfg.port);
+    options.set_keep_alive(Duration::from_secs(args.keepalive.into()));
+    if let Some(u) = &cfg.username {
+        options.set_credentials(u, cfg.password.clone().unwrap_or_default());
+    }
+    if cfg.tls {
+        configure_tls_v5(&mut options, args.insecure)?;
+    }
+    options.set_connection_timeout(args.timeout);
+    options.set_clean_start(true);
+    Ok(options)
+}
+
+/// Assemble a v3 `MqttOptions` + `NetworkOptions` from config + args.
+/// v3 puts the connection timeout on `NetworkOptions`, applied via
+/// `event_loop.set_network_options(...)` after `AsyncClient::new`.
+fn setup_options_v3(
+    cfg: &MqttConfig,
+    client_id: &str,
+    args: &Args,
+) -> Result<(rumqttc::MqttOptions, rumqttc::NetworkOptions)> {
+    use std::time::Duration;
+    let mut options = rumqttc::MqttOptions::new(client_id, &cfg.host, cfg.port);
+    options.set_keep_alive(Duration::from_secs(args.keepalive.into()));
+    if let Some(u) = &cfg.username {
+        options.set_credentials(u, cfg.password.clone().unwrap_or_default());
+    }
+    if cfg.tls {
+        configure_tls_v3(&mut options, args.insecure)?;
+    }
+    options.set_clean_session(true);
+    let mut net_options = rumqttc::NetworkOptions::new();
+    net_options.set_connection_timeout(args.timeout);
+    Ok((options, net_options))
+}
+
 fn publish_v5(
     cfg: &MqttConfig,
     client_id: &str,
@@ -194,7 +248,7 @@ fn publish_v5(
 ) -> Result<()> {
     use rumqttc::v5::mqttbytes::v5::Packet;
     use rumqttc::v5::mqttbytes::QoS;
-    use rumqttc::v5::{AsyncClient, Event, MqttOptions};
+    use rumqttc::v5::{AsyncClient, Event};
     use std::time::Duration;
 
     let qos_enum = match qos {
@@ -204,23 +258,8 @@ fn publish_v5(
         _ => unreachable!("parse_qos_u8 already validated"),
     };
 
-    let mut options = MqttOptions::new(client_id, &cfg.host, cfg.port);
-    options.set_keep_alive(Duration::from_secs(args.keepalive.into()));
-    if let (Some(u), Some(p)) = (&cfg.username, &cfg.password) {
-        options.set_credentials(u, p);
-    } else if let Some(u) = &cfg.username {
-        options.set_credentials(u, "");
-    }
-    if cfg.tls {
-        configure_tls_v5(&mut options, args.insecure)?;
-    }
-    options.set_connection_timeout(args.timeout);
-    options.set_clean_start(true);
-
-    let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .context("failed to build tokio runtime for mqtt publish")?;
+    let options = setup_options_v5(cfg, client_id, args)?;
+    let rt = build_mqtt_runtime("publish")?;
 
     rt.block_on(async {
         let (client, mut event_loop) = AsyncClient::new(options, 10);
@@ -275,7 +314,7 @@ fn publish_v3(
     qos: u8,
     args: &Args,
 ) -> Result<()> {
-    use rumqttc::{AsyncClient, Event, Incoming, MqttOptions, NetworkOptions, QoS};
+    use rumqttc::{AsyncClient, Event, Incoming, QoS};
     use std::time::Duration;
 
     let qos_enum = match qos {
@@ -285,23 +324,8 @@ fn publish_v3(
         _ => unreachable!("parse_qos_u8 already validated"),
     };
 
-    let mut options = MqttOptions::new(client_id, &cfg.host, cfg.port);
-    options.set_keep_alive(Duration::from_secs(args.keepalive.into()));
-    if let Some(u) = &cfg.username {
-        options.set_credentials(u, cfg.password.clone().unwrap_or_default());
-    }
-    if cfg.tls {
-        configure_tls_v3(&mut options, args.insecure)?;
-    }
-    options.set_clean_session(true);
-
-    let mut net_options = NetworkOptions::new();
-    net_options.set_connection_timeout(args.timeout);
-
-    let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .context("failed to build tokio runtime for mqtt publish")?;
+    let (options, net_options) = setup_options_v3(cfg, client_id, args)?;
+    let rt = build_mqtt_runtime("publish")?;
 
     rt.block_on(async {
         let (client, mut event_loop) = AsyncClient::new(options, 10);
@@ -348,27 +372,12 @@ fn publish_v3(
 
 fn probe_v5(cfg: &MqttConfig, client_id: &str, args: &Args) -> Result<()> {
     use rumqttc::v5::mqttbytes::v5::Packet;
-    use rumqttc::v5::{AsyncClient, Event, MqttOptions};
+    use rumqttc::v5::{AsyncClient, Event};
     use std::io::Write;
     use std::time::Duration;
 
-    let mut options = MqttOptions::new(client_id, &cfg.host, cfg.port);
-    options.set_keep_alive(Duration::from_secs(args.keepalive.into()));
-    if let (Some(u), Some(p)) = (&cfg.username, &cfg.password) {
-        options.set_credentials(u, p);
-    } else if let Some(u) = &cfg.username {
-        options.set_credentials(u, "");
-    }
-    if cfg.tls {
-        configure_tls_v5(&mut options, args.insecure)?;
-    }
-    options.set_connection_timeout(args.timeout);
-    options.set_clean_start(true);
-
-    let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .context("failed to build tokio runtime for mqtt probe")?;
+    let options = setup_options_v5(cfg, client_id, args)?;
+    let rt = build_mqtt_runtime("probe")?;
 
     rt.block_on(async {
         let (client, mut event_loop) = AsyncClient::new(options, 10);
@@ -514,27 +523,12 @@ fn print_connack_v5<W: std::io::Write>(
 }
 
 fn probe_v3(cfg: &MqttConfig, client_id: &str, args: &Args) -> Result<()> {
-    use rumqttc::{AsyncClient, Event, Incoming, MqttOptions, NetworkOptions};
+    use rumqttc::{AsyncClient, Event, Incoming};
     use std::io::Write;
     use std::time::Duration;
 
-    let mut options = MqttOptions::new(client_id, &cfg.host, cfg.port);
-    options.set_keep_alive(Duration::from_secs(args.keepalive.into()));
-    if let Some(u) = &cfg.username {
-        options.set_credentials(u, cfg.password.clone().unwrap_or_default());
-    }
-    if cfg.tls {
-        configure_tls_v3(&mut options, args.insecure)?;
-    }
-    options.set_clean_session(true);
-
-    let mut net_options = NetworkOptions::new();
-    net_options.set_connection_timeout(args.timeout);
-
-    let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .context("failed to build tokio runtime for mqtt probe")?;
+    let (options, net_options) = setup_options_v3(cfg, client_id, args)?;
+    let rt = build_mqtt_runtime("probe")?;
 
     rt.block_on(async {
         let (client, mut event_loop) = AsyncClient::new(options, 10);
