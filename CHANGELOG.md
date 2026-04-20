@@ -8,6 +8,12 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.25.1] - 2026-04-20
+
+### Added
+
+- **Script helpers: `sleep_ms`, `env`, `now`, `now_ms`, `assert`** registered on the Rhai engine. `env(name)` returns an empty string when the variable is unset; `env(name, default)` returns the fallback. `assert(cond, msg)` throws a Rhai exception (exits 1) when `cond` is false. `print` is already provided by Rhai's default engine and writes to stdout.
+
 ## [0.25.0] - 2026-04-20
 
 ### Added

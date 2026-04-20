@@ -30,10 +30,12 @@ pub fn run_file(path: &Path, _args: &Args) -> i32 {
     }
 }
 
-/// Build a fresh Rhai engine with no recon-specific bindings yet.
-/// Task 2 will register helpers; subsequent tasks register protocol bindings.
+/// Build a Rhai engine with recon helpers registered. Protocol probe
+/// bindings are layered on in subsequent tasks.
 pub fn build_engine() -> rhai::Engine {
-    rhai::Engine::new()
+    let mut engine = rhai::Engine::new();
+    super::bindings::helpers::register(&mut engine);
+    engine
 }
 
 #[cfg(test)]

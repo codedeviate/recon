@@ -7,6 +7,7 @@
 
 use crate::cli::Args;
 
+pub mod bindings;
 pub mod engine;
 
 /// Entry point from `main.rs`. Returns the process exit code.
