@@ -816,6 +816,37 @@ pub fn print() {
     ]);
     note("Custom samples (including paid APIs with Bearer tokens) can be added in ~/.recon/config.toml under [sampledata.<name>]. See --help sample for details.");
 
+    section("MQTT (0.22.0)");
+
+    example("Probe a broker (default mode)", &[
+        "recon mqtt://broker.example.com:1883/",
+        "recon mqtts://broker.example.com:8883/",
+    ]);
+    note("Connects, dumps CONNACK details, disconnects. Default MQTT version is 5.0 — use --mqtt-version 3 for 3.1.1.");
+
+    example("Probe with JSON output for scripting", &[
+        "recon mqtt://broker/ --mqtt-json | jq .connect_reason",
+    ]);
+
+    example("Publish a message", &[
+        r#"recon mqtt://broker/devices/fan/state -d "on""#,
+        r#"recon mqtt://broker/devices/fan/state -d "on" --qos 1 --retain"#,
+        "recon mqtt://broker/logs -d @event.json",
+    ]);
+
+    example("Subscribe to topic filters", &[
+        r#"recon mqtt://broker/ --subscribe "devices/+/state""#,
+        r#"recon mqtt://broker/ --subscribe "devices/#" --count 10"#,
+        r#"recon mqtt://broker/ --subscribe "a/#" --subscribe "b/#" -v"#,
+    ]);
+    note("Default output is payload-only. Use -v to prefix the topic; --mqtt-json for NDJSON.");
+
+    example("Auth and TLS", &[
+        "recon mqtts://user:pass@broker:8883/",
+        "recon mqtts://broker:8883/ -u alice:s3cr3t",
+        "recon mqtts://self-signed.broker/ -k",
+    ]);
+
     section("EDITOR OUTPUT");
 
     example("Open the response in an editor (--editor [EDITOR])", &[

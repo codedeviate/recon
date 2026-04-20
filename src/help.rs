@@ -997,6 +997,40 @@ static TOPIC_WRITE_OUT: Topic = Topic {
     ],
 };
 
+static TOPIC_MQTT: Topic = Topic {
+    title: "MQTT Client (probe, publish, subscribe)",
+    description: "Connect to an MQTT 3.1.1 or 5.0 broker. Three modes:\n\
+                  \n\
+                  • Probe (default): connect, dump CONNACK details, disconnect.\n\
+                  • Publish: send one message with -d/--data, topic in URL path.\n\
+                  • Subscribe: stream messages matching --subscribe filters; exits on\n\
+                    Ctrl-C or after --count messages.\n\
+                  \n\
+                  URL scheme: mqtt:// (port 1883) or mqtts:// (port 8883, TLS).",
+    flags: &[
+        FlagHelp { flags: "--mqtt-version <N>", description: "Protocol version: 3 (MQTT 3.1.1) or 5 (MQTT 5.0). Default: 5." },
+        FlagHelp { flags: "--client-id <ID>", description: "MQTT client identifier.\nDefault: recon-<random-hex-6>." },
+        FlagHelp { flags: "--keepalive <SECS>", description: "Keepalive interval in seconds. Default: 60." },
+        FlagHelp { flags: "--qos <0|1|2>", description: "QoS level for publish and subscribe. Default: 0 (at-most-once)." },
+        FlagHelp { flags: "--retain", description: "Set the PUBLISH retain flag (publish mode only)." },
+        FlagHelp { flags: "--subscribe <FILTER>", description: "Topic filter to subscribe to. Repeatable.\nFilters may contain MQTT wildcards: + (one level) and # (multi-level, end only)." },
+        FlagHelp { flags: "--count <N>", description: "In subscribe mode, exit after receiving N messages." },
+        FlagHelp { flags: "--mqtt-json", description: "Emit structured JSON: probe prints one JSON object, subscribe prints NDJSON\n(one object per message). Non-UTF-8 payloads in subscribe are wrapped as {\"base64\": \"...\"}." },
+        FlagHelp { flags: "-d, --data <DATA>", description: "Publish mode: payload (string, @file, or @- for stdin). Triggers publish when the URL has a topic." },
+        FlagHelp { flags: "-u, --user <USER:PASS>", description: "Broker username/password in the CONNECT packet. Overrides URL userinfo." },
+        FlagHelp { flags: "-k, --insecure", description: "Skip broker TLS certificate verification (mqtts:// only)." },
+        FlagHelp { flags: "--connect-timeout <SECS>", description: "Socket connect + CONNACK wait timeout. Default: 30." },
+    ],
+    related: &["-w / --write-out", "--cert"],
+    examples: &[
+        ExampleHelp { description: "Probe a broker", command: "recon mqtt://broker.example.com:1883/" },
+        ExampleHelp { description: "Probe over TLS with JSON output", command: "recon mqtts://broker.example.com:8883/ --mqtt-json" },
+        ExampleHelp { description: "Publish a retained message at QoS 1", command: "recon mqtt://broker/devices/fan/state -d \"on\" --qos 1 --retain" },
+        ExampleHelp { description: "Subscribe to a topic filter, exit after 10 messages", command: "recon mqtt://broker/ --subscribe \"devices/+/state\" --count 10 -v" },
+        ExampleHelp { description: "Fall back to MQTT 3.1.1 on a legacy broker", command: "recon mqtt://legacy-broker/ --mqtt-version 3" },
+    ],
+};
+
 // ── Topic resolution ─────────────────────────────────────────────────────────
 
 fn resolve_topic(key: &str) -> Option<&'static Topic> {
@@ -1012,6 +1046,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "dmarc" => Some(&TOPIC_DMARC),
         "dkim" => Some(&TOPIC_DKIM),
         "mta-sts" | "mtasts" => Some(&TOPIC_MTA_STS),
+        "mqtt" => Some(&TOPIC_MQTT),
         "bimi" => Some(&TOPIC_BIMI),
         "tls-rpt" | "tlsrpt" => Some(&TOPIC_TLS_RPT),
         "email" | "email-protection" => Some(&TOPIC_EMAIL),
@@ -1080,6 +1115,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "dmarc",
         "dkim",
         "mta-sts",
+        "mqtt",
         "bimi",
         "tls-rpt",
         "email",
