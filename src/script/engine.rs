@@ -41,6 +41,7 @@ pub fn build_engine(defaults: &ScriptDefaults) -> rhai::Engine {
     super::bindings::helpers::register(&mut engine);
     super::bindings::dict::register(&mut engine, defaults.clone());
     super::bindings::dns::register(&mut engine);
+    super::bindings::file::register(&mut engine);
     super::bindings::http::register(&mut engine, defaults.clone());
     super::bindings::ldap::register(&mut engine, defaults.clone());
     super::bindings::memcached::register(&mut engine, defaults.clone());

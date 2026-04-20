@@ -8,6 +8,12 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.25.17] - 2026-04-20
+
+### Added
+
+- **`file_read(path)` script binding.** Reads a local filesystem path OR a `file://` URL and returns a Rhai Blob (`Vec<u8>`). Scripts that want text can `.to_string()` the blob; binary payloads round-trip cleanly via Blob. No `file_write` counterpart — scripts can only read, matching the principle-of-least-surprise scope decision in the plan.
+
 ## [0.25.16] - 2026-04-20
 
 ### Added
