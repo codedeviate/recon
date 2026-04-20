@@ -16,7 +16,10 @@ const RUSTLS_VERSION: &str = "0.23";
 /// dispatch in `main.rs` (and the `source::resolve_file_url` branch for
 /// `file://`). When adding or removing protocol support, update this list
 /// so `recon --version | grep <proto>` stays accurate.
-const PROTOCOLS: &[&str] = &["file", "http", "https", "mqtt", "mqtts", "scp", "ssh", "telnet"];
+const PROTOCOLS: &[&str] = &[
+    "file", "http", "https", "mqtt", "mqtts", "ping", "scp",
+    "ssh", "telnet", "tls", "traceroute",
+];
 
 /// Feature tokens. Kept curl-compatible where the concept overlaps (HTTP2,
 /// HTTPS, IPv6, SSL, gzip, deflate, brotli, zstd) and recon-specific

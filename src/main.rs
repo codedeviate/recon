@@ -544,12 +544,21 @@ fn main() {
         || args.target_url().starts_with("mqtts://")
     {
         mqtt::run(args.target_url(), &args)
+    } else if args.target_url().starts_with("ping://") {
+        parse_plain_host(args.target_url())
+            .and_then(|host| ping::run(&host, args.ping_count))
     } else if args.target_url().starts_with("scp://") {
         scp::download(args.target_url(), &args)
     } else if args.target_url().starts_with("ssh://") {
         ssh::connect(args.target_url(), &args)
     } else if args.target_url().starts_with("telnet://") {
         telnet::connect(args.target_url(), &args)
+    } else if args.target_url().starts_with("tls://") {
+        let rewritten = rewrite_tls_scheme(args.target_url());
+        cert::fetch_and_print(&rewritten)
+    } else if args.target_url().starts_with("traceroute://") {
+        parse_plain_host(args.target_url())
+            .and_then(|host| traceroute::run(&host, args.max_hops))
     } else {
         let t0 = std::time::Instant::now();
         client::execute(&args).and_then(|(response, mut metrics)| -> anyhow::Result<()> {
@@ -792,6 +801,29 @@ fn run_jwt(args: &Args) -> anyhow::Result<()> {
         jwt::sign(args)
     } else {
         jwt::validate(args)
+    }
+}
+
+/// Parse `protocol://host[:port]/...` → host only. Used by ping:// and
+/// traceroute:// where the port is meaningless (ICMP).
+fn parse_plain_host(url: &str) -> anyhow::Result<String> {
+    use anyhow::Context;
+    let parsed = url::Url::parse(url)
+        .with_context(|| format!("malformed URL: {url}"))?;
+    parsed
+        .host_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| anyhow::anyhow!("URL missing host: {url}"))
+}
+
+/// Rewrite `tls://host[:port]/...` → `https://host[:port]/` so
+/// cert::fetch_and_print (which only accepts https:// or bare host)
+/// accepts the target.
+fn rewrite_tls_scheme(url: &str) -> String {
+    if let Some(rest) = url.strip_prefix("tls://") {
+        format!("https://{rest}")
+    } else {
+        url.to_string()
     }
 }
 
