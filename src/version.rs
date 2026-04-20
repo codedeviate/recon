@@ -18,7 +18,7 @@ const RUSTLS_VERSION: &str = "0.23";
 /// so `recon --version | grep <proto>` stays accurate.
 const PROTOCOLS: &[&str] = &[
     "file", "http", "https", "mqtt", "mqtts", "ping", "scp",
-    "ssh", "tcp", "telnet", "tls", "traceroute",
+    "ssh", "tcp", "telnet", "tls", "traceroute", "udp",
 ];
 
 /// Feature tokens. Kept curl-compatible where the concept overlaps (HTTP2,

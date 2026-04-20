@@ -566,6 +566,13 @@ pub struct Args {
     #[arg(long = "editor-cleanup", help_heading = "Editor")]
     pub editor_cleanup: bool,
 
+    // ── Protocol Probes ─────────────────────────────────────────────────────
+
+    /// For udp:// — seconds to wait for a response datagram after sending.
+    /// Accepts fractional values. Default: 1.0.
+    #[arg(long = "wait-time", value_name = "SECS", default_value_t = 1.0, help_heading = "Protocol Probes")]
+    pub wait_time: f64,
+
     // ── MQTT ─────────────────────────────────────────────────────────────────
 
     /// Subscribe to an MQTT topic filter. Repeatable.
@@ -890,5 +897,23 @@ mod mqtt_flag_tests {
     fn mqtt_json_sets_true() {
         let args = Args::try_parse_from(["recon", "mqtt://b/", "--mqtt-json"]).unwrap();
         assert!(args.mqtt_json);
+    }
+}
+
+#[cfg(test)]
+mod udp_flag_tests {
+    use super::*;
+    use clap::Parser;
+
+    #[test]
+    fn wait_time_defaults_to_1() {
+        let args = Args::try_parse_from(["recon", "udp://b:1/"]).unwrap();
+        assert_eq!(args.wait_time, 1.0);
+    }
+
+    #[test]
+    fn wait_time_accepts_fractional() {
+        let args = Args::try_parse_from(["recon", "udp://b:1/", "--wait-time", "0.5"]).unwrap();
+        assert_eq!(args.wait_time, 0.5);
     }
 }

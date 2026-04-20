@@ -34,6 +34,7 @@ mod tcp_probe;
 mod telnet;
 mod tls_probe;
 mod traceroute;
+mod udp_probe;
 mod util;
 mod version;
 mod whois;
@@ -562,6 +563,8 @@ fn main() {
     } else if args.target_url().starts_with("traceroute://") {
         parse_plain_host(args.target_url())
             .and_then(|host| traceroute::run(&host, args.max_hops))
+    } else if args.target_url().starts_with("udp://") {
+        udp_probe::run(args.target_url(), &args)
     } else {
         let t0 = std::time::Instant::now();
         client::execute(&args).and_then(|(response, mut metrics)| -> anyhow::Result<()> {
@@ -745,6 +748,7 @@ fn friendly_message(err: &anyhow::Error) -> String {
         || msg.starts_with("Could not parse input as")
         || msg.starts_with("No input provided")
         || msg.starts_with("tcp:")
+        || msg.starts_with("udp:")
         || msg.starts_with("mqtt:")
         || msg.starts_with("mqtt probe")
         || msg.starts_with("mqtt publish")
