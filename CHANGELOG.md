@@ -8,6 +8,12 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.25.18] - 2026-04-20
+
+### Added
+
+- **`json_parse(s)` / `json_stringify(value)` script helpers.** Round-trip between JSON text and Rhai values. Null ↔ `()` (unit), bool ↔ bool, integer/float ↔ i64/f64, string ↔ string, array ↔ array, object ↔ map. Malformed input or non-finite floats raise Rhai exceptions.
+
 ## [0.25.17] - 2026-04-20
 
 ### Added
