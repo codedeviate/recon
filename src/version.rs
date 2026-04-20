@@ -17,8 +17,8 @@ const RUSTLS_VERSION: &str = "0.23";
 /// `file://`). When adding or removing protocol support, update this list
 /// so `recon --version | grep <proto>` stays accurate.
 const PROTOCOLS: &[&str] = &[
-    "dict", "dig", "dns", "drill", "file", "http", "https", "mqtt", "mqtts", "ntp", "ping",
-    "redis", "scp", "ssh", "tcp", "telnet", "tls", "traceroute", "udp", "whois",
+    "dict", "dig", "dns", "drill", "file", "http", "https", "memcached", "mqtt", "mqtts", "ntp",
+    "ping", "redis", "scp", "ssh", "tcp", "telnet", "tls", "traceroute", "udp", "whois",
 ];
 
 /// Feature tokens. Kept curl-compatible where the concept overlaps (HTTP2,

@@ -8,6 +8,12 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.24.7] - 2026-04-20
+
+### Added
+
+- **`memcached://` URL scheme.** Connects over TCP, sends `version\r\n`, reports server version + round-trip. Append `/stats` to also dump `stats` output. Default port 11211. Exit 7/28 classification. Listed in the `--version` `Protocols:` banner.
+
 ## [0.24.6] - 2026-04-20
 
 ### Added

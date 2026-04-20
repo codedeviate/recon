@@ -18,6 +18,7 @@ mod hash;
 mod help;
 mod jwt;
 mod lorem;
+mod memcached_probe;
 mod metrics;
 mod mqtt;
 mod netstatus;
@@ -566,6 +567,8 @@ fn main() {
         mqtt::run(args.target_url(), &args)
     } else if args.target_url().starts_with("ntp://") {
         ntp_probe::run(args.target_url(), args.timeout)
+    } else if args.target_url().starts_with("memcached://") {
+        memcached_probe::run(args.target_url(), args.timeout)
     } else if args.target_url().starts_with("redis://") {
         redis_probe::run(args.target_url(), args.timeout)
     } else if args.target_url().starts_with("ping://") {
@@ -773,6 +776,7 @@ fn friendly_message(err: &anyhow::Error) -> String {
         || msg.starts_with("No input provided")
         || msg.starts_with("file:")
         || msg.starts_with("dict:")
+        || msg.starts_with("memcached:")
         || msg.starts_with("redis:")
         || msg.starts_with("tcp:")
         || msg.starts_with("udp:")
