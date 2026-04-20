@@ -8,6 +8,12 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.24.6] - 2026-04-20
+
+### Added
+
+- **`redis://` URL scheme.** Connects via RESP2, optionally `AUTH`s with a password from userinfo (`redis://:PASSWORD@host`), sends `PING`. Reports connect latency + peer address + PING round-trip. Default port 6379. Exit 0 on PONG, 7 refused, 28 timed out, 67 AUTH rejected. Listed in the `--version` `Protocols:` banner.
+
 ## [0.24.5] - 2026-04-20
 
 ### Added

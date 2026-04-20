@@ -25,6 +25,7 @@ mod ntp_probe;
 mod output;
 mod ping;
 mod prettify;
+mod redis_probe;
 mod remote_name;
 mod writeout;
 mod sampledata;
@@ -565,6 +566,8 @@ fn main() {
         mqtt::run(args.target_url(), &args)
     } else if args.target_url().starts_with("ntp://") {
         ntp_probe::run(args.target_url(), args.timeout)
+    } else if args.target_url().starts_with("redis://") {
+        redis_probe::run(args.target_url(), args.timeout)
     } else if args.target_url().starts_with("ping://") {
         parse_plain_host(args.target_url())
             .and_then(|host| ping::run(&host, args.ping_count))
@@ -770,6 +773,7 @@ fn friendly_message(err: &anyhow::Error) -> String {
         || msg.starts_with("No input provided")
         || msg.starts_with("file:")
         || msg.starts_with("dict:")
+        || msg.starts_with("redis:")
         || msg.starts_with("tcp:")
         || msg.starts_with("udp:")
         || msg.starts_with("ntp:")
