@@ -12,6 +12,7 @@ mod checkdigit;
 mod encrypt;
 mod examples;
 mod fail;
+mod file_url;
 mod hash;
 mod help;
 mod jwt;
@@ -543,6 +544,8 @@ fn main() {
         whois::run(args.target_url())
     } else if args.has_composable() {
         run_composable(&args)
+    } else if args.target_url().starts_with("file://") {
+        file_url::run(args.target_url(), &args)
     } else if args.target_url().starts_with("mqtt://")
         || args.target_url().starts_with("mqtts://")
     {
@@ -750,6 +753,7 @@ fn friendly_message(err: &anyhow::Error) -> String {
         || msg.starts_with("--jwt-validate-jti")
         || msg.starts_with("Could not parse input as")
         || msg.starts_with("No input provided")
+        || msg.starts_with("file:")
         || msg.starts_with("tcp:")
         || msg.starts_with("udp:")
         || msg.starts_with("ntp:")

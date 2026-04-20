@@ -65,7 +65,7 @@ pub fn resolve(args: &Args) -> Result<SourceKind> {
     Ok(SourceKind::File(PathBuf::from(positional)))
 }
 
-fn resolve_file_url(raw: &str) -> Result<SourceKind> {
+pub(crate) fn resolve_file_url(raw: &str) -> Result<SourceKind> {
     // Strip the scheme manually rather than using the `url` crate —
     // url::Url normalises path components (e.g. `..`) in ways we don't
     // want here, and we only need straightforward string surgery.

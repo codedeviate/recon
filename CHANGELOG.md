@@ -8,6 +8,12 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-04-20
+
+### Added
+
+- **`file://` URL scheme at the top level.** `recon file:///tmp/x.txt` now reads the referenced local file and writes its bytes to stdout (or to `-o <path>` when supplied), matching curl's behaviour. Previously `file://` was only accepted by source-layer features (`--hash`, `--compress`, etc.). The scheme was already listed in the `--version` `Protocols:` banner. Accepts an empty host or `localhost`; rejects other hosts with a clear error.
+
 ## [0.23.0] - 2026-04-20
 
 ### Added
