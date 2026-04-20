@@ -19,6 +19,7 @@ mod lorem;
 mod metrics;
 mod mqtt;
 mod netstatus;
+mod ntp_probe;
 mod output;
 mod ping;
 mod prettify;
@@ -546,6 +547,8 @@ fn main() {
         || args.target_url().starts_with("mqtts://")
     {
         mqtt::run(args.target_url(), &args)
+    } else if args.target_url().starts_with("ntp://") {
+        ntp_probe::run(args.target_url(), args.timeout)
     } else if args.target_url().starts_with("ping://") {
         parse_plain_host(args.target_url())
             .and_then(|host| ping::run(&host, args.ping_count))
@@ -749,6 +752,7 @@ fn friendly_message(err: &anyhow::Error) -> String {
         || msg.starts_with("No input provided")
         || msg.starts_with("tcp:")
         || msg.starts_with("udp:")
+        || msg.starts_with("ntp:")
         || msg.starts_with("mqtt:")
         || msg.starts_with("mqtt probe")
         || msg.starts_with("mqtt publish")

@@ -17,7 +17,7 @@ const RUSTLS_VERSION: &str = "0.23";
 /// `file://`). When adding or removing protocol support, update this list
 /// so `recon --version | grep <proto>` stays accurate.
 const PROTOCOLS: &[&str] = &[
-    "file", "http", "https", "mqtt", "mqtts", "ping", "scp",
+    "file", "http", "https", "mqtt", "mqtts", "ntp", "ping", "scp",
     "ssh", "tcp", "telnet", "tls", "traceroute", "udp",
 ];
 
