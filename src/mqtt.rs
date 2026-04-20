@@ -634,15 +634,10 @@ fn subscribe_v3(
             };
             if let Event::Incoming(Incoming::Publish(pub_msg)) = event {
                 if mqtt_json {
-                    let qos_u8 = match pub_msg.qos {
-                        rumqttc::QoS::AtMostOnce => 0,
-                        rumqttc::QoS::AtLeastOnce => 1,
-                        rumqttc::QoS::ExactlyOnce => 2,
-                    };
                     emit_subscribe_json(
                         &mut stdout,
                         &pub_msg.topic,
-                        qos_u8,
+                        qos_v3_to_u8(pub_msg.qos),
                         pub_msg.retain,
                         &pub_msg.payload,
                     )?;
@@ -730,16 +725,10 @@ fn subscribe_v5(
                 let topic_str = std::str::from_utf8(&pub_msg.topic)
                     .unwrap_or("<invalid-utf8-topic>");
                 if mqtt_json {
-                    use rumqttc::v5::mqttbytes::QoS as V5QoS;
-                    let qos_u8 = match pub_msg.qos {
-                        V5QoS::AtMostOnce => 0,
-                        V5QoS::AtLeastOnce => 1,
-                        V5QoS::ExactlyOnce => 2,
-                    };
                     emit_subscribe_json(
                         &mut stdout,
                         topic_str,
-                        qos_u8,
+                        qos_v5_to_u8(pub_msg.qos),
                         pub_msg.retain,
                         &pub_msg.payload,
                     )?;
@@ -811,13 +800,37 @@ fn emit_subscribe_json<W: std::io::Write>(
     let payload_value = match std::str::from_utf8(payload) {
         Ok(s) => json!(s),
         Err(_) => {
+            // STANDARD alphabet with padding: round-trips with stdlib base64
+            // decoders in jq, Python, Node, etc. — don't switch to URL_SAFE.
             use base64::{engine::general_purpose::STANDARD, Engine as _};
             json!({ "base64": STANDARD.encode(payload) })
         }
     };
     map.insert("payload".into(), payload_value);
     writeln!(out, "{}", Value::Object(map))?;
+    // Flush so consumers piping `--mqtt-json | jq` see each message promptly
+    // (stdout is block-buffered when piped; would otherwise hold messages).
+    out.flush()?;
     Ok(())
+}
+
+/// MQTT 3.1.1 QoS → wire-level u8 for JSON emission.
+fn qos_v3_to_u8(qos: rumqttc::QoS) -> u8 {
+    match qos {
+        rumqttc::QoS::AtMostOnce => 0,
+        rumqttc::QoS::AtLeastOnce => 1,
+        rumqttc::QoS::ExactlyOnce => 2,
+    }
+}
+
+/// MQTT 5.0 QoS → wire-level u8 for JSON emission.
+fn qos_v5_to_u8(qos: rumqttc::v5::mqttbytes::QoS) -> u8 {
+    use rumqttc::v5::mqttbytes::QoS;
+    match qos {
+        QoS::AtMostOnce => 0,
+        QoS::AtLeastOnce => 1,
+        QoS::ExactlyOnce => 2,
+    }
 }
 
 fn configure_tls_v5(_options: &mut rumqttc::v5::MqttOptions, _insecure: bool) -> Result<()> {
