@@ -52,6 +52,21 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 34. Rhai `import` support with global-dir fallback (0.32.0)
+
+Scripts gain a way to share logic: `import "name" as alias;` now works. Two resolvers chained via `ModuleResolversCollection`:
+
+1. **Default `FileModuleResolver`** — resolves relative to the importing script's directory. Natural for sibling imports (`import "helpers"` from `/tmp/foo.rhai` finds `/tmp/helpers.rhai`). Also handles absolute paths and `../` traversals.
+2. **Fallback `FileModuleResolver::new_with_path(~/.recon/script/)`** — picks up shared modules for scripts living outside the global dir.
+
+Scripts already in the global dir are handled by resolver 1 (their directory IS the global dir), so resolver 2 is a noop in that case — no special-casing.
+
+**Why the `ast.set_source(path)` change?** Rhai's default `FileModuleResolver` resolves relative paths against whichever of (a) its own `base_path` or (b) the AST's source path is set. Without `set_source`, there's no source — resolver 1 sees `base_path = None`, no source, falls back to `PathBuf::default()` (empty), appends `"name.rhai"`, tries to open `./name.rhai` from CWD, fails. Switching from `engine.eval_with_scope(source_text)` to `engine.compile_with_scope + ast.set_source(script_path) + engine.eval_ast_with_scope` makes resolver 1 see the importing script's directory. Took a failed integration test (exit code 1, "Module not found") to catch this — worth noting because the Rhai docs don't call it out loudly.
+
+**Why a collection rather than a custom resolver?** The `ModuleResolversCollection::push` + `FileModuleResolver` combo covers the desired behaviour in ~8 lines. A custom `ModuleResolver` impl would be tempting for smarter path juggling but adds maintenance surface with no win for this use case.
+
+**Out of scope.** No `RECON_SCRIPT_PATH=dir1:dir2` multi-path, no per-project `./recon_modules/`, no HTTPS-URL modules, no module signing.
+
 ### 33. Auto-paging for help and examples (0.31.0)
 
 `recon --examples` prints ~1000 lines; `recon --help script` prints ~80. Both scrolled past unread unless users piped manually. This release routes those outputs through `$PAGER` (default `less -FRX`) when stdout is a TTY, matching git's convention. Short outputs (`recon --help version`) still appear instantly because `less -F` exits when content fits on one screen — so auto-paging isn't disruptive for small help topics.

@@ -26,7 +26,20 @@ pub fn run_file(path: &Path, args: &Args) -> i32 {
     scope.push_constant("args", super::bindings::cli::build_args_array(args));
     scope.push_constant("flags", super::bindings::cli::build_flags_map(args));
 
-    match engine.eval_with_scope::<rhai::Dynamic>(&mut scope, &source) {
+    // Compile with an explicit source so Rhai's default FileModuleResolver
+    // can resolve `import "name"` relative to the script's directory.
+    // Without set_source, the resolver has no "source path" and imports
+    // fail even for sibling files.
+    let mut ast = match engine.compile_with_scope(&scope, &source) {
+        Ok(a) => a,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return 1;
+        }
+    };
+    ast.set_source(path.to_string_lossy().into_owned());
+
+    match engine.eval_ast_with_scope::<rhai::Dynamic>(&mut scope, &ast) {
         Ok(val) => {
             if let Ok(n) = val.as_int() {
                 (n & 0xff) as i32
@@ -46,6 +59,7 @@ pub fn run_file(path: &Path, args: &Args) -> i32 {
 /// the `ScriptDefaults` so it can read CLI flag inheritance at call time.
 pub fn build_engine(defaults: &ScriptDefaults) -> rhai::Engine {
     let mut engine = rhai::Engine::new();
+    install_module_resolver(&mut engine);
     super::bindings::helpers::register(&mut engine);
     super::bindings::dict::register(&mut engine, defaults.clone());
     super::bindings::dns::register(&mut engine);
@@ -65,6 +79,23 @@ pub fn build_engine(defaults: &ScriptDefaults) -> rhai::Engine {
     super::bindings::whois::register(&mut engine);
     super::bindings::ws::register(&mut engine, defaults.clone());
     engine
+}
+
+/// Install Rhai's module resolver so `import "name"` statements work.
+/// Two resolvers chained: (1) Rhai default — resolves relative to the
+/// importing script's directory; (2) `FileModuleResolver` rooted at
+/// `~/.recon/script/` — picks up shared modules for scripts that live
+/// outside the global dir. Both auto-append `.rhai`. If `$HOME` is
+/// unset, only the default resolver is registered.
+fn install_module_resolver(engine: &mut rhai::Engine) {
+    use rhai::module_resolvers::{FileModuleResolver, ModuleResolversCollection};
+
+    let mut resolvers = ModuleResolversCollection::new();
+    resolvers.push(FileModuleResolver::new());
+    if let Some(dir) = super::script_dir() {
+        resolvers.push(FileModuleResolver::new_with_path(dir));
+    }
+    engine.set_module_resolver(resolvers);
 }
 
 #[cfg(test)]
@@ -139,5 +170,33 @@ return 42;
         let f = write_script("this is not valid rhai @#$");
         let code = run_file(f.path(), &dummy_args());
         assert_eq!(code, 1);
+    }
+
+    #[test]
+    fn import_resolves_sibling_script() {
+        // Two tempfiles in the same dir. a imports b.
+        let dir = tempfile::tempdir().unwrap();
+        let lib_path = dir.path().join("lib.rhai");
+        std::fs::write(&lib_path, "fn salute(n) { `hi ${n}` }").unwrap();
+        let main_path = dir.path().join("main.rhai");
+        std::fs::write(
+            &main_path,
+            r#"import "lib" as lib;
+let s = lib::salute("world");
+if s == "hi world" { 42 } else { 1 }"#,
+        )
+        .unwrap();
+
+        let mut args = dummy_args();
+        args.script = Some(main_path.clone());
+        let code = run_file(&main_path, &args);
+        assert_eq!(code, 42);
+    }
+
+    #[test]
+    fn missing_module_returns_nonzero() {
+        let f = write_script(r#"import "definitely_does_not_exist" as x; return 0;"#);
+        let code = run_file(f.path(), &dummy_args());
+        assert_ne!(code, 0);
     }
 }

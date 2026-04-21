@@ -1095,6 +1095,8 @@ static TOPIC_SCRIPT: Topic = Topic {
         FlagHelp { flags: "assert(cond, msg)", description: "Throw a Rhai exception when cond is false." },
         FlagHelp { flags: "json_parse(s) / json_stringify(x)", description: "Round-trip JSON text ↔ Rhai values (null ↔ (), bool, int, float,\nstring, array, object ↔ map)." },
         FlagHelp { flags: "json_stringify(x, true) / json_stringify(x, n)", description: "Pretty-print variants. true = 2-space indent; integer n = n-space\nindent (clamped to 1..=8). n <= 0 falls back to compact output." },
+
+        FlagHelp { flags: "import \"name\" as alias;", description: "Rhai module import. Resolves `name.rhai` next to the running\nscript first; falls back to ~/.recon/script/name.rhai. Lets you\nfactor shared helpers into reusable modules.\nExample:\n  import \"greet\" as g;\n  print(g::hello(\"recon\"));" },
     ],
     related: &["--init", "--script", "-H", "-k", "--connect-timeout", "--max-time", "-L"],
     examples: &[

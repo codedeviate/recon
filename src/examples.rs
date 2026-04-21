@@ -1057,6 +1057,21 @@ recon --script /tmp/mem.rhai"#,
     ]);
     note("`:memory:` creates an ephemeral database that disappears when the script ends. Useful for aggregating probe results across multiple requests.");
 
+    example("Share helpers via `import` (falls back to ~/.recon/script/)", &[
+        r#"cat > ~/.recon/script/assertions.rhai <<'EOF'
+fn expect_200(r) { assert(r.status == 200, `expected 200, got ${r.status}`); r }
+fn expect_json(r) { assert(r.headers["content-type"][0].contains("json"), "expected JSON"); r }
+EOF
+cat > /tmp/consumer.rhai <<'EOF'
+import "assertions" as a;
+let r = a::expect_json(a::expect_200(https("https://httpbin.org/json")));
+print(`${r.body.len()} bytes`);
+return 0;
+EOF
+recon --script /tmp/consumer.rhai"#,
+    ]);
+    note("`import \"name\"` first looks for `name.rhai` next to the running script; if not found, falls back to ~/.recon/script/name.rhai. Scripts in the global dir import sibling modules via the same first resolver.");
+
     example("Hash a response body + pretty-print a signed payload", &[
         r#"cat > /tmp/sign.rhai <<'EOF'
 let r = https("https://example.com");

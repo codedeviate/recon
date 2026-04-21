@@ -8,6 +8,13 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-04-21
+
+### Added
+
+- **Rhai `import "name" as alias;` support.** Scripts can now factor shared helpers into reusable modules. Resolution order: (1) sibling `.rhai` file next to the importing script (so `/tmp/foo.rhai` importing `"helpers"` finds `/tmp/helpers.rhai`), (2) fallback to `~/.recon/script/<name>.rhai`. Scripts that already live in the global dir get sibling imports via the first resolver naturally, no special case. Absolute paths and relative `../` imports pass through the default resolver. `.rhai` extension is auto-appended.
+- Wired via a `ModuleResolversCollection` with two `FileModuleResolver`s chained in `script::engine::build_engine`. `engine::run_file` now compiles the source with `engine.compile_with_scope` + `ast.set_source(path)` (rather than `engine.eval_with_scope`) so the default resolver can locate the importing script's directory — without `set_source`, Rhai's resolver had no source path and imports failed even for sibling files.
+
 ## [0.31.2] - 2026-04-21
 
 ### Fixed
