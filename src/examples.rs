@@ -4,6 +4,13 @@ pub fn print() {
     let title = "recon — usage examples";
     println!("\n{}\n", title.bold());
 
+    section("GETTING STARTED");
+
+    example("Bootstrap the ~/.recon/ layout (idempotent, never overwrites)", &[
+        "recon --init",
+    ]);
+    note("Creates ~/.recon/{script,jars,sni}/ and a commented config.toml. Safe to re-run — existing files are skipped.");
+
     section("HTTP REQUESTS");
 
     example("GET request (default method)", &[

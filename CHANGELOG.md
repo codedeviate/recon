@@ -8,6 +8,12 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-04-21
+
+### Added
+
+- **`recon --init`** bootstraps `~/.recon/` with the standard layout: creates `~/.recon/`, `~/.recon/script/`, `~/.recon/jars/`, `~/.recon/sni/`, and writes a commented `config.toml` skeleton covering every `ReconConfig` section (editor / netstatus / sampledata). Idempotent — existing files and directories are not overwritten; each action prints `created`, `wrote`, or `skipped (exists)`.
+
 ## [0.29.0] - 2026-04-21
 
 ### Added

@@ -52,6 +52,18 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 32. `recon --init` — bootstrap `~/.recon/` layout (0.30.0)
+
+Adds a one-shot `--init` flag that materialises the directory layout and config file users eventually need. Idempotent: every action prints `created`, `wrote`, or `skipped (exists)`, so re-running after a partial setup fills in the blanks without touching edits.
+
+**Subdirectory scope** (user-locked). Creates all three recon-managed subdirs: `script/`, `jars/`, `sni/`. `jars/` and `sni/` would otherwise appear lazily when `--cookiejar` or `--serve-sni` first writes to them — pre-creating them is a discoverability win (users `ls ~/.recon/` and see the layout) at the cost of two empty dirs the user may never touch. Not creating: TLS assets (`cert.pem`, `key.pem`), age passphrase file — those are user-owned data that init has no business manufacturing.
+
+**Config skeleton** (user-locked: fully-commented). ~35 lines of TOML with every section commented out and an example row or two per section. Parses cleanly as `ReconConfig::default` (tested), so the file is a docs artefact until the user uncomments something. Covers `[editor]`, `[editor.aliases]`, `[netstatus]`, `[[netstatus.dns_hijack_checks]]`, `[sampledata.NAME]`. Deliberately no `version` field — `ReconConfig` doesn't carry one yet and this patch isn't the place to introduce schema versioning.
+
+**Implementation shape.** `src/init.rs` with `run()` (resolves `$HOME`) and `init_at(home)` (pure, injectable — tests target a tempdir without mutating the process environment). Two helpers: `ensure_dir` and `ensure_file`. Paths are open-coded against the home dir rather than calling into `config::config_path()` and `script::script_dir()` — init is allowed to know the layout directly; keeping the path computation local avoids visibility churn on the other modules.
+
+**Out of scope.** No `--force` / `--overwrite` (user explicitly said skip-don't-overwrite). No cert generation. No migration hook.
+
 ### 31. SQLite script bindings — `sqlite(spec [, mode])` (0.29.0)
 
 Scripts can now open SQLite databases and run arbitrary SQL. `sqlite("/path.db")` opens a file; `sqlite(":memory:")` creates an ephemeral handle; `sqlite("cookiejar")` and `sqlite("cookiejar:NAME")` resolve to recon's own jar files at `~/.recon/jars/NAME.db` (default jar when no name is given). The handle exposes four methods: `query` / `query_one` / `query_value` / `exec`.

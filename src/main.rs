@@ -16,6 +16,7 @@ mod fail;
 mod file_url;
 mod hash;
 mod help;
+mod init;
 mod jwt;
 mod ldap_probe;
 mod lorem;
@@ -133,6 +134,15 @@ fn main() {
             } else {
                 eprintln!("error: {}", friendly_message(&err));
             }
+            std::process::exit(1);
+        }
+        return;
+    }
+
+    // ── Init: bootstrap ~/.recon/ layout (no HTTP request needed) ────────────
+    if args.init {
+        if let Err(e) = init::run() {
+            eprintln!("error: {e}");
             std::process::exit(1);
         }
         return;
