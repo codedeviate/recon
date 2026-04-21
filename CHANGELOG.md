@@ -8,6 +8,12 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-04-21
+
+### Added
+
+- **`sqlite(spec [, mode])` script binding.** Opens a SQLite database by path (`/tmp/data.db`), in-memory alias (`:memory:`), or internal-database alias (`cookiejar`, `cookiejar:NAME` → `~/.recon/jars/NAME.db`). Mode defaults to `"rw"`; `"ro"` and `"rwc"` (create on missing) also supported. Returns a handle with four methods: `query(sql [, params])` → Array<Map>, `query_one(sql [, params])` → Map or `()`, `query_value(sql [, params])` → scalar Dynamic or `()`, `exec(sql [, params])` → i64 rows affected. Positional `?` params bind from a Rhai array; types map to SQLite affinity (`()` → NULL, bool/i64 → INTEGER, f64 → REAL, String → TEXT, Blob → BLOB). SQL errors throw Rhai exceptions surfacing rusqlite's error message. Spec resolution order: `:memory:` first, then literal path (detected by `/`, `\`, or `.db` suffix), then alias lookup.
+
 ## [0.28.0] - 2026-04-21
 
 ### Added

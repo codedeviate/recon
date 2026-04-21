@@ -52,6 +52,22 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 31. SQLite script bindings — `sqlite(spec [, mode])` (0.29.0)
+
+Scripts can now open SQLite databases and run arbitrary SQL. `sqlite("/path.db")` opens a file; `sqlite(":memory:")` creates an ephemeral handle; `sqlite("cookiejar")` and `sqlite("cookiejar:NAME")` resolve to recon's own jar files at `~/.recon/jars/NAME.db` (default jar when no name is given). The handle exposes four methods: `query` / `query_one` / `query_value` / `exec`.
+
+**Handle type.** `SqliteHandle { conn: Rc<RefCell<Connection>>, path: Rc<PathBuf> }`. `Clone` (cheap Rc bump), `!Send` (matches Rhai's default config). Registered via `engine.register_type_with_name::<SqliteHandle>("SqliteHandle")` and four `register_fn` arms per method name (two arities per method: with and without params array). Dropping the last clone closes the connection.
+
+**Spec resolution.** Three-branch: (1) `:memory:` → `Connection::open_in_memory`, (2) contains `/`, `\`, or ends with `.db` → literal path, (3) else alias lookup. Aliases are `prefix[:arg]`; `cookiejar` is the only alias in the first cut, but the match arm is trivial to extend. Windows-style `C:\foo.db` hits the literal-path branch via the backslash check, so colon-form aliases don't clash.
+
+**Read-write default for `cookiejar`.** User picked this over read-only despite the footgun risk — scripts that insert / delete rows on recon's own jar are rare but deliberate. Scripts that want read-only can pass `"ro"` as the second arg, or the literal filesystem path with `"ro"`.
+
+**Parameter binding.** Positional `?` only (no named binding). `()` → NULL, `bool` → INTEGER 0/1, `i64` → INTEGER, `f64` → REAL, String → TEXT, Blob → BLOB. Unsupported types throw with an "index N" pointer so scripts can find the bad arg.
+
+**Row conversion.** `rusqlite::types::ValueRef` → Rhai Dynamic: Null → `()`, Integer → i64, Real → f64, Text → String (via lossy UTF-8), Blob → Rhai Blob. Column names come straight from `Statement::column_names()`; multi-column queries return one key per column even if two columns share a name (second wins — rare in practice).
+
+**Omitted deliberately.** No transactions / `begin`/`commit`, no named parameters, no prepared-statement reuse, no ATTACH, no PRAGMA helpers. Two-line fixes when scripts actually demand them.
+
 ### 30. Script CLI introspection — `args` and `flags` constants (0.28.0)
 
 Scripts gain two read-only globals: `args` (Rhai array) and `flags` (Rhai map). `args[0]` is the `--script` value as the user typed it (so `recon --script health` exposes `"health"`, not the resolved `~/.recon/script/health.rhai` path — matches the "argv[0] is what was typed" convention scripts everywhere inherit from Unix). `args[1..]` are trailing positional arguments. `flags` surfaces the subset of CLI flags that `ScriptDefaults` also captures, plus `-d/--data` and `-o/--output`.

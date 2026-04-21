@@ -14,6 +14,7 @@ pub mod ntp;
 pub mod ping;
 pub mod redis;
 pub mod rtsp;
+pub mod sqlite;
 pub mod tcp;
 pub mod tls;
 pub mod whois;

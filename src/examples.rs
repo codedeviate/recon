@@ -1003,6 +1003,35 @@ recon -v --script /tmp/check.rhai example.com    # flags.verbose = 1"#,
     ]);
     note("args[0] is the script name as typed (bare name with global-dir fallback, or literal path). args[1..] are positional args after the script path. `flags` mirrors the ScriptDefaults set (insecure, connect_timeout, headers, user_agent, ...) plus data + output; unset optionals are `()`.");
 
+    example("SQLite: query the cookie jar", &[
+        r#"cat > /tmp/jar.rhai <<'EOF'
+let db = sqlite("cookiejar");          // ~/.recon/jars/default.db
+let soon = now() + 86400;              // cookies expiring in next 24h
+let rows = db.query(
+    "SELECT domain, name, expires FROM cookies
+     WHERE expires IS NOT NULL AND expires < ?
+     ORDER BY expires",
+    [soon]
+);
+for r in rows { print(`${r.domain} ${r.name} expires ${r.expires}`); }
+return 0;
+EOF
+recon --script /tmp/jar.rhai"#,
+    ]);
+    note("sqlite(\"cookiejar:NAME\") targets ~/.recon/jars/NAME.db. The default mode is \"rw\" — scripts can INSERT/UPDATE the jar. Use \"ro\" for a read-only handle.");
+
+    example("SQLite: arbitrary file with create-on-missing", &[
+        r#"cat > /tmp/scratch.rhai <<'EOF'
+let db = sqlite("/tmp/scratch.db", "rwc");
+db.exec("CREATE TABLE IF NOT EXISTS seen (url TEXT PRIMARY KEY, ts INTEGER)");
+let url = if args.len() > 1 { args[1] } else { "https://example.com" };
+db.exec("INSERT OR REPLACE INTO seen VALUES (?, ?)", [url, now()]);
+print(db.query_value("SELECT COUNT(*) FROM seen", []));
+return 0;
+EOF
+recon --script /tmp/scratch.rhai https://example.com"#,
+    ]);
+
     example("Hash a response body + pretty-print a signed payload", &[
         r#"cat > /tmp/sign.rhai <<'EOF'
 let r = https("https://example.com");
