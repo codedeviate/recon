@@ -21,7 +21,7 @@ pub struct Args {
     // ── Positional (renders under Arguments; no help_heading) ────────────────
 
     /// URL to request (or use --url)
-    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni", "jwt_view", "jwt_sign", "jwt_validate", "netstatus", "editor_cleanup", "sample", "sample_list", "hash", "hash_list", "compress", "decompress", "compress_list", "encode", "encode_list", "encrypt", "decrypt", "encrypt_keygen", "checkdigit", "checkdigit_create", "checkdigit_list", "script", "init"])]
+    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni", "jwt_view", "jwt_sign", "jwt_validate", "netstatus", "editor_cleanup", "sample", "sample_list", "hash", "hash_list", "compress", "decompress", "compress_list", "encode", "encode_list", "encrypt", "decrypt", "encrypt_keygen", "checkdigit", "checkdigit_create", "checkdigit_list", "script", "init", "browser_screenshot"])]
     pub url: Option<String>,
 
     // ── HTTP Request ─────────────────────────────────────────────────────────
@@ -626,6 +626,12 @@ pub struct Args {
     /// is never paged regardless of this flag.
     #[arg(long = "no-pager", help_heading = "Meta")]
     pub no_pager: bool,
+
+    /// Open URL in a browser (via agent-browser) and save a screenshot.
+    /// Use -o PATH to choose the destination; otherwise agent-browser's
+    /// default location is used. Requires agent-browser on PATH.
+    #[arg(long = "browser-screenshot", value_name = "URL", help_heading = "Browser")]
+    pub browser_screenshot: Option<String>,
 
     /// Run a Rhai script instead of performing a request. Exposes `http()`,
     /// `tcp()`, `ping()`, `dns()`, `tls()`, `redis()`, `ws()` and more;

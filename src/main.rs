@@ -14,6 +14,7 @@ mod encrypt;
 mod examples;
 mod fail;
 mod file_url;
+mod agent_browser;
 mod hash;
 mod help;
 mod init;
@@ -149,6 +150,16 @@ fn main() {
             } else {
                 eprintln!("error: {}", friendly_message(&err));
             }
+            std::process::exit(1);
+        }
+        return;
+    }
+
+    // ── Browser screenshot convenience (no HTTP request needed) ──────────────
+    if let Some(url) = args.browser_screenshot.clone() {
+        let output = args.output.as_deref();
+        if let Err(e) = agent_browser::run_screenshot_cli(&url, output) {
+            eprintln!("error: {e}");
             std::process::exit(1);
         }
         return;

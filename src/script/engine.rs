@@ -60,6 +60,7 @@ pub fn run_file(path: &Path, args: &Args) -> i32 {
 pub fn build_engine(defaults: &ScriptDefaults) -> rhai::Engine {
     let mut engine = rhai::Engine::new();
     install_module_resolver(&mut engine);
+    super::bindings::agent_browser::register(&mut engine);
     super::bindings::helpers::register(&mut engine);
     super::bindings::dict::register(&mut engine, defaults.clone());
     super::bindings::dns::register(&mut engine);

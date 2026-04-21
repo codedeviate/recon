@@ -1097,6 +1097,8 @@ static TOPIC_SCRIPT: Topic = Topic {
         FlagHelp { flags: "json_stringify(x, true) / json_stringify(x, n)", description: "Pretty-print variants. true = 2-space indent; integer n = n-space\nindent (clamped to 1..=8). n <= 0 falls back to compact output." },
 
         FlagHelp { flags: "import \"name\" as alias;", description: "Rhai module import. Resolves `name.rhai` next to the running\nscript first; falls back to ~/.recon/script/name.rhai. Lets you\nfactor shared helpers into reusable modules.\nExample:\n  import \"greet\" as g;\n  print(g::hello(\"recon\"));" },
+
+        FlagHelp { flags: "agentBrowser::*", description: "Browser automation via the external agent-browser CLI.\n`agentBrowser::available` (bool) + `agentBrowser::version` (string)\nare always readable. When available, functions include open, click,\nfill, screenshot, snapshot, get, is_visible, eval, and more.\nSee `recon --help agent-browser` for the full list." },
     ],
     related: &["--init", "--script", "-H", "-k", "--connect-timeout", "--max-time", "-L"],
     examples: &[
@@ -1106,6 +1108,58 @@ static TOPIC_SCRIPT: Topic = Topic {
         ExampleHelp { description: "Inherit CLI flags as script defaults", command: "recon -k -H 'X-Api-Key: abc' --script probe.rhai" },
         ExampleHelp { description: "Query the cookie jar from a script", command: r#"recon --script jar-count  # reads ~/.recon/script/jar-count.rhai"# },
         ExampleHelp { description: "Full API surface via the SCRIPTING example block", command: "recon --examples" },
+    ],
+};
+
+static TOPIC_AGENT_BROWSER: Topic = Topic {
+    title: "Browser Automation (agent-browser)",
+    description: "recon wraps the external `agent-browser` CLI so scripts can drive a\n\
+                  real browser (click, fill, screenshot, accessibility snapshot, JS\n\
+                  eval, etc.). The wrapper is exposed as the Rhai static module\n\
+                  `agentBrowser`; it's always present in scripts even when the\n\
+                  `agent-browser` binary isn't installed.\n\
+                  \n\
+                  Availability is detected once at engine build time:\n\
+                    agentBrowser::available : bool    (true when binary is on PATH)\n\
+                    agentBrowser::version   : string  (e.g. \"0.26.0\", empty when\n\
+                                                       unavailable)\n\
+                  \n\
+                  When unavailable, every function call raises a Rhai error:\n\
+                  'agent-browser: binary not found on PATH'. Guard with\n\
+                  `if !agentBrowser::available { ... }`.\n\
+                  \n\
+                  Install: `brew install agent-browser` (macOS) or\n\
+                  `npm install -g agent-browser`.",
+    flags: &[
+        FlagHelp { flags: "--browser-screenshot <URL>", description: "One-shot: open URL, save a screenshot, close. Honours -o PATH.\nRequires agent-browser installed." },
+
+        FlagHelp { flags: "agentBrowser::available / agentBrowser::version", description: "Boolean + version string. Read-only module constants always\npresent, regardless of whether agent-browser is installed." },
+        FlagHelp { flags: "agentBrowser::open(url)", description: "Navigate to URL. Returns stdout as a String." },
+        FlagHelp { flags: "agentBrowser::close() / close_all()", description: "Close the current browser / every session." },
+        FlagHelp { flags: "agentBrowser::click(sel) / dblclick(sel)", description: "Click or double-click an element. Selector may be CSS, XPath,\nor an agent-browser ref like @e3 from a prior snapshot." },
+        FlagHelp { flags: "agentBrowser::type_text(sel, text) / fill(sel, text)", description: "Type into an element. `type_text` keeps existing content; `fill`\nclears first. (Rhai reserves `type`, hence the `type_text` rename.)" },
+        FlagHelp { flags: "agentBrowser::press(key)", description: "Press a key on the active element (Enter, Tab, Control+a)." },
+        FlagHelp { flags: "agentBrowser::hover / focus / check / uncheck(sel)", description: "Standard element interactions; each takes one selector arg." },
+        FlagHelp { flags: "agentBrowser::scroll(dir [, px])", description: "Scroll `up`/`down`/`left`/`right`. Optional pixel count." },
+        FlagHelp { flags: "agentBrowser::scrollintoview(sel)", description: "Scroll the matched element into view." },
+        FlagHelp { flags: "agentBrowser::wait(arg)", description: "Wait for a selector to appear OR a number of milliseconds\n(string form: `wait(\"2000\")`)." },
+        FlagHelp { flags: "agentBrowser::screenshot([path])", description: "Take a screenshot. Without an arg, agent-browser picks a path.\nReturns the path in stdout." },
+        FlagHelp { flags: "agentBrowser::pdf(path)", description: "Save the current page as a PDF." },
+        FlagHelp { flags: "agentBrowser::snapshot() / snapshot(true)", description: "Accessibility snapshot (optionally interactive-only). Returns\na Rhai Map parsed from JSON." },
+        FlagHelp { flags: "agentBrowser::eval(js)", description: "Run JavaScript in the active page. Returns the evaluated\nresult parsed from JSON." },
+        FlagHelp { flags: "agentBrowser::get(what [, sel])", description: "Read page info. `what` is text/html/value/attr/title/url/count/\nbox/styles/cdp-url. Returns a Rhai Map with the field named after\n`what` (e.g. `result.title`)." },
+        FlagHelp { flags: "agentBrowser::is_visible(sel) / is_enabled(sel) / is_checked(sel)", description: "Element-state predicates. Each returns a bool." },
+        FlagHelp { flags: "agentBrowser::find(locator, value, action [, text])", description: "Locate by role/text/label/placeholder/alt/title/testid/first/\nlast/nth and then click/fill/etc. Returns parsed JSON." },
+        FlagHelp { flags: "agentBrowser::keyboard_type(text) / keyboard_insert(text)", description: "Type at the focused element without a selector; insert version\nskips key events." },
+        FlagHelp { flags: "agentBrowser::back() / forward() / reload()", description: "Navigation." },
+        FlagHelp { flags: "agentBrowser::cmd([\"raw\", \"args\", \"here\"])", description: "Escape hatch: run arbitrary agent-browser CLI args. Returns the\nraw stdout as a String." },
+    ],
+    related: &["--browser-screenshot", "--script"],
+    examples: &[
+        ExampleHelp { description: "One-shot screenshot via the CLI flag", command: "recon --browser-screenshot https://example.com -o /tmp/shot.png" },
+        ExampleHelp { description: "Guard pattern in a script", command: r#"recon --script - <<< 'if !agentBrowser::available { return 2; } agentBrowser::open("https://example.com"); print(agentBrowser::get("title").title); agentBrowser::close();'"# },
+        ExampleHelp { description: "Shipped example scripts (in project script/ folder)", command: "recon --script script/browser-title.rhai https://example.com" },
+        ExampleHelp { description: "Full reference for agent-browser itself", command: "agent-browser --help" },
     ],
 };
 
@@ -1206,6 +1260,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "checkdigit" | "check-digit" | "checksum" => Some(&TOPIC_CHECKDIGIT),
         "write-out" | "writeout" | "write_out" => Some(&TOPIC_WRITE_OUT),
         "script" | "scripting" | "rhai" => Some(&TOPIC_SCRIPT),
+        "agent-browser" | "agentbrowser" | "browser" => Some(&TOPIC_AGENT_BROWSER),
         _ => None,
     }
 }
@@ -1276,6 +1331,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "serve-tls",
         "write-out",
         "script",
+        "agent-browser",
     ]
 }
 

@@ -52,6 +52,24 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 35. agent-browser bindings + `--browser-screenshot` flag (0.33.0)
+
+Scripts gain browser-automation primitives by wrapping the external `agent-browser` CLI (a playwright-ish tool distributed via Homebrew / npm / cargo). Rather than link a browser driver into recon (huge dep surface), the binding is a thin shell-out to `agent-browser <subcommand>`. A `--browser-screenshot URL` CLI flag exposes the most common one-shot flow without needing a script.
+
+**Static module over import.** Registered via `Engine::register_static_module("agentBrowser", module)`, so scripts write `agentBrowser::open(...)` without any `import` statement. The user-facing status constants `agentBrowser::available: bool` and `agentBrowser::version: String` are module-level variables set via `Module::set_var` at engine build time. Function wrappers are attached with `Module::set_native_fn`. Name conflicts handled: Rhai reserves `type`, so we expose `type_text` instead; `is visible/enabled/checked` becomes `is_visible/is_enabled/is_checked` (same pattern as other predicate renames in the codebase).
+
+**Graceful degradation.** Availability detection runs once at first access via `OnceLock<AgentBrowserState>` — calls `agent-browser --version` and parses the output. When `!available`, `run_cmd` still compiles the argv but the Command spawn returns `NotFound`, which the error path converts to "agent-browser: binary not found on PATH. Install via ...". Scripts can gate the whole block with `if !agentBrowser::available { return 2; }`; uncaught errors surface the install hint.
+
+**JSON envelope unwrapping.** agent-browser's JSON output is `{success, data, error}`. The wrapper's `run_json` helper strips the envelope: `success:true` → return `data`, `success:false` → throw with the error message, no envelope → pass through. Saved scripts ~2 levels of nested map access per call. Predicate wrappers (`is_visible`, etc.) pull the matching key (`visible`, `enabled`, `checked`) out of `data` and coerce to bool.
+
+**Shared module layout.** `src/agent_browser.rs` owns state + `run_cmd` + `run_screenshot_cli`. Both `src/script/bindings/agent_browser.rs` (the Rhai binding) and the `--browser-screenshot` intercept in `main.rs` delegate to it. Keeps the CLI flag path out of the script-bindings tree — matches the layering of other shared logic (`cert.rs`, `source.rs`).
+
+**Project `script/` folder.** New top-level directory with `README.md` and five reference scripts. Users can run them in place (`recon --script script/browser-title.rhai https://example.com`) or copy into `~/.recon/script/` for bare-name invocation. Every script starts with the guard pattern so `agent-browser` being missing produces a clean exit 2 rather than a runtime error.
+
+**Validation step.** Before committing Task 1 we ran: availability probe (expect available=true), real browser flow (open + screenshot + close, confirm PNG on disk), CLI-flag path (produces 1280×577 PNG), graceful-degradation path (`PATH=/usr/bin:/bin` hides the binary; `available=false`, exit 0), error-on-call path (calling a function when unavailable produces the install hint). All five pass.
+
+**Out of scope.** iOS simulator coverage (`-p ios`), interactive `chat`/`stream`/`skills` commands, env-override options (`AGENT_BROWSER_PROFILE`, `AGENT_BROWSER_HEADED`), install/profiles/device subcommands. Can add later if demand materialises.
+
 ### 34. Rhai `import` support with global-dir fallback (0.32.0)
 
 Scripts gain a way to share logic: `import "name" as alias;` now works. Two resolvers chained via `ModuleResolversCollection`:

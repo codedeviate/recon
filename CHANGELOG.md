@@ -8,6 +8,19 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-04-21
+
+### Added
+
+- **`agentBrowser` Rhai static module** wrapping the external `agent-browser` CLI (browser automation). Exposes ~30 functions — `open`, `close`, `click`, `dblclick`, `type_text`, `fill`, `press`, `hover`, `focus`, `check`, `uncheck`, `scroll`, `scrollintoview`, `wait`, `screenshot`, `pdf`, `snapshot`, `eval`, `get`, `is_visible`/`is_enabled`/`is_checked`, `find`, `keyboard_type`/`keyboard_insert`, `back`/`forward`/`reload`, plus `cmd([…])` as a raw-CLI escape hatch. Always registered; `agentBrowser::available` (bool) and `agentBrowser::version` (string) are readable whether or not `agent-browser` is installed. When unavailable, any function call throws a clear Rhai error asking the user to install the binary. JSON envelopes from agent-browser (`{success, data, error}`) are automatically unwrapped so scripts see the `data` payload directly.
+- **`recon --browser-screenshot URL [-o PATH]`** convenience CLI flag. Opens the URL in a browser via agent-browser, writes a screenshot, closes. Requires the binary on PATH.
+- **Project-level `script/` folder** with `README.md` and five reference scripts: `browser-screenshot.rhai`, `browser-title.rhai`, `browser-snapshot.rhai`, `browser-form-login.rhai`, `browser-guard.rhai`. Not installed automatically — run directly with `recon --script script/NAME.rhai` or copy into `~/.recon/script/` for bare-name invocation.
+
+### Changed
+
+- New `src/agent_browser.rs` module owns availability detection (cached via `OnceLock`) and the shared `run_cmd(args, json)` helper. Both the Rhai binding and the CLI flag delegate to it.
+- `json_to_dynamic` in `src/script/bindings/helpers.rs` promoted to `pub(crate)` so `agentBrowser`'s JSON-parsing commands (`snapshot`, `get`, `eval`, `find`) can reuse it.
+
 ## [0.32.0] - 2026-04-21
 
 ### Added

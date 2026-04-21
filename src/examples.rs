@@ -936,6 +936,35 @@ pub fn print() {
     ]);
     note("Sends OPTIONS, prints status line + response headers (Public: listed methods, Server:). rtsps:// uses TLS on port 322 and honours -k.");
 
+    section("BROWSER AUTOMATION (agent-browser)");
+
+    example("One-shot screenshot via the CLI flag", &[
+        "recon --browser-screenshot https://example.com -o /tmp/shot.png",
+    ]);
+    note("Requires `agent-browser` installed on PATH (`brew install agent-browser` / `npm install -g agent-browser`). The flag opens the URL, captures a screenshot, closes the browser.");
+
+    example("Scripted browser flow with availability guard", &[
+        r#"cat > /tmp/title.rhai <<'EOF'
+if !agentBrowser::available {
+    print("install: brew install agent-browser");
+    return 2;
+}
+agentBrowser::open("https://example.com");
+let r = agentBrowser::get("title");
+agentBrowser::close();
+print(r.title);
+return 0;
+EOF
+recon --script /tmp/title.rhai"#,
+    ]);
+    note("The `agentBrowser` static module is always present in scripts. Check `agentBrowser::available` before calling any method; functions throw a clear Rhai error when the binary isn't installed.");
+
+    example("Shipped example scripts (copy or run in place)", &[
+        "ls script/                              # bundled with the repo",
+        "recon --script script/browser-title.rhai https://example.com",
+        "cp script/*.rhai ~/.recon/script/       # then: recon --script browser-title URL",
+    ]);
+
     section("SCRIPTING (--script)");
 
     example("Run a Rhai script by path or by bare name", &[

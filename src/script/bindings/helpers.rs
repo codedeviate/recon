@@ -109,7 +109,7 @@ pub fn register(engine: &mut Engine) {
     );
 }
 
-fn json_to_dynamic(v: JsonValue) -> Dynamic {
+pub(crate) fn json_to_dynamic(v: JsonValue) -> Dynamic {
     match v {
         JsonValue::Null => Dynamic::UNIT,
         JsonValue::Bool(b) => b.into(),
