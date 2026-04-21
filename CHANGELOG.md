@@ -8,6 +8,12 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.31.2] - 2026-04-21
+
+### Fixed
+
+- **Paged `recon --help` now keeps ANSI colours.** Clap renders main `--help` via its own styling and uses auto-detection — once our pager dup2's stdout to a pipe, clap sees "not a TTY" and strips colour. Main help now sets `ColorChoice::Always` on the clap Command when a pager is active so `less -R` receives and renders the escape codes. Topic help (`--help script`, etc.) was already correct because it uses the `colored` crate, which honours our `set_override(true)` at activate time. Non-paged `--help` (redirected, piped) continues to emit mono output via clap's default Auto.
+
 ## [0.31.1] - 2026-04-21
 
 ### Fixed

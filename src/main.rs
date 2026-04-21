@@ -70,7 +70,15 @@ fn main() {
                     }
                 }
                 _ => {
+                    // Clap's own ANSI colouring auto-strips when stdout
+                    // isn't a TTY. After activate()'s dup2, our stdout
+                    // is a pipe — clap sees non-TTY and would emit mono.
+                    // Force Always when paging so less -R gets real
+                    // escape codes to render.
                     let mut cmd = Args::command();
+                    if pager_child.is_some() {
+                        cmd = cmd.color(clap::ColorChoice::Always);
+                    }
                     let _ = cmd.print_help();
                     println!();
                     help::print_topic_footer();
