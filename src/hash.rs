@@ -16,6 +16,7 @@ pub enum Algo {
     Sha3_256,
     Sha3_512,
     Blake3,
+    Crc32,
 }
 
 impl Algo {
@@ -30,6 +31,7 @@ impl Algo {
             Algo::Sha3_256 => "sha3-256",
             Algo::Sha3_512 => "sha3-512",
             Algo::Blake3 => "blake3",
+            Algo::Crc32 => "crc32",
         }
     }
 
@@ -44,6 +46,7 @@ impl Algo {
             Algo::Sha3_256 => 256,
             Algo::Sha3_512 => 512,
             Algo::Blake3 => 256,
+            Algo::Crc32 => 32,
         }
     }
 
@@ -57,6 +60,7 @@ impl Algo {
         Algo::Sha3_256,
         Algo::Sha3_512,
         Algo::Blake3,
+        Algo::Crc32,
     ];
 }
 
@@ -82,6 +86,7 @@ pub fn parse_algo(input: &str) -> Result<Algo> {
         "sha3-256" | "sha3_256" | "sha3256" => Algo::Sha3_256,
         "sha3-512" | "sha3_512" | "sha3512" => Algo::Sha3_512,
         "blake3" => Algo::Blake3,
+        "crc32" | "crc-32" | "crc_32" => Algo::Crc32,
         _ => {
             let supported: Vec<&str> =
                 Algo::ALL.iter().map(|a| a.canonical()).collect();
@@ -120,6 +125,7 @@ pub enum HasherKind {
     Sha3_256(sha3::Sha3_256),
     Sha3_512(sha3::Sha3_512),
     Blake3(blake3::Hasher),
+    Crc32(crc32fast::Hasher),
 }
 
 impl HasherKind {
@@ -133,6 +139,7 @@ impl HasherKind {
             Algo::Sha3_256 => HasherKind::Sha3_256(sha3::Sha3_256::new()),
             Algo::Sha3_512 => HasherKind::Sha3_512(sha3::Sha3_512::new()),
             Algo::Blake3 => HasherKind::Blake3(blake3::Hasher::new()),
+            Algo::Crc32 => HasherKind::Crc32(crc32fast::Hasher::new()),
         }
     }
 
@@ -148,6 +155,7 @@ impl HasherKind {
             HasherKind::Blake3(h) => {
                 h.update(bytes);
             }
+            HasherKind::Crc32(h) => h.update(bytes),
         }
     }
 
@@ -161,6 +169,7 @@ impl HasherKind {
             HasherKind::Sha3_256(h) => h.finalize().to_vec(),
             HasherKind::Sha3_512(h) => h.finalize().to_vec(),
             HasherKind::Blake3(h) => h.finalize().as_bytes().to_vec(),
+            HasherKind::Crc32(h) => h.finalize().to_be_bytes().to_vec(),
         }
     }
 }
@@ -207,6 +216,32 @@ pub fn write_digest(
         }
     }
     Ok(())
+}
+
+/// Hash `bytes` with `algo` and return the digest as a String in the
+/// chosen format. `Format::Hex` → lowercase hex (no trailing newline).
+/// `Format::Base64` → standard base64 (no trailing newline). `Format::Raw`
+/// returns a String of the raw bytes as `from_utf8_lossy` — script
+/// bindings should use Hex / Base64 rather than Raw.
+pub fn digest_string(algo: Algo, bytes: &[u8], format: Format) -> Result<String> {
+    let mut hasher = HasherKind::for_algo(algo);
+    hasher.update(bytes);
+    let digest = hasher.finalize();
+    let out = match format {
+        Format::Hex => {
+            let mut s = String::with_capacity(digest.len() * 2);
+            for b in &digest {
+                s.push_str(&format!("{b:02x}"));
+            }
+            s
+        }
+        Format::Base64 => {
+            use base64::Engine;
+            base64::engine::general_purpose::STANDARD.encode(&digest)
+        }
+        Format::Raw => String::from_utf8_lossy(&digest).into_owned(),
+    };
+    Ok(out)
 }
 
 /// Print the `--hash-list` output to `out`.
@@ -275,6 +310,46 @@ mod tests {
         assert_eq!(parse_algo("sha3-256").unwrap(), Algo::Sha3_256);
         assert_eq!(parse_algo("sha3-512").unwrap(), Algo::Sha3_512);
         assert_eq!(parse_algo("blake3").unwrap(), Algo::Blake3);
+        assert_eq!(parse_algo("crc32").unwrap(), Algo::Crc32);
+        assert_eq!(parse_algo("crc-32").unwrap(), Algo::Crc32);
+    }
+
+    #[test]
+    fn digest_string_known_vectors() {
+        // "hello" test vectors.
+        assert_eq!(
+            digest_string(Algo::Md5, b"hello", Format::Hex).unwrap(),
+            "5d41402abc4b2a76b9719d911017c592"
+        );
+        assert_eq!(
+            digest_string(Algo::Sha256, b"hello", Format::Hex).unwrap(),
+            "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+        );
+        assert_eq!(
+            digest_string(Algo::Sha1, b"hello", Format::Hex).unwrap(),
+            "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d"
+        );
+        // CRC32 of "hello" = 0x3610a686.
+        assert_eq!(
+            digest_string(Algo::Crc32, b"hello", Format::Hex).unwrap(),
+            "3610a686"
+        );
+    }
+
+    #[test]
+    fn digest_string_base64_sha1() {
+        // sha1("hello") base64 = qvTGHdzF6KLavt4PO0gs2a6pQ00=
+        assert_eq!(
+            digest_string(Algo::Sha1, b"hello", Format::Base64).unwrap(),
+            "qvTGHdzF6KLavt4PO0gs2a6pQ00="
+        );
+    }
+
+    #[test]
+    fn algo_all_includes_crc32() {
+        assert!(Algo::ALL.contains(&Algo::Crc32));
+        assert_eq!(Algo::Crc32.canonical(), "crc32");
+        assert_eq!(Algo::Crc32.bits(), 32);
     }
 
     #[test]
@@ -338,7 +413,7 @@ mod tests {
 
     #[test]
     fn algo_all_covers_every_variant() {
-        assert_eq!(Algo::ALL.len(), 8);
+        assert_eq!(Algo::ALL.len(), 9);
     }
 
     fn hex(bytes: &[u8]) -> String {
@@ -521,8 +596,12 @@ mod tests {
         for algo in Algo::ALL {
             assert!(text.contains(algo.canonical()), "missing: {} in {text}", algo.canonical());
         }
-        // Exactly 8 lines, no blank trailer.
-        assert_eq!(text.lines().count(), 8, "output was:\n{text}");
+        // One line per algo, no blank trailer.
+        assert_eq!(
+            text.lines().count(),
+            Algo::ALL.len(),
+            "output was:\n{text}"
+        );
     }
 
     #[test]

@@ -8,6 +8,18 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-04-21
+
+### Added
+
+- **Hash functions in scripts.** Per-algo: `md5(x)`, `sha1(x)`, `sha256(x)`, `sha384(x)`, `sha512(x)`, `sha3_256(x)`, `sha3_512(x)`, `blake3(x)`, `crc32(x)` — each returns a lowercase-hex digest. Generic: `hash(algo, x)` and `hash(algo, x, format)` where format is `"hex"` (default) or `"base64"`. Input accepts String (UTF-8 bytes) or Rhai Blob, so `md5(file_read("path"))` works without conversion.
+- **CRC32 added to `--hash`.** `recon --hash crc32 FILE` prints the 8-hex CRC-32 digest. Also listed in `--hash-list`. New `crc32fast` dependency.
+- **`json_stringify` prettify overloads.** `json_stringify(v, true)` pretty-prints with a 2-space indent; `json_stringify(v, n)` uses an n-space indent (clamped to 1..=8); `n <= 0` or `json_stringify(v, false)` fall back to compact output. Bare `json_stringify(v)` is unchanged.
+
+### Changed
+
+- **Shared `hash::digest_string(algo, bytes, format)` helper** in the hash module. Both the script bindings and future CLI helpers can call it instead of reimplementing the "hash bytes + format" pipeline.
+
 ## [0.26.0] - 2026-04-21
 
 ### Added

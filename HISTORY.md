@@ -52,6 +52,27 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 29. Script hashing + pretty-printed JSON (0.27.0)
+
+Scripts gain two small but frequently-needed capabilities: hash digests as a function call, and a `json_stringify` prettify variant.
+
+**Hashes — shared with the CLI.** Every algorithm `--hash` already supports is now also a Rhai function: `md5(x)`, `sha1(x)`, `sha256(x)`, `sha384(x)`, `sha512(x)`, `sha3_256(x)`, `sha3_512(x)`, `blake3(x)`. CRC32 joins the list on both surfaces (`--hash crc32` + `crc32()` in scripts) via a new `crc32fast` dep. A generic `hash("sha256", x)` and `hash("sha256", x, "base64")` complement the per-algo forms for loops. Input accepts both String (UTF-8 bytes) and Rhai Blob, so `md5(file_read("...")` works without conversion.
+
+Under the hood, `hash::digest_string(algo, bytes, format)` is a new shared helper that both the CLI's `--hash` path and the script bindings delegate to. Keeps "how to compute a digest and format it" in one place.
+
+**`json_stringify` overloads.** Previously one-arg only (compact output). Now also:
+- `json_stringify(v, true)` → 2-space pretty (uses `serde_json::to_string_pretty`).
+- `json_stringify(v, false)` → same as compact (lets callers feature-flag).
+- `json_stringify(v, n)` for integer n → n-space pretty (1..=8 clamped; `n <= 0` falls back to compact — so `json_stringify(v, is_verbose ? 4 : 0)` is a clean toggle).
+
+Implementation uses `serde_json::Serializer::with_formatter(PrettyFormatter::with_indent(&spaces))` for the integer-indent path.
+
+**Decisions:**
+- **CRC32 added to both CLI and scripts** (user pick). Symmetry with the rest of the algo list over script-only scope. Dep cost (`crc32fast`) is ~zero.
+- **`hash(algo, x)` format defaults to hex, not base64.** Matches `--hash`'s default (Format::Hex) and the most common script use (checksum comparison).
+- **Raw-bytes format omitted from scripts** — `digest_string(_, _, Format::Raw)` would produce lossy strings. Scripts should stay on hex/base64; those who want raw bytes should cast digest → blob via `file_read` workflows.
+- **Per-algo function names use underscores** (`sha3_256`, not `sha3-256`) because Rhai identifiers don't allow hyphens. The generic `hash("sha3-256", x)` accepts all three hyphen / underscore / no-separator variants via `hash::parse_algo`.
+
 ### 28. Embedded Rhai scripting engine — `--script PATH.rhai` (0.25.0 → 0.25.18)
 
 An embedded scripting layer that turns recon into a single-binary Bruno/Postman alternative. A Rhai script can call every probe recon ships as a function returning a structured map, chain requests, branch on results, loop, and produce a process exit code via `return N`. `--script` is mutually exclusive with a positional URL.

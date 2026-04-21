@@ -3,6 +3,7 @@
 pub mod dict;
 pub mod dns;
 pub mod file;
+pub mod hash;
 pub mod helpers;
 pub mod http;
 pub mod ldap;

@@ -2577,7 +2577,7 @@ dependencies = [
 
 [[package]]
 name = "recon"
-version = "0.26.0"
+version = "0.27.0"
 dependencies = [
  "age",
  "anyhow",
@@ -2591,6 +2591,7 @@ dependencies = [
  "bzip2",
  "clap",
  "colored",
+ "crc32fast",
  "crossterm",
  "ctrlc",
  "datamatrix",

@@ -60,12 +60,53 @@ pub fn register(engine: &mut Engine) {
         Ok(json_to_dynamic(v))
     });
 
-    // json_stringify(value) — serialise a Rhai Dynamic to JSON text.
+    // json_stringify(value) — compact JSON.
     engine.register_fn("json_stringify", |v: Dynamic| -> Result<String, Box<EvalAltResult>> {
         let jv = dynamic_to_json(&v)?;
         serde_json::to_string(&jv)
             .map_err(|e| Box::<EvalAltResult>::from(format!("json_stringify: {e}")))
     });
+
+    // json_stringify(value, true) — 2-space pretty.
+    // json_stringify(value, false) — same as compact form.
+    engine.register_fn(
+        "json_stringify",
+        |v: Dynamic, pretty: bool| -> Result<String, Box<EvalAltResult>> {
+            let jv = dynamic_to_json(&v)?;
+            let s = if pretty {
+                serde_json::to_string_pretty(&jv)
+            } else {
+                serde_json::to_string(&jv)
+            };
+            s.map_err(|e| Box::<EvalAltResult>::from(format!("json_stringify: {e}")))
+        },
+    );
+
+    // json_stringify(value, n) — N-space pretty (1..=8 clamped).
+    // n <= 0 falls back to compact so callers can feature-flag via
+    // `json_stringify(v, is_pretty ? 4 : 0)`.
+    engine.register_fn(
+        "json_stringify",
+        |v: Dynamic, indent: i64| -> Result<String, Box<EvalAltResult>> {
+            let jv = dynamic_to_json(&v)?;
+            if indent <= 0 {
+                return serde_json::to_string(&jv).map_err(|e| {
+                    Box::<EvalAltResult>::from(format!("json_stringify: {e}"))
+                });
+            }
+            let width = indent.clamp(1, 8) as usize;
+            let indent_buf = " ".repeat(width);
+            let formatter =
+                serde_json::ser::PrettyFormatter::with_indent(indent_buf.as_bytes());
+            let mut buf = Vec::new();
+            let mut ser = serde_json::Serializer::with_formatter(&mut buf, formatter);
+            serde::Serialize::serialize(&jv, &mut ser).map_err(|e| {
+                Box::<EvalAltResult>::from(format!("json_stringify: {e}"))
+            })?;
+            String::from_utf8(buf)
+                .map_err(|e| Box::<EvalAltResult>::from(format!("json_stringify: {e}")))
+        },
+    );
 }
 
 fn json_to_dynamic(v: JsonValue) -> Dynamic {
@@ -258,5 +299,56 @@ back
         let e = engine();
         let res: Result<Dynamic, _> = e.eval(r#"json_parse("{ not valid")"#);
         assert!(res.is_err());
+    }
+
+    #[test]
+    fn json_stringify_pretty_bool() {
+        let e = engine();
+        let s: String = e
+            .eval(r#"json_stringify(#{ a: 1, b: 2 }, true)"#)
+            .expect("eval");
+        // Pretty output has a newline between entries and 2-space indent.
+        assert!(s.contains('\n'), "expected newlines, got: {s:?}");
+        assert!(s.contains("  \"a\""), "expected 2-space indent, got: {s:?}");
+    }
+
+    #[test]
+    fn json_stringify_pretty_false_equals_compact() {
+        let e = engine();
+        let pretty_false: String = e
+            .eval(r#"json_stringify(#{ a: 1, b: 2 }, false)"#)
+            .expect("eval false");
+        let compact: String = e.eval(r#"json_stringify(#{ a: 1, b: 2 })"#).expect("eval compact");
+        assert_eq!(pretty_false, compact);
+    }
+
+    #[test]
+    fn json_stringify_pretty_integer_indent() {
+        let e = engine();
+        let s: String = e
+            .eval(r#"json_stringify(#{ a: 1 }, 4)"#)
+            .expect("eval");
+        assert!(s.contains("    \"a\""), "expected 4-space indent, got: {s:?}");
+    }
+
+    #[test]
+    fn json_stringify_zero_indent_is_compact() {
+        let e = engine();
+        let zero: String = e
+            .eval(r#"json_stringify(#{ a: 1 }, 0)"#)
+            .expect("eval 0");
+        let compact: String = e.eval(r#"json_stringify(#{ a: 1 })"#).expect("eval compact");
+        assert_eq!(zero, compact);
+    }
+
+    #[test]
+    fn json_stringify_integer_indent_clamps() {
+        let e = engine();
+        // 100 clamps to 8.
+        let s: String = e
+            .eval(r#"json_stringify(#{ a: 1 }, 100)"#)
+            .expect("eval");
+        // 8-space indent expected.
+        assert!(s.contains("        \"a\""), "expected 8-space indent, got: {s:?}");
     }
 }

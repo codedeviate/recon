@@ -985,7 +985,18 @@ EOF
 recon --script /tmp/cert.rhai"#,
     ]);
 
-    note("Available functions: http/https/request, tcp, ping, dns, tls, ntp, redis, ws/wss, dict, ldap/ldaps, whois, memcached, rtsp/rtsps, mqtt_pub/mqtt_sub, file_read. Helpers: print, sleep_ms, env, now, now_ms, assert, json_parse, json_stringify. See `recon --help script`.");
+    example("Hash a response body + pretty-print a signed payload", &[
+        r#"cat > /tmp/sign.rhai <<'EOF'
+let r = https("https://example.com");
+let body_sha = sha256(r.body);
+let payload = #{ url: r.final_url, sha256: body_sha, status: r.status };
+print(json_stringify(payload, true));
+return 0;
+EOF
+recon --script /tmp/sign.rhai"#,
+    ]);
+
+    note("Available functions: http/https/request, tcp, ping, dns, tls, ntp, redis, ws/wss, dict, ldap/ldaps, whois, memcached, rtsp/rtsps, mqtt_pub/mqtt_sub, file_read. Hashes: md5, sha1, sha256, sha384, sha512, sha3_256, sha3_512, blake3, crc32, plus hash(algo, x [, \"hex\"|\"base64\"]). Helpers: print, sleep_ms, env, now, now_ms, assert, json_parse, json_stringify (compact or pretty via bool / integer indent). See `recon --help script`.");
 
     section("EDITOR OUTPUT");
 

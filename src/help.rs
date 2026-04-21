@@ -1069,12 +1069,17 @@ static TOPIC_SCRIPT: Topic = Topic {
         FlagHelp { flags: "mqtt_pub(url, payload) / mqtt_sub(url, max_ms)", description: "MQTT publish / subscribe. Runs the full CLI codepath; protocol\noutput flows to stdout. Returns #{ ok, duration_ms }." },
         FlagHelp { flags: "file_read(path)", description: "Read local file (or file:// URL) as a Rhai Blob (Vec<u8>)." },
 
+        FlagHelp { flags: "md5(x) / sha1(x) / sha256(x) / sha384(x) / sha512(x)", description: "Hash a String or Blob and return a lowercase-hex digest.\nmd5 returns 32 hex chars, sha1 40, sha256 64, sha384 96, sha512 128." },
+        FlagHelp { flags: "sha3_256(x) / sha3_512(x) / blake3(x) / crc32(x)", description: "Additional hashes: SHA-3 variants, BLAKE3, and CRC32 (4 bytes\nbig-endian, rendered as 8 hex chars)." },
+        FlagHelp { flags: "hash(algo, x) / hash(algo, x, format)", description: "Generic hash. algo is any --hash name (md5, sha256, crc32, …).\nformat is \"hex\" (default) or \"base64\"." },
+
         FlagHelp { flags: "print(x)", description: "Rhai built-in. Writes x + newline to stdout." },
         FlagHelp { flags: "sleep_ms(n)", description: "Block the current thread for n milliseconds." },
         FlagHelp { flags: "env(name) / env(name, default)", description: "Read an environment variable. Empty string (or default) when unset." },
         FlagHelp { flags: "now() / now_ms()", description: "Unix seconds or milliseconds as i64." },
         FlagHelp { flags: "assert(cond, msg)", description: "Throw a Rhai exception when cond is false." },
         FlagHelp { flags: "json_parse(s) / json_stringify(x)", description: "Round-trip JSON text ↔ Rhai values (null ↔ (), bool, int, float,\nstring, array, object ↔ map)." },
+        FlagHelp { flags: "json_stringify(x, true) / json_stringify(x, n)", description: "Pretty-print variants. true = 2-space indent; integer n = n-space\nindent (clamped to 1..=8). n <= 0 falls back to compact output." },
     ],
     related: &["--script", "-H", "-k", "--connect-timeout", "--max-time", "-L"],
     examples: &[
