@@ -8,6 +8,16 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.30.1] - 2026-04-21
+
+### Changed
+
+- Documentation sweep bringing `recon --help` topics and `recon --examples` back in sync with the 0.25.0 → 0.30.0 feature batch (scripting, script hashes, `args`/`flags` globals, SQLite bindings, `--init`, `~/.recon/script/` fallback).
+- `recon --help script`: rewrote the description to mention SQLite, hashes, `--init`-as-first-step, and `args`/`flags` globals up-front. Refreshed the EXAMPLES block with six representative recipes (bootstrap, bare-name scripts, positional args, flag inheritance, cookie-jar query, cross-reference to `--examples`).
+- `recon --help hash`: added `crc32` to the algorithm list and a crc32 example row (the 0.27.0 addition wasn't reflected).
+- `recon --help cookies`: added a pointer to the `sqlite("cookiejar:NAME")` script binding so cookie-jar introspection is discoverable from both topic pages.
+- `recon --examples`: refined the SCRIPTING section's opening example (path vs bare-name resolution, `--init` reference). Added an in-memory SQLite example showing how to aggregate probe results into `:memory:`.
+
 ## [0.30.0] - 2026-04-21
 
 ### Added

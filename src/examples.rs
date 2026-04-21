@@ -938,10 +938,12 @@ pub fn print() {
 
     section("SCRIPTING (--script)");
 
-    example("Run a Rhai script", &[
-        "recon --script workflow.rhai",
+    example("Run a Rhai script by path or by bare name", &[
+        "recon --script workflow.rhai                 # literal path",
+        "recon --script health                        # -> ~/.recon/script/health.rhai",
+        "recon --init                                 # bootstrap ~/.recon/ first time",
     ]);
-    note("Script's `return N` (integer) becomes the process exit code. Uncaught exceptions exit 1 (or 7/28/67 if a network error carries a ProtocolExitCode). --script is mutually exclusive with a positional URL.");
+    note("Script's `return N` (integer) becomes the process exit code. Uncaught exceptions exit 1 (or 7/28/67 if a network error carries a ProtocolExitCode). --script is mutually exclusive with a positional URL. Bare names resolve against ~/.recon/script/ and auto-append .rhai.");
 
     example("Minimal health check (bruno-style)", &[
         r#"cat > /tmp/health.rhai <<'EOF'
@@ -1038,6 +1040,22 @@ return 0;
 EOF
 recon --script /tmp/scratch.rhai https://example.com"#,
     ]);
+
+    example("SQLite: in-memory scratch database", &[
+        r#"cat > /tmp/mem.rhai <<'EOF'
+let db = sqlite(":memory:");
+db.exec("CREATE TABLE t (host TEXT, ms INTEGER)");
+for host in ["example.com", "example.org", "example.net"] {
+    let r = tcp(`tcp://${host}:443`);
+    db.exec("INSERT INTO t VALUES (?, ?)", [host, r.duration_ms]);
+}
+let fastest = db.query_one("SELECT host, ms FROM t ORDER BY ms LIMIT 1", []);
+print(`fastest: ${fastest.host} at ${fastest.ms}ms`);
+return 0;
+EOF
+recon --script /tmp/mem.rhai"#,
+    ]);
+    note("`:memory:` creates an ephemeral database that disappears when the script ends. Useful for aggregating probe results across multiple requests.");
 
     example("Hash a response body + pretty-print a signed payload", &[
         r#"cat > /tmp/sign.rhai <<'EOF'

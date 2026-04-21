@@ -351,6 +351,7 @@ static TOPIC_COOKIES: Topic = Topic {
         ExampleHelp { description: "List cookies in a jar", command: "recon --cookiejar mysession --cookies" },
         ExampleHelp { description: "Manually set a cookie", command: "recon --cookiejar mysession --cookie-set \"session=abc123; Domain=example.com; Path=/; HttpOnly\"" },
         ExampleHelp { description: "Delete a cookie by ID", command: "recon --cookiejar mysession --cookie-delete 3" },
+        ExampleHelp { description: "Query the jar from a Rhai script (see --help script)", command: r#"recon --script - # let db = sqlite("cookiejar:mysession"); db.query("SELECT ...")"# },
     ],
 };
 
@@ -633,7 +634,7 @@ static TOPIC_HASH: Topic = Topic {
             flags: "--hash <ALGO>",
             description: "Algorithm. Case-insensitive; hyphens and underscores accepted.\n\
                           Supported: md5, sha1, sha256, sha384, sha512,\n\
-                          sha3-256, sha3-512, blake3.",
+                          sha3-256, sha3-512, blake3, crc32.",
         },
         FlagHelp {
             flags: "--hash-format <FMT>",
@@ -654,6 +655,7 @@ static TOPIC_HASH: Topic = Topic {
         ExampleHelp { description: "sha256 via file:// scheme", command: "recon --hash sha256 file:///tmp/data.bin" },
         ExampleHelp { description: "Base64 output", command: "recon --hash sha256 ./file --hash-format base64" },
         ExampleHelp { description: "Raw digest bytes piped onward", command: "recon --hash sha256 ./file --hash-format raw > digest.bin" },
+        ExampleHelp { description: "CRC32 checksum (4-byte digest shown as 8 hex chars)", command: "recon --hash crc32 ./file.bin" },
         ExampleHelp { description: "List supported algorithms", command: "recon --hash-list" },
     ],
 };
@@ -1034,19 +1036,28 @@ static TOPIC_MQTT: Topic = Topic {
 static TOPIC_SCRIPT: Topic = Topic {
     title: "Scripting (--script)",
     description: "Run a Rhai script that drives the recon probe API. Scripts can\n\
-                  chain requests, branch on results, loop, and build multi-step\n\
-                  health checks. The script's `return N` (integer) becomes the\n\
-                  process exit code; uncaught exceptions map to the same exit\n\
-                  codes as the CLI (7 connect-refused, 28 timeout, 67 auth).\n\
-                  `--script` is mutually exclusive with a positional URL.\n\
-                  CLI flags (-H, -k, --connect-timeout, etc.) act as defaults\n\
-                  that per-call opts maps can override.\n\
+                  chain requests, branch on results, loop, query SQLite, hash\n\
+                  bodies, and build multi-step health checks. The script's\n\
+                  `return N` (integer) becomes the process exit code; uncaught\n\
+                  exceptions map to the same exit codes as the CLI (7 connect-\n\
+                  refused, 28 timeout, 67 auth).\n\
+                  \n\
+                  `--script` is mutually exclusive with a positional URL. CLI\n\
+                  flags (-H, -k, --connect-timeout, etc.) act as defaults that\n\
+                  per-call opts maps can override.\n\
+                  \n\
+                  First-time setup: `recon --init` creates ~/.recon/ with a\n\
+                  script/ subdirectory and a commented config.toml.\n\
                   \n\
                   Script resolution: when PATH isn't found as given, recon\n\
                   looks in ~/.recon/script/PATH (and auto-appends .rhai when\n\
                   PATH has no extension). Drop reusable scripts in\n\
                   ~/.recon/script/ and call them by bare name:\n\
-                    recon --script health",
+                    recon --script health\n\
+                  \n\
+                  Positional arguments after the script path are exposed as\n\
+                  `args[1..]` (args[0] is the script name as typed). CLI flag\n\
+                  values are exposed as the `flags` map.",
     flags: &[
         FlagHelp { flags: "--script <PATH>", description: "Load and run a .rhai file. Falls back to\n~/.recon/script/<PATH> when the path doesn't exist as given\n(with auto-.rhai extension when PATH has none).\nExample: recon --script checks.rhai\n         recon --script health     # -> ~/.recon/script/health.rhai" },
 
@@ -1085,11 +1096,14 @@ static TOPIC_SCRIPT: Topic = Topic {
         FlagHelp { flags: "json_parse(s) / json_stringify(x)", description: "Round-trip JSON text ↔ Rhai values (null ↔ (), bool, int, float,\nstring, array, object ↔ map)." },
         FlagHelp { flags: "json_stringify(x, true) / json_stringify(x, n)", description: "Pretty-print variants. true = 2-space indent; integer n = n-space\nindent (clamped to 1..=8). n <= 0 falls back to compact output." },
     ],
-    related: &["--script", "-H", "-k", "--connect-timeout", "--max-time", "-L"],
+    related: &["--init", "--script", "-H", "-k", "--connect-timeout", "--max-time", "-L"],
     examples: &[
-        ExampleHelp { description: "Hello world", command: "echo 'return 0;' > hi.rhai && recon --script hi.rhai" },
-        ExampleHelp { description: "Health-check a URL, exit 1 on non-2xx", command: r#"recon --script check.rhai"# },
-        ExampleHelp { description: "Multi-step flow: DNS → HTTP → assert", command: "recon --examples  # see SCRIPTING section" },
+        ExampleHelp { description: "Bootstrap ~/.recon/ layout and drop your first script", command: "recon --init && $EDITOR ~/.recon/script/health.rhai" },
+        ExampleHelp { description: "Run a script by bare name (falls back to ~/.recon/script/NAME.rhai)", command: "recon --script health" },
+        ExampleHelp { description: "Pass positional args into a script (args[1..])", command: "recon --script check.rhai example.com 42" },
+        ExampleHelp { description: "Inherit CLI flags as script defaults", command: "recon -k -H 'X-Api-Key: abc' --script probe.rhai" },
+        ExampleHelp { description: "Query the cookie jar from a script", command: r#"recon --script jar-count  # reads ~/.recon/script/jar-count.rhai"# },
+        ExampleHelp { description: "Full API surface via the SCRIPTING example block", command: "recon --examples" },
     ],
 };
 
