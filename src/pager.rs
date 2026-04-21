@@ -2,9 +2,10 @@
 //!
 //! When stdout is a TTY and the user hasn't opted out, spawn `$PAGER`
 //! (default `less -FRX`) and dup2 our stdout onto its stdin so subsequent
-//! `println!` calls flow through it. The caller holds the returned Child
-//! so the pager isn't dropped mid-output; when Child drops, the pipe
-//! closes, `less -F` sees EOF, and it exits.
+//! `println!` calls flow through it. After all output is written, the
+//! caller MUST invoke `finish()` to flush stdout, close our end of the
+//! pipe, and `wait()` on the child — otherwise the pager competes with
+//! the shell for terminal control and exits early.
 //!
 //! Non-Unix targets compile to a no-op: the feature is off on Windows.
 //! `colored::control::set_override(true)` is called whenever paging is
@@ -72,6 +73,35 @@ pub fn activate(_disabled: bool) -> Option<()> {
     // behaviour before this feature existed.
     None
 }
+
+/// Block until the pager exits. Must be called after all output has been
+/// written and before `main()` returns — otherwise the shell's foreground
+/// process group reclaims the terminal and less gets SIGTTIN/SIGTTOU'd
+/// (or the user's keystrokes get eaten by the shell) long before they've
+/// finished scrolling.
+///
+/// Sequence:
+/// 1. Flush stdlib's line-buffered stdout so any pending data reaches
+///    the pager's read side.
+/// 2. Close STDOUT_FILENO so the pipe has no writers; `less` reads
+///    until EOF and either exits (`-F` fit-on-one-screen) or sits
+///    waiting for user input.
+/// 3. `wait()` on the child to block until the user quits or `-F` fires.
+#[cfg(unix)]
+pub fn finish(child: Option<Child>) {
+    if let Some(mut child) = child {
+        use std::io::Write;
+        let _ = std::io::stdout().flush();
+        // SAFETY: closing a fixed, known file descriptor.
+        unsafe {
+            libc::close(libc::STDOUT_FILENO);
+        }
+        let _ = child.wait();
+    }
+}
+
+#[cfg(not(unix))]
+pub fn finish(_child: Option<()>) {}
 
 /// Resolve the pager command to run. `$PAGER` wins when set and
 /// non-empty, otherwise `less -F -R -X` is used. Shell-split by

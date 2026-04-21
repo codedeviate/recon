@@ -8,6 +8,12 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.31.1] - 2026-04-21
+
+### Fixed
+
+- **Pager no longer exits after the first page.** Previously `recon --examples` and `recon --help` would show one screen and return — the child `less` process was competing with the shell for terminal control because `recon` exited before it. `pager::finish()` now flushes stdout, closes STDOUT_FILENO so `less` sees EOF on its pipe, and blocks on `child.wait()` until the user quits the pager. Non-TTY paths (redirects, pipes, `--no-pager`, `RECON_NO_PAGER`) continue to deliver full content since `activate()` returns `None` and `finish()` is a no-op.
+
 ## [0.31.0] - 2026-04-21
 
 ### Added

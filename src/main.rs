@@ -58,25 +58,26 @@ fn main() {
     {
         let args: Vec<String> = std::env::args().collect();
         if let Some(pos) = args.iter().position(|a| a == "--help" || a == "-h") {
-            // Hold the pager child for the lifetime of this block so it
-            // isn't reaped before output is flushed.
-            let _pager = pager::activate(pager::no_pager_requested());
+            // Spawn the pager BEFORE emitting any output, so every println!
+            // in help::* flows through it. Keep the Child until we call
+            // finish() — that's what blocks until the user quits less.
+            let pager_child = pager::activate(pager::no_pager_requested());
             let next = args.get(pos + 1);
             match next {
                 Some(topic) if !topic.starts_with('-') => {
                     if !help::print_topic(topic) {
                         help::print_unknown_topic(topic);
                     }
-                    return;
                 }
                 _ => {
                     let mut cmd = Args::command();
                     let _ = cmd.print_help();
                     println!();
                     help::print_topic_footer();
-                    return;
                 }
             }
+            pager::finish(pager_child);
+            return;
         }
     }
 
@@ -97,8 +98,9 @@ fn main() {
 
     // --examples doesn't require a URL; intercept before clap validates required args
     if std::env::args().any(|a| a == "--examples") {
-        let _pager = pager::activate(pager::no_pager_requested());
+        let pager_child = pager::activate(pager::no_pager_requested());
         examples::print();
+        pager::finish(pager_child);
         return;
     }
 
