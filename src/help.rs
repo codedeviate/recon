@@ -1050,6 +1050,9 @@ static TOPIC_SCRIPT: Topic = Topic {
     flags: &[
         FlagHelp { flags: "--script <PATH>", description: "Load and run a .rhai file. Falls back to\n~/.recon/script/<PATH> when the path doesn't exist as given\n(with auto-.rhai extension when PATH has none).\nExample: recon --script checks.rhai\n         recon --script health     # -> ~/.recon/script/health.rhai" },
 
+        FlagHelp { flags: "args (global)", description: "Array of positional arguments. args[0] is the script name\nas typed (e.g. \"health\", not the resolved path). args[1..]\nare trailing positional args: `recon --script foo a b -v` -> \n[\"foo\", \"a\", \"b\", \"-v\"]. Read-only inside the script." },
+        FlagHelp { flags: "flags (global)", description: "Map of CLI flags in effect. Keys: headers (array), insecure,\nconnect_timeout, max_time, follow_redirects, max_redirs,\nuser_agent, referer, user, method, data, output, verbose,\nwait_time, ping_count, max_hops. Unset optionals are `()`.\nRead-only inside the script." },
+
         FlagHelp { flags: "http(url) / http(url, opts)", description: "HTTP(S) request. Returns #{ url, final_url, status, body, headers,\nhttp_version, duration_ms }. opts: #{ method, headers, body,\ntimeout_ms, connect_timeout, insecure, follow_redirects }.\nHTTP non-2xx is a result; network errors throw." },
         FlagHelp { flags: "https(...) / request(opts)", description: "Aliases. request() requires opts.url." },
 

@@ -8,6 +8,17 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-04-21
+
+### Added
+
+- **`args` and `flags` constants exposed to Rhai scripts.** `args` is an array where `args[0]` is the script name as typed (e.g. `"health"` when the user types `recon --script health`, not the resolved `~/.recon/script/health.rhai` absolute path) and `args[1..]` are trailing positional arguments: `recon --script foo a b -v` yields `args = ["foo", "a", "b", "-v"]`. `flags` is a map mirroring the CLI flag set that `ScriptDefaults` uses — `headers`, `insecure`, `connect_timeout`, `max_time`, `follow_redirects`, `max_redirs`, `user_agent`, `referer`, `user`, `method`, `data`, `output`, `verbose`, `wait_time`, `ping_count`, `max_hops`. Unset optional scalars are `()` (Rhai unit) rather than missing keys. Both are pushed as constants (read-only from inside the script) via `rhai::Scope::push_constant`.
+- **Trailing positional args after `--script PATH`** are now captured into the new `Args::script_args` field via a pre-parse argv split in `Args::parse_with_script_split`. Clap's positional `url` field no longer swallows the first trailing arg. Trailing args without `--script` error with "requires --script".
+
+### Changed
+
+- `main.rs` now calls `Args::parse_with_script_split(std::env::args())` instead of `Args::parse()` so the argv split runs before clap does.
+
 ## [0.27.0] - 2026-04-21
 
 ### Added

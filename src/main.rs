@@ -48,7 +48,7 @@ mod version;
 mod whois;
 mod ws_probe;
 
-use clap::{CommandFactory, Parser};
+use clap::CommandFactory;
 use cli::Args;
 
 fn main() {
@@ -96,7 +96,15 @@ fn main() {
         return;
     }
 
-    let args = Args::parse();
+    // Pre-split argv on `--script PATH` so trailing positional args after
+    // the script path become `script_args` instead of being assigned to the
+    // positional `url` by clap. Non-script invocations are unaffected.
+    let args = match Args::parse_with_script_split(std::env::args()) {
+        Ok(a) => a,
+        Err(e) => {
+            e.exit();
+        }
+    };
 
     // ── Cookie jar management commands (no HTTP request needed) ───────────────
     let is_cookie_mgmt = args.cookies || args.cookie_delete.is_some() || args.cookie_set.is_some();

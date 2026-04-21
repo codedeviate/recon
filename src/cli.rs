@@ -618,9 +618,19 @@ pub struct Args {
     /// `tcp()`, `ping()`, `dns()`, `tls()`, `redis()`, `ws()` and more;
     /// script `return N` becomes the process exit code. If PATH isn't found
     /// as given, falls back to `~/.recon/script/PATH` (and `.rhai` is
-    /// auto-appended when PATH has no extension). See `--help script`.
+    /// auto-appended when PATH has no extension). Positional args after the
+    /// script path are available to the script as `args[1..]` (args[0] is
+    /// the script name). See `--help script`.
     #[arg(long = "script", value_name = "PATH", help_heading = "Meta")]
     pub script: Option<PathBuf>,
+
+    /// Trailing positional args forwarded to `--script`. Populated in
+    /// `main.rs` by splitting argv on the `--script` boundary before clap
+    /// parses — clap is skipped here to avoid a conflict with the
+    /// positional `url` field that would otherwise swallow the first
+    /// trailing arg. Exposed to scripts as `args[1..]`.
+    #[arg(skip)]
+    pub script_args: Vec<String>,
 
     // ── Options (manual -h / -V; keeps Options at tail of --help) ────────────
 
@@ -703,6 +713,38 @@ impl Args {
     /// Returns the count of exclusive flags set (for mutual exclusion check).
     pub fn exclusive_count(&self) -> usize {
         [self.ping, self.traceroute, self.whois].iter().filter(|&&f| f).count()
+    }
+
+    /// Parse argv, pre-splitting on `--script PATH` so trailing positional
+    /// arguments after the script path populate `script_args` instead of
+    /// being consumed by the positional `url` field. Used by `main.rs` and
+    /// by tests that need the same semantics.
+    pub fn parse_with_script_split<I, S>(argv: I) -> Result<Self, clap::Error>
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        let raw: Vec<String> = argv.into_iter().map(Into::into).collect();
+        let (for_clap, trailing) = Self::split_script_trailing(&raw);
+        let mut args = Self::try_parse_from(for_clap)?;
+        args.script_args = trailing;
+        Ok(args)
+    }
+
+    /// Split argv into `(for_clap, trailing_script_args)`. Exposed on
+    /// `Args` so `main.rs` and test helpers share one implementation.
+    pub fn split_script_trailing(raw: &[String]) -> (Vec<String>, Vec<String>) {
+        for (i, tok) in raw.iter().enumerate() {
+            if tok == "--script" {
+                let boundary = (i + 2).min(raw.len());
+                return (raw[..boundary].to_vec(), raw[boundary..].to_vec());
+            }
+            if tok.starts_with("--script=") {
+                let boundary = (i + 1).min(raw.len());
+                return (raw[..boundary].to_vec(), raw[boundary..].to_vec());
+            }
+        }
+        (raw.to_vec(), Vec::new())
     }
 }
 

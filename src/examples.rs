@@ -985,6 +985,24 @@ EOF
 recon --script /tmp/cert.rhai"#,
     ]);
 
+    example("Parameterise via args[1..] and flags", &[
+        r#"cat > /tmp/check.rhai <<'EOF'
+if args.len() < 2 {
+    print(`usage: recon --script ${args[0]} HOST`);
+    return 2;
+}
+let host = args[1];
+let r = https(`https://${host}`);
+if flags.verbose > 0 {
+    print(`${r.duration_ms}ms status=${r.status}`);
+}
+return if r.status == 200 { 0 } else { 1 };
+EOF
+recon --script /tmp/check.rhai example.com
+recon -v --script /tmp/check.rhai example.com    # flags.verbose = 1"#,
+    ]);
+    note("args[0] is the script name as typed (bare name with global-dir fallback, or literal path). args[1..] are positional args after the script path. `flags` mirrors the ScriptDefaults set (insecure, connect_timeout, headers, user_agent, ...) plus data + output; unset optionals are `()`.");
+
     example("Hash a response body + pretty-print a signed payload", &[
         r#"cat > /tmp/sign.rhai <<'EOF'
 let r = https("https://example.com");

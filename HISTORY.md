@@ -52,6 +52,18 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 30. Script CLI introspection — `args` and `flags` constants (0.28.0)
+
+Scripts gain two read-only globals: `args` (Rhai array) and `flags` (Rhai map). `args[0]` is the `--script` value as the user typed it (so `recon --script health` exposes `"health"`, not the resolved `~/.recon/script/health.rhai` path — matches the "argv[0] is what was typed" convention scripts everywhere inherit from Unix). `args[1..]` are trailing positional arguments. `flags` surfaces the subset of CLI flags that `ScriptDefaults` also captures, plus `-d/--data` and `-o/--output`.
+
+Implemented via `rhai::Scope::push_constant` — the natural Rhai idiom for injecting host-provided top-level values. Scripts reading `args[0]` or `flags.insecure` get them; scripts trying to mutate (`args.push(…)`) get a Rhai error. `run_file` now calls `eval_with_scope` instead of `eval`.
+
+**argv split decision.** Clap's derive model assigns the first trailing positional to the first declared positional field. `Args` already has `url: Option<String>` at the top, which would happily swallow `recon --script foo bar` → `url = Some("bar")`. Rather than fight clap's positional ordering (which would require `#[arg(last = true)]` forcing a `--` separator, or reshuffling all of Args), `main.rs` now splits argv on the `--script PATH` boundary before clap runs: everything up to and including PATH goes to clap; everything after becomes `script_args`. Clean: no new clap attributes, trivial to test, handles both `--script PATH` and `--script=PATH` forms. The `script_args` field is `#[arg(skip)]` so clap ignores it.
+
+Shared helper `Args::parse_with_script_split(argv)` lets both `main.rs` and unit tests run the same argv-split-then-parse pipeline.
+
+**Exposed flag scope.** The set mirrors `ScriptDefaults::from_args` verbatim, extended with `data` and `output`. Mode flags (`--hash`, `--encode`, `--cookiejar`, serve config, mqtt config) are deliberately excluded — they don't apply in script mode and exposing them would mislead. Missing optional scalars become `()` so scripts can `if flags.user_agent != () {}` without `contains_key` noise; always-present fields (`headers`, bool flags, numeric flags) always hold a usable default.
+
 ### 29. Script hashing + pretty-printed JSON (0.27.0)
 
 Scripts gain two small but frequently-needed capabilities: hash digests as a function call, and a `json_stringify` prettify variant.
