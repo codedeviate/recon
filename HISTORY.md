@@ -52,6 +52,25 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 33. Auto-paging for help and examples (0.31.0)
+
+`recon --examples` prints ~1000 lines; `recon --help script` prints ~80. Both scrolled past unread unless users piped manually. This release routes those outputs through `$PAGER` (default `less -FRX`) when stdout is a TTY, matching git's convention. Short outputs (`recon --help version`) still appear instantly because `less -F` exits when content fits on one screen — so auto-paging isn't disruptive for small help topics.
+
+**Implementation.** `src/pager.rs` spawns the pager with stdin piped, then calls `libc::dup2` to point `STDOUT_FILENO` at the pager's stdin. After that, every `println!` in `help::render_topic` and `examples::print` flows through the pipe. The Child is held by the caller so it's not reaped mid-output; when the caller's scope ends (function returns), the Child drops, the pipe closes, the pager sees EOF and exits cleanly (or continues waiting for keystrokes if content doesn't fit).
+
+**Colour preservation.** The `colored` crate auto-strips ANSI escapes when stdout isn't a TTY — and after dup2, our stdout is a pipe, not a TTY. `pager::activate` calls `colored::control::set_override(true)` immediately after dup2 so escapes keep flowing; `less -R` renders them. Without the override, paged help would be monochrome.
+
+**Control surface.** Three opt-outs:
+- `--no-pager` flag (mirrors `git --no-pager`).
+- `$RECON_NO_PAGER` env var (for shell profiles / CI images).
+- `$PAGER=cat` (or any other binary) overrides the default command; also a de-facto opt-out when set to something trivial.
+
+Paging is automatically skipped when stdout isn't a TTY (redirects, pipes), when the configured pager fails to spawn (missing binary), or when `libc::dup2` returns an error (rare, but we kill the spawned pager and fall through).
+
+**Platform.** Unix-only. The `activate` function is `#[cfg(unix)]`; Windows gets a no-op stub. Proper Windows paging would need `more.exe` or a cross-platform pager crate — deferred until demand materialises.
+
+**Dep impact.** Added `libc = "0.2"` as a direct dep. It was already transitive via tokio/reqwest/ssh2; making it direct surfaces one call site (`dup2`) without pulling any new code into the tree.
+
 ### 32. `recon --init` — bootstrap `~/.recon/` layout (0.30.0)
 
 Adds a one-shot `--init` flag that materialises the directory layout and config file users eventually need. Idempotent: every action prints `created`, `wrote`, or `skipped (exists)`, so re-running after a partial setup fills in the blanks without touching edits.

@@ -620,6 +620,13 @@ pub struct Args {
     #[arg(long = "init", help_heading = "Meta")]
     pub init: bool,
 
+    /// Disable auto-paging of `--help` and `--examples` output. Paging is
+    /// on by default when stdout is a TTY (uses `$PAGER` or `less -FRX`).
+    /// Also respects `$RECON_NO_PAGER`. Non-TTY stdout (pipes, redirects)
+    /// is never paged regardless of this flag.
+    #[arg(long = "no-pager", help_heading = "Meta")]
+    pub no_pager: bool,
+
     /// Run a Rhai script instead of performing a request. Exposes `http()`,
     /// `tcp()`, `ping()`, `dns()`, `tls()`, `redis()`, `ws()` and more;
     /// script `return N` becomes the process exit code. If PATH isn't found

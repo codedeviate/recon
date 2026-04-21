@@ -8,6 +8,17 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-04-21
+
+### Added
+
+- **Auto-paging for `--help` and `--examples`.** When stdout is a TTY, recon now pipes help output through `$PAGER` (default `less -FRX`), matching `git log` / `git help`. Short topics still appear instantly because `less -F` exits when content fits on one screen; long ones (`recon --examples`) open scrollable. ANSI colours are preserved through the pipe via an explicit `colored::control::set_override(true)` when paging activates — without it `colored` would strip escapes on the pipe.
+- **`--no-pager` flag** to disable per-invocation (mirrors git). Also honours `$RECON_NO_PAGER` env var for shell profiles and CI. Non-TTY stdout (redirects, pipes) is never paged regardless. Missing pager binaries (`PAGER=nonexistent`) fall through silently to unpaged output.
+
+### Changed
+
+- New `src/pager.rs` module handling decision logic, spawn, and `dup2`. Unix-only; Windows targets compile it as a no-op (unpaged, same as before).
+
 ## [0.30.1] - 2026-04-21
 
 ### Changed

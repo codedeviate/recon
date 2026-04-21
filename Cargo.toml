@@ -1,6 +1,6 @@
 [package]
 name = "recon"
-version = "0.30.1"
+version = "0.31.0"
 edition = "2021"
 
 [[bin]]
@@ -45,6 +45,7 @@ sha2 = "0.10"
 sha3 = "0.10"
 blake3 = "1"
 crc32fast = "1"
+libc = "0.2"
 flate2 = "1"
 zstd = "0.13"
 brotli = "7"

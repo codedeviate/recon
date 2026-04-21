@@ -17,6 +17,7 @@ mod file_url;
 mod hash;
 mod help;
 mod init;
+mod pager;
 mod jwt;
 mod ldap_probe;
 mod lorem;
@@ -57,6 +58,9 @@ fn main() {
     {
         let args: Vec<String> = std::env::args().collect();
         if let Some(pos) = args.iter().position(|a| a == "--help" || a == "-h") {
+            // Hold the pager child for the lifetime of this block so it
+            // isn't reaped before output is flushed.
+            let _pager = pager::activate(pager::no_pager_requested());
             let next = args.get(pos + 1);
             match next {
                 Some(topic) if !topic.starts_with('-') => {
@@ -93,6 +97,7 @@ fn main() {
 
     // --examples doesn't require a URL; intercept before clap validates required args
     if std::env::args().any(|a| a == "--examples") {
+        let _pager = pager::activate(pager::no_pager_requested());
         examples::print();
         return;
     }
