@@ -1203,6 +1203,33 @@ EOF
 recon --script /tmp/sign.rhai"#,
     ]);
 
+    example("Stateful browser() with sticky cookies + headers", &[
+        r#"cat > /tmp/browser.rhai <<'EOF'
+let b = browser();
+b.set_user_agent("recon-demo/1.0");
+b.set_header("X-API-Key", env("API_KEY", ""));
+b.get("https://httpbin.org/cookies/set/session/abc");   // collects Set-Cookie
+let r = b.get("https://httpbin.org/cookies");           // replays it
+print(r.body);
+return 0;
+EOF
+recon --script /tmp/browser.rhai"#,
+    ]);
+    note("browser() keeps cookies, headers, user-agent, redirect policy, and timeouts across calls. Default jar is an ephemeral temp file; `b.use_persistent_session(\"name\")` swaps in ~/.recon/jars/name.db. POST/PUT/PATCH accept String, Blob, or Map — maps auto-serialise to JSON. See `recon --help browser`.");
+
+    example("Multiple independent browsers in one script", &[
+        r#"cat > /tmp/multi.rhai <<'EOF'
+let a = browser();  a.set_user_agent("scraper-a");
+let b = browser();  b.set_user_agent("scraper-b");
+let ra = a.get("https://httpbin.org/user-agent");
+let rb = b.get("https://httpbin.org/user-agent");
+print(`a: ${ra.body}`);
+print(`b: ${rb.body}`);
+return 0;
+EOF
+recon --script /tmp/multi.rhai"#,
+    ]);
+
     example("Browse per-module example scripts (one .rhai per binding)", &[
         "ls script/                                   # 27 shipped examples",
         "recon --script script/http.rhai https://example.com",
@@ -1213,7 +1240,7 @@ recon --script /tmp/sign.rhai"#,
     ]);
     note("The repo's script/ directory ships one example per binding module (http, dns, tls, redis, ws, ldap, encode, encrypt, checkdigit, sample, jwt, email, netstatus, sqlite, archive, compression, hash, agent-browser, …). Each script is ~15 lines, documents its args at the top, and exits 0 on success (non-zero when an upstream precondition is missing).");
 
-    note("Available functions: http/https/request, tcp, ping, dns, tls, ntp, redis, ws/wss, dict, ldap/ldaps, whois, memcached, rtsp/rtsps, mqtt_pub/mqtt_sub, file_read. Module bindings: compression::, archive::, sqlite(), encode::, encrypt::, checkdigit::, sample::, jwt::, email::, netstatus::, agentBrowser::. Hashes: md5, sha1, sha256, sha384, sha512, sha3_256, sha3_512, blake3, crc32, plus hash(algo, x [, \"hex\"|\"base64\"]). Helpers: print, sleep_ms, env, now, now_ms, assert, json_parse, json_stringify. See `recon --help script`.");
+    note("Available functions: http/https/request, browser(), tcp, ping, dns, tls, ntp, redis, ws/wss, dict, ldap/ldaps, whois, memcached, rtsp/rtsps, mqtt_pub/mqtt_sub, file_read. Module bindings: compression::, archive::, sqlite(), encode::, encrypt::, checkdigit::, sample::, jwt::, email::, netstatus::, agentBrowser::. Hashes: md5, sha1, sha256, sha384, sha512, sha3_256, sha3_512, blake3, crc32, plus hash(algo, x [, \"hex\"|\"base64\"]). Helpers: print, sleep_ms, env, now, now_ms, assert, json_parse, json_stringify. See `recon --help script`.");
 
     section("EDITOR OUTPUT");
 

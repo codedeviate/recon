@@ -8,6 +8,25 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-04-22
+
+### Added
+
+- **`browser()` script binding** — a stateful HTTP session handle. Unlike the one-shot `http(url, opts)` binding, a browser keeps cookies, default headers, user-agent, redirect policy, timeouts, and basic-auth credentials across multiple requests. Script-only feature (no CLI flag).
+  - Constructors: `browser()` / `browser(#{user_agent, headers, insecure, follow_redirects, max_redirects, timeout_ms, connect_timeout, basic_auth})`.
+  - Configuration: `set_user_agent`, `set_header`, `set_headers`, `remove_header`, `clear_headers`, `set_timeout_ms`, `set_connect_timeout`, `set_insecure`, `follow_redirects`, `set_max_redirects`, `set_basic_auth`.
+  - Sessions: `use_persistent_session(name)` swaps the jar to `~/.recon/jars/NAME.db` (fresh swap — ephemeral cookies are discarded); `use_ephemeral_session()` reverts to a new temp-file jar; `clear_cookies()`; `cookies()` returns `[#{domain, path, name, value, expires, secure, http_only}, …]`; `session_name()` returns the active name or `()` for ephemeral.
+  - Requests: `b.get / head / options / delete(url [, opts])` and `b.post / put / patch(url, body [, opts])`. Body accepts String, Blob, Map, or Array — maps and arrays auto-serialise to JSON with `Content-Type: application/json`. `b.request(#{url, method, body, headers, …})` for the freeform form.
+  - Multiple browsers can coexist in the same script with independent state ("parallel browsers" use case — Rhai is single-threaded, so this means sequential interleaved calls against isolated jars).
+- **`recon --help browser`** — new help topic with the full method reference. `recon --help session` and `recon --help browser-session` are aliases. Real browser automation moved to `recon --help agent-browser` only (`--help browser` no longer resolves there).
+- **`script/browser.rhai`** example showing the ephemeral-session idiom.
+
+### Changed
+
+- `src/script/bindings/http.rs`: `build_args` and `headers_to_rhai_map` promoted to `pub(crate)` so the browser binding can reuse the opts-map overlay and response-header conversion without duplication.
+- `src/script/bindings/helpers.rs`: `dynamic_to_json` promoted to `pub(crate)` for the browser binding's Map/Array→JSON body coercion.
+- `tempfile` moved from `[dev-dependencies]` to `[dependencies]` (the browser binding uses `NamedTempFile` to back ephemeral cookie jars).
+
 ## [0.41.0] - 2026-04-22
 
 ### Added

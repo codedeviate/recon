@@ -1126,6 +1126,8 @@ static TOPIC_SCRIPT: Topic = Topic {
 
         FlagHelp { flags: "import \"name\" as alias;", description: "Rhai module import. Resolves `name.rhai` next to the running\nscript first; falls back to ~/.recon/script/name.rhai. Lets you\nfactor shared helpers into reusable modules.\nExample:\n  import \"greet\" as g;\n  print(g::hello(\"recon\"));" },
 
+        FlagHelp { flags: "browser() / browser(opts)", description: "Stateful HTTP session handle with sticky cookies + default\nheaders. b.get/post/put/patch/delete/head/options(url [, opts]).\nConfig: set_user_agent, set_header(s), follow_redirects,\nset_timeout_ms, set_insecure, set_basic_auth. Sessions:\nuse_persistent_session(name), use_ephemeral_session,\nclear_cookies, cookies(), session_name(). Body can be\nString / Blob / Map (map auto-serialises to JSON).\nSee `recon --help browser` for the full method reference." },
+
         FlagHelp { flags: "agentBrowser::*", description: "Browser automation via the external agent-browser CLI.\n`agentBrowser::available` (bool) + `agentBrowser::version` (string)\nare always readable. When available, functions include open, click,\nfill, screenshot, snapshot, get, is_visible, eval, and more.\nSee `recon --help agent-browser` for the full list." },
     ],
     related: &["--init", "--script", "-H", "-k", "--connect-timeout", "--max-time", "-L"],
@@ -1172,6 +1174,63 @@ static TOPIC_ARCHIVE: Topic = Topic {
         ExampleHelp { description: "Extract a zip to a specific directory", command: "recon --extract download.zip -o /tmp/unpack/" },
         ExampleHelp { description: "Extract a tar.gz (auto-detect by extension)", command: "recon --extract artifact.tar.gz -o /tmp/artifact/" },
         ExampleHelp { description: "Extract an ambiguously-named archive (magic-byte sniff)", command: "recon --extract blob.dat -o /tmp/out/" },
+    ],
+};
+
+static TOPIC_BROWSER: Topic = Topic {
+    title: "Browser Sessions (scripting)",
+    description: "`browser()` returns a stateful HTTP session handle for Rhai\n\
+                  scripts. Unlike one-shot `http(url, opts)`, a browser keeps\n\
+                  a cookie jar, default headers, user-agent, TLS/redirect\n\
+                  policy, and basic-auth credentials across multiple\n\
+                  requests. Cookies set by one call are sent on the next.\n\
+                  \n\
+                  Default session is ephemeral — backed by a temp-file\n\
+                  jar that's deleted when the script exits.\n\
+                  `b.use_persistent_session(\"name\")` swaps in\n\
+                  `~/.recon/jars/name.db` (fresh jar — any ephemeral\n\
+                  cookies collected so far are discarded).\n\
+                  \n\
+                  Multiple browsers can be instantiated in the same\n\
+                  script. Each has independent state:\n\
+                    let b1 = browser();\n\
+                    let b2 = browser();\n\
+                  Scripts interleave calls as they please; Rhai is\n\
+                  single-threaded, so \"parallel\" means independent\n\
+                  state, not concurrent I/O.\n\
+                  \n\
+                  Script-only feature. Response shape matches `http()`.",
+    flags: &[
+        FlagHelp { flags: "browser()", description: "Build a browser with default config inherited from CLI flags\n(-H, -k, --connect-timeout, --user-agent, etc.)." },
+        FlagHelp { flags: "browser(opts)", description: "Build a browser with an initial config map. Keys:\nuser_agent, headers (map), insecure, follow_redirects,\nmax_redirects, timeout_ms, connect_timeout, basic_auth." },
+
+        FlagHelp { flags: "b.set_user_agent(ua)", description: "Set the User-Agent header for all subsequent requests." },
+        FlagHelp { flags: "b.set_header(name, value)", description: "Add or replace one default header (case-insensitive)." },
+        FlagHelp { flags: "b.set_headers(map)", description: "Merge a map of headers into the defaults. Keys replace\nexisting entries case-insensitively." },
+        FlagHelp { flags: "b.remove_header(name) / b.clear_headers()", description: "Delete one or all default headers." },
+        FlagHelp { flags: "b.set_timeout_ms(ms)", description: "Overall request deadline in milliseconds (maps to --max-time)." },
+        FlagHelp { flags: "b.set_connect_timeout(secs)", description: "TCP/TLS connect deadline in seconds." },
+        FlagHelp { flags: "b.set_insecure(bool)", description: "Skip TLS certificate verification." },
+        FlagHelp { flags: "b.follow_redirects(bool) / b.set_max_redirects(n)", description: "Redirect policy + cap. Defaults inherited from CLI." },
+        FlagHelp { flags: "b.set_basic_auth(user, pass)", description: "Attach an HTTP Basic Authorization header." },
+
+        FlagHelp { flags: "b.use_persistent_session(name)", description: "Swap the cookie jar to ~/.recon/jars/name.db (fresh swap —\nephemeral cookies are discarded). Same file format as\n`--cookiejar` and `sqlite(\"cookiejar:NAME\")`." },
+        FlagHelp { flags: "b.use_ephemeral_session()", description: "Swap back to a fresh temp-file jar. Previous session's\ncookies are discarded (temp file deleted)." },
+        FlagHelp { flags: "b.session_name()", description: "Returns the current persistent-session name (String) or () for\nephemeral sessions." },
+        FlagHelp { flags: "b.clear_cookies()", description: "Wipe every cookie from the current jar." },
+        FlagHelp { flags: "b.cookies()", description: "List cookies as an Array of #{domain, path, name, value,\nexpires, secure, http_only}. For richer access, open the\nsame jar with `sqlite(\"cookiejar:NAME\")`." },
+
+        FlagHelp { flags: "b.get(url [, opts]) / b.head / b.options / b.delete", description: "Method helpers without a body argument. `opts` is the same\nper-call override map as `http(url, opts)`." },
+        FlagHelp { flags: "b.post(url, body [, opts]) / b.put / b.patch", description: "Method helpers with a body argument. Body can be String,\nBlob, or Map/Array (maps and arrays auto-serialise to JSON\nand set Content-Type: application/json unless the script\nprovides its own)." },
+        FlagHelp { flags: "b.request(#{url, method, body, headers, …})", description: "Freeform request with an opts-map. `url` is required;\n`method` defaults to \"GET\". Accepts the same keys as\n`http(url, opts)`." },
+    ],
+    related: &["--script", "--cookiejar", "sqlite"],
+    examples: &[
+        ExampleHelp { description: "Ephemeral session: login + follow-up request", command: r#"recon --script - <<< 'let b = browser(); b.get("https://httpbin.org/cookies/set/session/abc"); print(b.get("https://httpbin.org/cookies").body);'"# },
+        ExampleHelp { description: "Persistent session survives across script runs", command: r#"recon --script - <<< 'let b = browser(); b.use_persistent_session("myjar"); b.get("https://example.com/login");'"# },
+        ExampleHelp { description: "Two browsers in one script, independent cookies", command: r#"recon --script - <<< 'let b1 = browser(); let b2 = browser(); b1.get("https://a.example"); b2.get("https://b.example");'"# },
+        ExampleHelp { description: "Full example shipped in the repo", command: "recon --script script/browser.rhai" },
+        ExampleHelp { description: "Inspect a persistent jar directly", command: r#"sqlite3 ~/.recon/jars/myjar.db "SELECT domain, name, expires FROM cookies;""# },
     ],
 };
 
@@ -1324,7 +1383,8 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "checkdigit" | "check-digit" | "checksum" => Some(&TOPIC_CHECKDIGIT),
         "write-out" | "writeout" | "write_out" => Some(&TOPIC_WRITE_OUT),
         "script" | "scripting" | "rhai" => Some(&TOPIC_SCRIPT),
-        "agent-browser" | "agentbrowser" | "browser" => Some(&TOPIC_AGENT_BROWSER),
+        "agent-browser" | "agentbrowser" => Some(&TOPIC_AGENT_BROWSER),
+        "browser" | "session" | "browser-session" => Some(&TOPIC_BROWSER),
         "archive" | "zip" | "tar" | "extract" => Some(&TOPIC_ARCHIVE),
         _ => None,
     }

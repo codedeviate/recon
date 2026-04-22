@@ -137,7 +137,7 @@ pub(crate) fn json_to_dynamic(v: JsonValue) -> Dynamic {
     }
 }
 
-fn dynamic_to_json(v: &Dynamic) -> Result<JsonValue, Box<EvalAltResult>> {
+pub(crate) fn dynamic_to_json(v: &Dynamic) -> Result<JsonValue, Box<EvalAltResult>> {
     if v.is_unit() {
         return Ok(JsonValue::Null);
     }

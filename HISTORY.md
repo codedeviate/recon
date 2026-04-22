@@ -52,6 +52,33 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 44. Scriptable `browser()` with sticky sessions (0.42.0)
+
+Until now every `http(url, opts)` call rebuilt a reqwest client from scratch, loaded the jar from `args.cookiejar` if set at CLI level, and threw the client away. Scripts that wanted session-sticky behaviour had to either copy the same opts map on every line or reach for `sqlite("cookiejar:NAME")` and hand-apply cookie rules. `browser()` gives scripts a stateful handle that holds configuration + a jar across calls. Script-only; no CLI flag maps here.
+
+**Handle pattern.** Mirrors `SqliteHandle` at `src/script/bindings/sqlite.rs:24-28`:
+
+```rust
+#[derive(Clone)]
+pub struct BrowserHandle {
+    state: Rc<RefCell<BrowserState>>,
+}
+```
+
+Cheap-clone + interior mutability lets `&mut self` method closures work without fighting Rhai's `!Sync` engine, and lets a script pass the same handle around without aliasing issues.
+
+**Jar strategy.** `BrowserState::jar` is a `JarLocation` enum: `Temp(tempfile::NamedTempFile)` (default) or `Named(String)` (→ `~/.recon/jars/NAME.db`). The temp file auto-deletes when the browser is dropped. `use_persistent_session(name)` simply swaps the variant — the cookie-loading code path in `src/client.rs:119-138` doesn't care whether the jar file is permanent or temp; it just opens the path and calls the existing `cookie_header` / `save_cookies` helpers. Zero refactor of the request pipeline. Zero new cookie-storage code.
+
+**Request dispatch.** `do_request` reuses `http::build_args` (promoted to `pub(crate)` in this release) to build an `Args`, then overlays browser-level state (user-agent, session headers, timeouts, basic-auth, jar path) in a specific order: CLI defaults → browser config → per-call opts always wins. `args.cookiejar` is always set to the browser's jar path, regardless of what was on the CLI.
+
+**Body coercion.** `coerce_body(Dynamic)` accepts String, Blob, Map, Array. Maps and arrays auto-serialise to JSON via `helpers::dynamic_to_json` (promoted to `pub(crate)` in this release). When a JSON body goes out, `content-type: application/json` is appended to `args.header` unless the script already set one (case-insensitive check). String/Blob bodies pass through verbatim — no auto content-type.
+
+**Multiple browsers in one script.** No concurrency primitives needed. Rhai is single-threaded; the engine isn't `Sync`. "Parallel browsers" just means multiple `BrowserHandle` instances, each with its own `Rc<RefCell<BrowserState>>` and its own `NamedTempFile`. Scripts interleave calls as needed. This was the design the user actually wanted — confirmed before implementation.
+
+**`--help browser` reassignment.** Before 0.42.0, `recon --help browser` resolved to `TOPIC_AGENT_BROWSER` (real browser automation). Now it resolves to `TOPIC_BROWSER` (the scripting session handle). The real-automation topic keeps its `agent-browser` and `agentbrowser` keys. Reasoning: scripts are the common discovery path; someone typing `--help browser` is more likely building a session-sticky scraper than reaching for the external `agent-browser` CLI.
+
+**Tests added: +10.** 970 → 980 total, 2 ignored. All wiremock-based, covering sticky cookies, per-browser isolation, header persistence, Map-body-to-JSON, String-body passthrough, opts-override-browser precedence, cookies listing, clear-cookies wipe, fresh-swap on `use_persistent_session`, and ephemeral-vs-named `session_name()` behaviour.
+
 ### 43. Per-module example scripts + docs sweep (0.41.0)
 
 Follow-up to #42: with seven new bindings landed, the `script/` directory gets a companion `.rhai` file per binding module so users can see the minimal idiom at a glance. Before 0.41.0 the directory had five `browser-*.rhai` recipes and nothing else.

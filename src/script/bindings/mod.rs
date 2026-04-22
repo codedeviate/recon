@@ -2,6 +2,7 @@
 
 pub mod agent_browser;
 pub mod archive;
+pub mod browser;
 pub mod checkdigit;
 pub mod cli;
 pub mod compression;

@@ -105,7 +105,7 @@ fn do_request(
     Ok(result)
 }
 
-fn build_args(
+pub(crate) fn build_args(
     url: &str,
     defaults: &ScriptDefaults,
     opts: Option<&Map>,
@@ -197,7 +197,7 @@ fn build_args(
     Ok(args)
 }
 
-fn headers_to_rhai_map(headers: &reqwest::header::HeaderMap) -> Map {
+pub(crate) fn headers_to_rhai_map(headers: &reqwest::header::HeaderMap) -> Map {
     let mut m = Map::new();
     for name in headers.keys() {
         let vals: Vec<Dynamic> = headers

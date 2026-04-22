@@ -42,6 +42,12 @@ surprise failures.
 | `rtsp.rhai` | RTSP OPTIONS + method list |
 | `mqtt.rhai` | MQTT publish with reachability guard |
 
+### Sessions
+
+| Script | What it does |
+|---|---|
+| `browser.rhai` | Stateful HTTP browser: cookies + headers stick across calls |
+
 ### Data primitives
 
 | Script | What it does |
