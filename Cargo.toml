@@ -1,6 +1,6 @@
 [package]
 name = "recon"
-version = "0.34.0"
+version = "0.35.0"
 edition = "2021"
 
 [[bin]]
@@ -53,6 +53,8 @@ bzip2 = "0.4"
 lz4_flex = "0.11"
 xz2 = "0.1"
 snap = "1"
+zip = { version = "2", default-features = false, features = ["deflate", "bzip2"] }
+tar = "0.4"
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 datamatrix = "0.3"
 barcoders = { version = "1", default-features = false, features = ["ascii", "svg"] }

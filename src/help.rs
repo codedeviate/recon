@@ -1119,6 +1119,39 @@ static TOPIC_SCRIPT: Topic = Topic {
     ],
 };
 
+static TOPIC_ARCHIVE: Topic = Topic {
+    title: "Archive Tools (zip, tar, and friends)",
+    description: "Create and extract file archives. Two unified flags:\n\
+                  `--archive DEST FILE...` bundles the given files and directories\n\
+                  (recursively) into DEST; `--extract SRC [-o DIR]` unpacks SRC\n\
+                  into DIR (default: current directory).\n\
+                  \n\
+                  Format is inferred from the filename extension:\n\
+                    .zip                 — ZIP\n\
+                    .tar                 — uncompressed tar\n\
+                    .tar.gz  / .tgz      — tar + gzip\n\
+                    .tar.xz  / .txz      — tar + xz\n\
+                    .tar.bz2 / .tbz2     — tar + bzip2\n\
+                  \n\
+                  `--extract` also tries magic-byte detection when the extension\n\
+                  isn't recognised, so `.dat` that's actually a ZIP still works.",
+    flags: &[
+        FlagHelp { flags: "--archive <DEST> <FILE...>", description: "Create an archive. DEST's extension picks the format. Remaining\npositional arguments are the sources (files or directories).\nDirectories are archived recursively, keeping their name as the\narchive's top-level entry." },
+        FlagHelp { flags: "--extract <SRC>", description: "Extract an archive. Format from extension or magic bytes.\nDestination defaults to CWD; pass -o DIR to redirect." },
+        FlagHelp { flags: "-o / --output <DIR>", description: "Extraction destination directory for --extract. Created if absent." },
+    ],
+    related: &["--compress", "--decompress", "-o / --output"],
+    examples: &[
+        ExampleHelp { description: "Zip two files", command: "recon --archive report.zip notes.md summary.md" },
+        ExampleHelp { description: "Tar a directory", command: "recon --archive src.tar src/" },
+        ExampleHelp { description: "Gzipped tar", command: "recon --archive backup.tar.gz config/ logs/" },
+        ExampleHelp { description: "Xz-compressed tar (strongest)", command: "recon --archive release.tar.xz dist/" },
+        ExampleHelp { description: "Extract a zip to a specific directory", command: "recon --extract download.zip -o /tmp/unpack/" },
+        ExampleHelp { description: "Extract a tar.gz (auto-detect by extension)", command: "recon --extract artifact.tar.gz -o /tmp/artifact/" },
+        ExampleHelp { description: "Extract an ambiguously-named archive (magic-byte sniff)", command: "recon --extract blob.dat -o /tmp/out/" },
+    ],
+};
+
 static TOPIC_AGENT_BROWSER: Topic = Topic {
     title: "Browser Automation (agent-browser)",
     description: "recon wraps the external `agent-browser` CLI so scripts can drive a\n\
@@ -1269,6 +1302,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "write-out" | "writeout" | "write_out" => Some(&TOPIC_WRITE_OUT),
         "script" | "scripting" | "rhai" => Some(&TOPIC_SCRIPT),
         "agent-browser" | "agentbrowser" | "browser" => Some(&TOPIC_AGENT_BROWSER),
+        "archive" | "zip" | "tar" | "extract" => Some(&TOPIC_ARCHIVE),
         _ => None,
     }
 }
@@ -1340,6 +1374,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "write-out",
         "script",
         "agent-browser",
+        "archive",
     ]
 }
 

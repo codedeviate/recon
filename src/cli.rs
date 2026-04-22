@@ -21,7 +21,7 @@ pub struct Args {
     // ── Positional (renders under Arguments; no help_heading) ────────────────
 
     /// URL to request (or use --url)
-    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni", "jwt_view", "jwt_sign", "jwt_validate", "netstatus", "editor_cleanup", "sample", "sample_list", "hash", "hash_list", "compress", "decompress", "compress_list", "encode", "encode_list", "encrypt", "decrypt", "encrypt_keygen", "checkdigit", "checkdigit_create", "checkdigit_list", "script", "init", "browser_screenshot"])]
+    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni", "jwt_view", "jwt_sign", "jwt_validate", "netstatus", "editor_cleanup", "sample", "sample_list", "hash", "hash_list", "compress", "decompress", "compress_list", "encode", "encode_list", "encrypt", "decrypt", "encrypt_keygen", "checkdigit", "checkdigit_create", "checkdigit_list", "script", "init", "browser_screenshot", "archive", "extract"])]
     pub url: Option<String>,
 
     // ── HTTP Request ─────────────────────────────────────────────────────────
@@ -633,6 +633,20 @@ pub struct Args {
     #[arg(long = "browser-screenshot", value_name = "URL", help_heading = "Browser")]
     pub browser_screenshot: Option<String>,
 
+    /// Create an archive. Format inferred from DEST's extension:
+    /// .zip / .tar / .tar.gz (.tgz) / .tar.xz (.txz) / .tar.bz2 (.tbz2).
+    /// Remaining positional args after DEST are the sources to include
+    /// (files or directories; directories are recursed). Sources are
+    /// collected via the same argv pre-split that handles `--script`.
+    #[arg(long = "archive", value_name = "DEST", help_heading = "Archive")]
+    pub archive: Option<PathBuf>,
+
+    /// Extract an archive. Format inferred from SRC's extension or from
+    /// magic bytes. Destination defaults to the current directory; pass
+    /// `-o DIR` to change it.
+    #[arg(long = "extract", value_name = "SRC", help_heading = "Archive")]
+    pub extract: Option<PathBuf>,
+
     /// Run a Rhai script instead of performing a request. Exposes `http()`,
     /// `tcp()`, `ping()`, `dns()`, `tls()`, `redis()`, `ws()` and more;
     /// script `return N` becomes the process exit code. If PATH isn't found
@@ -752,13 +766,16 @@ impl Args {
 
     /// Split argv into `(for_clap, trailing_script_args)`. Exposed on
     /// `Args` so `main.rs` and test helpers share one implementation.
+    /// Also handles `--archive PATH` — trailing args after DEST go to
+    /// the same `script_args` field (it doubles as "trailing positional
+    /// sources" for both flags; mutual exclusion is enforced at dispatch).
     pub fn split_script_trailing(raw: &[String]) -> (Vec<String>, Vec<String>) {
         for (i, tok) in raw.iter().enumerate() {
-            if tok == "--script" {
+            if tok == "--script" || tok == "--archive" {
                 let boundary = (i + 2).min(raw.len());
                 return (raw[..boundary].to_vec(), raw[boundary..].to_vec());
             }
-            if tok.starts_with("--script=") {
+            if tok.starts_with("--script=") || tok.starts_with("--archive=") {
                 let boundary = (i + 1).min(raw.len());
                 return (raw[..boundary].to_vec(), raw[boundary..].to_vec());
             }

@@ -8,6 +8,20 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-04-22
+
+### Added
+
+- **`--archive DEST FILE...`** creates an archive from one or more files or directories. Format is inferred from DEST's extension: `.zip`, `.tar`, `.tar.gz` / `.tgz`, `.tar.xz` / `.txz`, `.tar.bz2` / `.tbz2`. Directory sources are archived recursively. Trailing positional args after DEST are captured via the same argv pre-split that handles `--script` trailing args.
+- **`--extract SRC [-o DIR]`** extracts an archive into `DIR` (default: current directory). Format inferred from SRC's extension first, then from magic bytes (so `.dat` that's actually a ZIP still works). Magic sniff covers ZIP (`PK\x03\x04`), gzip (`1f 8b`), xz (`fd 37 7a 58 5a 00`), bzip2 (`BZh`), and tar (`ustar` at offset 257).
+- New `recon --help archive` topic (aliases: `zip`, `tar`, `extract`) documenting the format table, output conventions, and magic-byte fallback for `--extract`. `recon --examples` gains an ARCHIVES section.
+
+### Changed
+
+- New direct deps: `zip = "2"` (features `deflate`, `bzip2`) and `tar = "0.4"`. Reuses `flate2` / `xz2` / `bzip2` (all already in the tree after 0.34.0) for tar+compression combinations.
+- `Args::split_script_trailing` extended to also split on `--archive <DEST>`; trailing positional args go into `script_args` for both flags (mutual exclusion enforced at dispatch — `--archive` and `--script` would otherwise fight for the same vec).
+- `src/archive.rs` is the new module owning both CLI flags + the per-format create/extract implementations. Includes a ~30-line in-module `walkdir` helper to avoid pulling a dep for directory recursion.
+
 ## [0.34.0] - 2026-04-22
 
 ### Added

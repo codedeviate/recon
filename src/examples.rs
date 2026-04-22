@@ -623,6 +623,25 @@ pub fn print() {
     ]);
     note("Level aliases (fastest/fast/default/good/best) map to each algorithm's native scale. See --help compression for the word-to-number table.");
 
+    section("ARCHIVES (zip / tar / tar.gz / tar.xz / tar.bz2)");
+
+    example("Create a zip from multiple files", &[
+        "recon --archive report.zip notes.md summary.md",
+    ]);
+    example("Tar a directory (no compression)", &[
+        "recon --archive src.tar src/",
+    ]);
+    example("Gzipped / xz-compressed / bzipped tar", &[
+        "recon --archive backup.tar.gz config/ logs/",
+        "recon --archive release.tar.xz dist/",
+        "recon --archive snap.tar.bz2 data/",
+    ]);
+    example("Extract into a chosen directory", &[
+        "recon --extract download.zip -o /tmp/unpack/",
+        "recon --extract artifact.tar.gz -o /tmp/artifact/",
+    ]);
+    note("Archive format is inferred from the destination extension for --archive, and from the source extension (plus magic-byte sniff as fallback) for --extract. Supported: .zip, .tar, .tar.gz / .tgz, .tar.xz / .txz, .tar.bz2 / .tbz2.");
+
     section("ENCODING");
 
     example("QR code to terminal (ASCII)", &[

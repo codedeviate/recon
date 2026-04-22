@@ -52,6 +52,22 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 37. Archive tools: `--archive` / `--extract` (0.35.0)
+
+Ships the zip / tar / tar.gz / tar.xz / tar.bz2 archive workflow as two unified CLI flags rather than four or six format-specific ones. `--archive DEST FILE...` creates, `--extract SRC [-o DIR]` unpacks. Format inferred from the extension: `.zip`, `.tar`, `.tar.gz` / `.tgz`, `.tar.xz` / `.txz`, `.tar.bz2` / `.tbz2`.
+
+**Unified flags vs per-format flags.** The alternative was `--zip` / `--unzip` / `--tar` / `--untar` + a `--tar-compress` companion. That grows the flag surface and forces users to memorise which flag pairs with which. Extension-based detection cleanly maps user-intent onto the filename they type anyway — `recon --archive backup.tar.gz ...` is self-describing without needing a `--compress=gzip` follow-up.
+
+**Trailing positional sources via argv pre-split.** Clap's derive model binds the first positional to `Args.url`; a Vec field would eat everything after, fighting with url. The `--script`-era solution was to pre-split argv before clap sees it — `split_script_trailing` in cli.rs splits on `--script PATH`, everything after populates `script_args`. This release extends that function to also split on `--archive DEST`. Both flags share the same `script_args` Vec as a "trailing positional sources" slot, with mutual-exclusion enforced implicitly by the dispatch order in main.rs (archive checked before script). No new clap attributes, no fight with `url`'s positional binding.
+
+**Magic-byte fallback for `--extract`.** Extension-based detection is primary, but some downloads arrive with opaque names (`.dat`, `.bin`). `detect_from_magic` reads the first 512 bytes and checks for PK\x03\x04 (ZIP), 1f 8b (gzip → tar.gz assumed), fd 37 7a 58 5a 00 (xz → tar.xz), BZh (bzip2 → tar.bz2), and `ustar` at offset 257 (uncompressed tar). Detection is used only when extension-based detection returns None, so extension wins when both are present (which covers the common case of archives named correctly).
+
+**In-module walkdir.** Recursive directory listing is a 30-line `std::fs::read_dir` recursion. Adding the `walkdir` crate for this alone didn't feel worthwhile — the in-module helper under `archive::walkdir` does the job, returns a simple `Vec<Entry>`, and keeps the dep tree one crate smaller.
+
+**Omitted deliberately.** Password-protected ZIP (zip crate supports AES but adds aes/hmac crates to the tree), symlink / xattr preservation beyond crate defaults, include/exclude patterns, list / dry-run mode, stdin / stdout streaming, 7z / rar (no mature pure-Rust library for either), multi-volume archives.
+
+**Deps added: two.** `zip = "2"` (features `deflate`, `bzip2`; no AES) and `tar = "0.4"`. `flate2` / `xz2` / `bzip2` are all reused from 0.34.0, no new stream-compression deps.
+
 ### 36. Four more stream-compression algos: lz4, xz, snappy, zlib (0.34.0)
 
 Picks up the four long-parked OUT-OF-SCOPE items from the compression track. Five → nine algorithms in `--compress` / `--decompress`. Each one slotted into the existing `Algo` / `parse_algo` / `compress` / `decompress` machinery with minimal surface change:
