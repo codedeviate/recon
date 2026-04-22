@@ -2,13 +2,20 @@
 
 pub mod agent_browser;
 pub mod archive;
+pub mod checkdigit;
 pub mod cli;
 pub mod compression;
 pub mod dict;
 pub mod dns;
+pub mod email;
+pub mod encode;
+pub mod encrypt;
 pub mod file;
 pub mod hash;
 pub mod helpers;
+pub mod jwt;
+pub mod netstatus;
+pub mod sample;
 pub mod http;
 pub mod ldap;
 pub mod memcached;

@@ -52,6 +52,28 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 42. Script parity for encode / encrypt / checkdigit / sample / jwt / email / netstatus (0.40.0)
+
+Closes the remaining script-binding gaps. Seven new static modules, one per feature group that had a CLI flag but no script surface.
+
+**encode.** `encode::qr` / `datamatrix` / `barcode` wrap the existing `src/encode.rs::encode()` + renderers. Returns PNG Blob by default; `encode::encode(fmt, data, "ascii"|"svg"|"png")` picks the output form. Zero refactor needed — the core already took primitive inputs.
+
+**encrypt.** Added two new `pub` helpers to `src/encrypt.rs`: `encrypt_bytes_recipients(plain, recipients, armor)` and `decrypt_bytes_identities(ciphertext, identity_paths)` — in-memory wrappers around age's writer/reader APIs. Script binding delegates to them. `keygen()` directly uses `age::x25519::Identity::generate()` and `.expose_secret()`. Passphrase mode is CLI-only because prompting interactively doesn't fit a script context; users who need passphrase encryption can shell out to `recon --encrypt`.
+
+**checkdigit.** The registry already exposed `SPECS` (array of `&'static Spec` with `verify_fn` / `create_fn` function pointers) and `resolve(name)`. Binding calls them directly — no refactor.
+
+**sample.** The CLI's generation path is request-based (fetches from remote URLs). For scripts, generation is redundant with `http()`, so the binding is informational only: `list()`, `spec(name)`, `url(name, format)` surface the built-in registry metadata. Documented as a deliberate design choice.
+
+**jwt.** Three primitives already existed: `parse_input`, `sign_claims`, `check_token`. The binding wraps them with a Rhai Map ↔ serde_json::Value converter (essentially the same shape as the `json_stringify` converter shipped in 0.27.0). Signature verification via `check_token` returns a Vec of `CheckResult` — the binding aggregates into a single `#{valid, checks, header, payload}` map.
+
+**email.** Each of the six checks (SPF/DMARC/DKIM/MTA-STS/BIMI/TLS-RPT) is an `async fn check(&TokioAsyncResolver, host [, selector [, insecure]]) -> anyhow::Result<CheckResult>`. Binding builds a throwaway current-thread runtime per call, spins a default-config hickory resolver inside it, awaits the check. The futures aren't `Send` (hickory internals), so the binding uses non-Send `Pin<Box<dyn Future>>` — fine because the current-thread runtime doesn't need Send. `email::all(host)` runs five of them back-to-back in one runtime for efficiency.
+
+**netstatus.** Promoted `probe_http` and `probe_tcp` to `pub(crate)` (they already returned a structured `ProbeResult`). Binding runs a default set (HTTP to example.com + TCP to 1.1.1.1:443 + TCP to 8.8.8.8:53) in `check()` and aggregates via the existing `overall_status()` helper. Individual probes exposed for custom configurations.
+
+**Verification.** Single smoke script that exercises all 5 local-only bindings (qr, Luhn verify, sample list, JWT round-trip, age keygen) passes end-to-end. Email + netstatus need network; ignored tests are `#[ignore]` by default.
+
+**Tests added: +23.** 945 → 968 total, 2 ignored.
+
 ### 41. Custom DNS resolvers (0.39.0)
 
 Third of three curl-compat round-out releases. HTTP requests gain a custom DNS path that doesn't go through the system's `getaddrinfo`.

@@ -294,6 +294,72 @@ pub fn decrypt_streaming(
     Ok(())
 }
 
+/// In-memory recipient encryption. Used by the script binding where a
+/// blob of plaintext + list of age recipient strings (either `age1...`
+/// literals or paths to identity files) is the natural input.
+pub fn encrypt_bytes_recipients(
+    plaintext: &[u8],
+    recipients: &[String],
+    armor: bool,
+) -> Result<Vec<u8>> {
+    if recipients.is_empty() {
+        return Err(anyhow!(
+            "encrypt_bytes_recipients: recipient list must not be empty"
+        ));
+    }
+    let resolved = resolve_recipients(recipients)?;
+    let encryptor = age::Encryptor::with_recipients(
+        resolved.iter().map(|b| b.as_ref() as &dyn age::Recipient),
+    )
+    .map_err(|e| anyhow!("encrypt: {e}"))?;
+
+    let mut out: Vec<u8> = Vec::new();
+    if armor {
+        let armored =
+            age::armor::ArmoredWriter::wrap_output(&mut out, age::armor::Format::AsciiArmor)
+                .map_err(|e| anyhow!("armor: {e}"))?;
+        let mut writer = encryptor
+            .wrap_output(armored)
+            .map_err(|e| anyhow!("encrypt: {e}"))?;
+        std::io::Write::write_all(&mut writer, plaintext)?;
+        let armored = writer.finish().map_err(|e| anyhow!("encrypt finish: {e}"))?;
+        armored.finish().map_err(|e| anyhow!("armor finish: {e}"))?;
+    } else {
+        let mut writer = encryptor
+            .wrap_output(&mut out)
+            .map_err(|e| anyhow!("encrypt: {e}"))?;
+        std::io::Write::write_all(&mut writer, plaintext)?;
+        writer.finish().map_err(|e| anyhow!("encrypt finish: {e}"))?;
+    }
+    Ok(out)
+}
+
+/// In-memory recipient decryption. `identity_paths` are filesystem paths
+/// to age identity files. Scripts can't cleanly pass the raw key string
+/// because age's public API loads identities via file readers — if you
+/// want to decrypt an in-memory identity, write it to a temp file first.
+pub fn decrypt_bytes_identities(
+    ciphertext: &[u8],
+    identity_paths: &[std::path::PathBuf],
+) -> Result<Vec<u8>> {
+    if identity_paths.is_empty() {
+        return Err(anyhow!(
+            "decrypt_bytes_identities: identity list must not be empty"
+        ));
+    }
+    let armored = age::armor::ArmoredReader::new(std::io::Cursor::new(ciphertext));
+    let decryptor =
+        age::Decryptor::new_buffered(armored).map_err(|e| anyhow!("decrypt header: {e}"))?;
+    let identities = resolve_identities(identity_paths)?;
+    let id_refs: Vec<&dyn age::Identity> = identities.iter().map(|b| b.as_ref()).collect();
+    let mut reader = decryptor
+        .decrypt(id_refs.into_iter())
+        .map_err(|e| anyhow!("decryption failed: {e}"))?;
+    let mut out = Vec::new();
+    std::io::Read::read_to_end(&mut reader, &mut out)?;
+    Ok(out)
+}
+
 pub fn run_encrypt(args: &crate::cli::Args) -> Result<()> {
     let source_kind = crate::source::resolve(args)?;
     let reader = crate::source::open(source_kind.clone(), args)?;

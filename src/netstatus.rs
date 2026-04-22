@@ -98,7 +98,7 @@ pub fn overall_status(results: &[ProbeResult]) -> &'static str {
 
 // ── Probe runners ─────────────────────────────────────────────────────────────
 
-fn probe_http(url: &str) -> ProbeResult {
+pub(crate) fn probe_http(url: &str) -> ProbeResult {
     let label = url.to_string();
     let result = (|| -> anyhow::Result<String> {
         let client = reqwest::blocking::Client::builder()
@@ -117,7 +117,7 @@ fn probe_http(url: &str) -> ProbeResult {
     }
 }
 
-fn probe_tcp(host: &str, port: u16) -> ProbeResult {
+pub(crate) fn probe_tcp(host: &str, port: u16) -> ProbeResult {
     let label = format!("tcp://{}:{}", host, port);
     let result = (|| -> anyhow::Result<String> {
         let start = Instant::now();

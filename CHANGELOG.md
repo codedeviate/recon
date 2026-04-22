@@ -8,6 +8,26 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.40.0] - 2026-04-22
+
+### Added
+
+Seven new Rhai static modules exposing CLI features that previously had no script surface. Brings script parity back in line with the CLI after several releases' worth of new flags.
+
+- **`encode::*`** — QR / DataMatrix / 1D barcode generation. `encode::qr(data)` / `datamatrix(data)` / `barcode(format, data)` return PNG Blobs; `encode::encode(format, data, "ascii" | "svg" | "png")` switches output form; `encode::list()` enumerates formats.
+- **`encrypt::*`** — age encryption. `encrypt(plaintext, [recipients])` / `encrypt_armored(...)` produce binary / ASCII-armored Blobs; `decrypt(ciphertext, [identity_paths])` reverses; `keygen()` returns `#{ public: "age1...", private: "AGE-SECRET-KEY-1..." }`. Passphrase mode is CLI-only (scripts shouldn't prompt interactively).
+- **`checkdigit::*`** — 80+ check-digit algorithms (VAT per-country, ISBN, EAN-13, Luhn, VIN, credit card, etc.). `verify(algo, input)` → bool, `inspect(algo, input)` → detailed map, `create(algo, body)` appends the check digit, `list()` enumerates all algorithms.
+- **`sample::*`** — informational for the built-in sample-data registry. `list()` / `spec(name)` / `url(name, format)`. Actual fetching uses `http()` explicitly.
+- **`jwt::*`** — HS256 / HS384 / HS512 sign + verify. `sign(claims_map, secret [, alg])` returns a token string, `validate(token, secret)` returns `#{valid, checks, header, payload}`, `view(token_or_json)` decodes without verification.
+- **`email::*`** — DNS-based email-security checks. `spf(host)` / `dmarc(host)` / `dkim(host, selector)` / `mta_sts(host)` / `bimi(host [, selector])` / `tls_rpt(host)` each return `#{name, verdict, summary, details}`. `email::all(host)` runs five of them and returns a composite map.
+- **`netstatus::*`** — network-reachability probes. `check()` runs a default HTTP + TCP probe set and returns `#{status, probes, passed, total}` with status being `"ONLINE"` / `"DEGRADED"` / `"OFFLINE"`. `probe_http(url)` / `probe_tcp(host, port)` expose individual probes.
+
+### Changed
+
+- New public helper `encrypt::encrypt_bytes_recipients` / `decrypt_bytes_identities` in `src/encrypt.rs` — in-memory age encryption used by the script binding (and available for future CLI refactors).
+- `netstatus::probe_http` / `probe_tcp` promoted to `pub(crate)` so the script binding can call them directly.
+- TOPIC_SCRIPT help topic gets seven new FLAGS entries covering the new modules.
+
 ## [0.39.0] - 2026-04-22
 
 ### Added
