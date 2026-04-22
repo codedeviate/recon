@@ -141,6 +141,29 @@ pub struct Args {
     #[arg(long = "speed-time", value_name = "SECS", default_value_t = 30, help_heading = "HTTP Request")]
     pub speed_time: u64,
 
+    /// Comma-separated list of custom DNS servers to use for name
+    /// resolution. Accepts `IP` (port 53 assumed) or `IP:PORT`.
+    /// Example: `--dns-servers 1.1.1.1,8.8.8.8:5353`.
+    #[arg(long = "dns-servers", value_name = "LIST", help_heading = "DNS")]
+    pub dns_servers: Option<String>,
+
+    /// Local IPv4 address to bind outgoing DNS queries to. Use with
+    /// `--dns-servers` (an implicit default of 1.1.1.1:53 applies
+    /// otherwise).
+    #[arg(long = "dns-ipv4-addr", value_name = "IP", help_heading = "DNS")]
+    pub dns_ipv4_addr: Option<String>,
+
+    /// Local IPv6 address to bind outgoing DNS queries to.
+    #[arg(long = "dns-ipv6-addr", value_name = "IP", help_heading = "DNS")]
+    pub dns_ipv6_addr: Option<String>,
+
+    /// Bind DNS queries to a specific named interface (e.g. `eth0`).
+    /// Not yet plumbed — recon currently errors out if this is set.
+    /// Use `--dns-ipv4-addr` / `--dns-ipv6-addr` with the interface's
+    /// literal address as a workaround.
+    #[arg(long = "dns-interface", value_name = "IFACE", help_heading = "DNS")]
+    pub dns_interface: Option<String>,
+
     /// HTTP Basic auth or SSH username; format: user or user:pass
     #[arg(short = 'u', long = "user", value_name = "USER:PASS", help_heading = "Auth & TLS")]
     pub user: Option<String>,

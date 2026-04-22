@@ -131,6 +131,11 @@ Comma-separated DNS record types to query.\n\
 \n\
 When explicit types are given, empty results and errors are shown\n\
 (normally suppressed for default types)." },
+
+        FlagHelp { flags: "--dns-servers <LIST>", description: "Comma-separated list of custom DNS servers for HTTP-request\nname resolution. Accepts `IP` (port 53 implied) or `IP:PORT`.\nExamples: 1.1.1.1,8.8.8.8 or 1.1.1.1:5353,9.9.9.9." },
+        FlagHelp { flags: "--dns-ipv4-addr <IP>", description: "Local IPv4 address to bind outgoing DNS queries to. Used with\n--dns-servers (defaults to 1.1.1.1:53 if --dns-servers is unset)." },
+        FlagHelp { flags: "--dns-ipv6-addr <IP>", description: "Local IPv6 address to bind outgoing DNS queries to." },
+        FlagHelp { flags: "--dns-interface <IFACE>", description: "Named-interface DNS binding (`eth0`, `en0`). Not yet plumbed;\nerrors out. Use --dns-ipv4-addr / --dns-ipv6-addr with the\ninterface's literal address as a workaround." },
     ],
     related: &["--cert", "--spf", "--dmarc"],
     examples: &[

@@ -231,6 +231,12 @@ pub fn print() {
     ]);
     note("Interface *names* (eth0, en0) are not yet resolved; pass the address directly.");
 
+    example("Custom DNS resolver for HTTP requests", &[
+        "recon --dns-servers 1.1.1.1,8.8.8.8 https://example.com",
+        "recon --dns-servers 1.1.1.1:5353 --dns-ipv4-addr 10.0.0.5 https://example.com",
+    ]);
+    note("--dns-servers accepts comma-separated `IP` or `IP:PORT`. --dns-ipv4-addr / --dns-ipv6-addr bind DNS queries to a specific local address. --dns-interface (named interface) is not yet plumbed; use the address form for now.");
+
     example("Rate control and slow-transfer abort", &[
         "recon --limit-rate 500K https://example.com/big.bin -o big.bin",
         "recon --limit-rate 2M https://cdn/data -o data.bin",

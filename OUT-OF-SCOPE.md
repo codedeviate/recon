@@ -47,7 +47,7 @@ Grouped by category. When an item from here ships in a future release, remove it
 - **`-w` `%{output{filename}}`** — redirect part of output to a specific file. Niche.
 - **Interface name resolution for `--interface`** — `--interface eth0` / `en0` lookup. Current impl accepts IP literals only. Unix would need `if_nametoindex` + `getifaddrs`; Windows wants `GetAdapterAddresses`. Defer until someone asks.
 - **`--engine`** — OpenSSL crypto engine selection. N/A under rustls.
-- **`--dns-servers` / `--dns-interface` / `--dns-ipv4-addr` / `--dns-ipv6-addr`** — custom DNS override. Planned for a follow-up release; requires building a hickory-backed resolver and plugging it into reqwest's `Resolve` trait.
+- **`--dns-interface`** — bind DNS queries to a named interface. Accepted at the CLI but not yet plumbed; hickory 0.24's `NameServerConfig::bind_addr` takes a SocketAddr (IP + port), not an interface name. Socket-level `SO_BINDTODEVICE` (Linux) / `IP_BOUND_IF` (macOS) would need a custom hickory socket factory. Use `--dns-ipv4-addr` / `--dns-ipv6-addr` with the literal address as a workaround.
 
 ### SMTP / SMTPS (mail delivery)
 

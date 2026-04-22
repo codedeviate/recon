@@ -129,6 +129,10 @@ fn build_args(
     args.limit_rate = defaults.limit_rate.clone();
     args.speed_limit = defaults.speed_limit;
     args.speed_time = defaults.speed_time;
+    args.dns_servers = defaults.dns_servers.clone();
+    args.dns_ipv4_addr = defaults.dns_ipv4_addr.clone();
+    args.dns_ipv6_addr = defaults.dns_ipv6_addr.clone();
+    args.dns_interface = defaults.dns_interface.clone();
 
     if let Some(o) = opts {
         if let Some(m) = opts_get_str(o, "method") {
@@ -176,6 +180,18 @@ fn build_args(
         }
         if let Some(n) = opts_get_u64(o, "speed_time") {
             args.speed_time = n;
+        }
+        if let Some(s) = opts_get_str(o, "dns_servers") {
+            args.dns_servers = Some(s);
+        }
+        if let Some(s) = opts_get_str(o, "dns_ipv4_addr") {
+            args.dns_ipv4_addr = Some(s);
+        }
+        if let Some(s) = opts_get_str(o, "dns_ipv6_addr") {
+            args.dns_ipv6_addr = Some(s);
+        }
+        if let Some(s) = opts_get_str(o, "dns_interface") {
+            args.dns_interface = Some(s);
         }
     }
     Ok(args)

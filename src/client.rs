@@ -79,6 +79,13 @@ pub fn execute(args: &Args) -> Result<(Response, RequestMetrics)> {
         builder = builder.local_address(ip);
     }
 
+    // --dns-servers / --dns-ipv4-addr / --dns-ipv6-addr: install a
+    // custom hickory-backed resolver. When none of these flags are set,
+    // reqwest uses its default getaddrinfo path.
+    if let Some(resolver) = crate::dns_resolver::build_from_args(args)? {
+        builder = builder.dns_resolver(resolver);
+    }
+
     // --max-time: total operation timeout. Accepts fractional seconds.
     if let Some(max) = args.max_time {
         builder = builder.timeout(Duration::from_millis((max * 1000.0) as u64));

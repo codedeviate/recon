@@ -52,6 +52,24 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 41. Custom DNS resolvers (0.39.0)
+
+Third of three curl-compat round-out releases. HTTP requests gain a custom DNS path that doesn't go through the system's `getaddrinfo`.
+
+**`--dns-servers <LIST>`**. Comma-separated `IP` or `IP:PORT`. Parser accepts both forms; default port 53. Each server is registered twice in hickory's `ResolverConfig` — once as UDP, once as TCP — matching the behaviour of the default system resolvers (UDP with TCP fallback on truncation).
+
+**`--dns-ipv4-addr` / `--dns-ipv6-addr`**. Bind addresses for outgoing DNS queries. Set on `NameServerConfig::bind_addr` per-protocol-family. When one of these is set without `--dns-servers`, the resolver defaults to `1.1.1.1:53` rather than the system servers — system resolvers don't honour the bind address, so inheriting them would silently void the user's setting. Better to be explicit.
+
+**`--dns-interface`**. Accepted but not plumbed. hickory 0.24's public API binds via `SocketAddr` only; interface-name binding would need a custom socket factory using `SO_BINDTODEVICE` (Linux) or `IP_BOUND_IF` (macOS). Rather than ship a half-working flag, recon errors out with a pointer at `--dns-ipv4-addr` / `--dns-ipv6-addr`. Documented in OUT-OF-SCOPE.
+
+**Resolver impl.** `CustomResolver` wraps an `Arc<TokioAsyncResolver>`. `Resolve::resolve` returns `Box::pin(async move { inner.lookup_ip(host).await.map(...) })` — delegates directly to hickory's native async API. No blocking shim needed because reqwest's blocking client runs the connector inside a current-thread runtime it owns.
+
+**reqwest compatibility wrinkles.** `reqwest::dns::Name` doesn't impl `Display` — `as_str()` method returns `&str`. Both `tls_config` and certain hickory `NameServerConfig` fields in reqwest's own examples are version-skewed; hickory 0.24 dropped `tls_config` from the public struct. Caught both during the first build iteration.
+
+**Script parity.** Four opts keys on `http(url, opts)`: `dns_servers`, `dns_ipv4_addr`, `dns_ipv6_addr`, `dns_interface`. Same behaviour as CLI — `dns_interface` errors out even from scripts.
+
+**Smoke verification (four cases pass):** `--dns-servers 1.1.1.1` against example.com succeeds; unreachable `127.0.0.1:8` fails with connection timeout after `--connect-timeout`; `--dns-interface eth0` gives the "not yet plumbed" error; malformed input errors at parse time. 945 tests passing; 6 new for nameserver parsing.
+
 ### 40. Rate control: `--limit-rate`, `--speed-limit`, `--speed-time` (0.38.0)
 
 Second of three curl-compat round-out releases. Throttling + slow-transfer abort for HTTP downloads.

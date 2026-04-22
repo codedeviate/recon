@@ -8,6 +8,24 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-04-22
+
+### Added
+
+- **`--dns-servers <LIST>`** overrides DNS resolution for HTTP requests with a comma-separated list of custom nameservers. Accepts `IP` (port 53 implied) or `IP:PORT`. Uses a hickory-backed resolver wired into reqwest's `Resolve` trait; both UDP and TCP fallback paths are registered per server.
+- **`--dns-ipv4-addr <IP>` / `--dns-ipv6-addr <IP>`** bind outgoing DNS queries to a specific local address (per-protocol). When `--dns-ipv4-addr` or `--dns-ipv6-addr` is set without `--dns-servers`, a default of `1.1.1.1:53` is used (system resolvers would ignore the bind address, so falling back to them would silently void the setting).
+- **`--dns-interface <IFACE>`** accepted at the CLI but not yet plumbed — recon errors out with a clear message directing users to `--dns-ipv4-addr` / `--dns-ipv6-addr`. OUT-OF-SCOPE updated with rationale.
+- **Script parity**: all four DNS-override flags available on `http(url, opts)` as `dns_servers`, `dns_ipv4_addr`, `dns_ipv6_addr`, `dns_interface`.
+
+### Changed
+
+- New `src/dns_resolver.rs` module: parses flag values, builds `ResolverConfig` + `NameServerConfig` entries for hickory, and implements `reqwest::dns::Resolve` on a `CustomResolver` type whose `resolve` future delegates to `TokioAsyncResolver::lookup_ip`.
+- `src/client.rs::execute` calls `dns_resolver::build_from_args` and plugs the returned resolver into `ClientBuilder::dns_resolver` when any DNS flag is set; otherwise the default getaddrinfo path remains.
+
+### Removed from OUT-OF-SCOPE.md
+
+- `--dns-servers`, `--dns-ipv4-addr`, `--dns-ipv6-addr` (shipped this release).
+
 ## [0.38.0] - 2026-04-22
 
 ### Added

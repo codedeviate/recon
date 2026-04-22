@@ -6,6 +6,7 @@ mod config;
 mod cookiejar;
 mod dict_probe;
 mod dns;
+mod dns_resolver;
 mod editor;
 mod email;
 mod encode;

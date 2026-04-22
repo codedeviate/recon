@@ -33,6 +33,10 @@ pub struct ScriptDefaults {
     pub limit_rate: Option<String>,
     pub speed_limit: Option<u64>,
     pub speed_time: u64,
+    pub dns_servers: Option<String>,
+    pub dns_ipv4_addr: Option<String>,
+    pub dns_ipv6_addr: Option<String>,
+    pub dns_interface: Option<String>,
 }
 
 impl ScriptDefaults {
@@ -59,6 +63,10 @@ impl ScriptDefaults {
             limit_rate: args.limit_rate.clone(),
             speed_limit: args.speed_limit,
             speed_time: args.speed_time,
+            dns_servers: args.dns_servers.clone(),
+            dns_ipv4_addr: args.dns_ipv4_addr.clone(),
+            dns_ipv6_addr: args.dns_ipv6_addr.clone(),
+            dns_interface: args.dns_interface.clone(),
         }
     }
 }
