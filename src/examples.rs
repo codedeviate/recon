@@ -1132,6 +1132,37 @@ recon --script /tmp/consumer.rhai"#,
     ]);
     note("`import \"name\"` first looks for `name.rhai` next to the running script; if not found, falls back to ~/.recon/script/name.rhai. Scripts in the global dir import sibling modules via the same first resolver.");
 
+    example("Compress and decompress from a script", &[
+        r#"cat > /tmp/compress.rhai <<'EOF'
+// Download + gzip the body + stash to disk.
+let r = https("https://example.com");
+let gz = compression::compress("gzip", r.body.to_blob());
+// (file_write isn't shipped; print sizes instead.)
+print(`${r.body.len()}B -> ${gz.len()}B`);
+// Round-trip sanity.
+let back = compression::decompress(gz);   // auto-detect
+assert(back.len() == r.body.len(), "mismatch");
+return 0;
+EOF
+recon --script /tmp/compress.rhai"#,
+    ]);
+
+    example("Bundle a directory into a tarball from a script", &[
+        r#"cat > /tmp/archive.rhai <<'EOF'
+if args.len() < 2 {
+    print(`usage: ${args[0]} DEST SOURCE [SOURCE...]`);
+    return 1;
+}
+let dest = args[1];
+let sources = [];
+for i in 2..args.len() { sources.push(args[i]); }
+let n = archive::create(dest, sources);
+print(`${n} files archived to ${dest} (${archive::detect(dest)})`);
+return 0;
+EOF
+recon --script /tmp/archive.rhai /tmp/bundle.tar.gz /tmp/src /tmp/data"#,
+    ]);
+
     example("Hash a response body + pretty-print a signed payload", &[
         r#"cat > /tmp/sign.rhai <<'EOF'
 let r = https("https://example.com");

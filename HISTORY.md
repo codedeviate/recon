@@ -52,6 +52,18 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 38. Script parity for compression + archive (0.36.0)
+
+Closes the script-parity gap retroactively for the 0.34.0 and 0.35.0 compression / archive work. Also establishes the policy going forward: every new CLI feature ships a Rhai binding alongside.
+
+**`compression` static module.** All nine algorithms (the five from 0.13.0 + four from 0.34.0) exposed as `compression::compress(algo, blob [, level])` and `compression::decompress([algo,] blob)`. Both delegate to the same `crate::compression::compress` / `decompress` path the CLI uses — `Box<dyn Read>` over an in-memory `Cursor<Vec<u8>>`. Level arg accepts either an integer (per-algo native range) or a word (fastest/fast/default/good/best) via the existing `parse_level` / `resolve_native_level` machinery. Level-less algos (lz4, snappy) throw when a level is passed. `decompress(blob)` without an algo argument auto-detects via `detect_from_magic`; for deflate/brotli (no signature), it throws with a hint.
+
+**`archive` static module.** `create(dest, sources)` and `extract(src, dest_dir)` wrap `crate::archive::create` / `extract` one-to-one, including the extension-based format detection and magic-byte fallback for `extract`. Sources come in as a Rhai Array of path strings. Both functions return the file count as `i64`. `detect(path)` returns the format label (`"zip"` / `"tar.gz"` / …) or `()`.
+
+**Rhai `set_native_fn` quirk.** In rhai 1.24, `Module::set_native_fn` requires closures to return `Result<T, Box<EvalAltResult>>` — plain-value returns don't satisfy the `RhaiNativeFunc<_, _, _, _, true>` trait bound. Fn closures like `compression::list` (infallible) and `detect` (also infallible) had to be wrapped in `Ok(...)` to compile. Worth noting for future static-module additions.
+
+**Policy shift.** Up to now, script bindings were registered function-by-function as new primitives landed. Going forward, any new CLI flag gets a matching script surface in the same release. The three upcoming curl-compat releases (TLS in 0.37.0, rate control in 0.38.0, DNS overrides in 0.39.0) follow this — each adds both a CLI flag and an opts-map field on the relevant script binding.
+
 ### 37. Archive tools: `--archive` / `--extract` (0.35.0)
 
 Ships the zip / tar / tar.gz / tar.xz / tar.bz2 archive workflow as two unified CLI flags rather than four or six format-specific ones. `--archive DEST FILE...` creates, `--extract SRC [-o DIR]` unpacks. Format inferred from the extension: `.zip`, `.tar`, `.tar.gz` / `.tgz`, `.tar.xz` / `.txz`, `.tar.bz2` / `.tbz2`.

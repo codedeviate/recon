@@ -8,6 +8,18 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-04-22
+
+### Added
+
+- **`compression::*` Rhai static module** exposing all nine stream algorithms (gzip, deflate, zstd, brotli, bzip2, lz4, xz, snappy, zlib) to scripts. Functions: `compress(algo, blob [, level])` with integer or word levels (fastest/fast/default/good/best), `decompress(blob)` with magic-byte auto-detect, `decompress(algo, blob)` for explicit algo, `list()` returning algo metadata as an array of maps, `detect(blob)` returning the algorithm name or `()`. Level-less algos (lz4, snappy) reject a level argument with a clear error; deflate/brotli have no signature so auto-detect on them throws "pass the algo explicitly".
+- **`archive::*` Rhai static module** exposing the 0.35.0 archive tools to scripts. Functions: `create(dest, [sources])` returns files-archived count, `extract(src, dest_dir)` creates the destination dir and returns extracted count, `detect(path)` returns the format label (`"zip"`, `"tar.gz"`, …) or `()`. Matches the CLI's format list (.zip / .tar / .tar.gz / .tar.xz / .tar.bz2) and extension-based detection. Extract also falls back to magic-byte sniffing when the extension isn't recognised.
+- Closes the script-parity gap retroactively for 0.34.0 (compression streams) and 0.35.0 (archive flags). Going forward, every new CLI feature ships a script binding alongside.
+
+### Changed
+
+- TOPIC_SCRIPT help topic picks up the two new module entries; `recon --examples` SCRIPTING section adds a compress-and-decompress example and a script-driven archive example.
+
 ## [0.35.0] - 2026-04-22
 
 ### Added

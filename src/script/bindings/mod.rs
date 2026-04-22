@@ -1,7 +1,9 @@
 //! Rhai function bindings: helpers and per-protocol probes.
 
 pub mod agent_browser;
+pub mod archive;
 pub mod cli;
+pub mod compression;
 pub mod dict;
 pub mod dns;
 pub mod file;
