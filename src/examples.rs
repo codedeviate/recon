@@ -1240,7 +1240,46 @@ recon --script /tmp/multi.rhai"#,
     ]);
     note("The repo's script/ directory ships one example per binding module (http, dns, tls, redis, ws, ldap, encode, encrypt, checkdigit, sample, jwt, email, netstatus, sqlite, archive, compression, hash, agent-browser, …). Each script is ~15 lines, documents its args at the top, and exits 0 on success (non-zero when an upstream precondition is missing).");
 
-    note("Available functions: http/https/request, browser(), tcp, ping, dns, tls, ntp, redis, ws/wss, dict, ldap/ldaps, whois, memcached, rtsp/rtsps, mqtt_pub/mqtt_sub, file_read. Module bindings: compression::, archive::, sqlite(), encode::, encrypt::, checkdigit::, sample::, jwt::, email::, netstatus::, agentBrowser::. Hashes: md5, sha1, sha256, sha384, sha512, sha3_256, sha3_512, blake3, crc32, plus hash(algo, x [, \"hex\"|\"base64\"]). Helpers: print, sleep_ms, env, now, now_ms, assert, json_parse, json_stringify. See `recon --help script`.");
+    note("Available functions: http/https/request, browser(), tcp, ping, dns, tls, ntp, redis, ws/wss, dict, ldap/ldaps, whois, memcached, rtsp/rtsps, mqtt_pub/mqtt_sub, file_read. Module bindings: compression::, archive::, sqlite(), encode::, encrypt::, checkdigit::, sample::, jwt::, email::, netstatus::, text::, agentBrowser::. Hashes: md5, sha1, sha256, sha384, sha512, sha3_256, sha3_512, blake3, crc32, plus hash(algo, x [, \"hex\"|\"base64\"]). Helpers: print, sleep_ms, env, now, now_ms, assert, json_parse, json_stringify. See `recon --help script`.");
+
+    section("TEXT ENCODING (charsets)");
+
+    example("Convert a Latin-1 / Windows-1252 response to UTF-8", &[
+        "recon --to-utf8 https://legacy.example.com/api",
+        "recon --output-charset utf-8 https://legacy.example.com/api",
+    ]);
+    note("Source charset detection: `--source-charset NAME` → Content-Type `charset=` → BOM sniff → chardetng heuristic → windows-1252 fallback. Unmappable characters are substituted with `?` and a warning is written to stderr (suppress with `-s`).");
+
+    example("Prettify a Shift_JIS page (forces UTF-8 before prettify)", &[
+        "recon -p --output-charset utf-8 https://legacy.jp/index.html",
+    ]);
+
+    example("POST UTF-8 input to a Perl / legacy service that expects ISO-8859-1", &[
+        r#"recon -X POST \
+      -H 'Content-Type: application/x-www-form-urlencoded; charset=iso-8859-1' \
+      -d 'name=Jörg' \
+      https://perl.example.com/submit"#,
+        r#"recon --request-charset iso-8859-1 -d 'name=Jörg' https://perl.example.com/submit"#,
+    ]);
+    note("The request body is read as UTF-8 from the shell and transcoded before sending whenever an explicit Content-Type charset is set (or `--request-charset` is given). `--request-charset-passthrough` skips this — handy when sending a pre-encoded file.");
+
+    example("Standalone file / stdin conversion (iconv-compatible)", &[
+        "recon --iconv iso-8859-1:utf-8 input.txt -o output.txt",
+        "cat legacy.txt | recon --iconv :utf-8 > utf8.txt        # auto-detect source",
+        "recon --list-charsets                                     # see supported labels",
+    ]);
+
+    example("Script-side charset work (text::*)", &[
+        r#"cat > /tmp/decode.rhai <<'EOF'
+let r = http("https://legacy.example.com/");
+// r.charset is the declared/sniffed charset; r.body_bytes is the raw Blob.
+let utf8 = text::decode(r.body_bytes, r.charset ?? "windows-1252");
+print(utf8);
+return 0;
+EOF
+recon --script /tmp/decode.rhai"#,
+    ]);
+    note("Every http() / browser() response map now includes `body_bytes` (raw Blob) and `charset` (String or `()` when undecidable). Scripts combine these with `text::decode()` / `text::transcode()` for precise control. See `recon --help charset`.");
 
     section("EDITOR OUTPUT");
 

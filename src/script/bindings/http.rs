@@ -86,23 +86,50 @@ fn do_request(
     let (response, metrics) = client::execute(&args).map_err(anyhow_to_rhai)?;
     let status = response.status().as_u16() as i64;
     let final_url = response.url().to_string();
-    let headers_map = headers_to_rhai_map(response.headers());
+    let response_headers = response.headers().clone();
+    let headers_map = headers_to_rhai_map(&response_headers);
     let http_version = metrics.http_version.clone().unwrap_or_else(|| "?".into());
     let body_bytes = response
         .bytes()
         .map_err(|e| err(format!("http: read body: {e}")))?;
     let duration_ms = t0.elapsed().as_millis() as i64;
     let body_str = String::from_utf8_lossy(&body_bytes).to_string();
+    let charset_dyn = response_charset_dynamic(&response_headers, &body_bytes);
 
     let mut result = Map::new();
     result.insert("url".into(), url.to_string().into());
     result.insert("final_url".into(), final_url.into());
     result.insert("status".into(), status.into());
     result.insert("body".into(), body_str.into());
+    result.insert("body_bytes".into(), Dynamic::from(body_bytes.to_vec()));
+    result.insert("charset".into(), charset_dyn);
     result.insert("headers".into(), headers_map.into());
     result.insert("http_version".into(), http_version.into());
     result.insert("duration_ms".into(), duration_ms.into());
     Ok(result)
+}
+
+/// Resolve the response charset the way the CLI does: Content-Type
+/// `charset=` first, then a chardetng sniff. Returns the encoding label
+/// as a Rhai String, or `()` when sniffing yielded nothing useful.
+pub(crate) fn response_charset_dynamic(
+    headers: &reqwest::header::HeaderMap,
+    bytes: &[u8],
+) -> Dynamic {
+    if let Some(ct) = headers
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+    {
+        if let Some(c) = crate::text_encoding::parse_content_type_charset(ct) {
+            return c.into();
+        }
+    }
+    let d = crate::text_encoding::detect(bytes);
+    if d.had_bom || !bytes.is_empty() {
+        d.charset.to_string().into()
+    } else {
+        Dynamic::UNIT
+    }
 }
 
 pub(crate) fn build_args(

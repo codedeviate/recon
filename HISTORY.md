@@ -52,6 +52,31 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 45. Text encoding (charsets, iconv) — 0.43.0
+
+Motivating use case: a PHP service talking UTF-8 and a Perl service talking ISO-8859-1 that exchange data via recon. Before 0.43.0, non-UTF-8 responses were silently mangled (`response.text()` lossy-decodes as UTF-8), and request bodies were sent as the shell's UTF-8 regardless of the declared Content-Type charset. Three silent traps fixed in one release.
+
+**Library choices.** `encoding_rs 0.8` (the WHATWG-compliant charset crate that Servo and `reqwest`'s internals already depend on) + `chardetng 0.1` (Mozilla's pure-Rust heuristic auto-detector). Both are the canonical picks; no alternative was seriously considered. Combined binary-size impact: ~220 KB.
+
+**Source-charset priority.** Locked at design time: explicit `--source-charset` > response `Content-Type: ...; charset=NAME` > BOM sniff > chardetng heuristic > windows-1252 fallback. The fallback matches browser behaviour (HTML5 spec says windows-1252 for text/* without a declared charset). Users who want strictness can pass `--source-charset` explicitly.
+
+**Where transcoding plugs in.**
+- *Response side:* `src/output.rs::write_response_to` had two paths — a prettify path that already buffered via `response.text()` and a raw path that streamed via `io::copy`. When `--output-charset` is set, both paths now buffer via `response.bytes()` and transcode. The streaming zero-copy path is preserved verbatim when no charset flag is set — critical for multi-GB binary downloads.
+- *Request side:* every `request.body(...)` call site in `src/client.rs` (six of them, one per body-source flag) routes through a new `apply_request_body()` helper. Helper checks `--request-charset-passthrough` first, then `--request-charset` explicit, then scans `args.header` for an explicit `Content-Type: ...; charset=X`. UTF-8 targets pass through; anything else gets decoded-then-re-encoded via `encoding_rs`.
+
+**Unmappable characters.** Substituted with `?` and a stderr warning (suppressed by `-s`). Matches iconv's `-c` default. An emoji destined for ISO-8859-1 becomes `?`; a French accented letter passes through fine.
+
+**Script surface.** `text::*` static module mirrors the `compression::*` / `archive::*` pattern. Key insight: since scripts already get `r.body` as a lossy UTF-8 String, the fix isn't to change `body` (breaks scripts that today decode ASCII fine); it's to *add* `body_bytes` (raw Blob) and `charset` (resolved String or `()`) alongside. Scripts that need correctness use `text::decode(r.body_bytes, r.charset ?? "windows-1252")` — one line — and scripts that were already handling ASCII keep working unchanged.
+
+**Standalone `--iconv` mode.** Once the core transcoding helper existed, exposing it as a file/stdin mode cost ~80 lines in `src/iconv.rs`. Format matches `iconv(1)`'s `-f FROM -t TO` but packed into a single `FROM:TO` flag for parseability. Blank `FROM` means auto-detect — niche but occasionally useful when the source format is unknown. Early-intercept in `main.rs` alongside `--init` / `--browser-screenshot`; no HTTP pipeline involvement.
+
+**Tests added: +39.** 979 → 1018 total. Breakdown: `text_encoding::tests` (17 — resolve/alias/parse-content-type/transcode/detect/strip_bom/encode), `iconv::tests` (4 — spec parsing), `text` binding tests (11 — scripting round-trips), `charset_it.rs` integration (7 — end-to-end wiremock).
+
+**Named gotchas during implementation.**
+1. `parse_content_type_charset` initially used `?` on `split_once('=')` inside the per-part loop — first part `"text/html"` has no `=`, so the whole function returned None. Fixed with `let-else continue`.
+2. `list_charsets` and `iconv` needed to be added to the `required_unless_present_any` list on the positional `url` arg, or clap enforced a URL argument before the early-intercept code could run.
+3. The script response-charset sniff has to clone `response.headers()` into an owned `HeaderMap` because `response.bytes()` moves `response` — a common reqwest snag.
+
 ### 44. Scriptable `browser()` with sticky sessions (0.42.0)
 
 Until now every `http(url, opts)` call rebuilt a reqwest client from scratch, loaded the jar from `args.cookiejar` if set at CLI level, and threw the client away. Scripts that wanted session-sticky behaviour had to either copy the same opts map on every line or reach for `sqlite("cookiejar:NAME")` and hand-apply cookie rules. `browser()` gives scripts a stateful handle that holds configuration + a jar across calls. Script-only; no CLI flag maps here.

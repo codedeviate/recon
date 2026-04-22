@@ -21,7 +21,7 @@ pub struct Args {
     // ── Positional (renders under Arguments; no help_heading) ────────────────
 
     /// URL to request (or use --url)
-    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni", "jwt_view", "jwt_sign", "jwt_validate", "netstatus", "editor_cleanup", "sample", "sample_list", "hash", "hash_list", "compress", "decompress", "compress_list", "encode", "encode_list", "encrypt", "decrypt", "encrypt_keygen", "checkdigit", "checkdigit_create", "checkdigit_list", "script", "init", "browser_screenshot", "archive", "extract"])]
+    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni", "jwt_view", "jwt_sign", "jwt_validate", "netstatus", "editor_cleanup", "sample", "sample_list", "hash", "hash_list", "compress", "decompress", "compress_list", "encode", "encode_list", "encrypt", "decrypt", "encrypt_keygen", "checkdigit", "checkdigit_create", "checkdigit_list", "script", "init", "browser_screenshot", "archive", "extract", "iconv", "list_charsets"])]
     pub url: Option<String>,
 
     // ── HTTP Request ─────────────────────────────────────────────────────────
@@ -140,6 +140,46 @@ pub struct Args {
     /// Window in seconds for `--speed-limit` (default: 30).
     #[arg(long = "speed-time", value_name = "SECS", default_value_t = 30, help_heading = "HTTP Request")]
     pub speed_time: u64,
+
+    /// Transcode the response body to this charset before prettify
+    /// or write (e.g. `--output-charset utf-8`). Detection priority:
+    /// explicit `--source-charset` > Content-Type charset > sniff >
+    /// windows-1252 fallback. Use `--list-charsets` for supported labels.
+    #[arg(long = "output-charset", value_name = "NAME", help_heading = "Text Encoding")]
+    pub output_charset: Option<String>,
+
+    /// Override the source charset the server declared (or when none
+    /// was declared). Only meaningful together with `--output-charset`.
+    #[arg(long = "source-charset", value_name = "NAME", help_heading = "Text Encoding")]
+    pub source_charset: Option<String>,
+
+    /// Shorthand for `--output-charset utf-8`. Convenient when talking
+    /// to a legacy ISO-8859-1 / Windows-1252 service from a UTF-8 shell.
+    #[arg(long = "to-utf8", help_heading = "Text Encoding")]
+    pub to_utf8: bool,
+
+    /// Transcode the request body from UTF-8 (the shell's native
+    /// encoding) to this charset before sending. Takes priority over any
+    /// `charset=` set in an explicit Content-Type header.
+    #[arg(long = "request-charset", value_name = "NAME", help_heading = "Text Encoding")]
+    pub request_charset: Option<String>,
+
+    /// Skip auto-transcoding the request body even when the request's
+    /// `Content-Type` header declares a charset. Use when the body is
+    /// already in the target encoding (e.g. read from a pre-encoded file).
+    #[arg(long = "request-charset-passthrough", help_heading = "Text Encoding")]
+    pub request_charset_passthrough: bool,
+
+    /// Standalone conversion: read input file (or stdin), transcode from
+    /// SOURCE to TARGET, write to `-o PATH` (or stdout). Format:
+    /// `SOURCE:TARGET` (blank SOURCE means auto-detect). Mutually exclusive
+    /// with HTTP invocations. Example: `--iconv iso-8859-1:utf-8 input.txt`.
+    #[arg(long = "iconv", value_name = "SOURCE:TARGET", help_heading = "Text Encoding")]
+    pub iconv: Option<String>,
+
+    /// List every charset label recon understands and exit.
+    #[arg(long = "list-charsets", help_heading = "Text Encoding")]
+    pub list_charsets: bool,
 
     /// Comma-separated list of custom DNS servers to use for name
     /// resolution. Accepts `IP` (port 53 assumed) or `IP:PORT`.

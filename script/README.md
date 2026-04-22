@@ -50,6 +50,13 @@ surprise failures.
 | `browser-login.rhai` | JSON login → protected resource with sticky session cookie |
 | `browser-persist.rhai` | `use_persistent_session()` — jar survives across runs |
 | `browser-multi.rhai` | Three independent browsers with different personas + jars |
+| `browser-iso8859.rhai` | Browser posting to a Latin-1 service; auto-transcodes body |
+
+### Text processing
+
+| Script | What it does |
+|---|---|
+| `text.rhai` | Charset detect / decode / encode + newline normalisation |
 
 ### Data primitives
 

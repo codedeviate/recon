@@ -86,6 +86,7 @@ pub fn build_engine(defaults: &ScriptDefaults) -> rhai::Engine {
     super::bindings::rtsp::register(&mut engine, defaults.clone());
     super::bindings::sqlite::register(&mut engine);
     super::bindings::tcp::register(&mut engine, defaults.clone());
+    super::bindings::text::register(&mut engine);
     super::bindings::tls::register(&mut engine);
     super::bindings::whois::register(&mut engine);
     super::bindings::ws::register(&mut engine, defaults.clone());

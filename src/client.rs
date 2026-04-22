@@ -249,18 +249,18 @@ fn send_request(
     if let Some(path) = &args.upload_file {
         let body = fs::read(path)
             .with_context(|| format!("Failed to read upload file: {}", path.display()))?;
-        request = request.body(body);
+        request = apply_request_body(request, body, args)?;
     } else if let Some(json_data) = &args.json {
-        request = request.body(load_body_from_string(json_data)?);
+        request = apply_request_body(request, load_body_from_string(json_data)?, args)?;
     } else if let Some(raw) = &args.data_raw {
-        request = request.body(raw.as_bytes().to_vec());
+        request = apply_request_body(request, raw.as_bytes().to_vec(), args)?;
     } else if let Some(bin) = &args.data_binary {
         let body = if let Some(path) = bin.strip_prefix('@') {
             fs::read(path).with_context(|| format!("Failed to read file: {path}"))?
         } else {
             bin.as_bytes().to_vec()
         };
-        request = request.body(body);
+        request = apply_request_body(request, body, args)?;
     } else if !args.data_urlencode.is_empty() {
         let joined = args.data_urlencode
             .iter()
@@ -270,7 +270,7 @@ fn send_request(
         if !user_has_header(&args.header, "Content-Type") {
             request = request.header("Content-Type", "application/x-www-form-urlencoded");
         }
-        request = request.body(joined.into_bytes());
+        request = apply_request_body(request, joined.into_bytes(), args)?;
     } else if !args.get_data {
         if let Some(data) = &args.data {
             // @- reads from stdin (no CRLF stripping — curl doesn't strip stdin).
@@ -287,7 +287,7 @@ fn send_request(
             } else {
                 data.as_bytes().to_vec()
             };
-            request = request.body(body);
+            request = apply_request_body(request, body, args)?;
         }
     }
 
@@ -526,6 +526,58 @@ fn user_has_header(headers: &[String], name: &str) -> bool {
             .map(|(n, _)| n.trim().eq_ignore_ascii_case(name))
             .unwrap_or(false)
     })
+}
+
+/// Set the request body, transcoding from UTF-8 to the target charset
+/// when one is in scope. Priority (first match wins):
+///   1. `--request-charset-passthrough` → skip (return body verbatim).
+///   2. `--request-charset NAME` → use NAME.
+///   3. `charset=X` on an explicit `Content-Type` header → use X.
+///   4. Otherwise → return body verbatim.
+fn apply_request_body(
+    request: reqwest::blocking::RequestBuilder,
+    body: Vec<u8>,
+    args: &Args,
+) -> Result<reqwest::blocking::RequestBuilder> {
+    use encoding_rs::UTF_8;
+
+    if args.request_charset_passthrough {
+        return Ok(request.body(body));
+    }
+
+    let target_label: Option<String> = if let Some(label) = &args.request_charset {
+        Some(label.clone())
+    } else {
+        args.header.iter().find_map(|h| {
+            let (name, value) = h.split_once(':')?;
+            if !name.trim().eq_ignore_ascii_case("content-type") {
+                return None;
+            }
+            crate::text_encoding::parse_content_type_charset(value.trim())
+        })
+    };
+
+    let Some(label) = target_label else {
+        return Ok(request.body(body));
+    };
+
+    let target = crate::text_encoding::resolve(&label)
+        .with_context(|| format!("request-charset: unknown charset '{label}'"))?;
+
+    if target == UTF_8 {
+        return Ok(request.body(body));
+    }
+
+    // Input is UTF-8 (from shell / file). Decode to str then re-encode.
+    let text = String::from_utf8_lossy(&body);
+    let r = crate::text_encoding::encode_from_str(&text, target);
+    if r.had_unmappable && !args.silent {
+        eprintln!(
+            "! request body: one or more characters not representable in {} — substituted with '?'",
+            target.name()
+        );
+    }
+    Ok(request.body(r.bytes))
 }
 
 /// Implements curl's --data-urlencode sub-forms.

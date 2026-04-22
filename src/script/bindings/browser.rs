@@ -497,19 +497,23 @@ fn do_request(
     let (response, metrics) = client::execute(&args).map_err(anyhow_to_rhai)?;
     let status = response.status().as_u16() as i64;
     let final_url = response.url().to_string();
-    let headers_map = http::headers_to_rhai_map(response.headers());
+    let response_headers = response.headers().clone();
+    let headers_map = http::headers_to_rhai_map(&response_headers);
     let http_version = metrics.http_version.clone().unwrap_or_else(|| "?".into());
     let body_bytes = response
         .bytes()
         .map_err(|e| err(format!("browser: read body: {e}")))?;
     let duration_ms = t0.elapsed().as_millis() as i64;
     let body_str = String::from_utf8_lossy(&body_bytes).to_string();
+    let charset_dyn = http::response_charset_dynamic(&response_headers, &body_bytes);
 
     let mut result = Map::new();
     result.insert("url".into(), url.to_string().into());
     result.insert("final_url".into(), final_url.into());
     result.insert("status".into(), status.into());
     result.insert("body".into(), body_str.into());
+    result.insert("body_bytes".into(), Dynamic::from(body_bytes.to_vec()));
+    result.insert("charset".into(), charset_dyn);
     result.insert("headers".into(), headers_map.into());
     result.insert("http_version".into(), http_version.into());
     result.insert("duration_ms".into(), duration_ms.into());

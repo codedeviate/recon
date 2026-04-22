@@ -27,6 +27,7 @@ pub mod redis;
 pub mod rtsp;
 pub mod sqlite;
 pub mod tcp;
+pub mod text;
 pub mod tls;
 pub mod whois;
 pub mod ws;

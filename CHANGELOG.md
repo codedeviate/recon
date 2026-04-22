@@ -8,6 +8,32 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.43.0] - 2026-04-22
+
+### Added
+
+First-class character-set (charset) support across the CLI and script surface. Motivating use case: a PHP service talking UTF-8 and a Perl service talking ISO-8859-1 that exchange data via `recon`.
+
+- **`--output-charset <NAME>`** transcodes the response body to NAME before prettify or write. Source detection priority: `--source-charset` > response `Content-Type: ...; charset=NAME` > BOM sniff (UTF-8/UTF-16) > chardetng heuristic > windows-1252 fallback. Pass-through when source == target. Unmappable characters are substituted with `?` (iconv `-c` behaviour); a warning goes to stderr unless `-s`.
+- **`--source-charset <NAME>`** overrides the server's declared/sniffed source charset (for servers that lie or omit `charset=`).
+- **`--to-utf8`** — shorthand for `--output-charset utf-8`, the most common case.
+- **`--request-charset <NAME>`** transcodes the request body (from UTF-8, the shell's native encoding) to NAME before sending. Overrides any `charset=` on an explicit Content-Type.
+- **Auto-transcoding on request** when an explicit `Content-Type: ...; charset=X` is set. The UTF-8 `-d` body is converted to X before `request.body(...)`. `--request-charset-passthrough` skips this (for pre-encoded input).
+- **`--iconv <SOURCE:TARGET>`** — standalone file/stdin conversion mode, no HTTP. Reads from the positional arg (or stdin), writes to `-o PATH` (or stdout). Blank `SOURCE` means auto-detect via BOM + chardetng. Exit 0 on success, 1 on unmappable substitution, 2 on errors.
+- **`--list-charsets`** dumps the curated set of recognised charset labels.
+- **`text::*` script module** — `transcode(blob, from, to)`, `decode(blob, charset)`, `encode(str, charset)`, `detect(blob) -> #{charset, had_bom}`, `charset_of(headers) -> String | ()`, `strip_bom(blob)`, `list()`, `normalize_newlines(str, style)` (`lf`/`crlf`/`cr`).
+- **`r.body_bytes` + `r.charset`** on every `http()` and `browser()` response map — raw Blob and the resolved charset (or `()` when undecidable). Scripts combine these with `text::decode()` for explicit re-decoding when the CLI's automatic detection is unreliable.
+- **`recon --help charset`** (aliases `text`, `iconv`, `text-encoding`) renders the full feature reference.
+- **Two new example scripts:** `script/text.rhai` (charset inspect/decode/encode round-trip + BOM detection + newline normalisation) and `script/browser-iso8859.rhai` (browser() talking to a Latin-1 service via Content-Type-driven auto-transcoding).
+- **Integration test suite** `tests/charset_it.rs` with 7 end-to-end wiremock scenarios: output transcoding, no-op passthrough, source override, request transcoding via Content-Type, request passthrough, `--iconv` file round-trip, `--iconv :utf-8` auto-detect from stdin.
+
+### Changed
+
+- `Cargo.toml` adds `encoding_rs = "0.8"` (the WHATWG-spec-compliant charset library browsers use) and `chardetng = "0.1"` (charset auto-detection).
+- Response body pipeline in `src/output.rs::write_response_to` gains a transcode step when `--output-charset`/`--to-utf8` is set. Zero-copy streaming is preserved when no charset flag is present (no change for existing workflows).
+- `src/client.rs`: every `request.body(...)` call site (six of them — `-T`, `--json`, `--data-raw`, `--data-binary`, `--data-urlencode`, `-d`) routes through a new `apply_request_body()` helper that handles the optional transcode.
+- `recon --examples` gains a `TEXT ENCODING (charsets)` section with 5 examples.
+
 ## [0.42.1] - 2026-04-22
 
 ### Added

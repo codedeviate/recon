@@ -215,34 +215,90 @@ pub fn write_response_to(
     // Run the body-write inside an IIFE so we can stamp response_end even
     // when the body I/O fails. Without this, a mid-transfer error would leave
     // response_end = None and `-w` would report time_total = 0.
+    // Resolve the target output charset (--output-charset or --to-utf8
+    // alias). When set, we buffer the body to transcode. Otherwise we
+    // keep the zero-copy streaming path for large downloads.
+    let output_charset_label: Option<String> = if let Some(c) = &args.output_charset {
+        Some(c.clone())
+    } else if args.to_utf8 {
+        Some("utf-8".to_string())
+    } else {
+        None
+    };
+
     let body_io_result: Result<()> = (|| -> Result<()> {
         if !print_body {
             return Ok(());
         }
-        if args.prettify {
-            let content_type_str = response
-                .headers()
-                .get(reqwest::header::CONTENT_TYPE)
-                .and_then(|v| v.to_str().ok())
-                .unwrap_or("")
-                .to_string();
-            let body = response.text().context("Failed to read response body")?;
-            let format = crate::prettify::detect(&content_type_str, &body);
-            let out_text = crate::prettify::run(&body, format).unwrap_or(body);
-            if let Some(path) = &final_path {
-                if args.create_dirs {
-                    ensure_parent_dir(path)?;
-                }
-                let mut file = File::create(path)?;
-                write!(file, "{out_text}")?;
-                if !args.silent {
-                    eprintln!("Saved to {}", path.display());
+        let content_type_str = response
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("")
+            .to_string();
+
+        if args.prettify || output_charset_label.is_some() {
+            // Buffer + transcode path. Used when the user asked for
+            // prettification (which needs a String anyway) or explicit
+            // charset conversion.
+            let raw = response.bytes().context("Failed to read response body")?;
+            let body_bytes: Vec<u8> = if let Some(target_label) = &output_charset_label {
+                let target = crate::text_encoding::resolve(target_label)
+                    .with_context(|| format!("--output-charset: {target_label}"))?;
+                let source_label = resolve_source_charset(args, &content_type_str, &raw);
+                let source = crate::text_encoding::resolve(&source_label)
+                    .unwrap_or(encoding_rs::UTF_8);
+                if source == target {
+                    raw.to_vec()
+                } else {
+                    let r = crate::text_encoding::transcode(&raw, source, target);
+                    if r.had_unmappable && !args.silent {
+                        eprintln!(
+                            "! response body: one or more characters not representable in {} — substituted with '?'",
+                            target.name()
+                        );
+                    }
+                    r.bytes
                 }
             } else {
-                let mut out = sink.writer();
-                write!(out, "{out_text}")?;
+                raw.to_vec()
+            };
+
+            if args.prettify {
+                let body_str = String::from_utf8_lossy(&body_bytes).into_owned();
+                let format = crate::prettify::detect(&content_type_str, &body_str);
+                let out_text = crate::prettify::run(&body_str, format).unwrap_or(body_str);
+                if let Some(path) = &final_path {
+                    if args.create_dirs {
+                        ensure_parent_dir(path)?;
+                    }
+                    let mut file = File::create(path)?;
+                    write!(file, "{out_text}")?;
+                    if !args.silent {
+                        eprintln!("Saved to {}", path.display());
+                    }
+                } else {
+                    let mut out = sink.writer();
+                    write!(out, "{out_text}")?;
+                }
+                metrics.size_download = out_text.len() as u64;
+            } else {
+                // --output-charset without prettify: write transcoded bytes.
+                if let Some(path) = &final_path {
+                    if args.create_dirs {
+                        ensure_parent_dir(path)?;
+                    }
+                    let mut file = File::create(path)?;
+                    file.write_all(&body_bytes)?;
+                    if !args.silent {
+                        eprintln!("Saved to {}", path.display());
+                    }
+                } else {
+                    let mut out = sink.writer();
+                    out.write_all(&body_bytes)?;
+                }
+                metrics.size_download = body_bytes.len() as u64;
             }
-            metrics.size_download = out_text.len() as u64;
         } else {
             let content_length = response
                 .headers()
@@ -409,6 +465,20 @@ fn basename_from_url(url: &str) -> String {
     } else {
         last
     }
+}
+
+/// Pick the source charset for a response body. Priority:
+///   1. `--source-charset` explicit override.
+///   2. `charset=` parameter on the Content-Type header.
+///   3. BOM / chardetng sniff.
+fn resolve_source_charset(args: &Args, content_type: &str, bytes: &[u8]) -> String {
+    if let Some(c) = &args.source_charset {
+        return c.clone();
+    }
+    if let Some(c) = crate::text_encoding::parse_content_type_charset(content_type) {
+        return c;
+    }
+    crate::text_encoding::detect(bytes).charset.to_string()
 }
 
 /// Parse an HTTP-date (RFC 7231 §7.1.1.1): IMF-fixdate, RFC 850, asctime.

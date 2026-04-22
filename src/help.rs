@@ -1128,6 +1128,8 @@ static TOPIC_SCRIPT: Topic = Topic {
 
         FlagHelp { flags: "browser() / browser(opts)", description: "Stateful HTTP session handle with sticky cookies + default\nheaders. b.get/post/put/patch/delete/head/options(url [, opts]).\nConfig: set_user_agent, set_header(s), follow_redirects,\nset_timeout_ms, set_insecure, set_basic_auth. Sessions:\nuse_persistent_session(name), use_ephemeral_session,\nclear_cookies, cookies(), session_name(). Body can be\nString / Blob / Map (map auto-serialises to JSON).\nSee `recon --help browser` for the full method reference." },
 
+        FlagHelp { flags: "text::transcode / decode / encode / detect / charset_of / strip_bom / list / normalize_newlines", description: "Charset conversion + text helpers. text::decode(r.body_bytes,\ncharset) is the usual companion to `r.body_bytes` + `r.charset`\non http()/browser() responses. See `recon --help charset`." },
+
         FlagHelp { flags: "agentBrowser::*", description: "Browser automation via the external agent-browser CLI.\n`agentBrowser::available` (bool) + `agentBrowser::version` (string)\nare always readable. When available, functions include open, click,\nfill, screenshot, snapshot, get, is_visible, eval, and more.\nSee `recon --help agent-browser` for the full list." },
     ],
     related: &["--init", "--script", "-H", "-k", "--connect-timeout", "--max-time", "-L"],
@@ -1141,6 +1143,56 @@ static TOPIC_SCRIPT: Topic = Topic {
         ExampleHelp { description: "Run a shipped example directly", command: "recon --script script/http.rhai https://example.com" },
         ExampleHelp { description: "Install every shipped example into ~/.recon/script/", command: "cp script/*.rhai ~/.recon/script/" },
         ExampleHelp { description: "Full API surface via the SCRIPTING example block", command: "recon --examples" },
+    ],
+};
+
+static TOPIC_TEXT_ENCODING: Topic = Topic {
+    title: "Text Encoding (charsets, iconv)",
+    description: "Convert response and request bodies between character sets.\n\
+                  Useful when one end of a pipeline speaks UTF-8 and the\n\
+                  other speaks ISO-8859-1 / Windows-1252 / Shift-JIS etc.\n\
+                  \n\
+                  Source-charset resolution priority:\n\
+                    1. `--source-charset NAME` (explicit override)\n\
+                    2. `Content-Type: ...; charset=NAME` on the response\n\
+                    3. BOM sniff (UTF-8 / UTF-16)\n\
+                    4. chardetng heuristic\n\
+                    5. windows-1252 fallback (browser behaviour)\n\
+                  \n\
+                  Unmappable characters are substituted with `?` and a\n\
+                  warning is printed to stderr (suppressed by `-s`).\n\
+                  \n\
+                  Scripts get direct access: `r.body_bytes` (raw Blob) and\n\
+                  `r.charset` (String or `()`) on every http() / browser()\n\
+                  response, plus the `text::*` module for conversion.",
+    flags: &[
+        FlagHelp { flags: "--output-charset <NAME>", description: "Transcode the response body to NAME before prettify / write.\nPass-through when the source is already NAME. Example:\n--output-charset utf-8 against a Latin-1 server." },
+        FlagHelp { flags: "--source-charset <NAME>", description: "Assume the response body is in NAME, overriding any charset=\nthe server declared (or when none was declared). Use when a\nserver lies about its content — e.g. labels windows-1252 as\niso-8859-1." },
+        FlagHelp { flags: "--to-utf8", description: "Shorthand for `--output-charset utf-8`. Convenient when the\nprimary goal is \"give me sensible UTF-8 regardless of what the\nserver sent\"." },
+        FlagHelp { flags: "--request-charset <NAME>", description: "Transcode the request body from UTF-8 (the shell's native\nencoding) to NAME before sending. Takes priority over any\ncharset= in an explicit Content-Type header." },
+        FlagHelp { flags: "--request-charset-passthrough", description: "Skip auto-transcoding the request body even when the explicit\nContent-Type header declares a charset. Use when the body was\nread from a pre-encoded file and must be sent as-is." },
+        FlagHelp { flags: "--iconv <SOURCE:TARGET>", description: "Standalone conversion action (no HTTP). Reads the positional\narg as a file path (or stdin when absent), transcodes, writes\nto -o PATH (or stdout). SOURCE blank means auto-detect.\nExamples:\n  recon --iconv iso-8859-1:utf-8 input.txt -o out.txt\n  cat input | recon --iconv :utf-8 > out.txt" },
+        FlagHelp { flags: "--list-charsets", description: "Dump a curated list of recognised charset labels and exit. The\nunderlying encoding_rs library accepts many more aliases; these\nare the ones you're likely to reach for." },
+
+        FlagHelp { flags: "text::transcode(blob, from, to)", description: "Script binding. Convert bytes between any two supported\ncharsets. Returns a Blob. Unmappable characters substituted." },
+        FlagHelp { flags: "text::decode(blob, charset)", description: "Decode bytes to a UTF-8 String using the given source charset." },
+        FlagHelp { flags: "text::encode(str, charset)", description: "Encode a UTF-8 String into bytes in the target charset." },
+        FlagHelp { flags: "text::detect(blob)", description: "Sniff the source charset. Returns #{charset, had_bom}.\nUses BOM first, then chardetng heuristic." },
+        FlagHelp { flags: "text::charset_of(headers_map)", description: "Pull charset= out of a response headers map. Returns the\ncharset String, or () when absent." },
+        FlagHelp { flags: "text::strip_bom(blob) / text::list()", description: "Drop a leading UTF-8/16 BOM if present; enumerate common charsets." },
+        FlagHelp { flags: "text::normalize_newlines(str, style)", description: "Rewrite line endings. style: `lf` / `crlf` / `cr`\n(or `unix` / `windows` / `mac`)." },
+
+        FlagHelp { flags: "r.body_bytes / r.charset (in http() + browser() responses)", description: "Script bindings' response Map gains raw bytes and the resolved\ncharset alongside the existing lossy `r.body` String." },
+    ],
+    related: &["--output-charset", "--source-charset", "--request-charset", "--iconv", "-p"],
+    examples: &[
+        ExampleHelp { description: "Convert a Latin-1 response to UTF-8", command: "recon --to-utf8 https://legacy.example.com/api" },
+        ExampleHelp { description: "Prettify a Shift_JIS page (forces UTF-8 before prettify)", command: "recon -p --output-charset utf-8 https://legacy.jp/index.html" },
+        ExampleHelp { description: "POST UTF-8 form data to a Perl service that expects ISO-8859-1", command: r#"recon -X POST -H 'Content-Type: application/x-www-form-urlencoded; charset=iso-8859-1' -d 'name=Jörg' https://perl.example.com/submit"# },
+        ExampleHelp { description: "Standalone file conversion", command: "recon --iconv iso-8859-1:utf-8 input.txt -o output.txt" },
+        ExampleHelp { description: "Auto-detect source + convert to UTF-8 via stdin", command: "cat legacy.txt | recon --iconv :utf-8 > utf8.txt" },
+        ExampleHelp { description: "Script-side re-decode when the CLI can't see the charset", command: r#"recon --script - <<< 'let r = http("https://legacy"); print(text::decode(r.body_bytes, "iso-8859-1"));'"# },
+        ExampleHelp { description: "List supported charsets", command: "recon --list-charsets" },
     ],
 };
 
@@ -1385,6 +1437,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "script" | "scripting" | "rhai" => Some(&TOPIC_SCRIPT),
         "agent-browser" | "agentbrowser" => Some(&TOPIC_AGENT_BROWSER),
         "browser" | "session" | "browser-session" => Some(&TOPIC_BROWSER),
+        "charset" | "encoding-text" | "text-encoding" | "iconv" | "text" => Some(&TOPIC_TEXT_ENCODING),
         "archive" | "zip" | "tar" | "extract" => Some(&TOPIC_ARCHIVE),
         _ => None,
     }
@@ -1459,6 +1512,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "browser",
         "agent-browser",
         "archive",
+        "charset",
     ]
 }
 

@@ -46,6 +46,8 @@ mod ssh;
 mod ssh_auth;
 mod tcp_probe;
 mod telnet;
+mod text_encoding;
+mod iconv;
 mod tls_probe;
 mod traceroute;
 mod udp_probe;
@@ -184,6 +186,20 @@ fn main() {
             std::process::exit(1);
         }
         return;
+    }
+
+    // ── List charsets (no HTTP request needed) ───────────────────────────────
+    if args.list_charsets {
+        for label in text_encoding::common_labels() {
+            println!("{label}");
+        }
+        return;
+    }
+
+    // ── Standalone iconv mode (no HTTP request needed) ───────────────────────
+    if args.iconv.is_some() {
+        let code = iconv::run_cli(&args);
+        std::process::exit(code);
     }
 
     // ── Init: bootstrap ~/.recon/ layout (no HTTP request needed) ────────────
