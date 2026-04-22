@@ -126,6 +126,9 @@ fn build_args(
     args.tlsv13 = defaults.tlsv13;
     args.cacert = defaults.cacert.clone();
     args.interface = defaults.interface.clone();
+    args.limit_rate = defaults.limit_rate.clone();
+    args.speed_limit = defaults.speed_limit;
+    args.speed_time = defaults.speed_time;
 
     if let Some(o) = opts {
         if let Some(m) = opts_get_str(o, "method") {
@@ -164,6 +167,15 @@ fn build_args(
         }
         if let Some(ip) = opts_get_str(o, "interface") {
             args.interface = Some(ip);
+        }
+        if let Some(s) = opts_get_str(o, "limit_rate") {
+            args.limit_rate = Some(s);
+        }
+        if let Some(n) = opts_get_u64(o, "speed_limit") {
+            args.speed_limit = Some(n);
+        }
+        if let Some(n) = opts_get_u64(o, "speed_time") {
+            args.speed_time = n;
         }
     }
     Ok(args)

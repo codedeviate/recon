@@ -10,6 +10,27 @@ use crate::cli::Args;
 use crate::fail::FailMode;
 use crate::metrics::RequestMetrics;
 
+/// Wrap a writer with rate-limiting and/or speed-watchdog layers when
+/// `--limit-rate` / `--speed-limit` are set. Layers compose:
+/// `SpeedWatchWriter<RateLimitedWriter<Box<dyn Write + 'a>>>`. When
+/// neither flag is set, the original writer passes through (still boxed
+/// so the caller can use one type).
+fn wrap_with_rate_control<'a>(
+    writer: Box<dyn Write + 'a>,
+    args: &Args,
+) -> anyhow::Result<Box<dyn Write + 'a>> {
+    let mut out: Box<dyn Write + 'a> = writer;
+    if let Some(rate_str) = &args.limit_rate {
+        let rate = crate::ratelimit::parse_rate(rate_str)?;
+        out = Box::new(crate::ratelimit::RateLimitedWriter::new(out, rate));
+    }
+    if let Some(floor) = args.speed_limit {
+        let window = std::time::Duration::from_secs(args.speed_time);
+        out = Box::new(crate::ratelimit::SpeedWatchWriter::new(out, floor, window));
+    }
+    Ok(out)
+}
+
 /// Thin Write wrapper that tallies bytes written into a caller-provided counter.
 /// Used to populate `metrics.size_download` while streaming the body.
 struct CountingWriter<'a, W: Write> {
@@ -234,7 +255,8 @@ pub fn write_response_to(
                     ensure_parent_dir(path)?;
                 }
                 let file = File::create(path)?;
-                let mut cw = CountingWriter { inner: file, count: &mut metrics.size_download };
+                let wrapped = wrap_with_rate_control(Box::new(file), args)?;
+                let mut cw = CountingWriter { inner: wrapped, count: &mut metrics.size_download };
                 if args.progress {
                     let pb = make_progress_bar(content_length);
                     copy_with_progress(&mut response, &mut cw, &pb)?;
@@ -246,8 +268,9 @@ pub fn write_response_to(
                     eprintln!("Saved to {}", path.display());
                 }
             } else {
-                let writer = sink.writer();
-                let mut cw = CountingWriter { inner: writer, count: &mut metrics.size_download };
+                let writer: Box<dyn Write> = Box::new(sink.writer());
+                let wrapped = wrap_with_rate_control(writer, args)?;
+                let mut cw = CountingWriter { inner: wrapped, count: &mut metrics.size_download };
                 io::copy(&mut response, &mut cw)?;
             }
         }

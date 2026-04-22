@@ -30,6 +30,9 @@ pub struct ScriptDefaults {
     pub tlsv13: bool,
     pub cacert: Option<PathBuf>,
     pub interface: Option<String>,
+    pub limit_rate: Option<String>,
+    pub speed_limit: Option<u64>,
+    pub speed_time: u64,
 }
 
 impl ScriptDefaults {
@@ -53,6 +56,9 @@ impl ScriptDefaults {
             tlsv13: args.tlsv13,
             cacert: args.cacert.clone(),
             interface: args.interface.clone(),
+            limit_rate: args.limit_rate.clone(),
+            speed_limit: args.speed_limit,
+            speed_time: args.speed_time,
         }
     }
 }

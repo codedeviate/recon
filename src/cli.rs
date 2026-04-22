@@ -127,6 +127,20 @@ pub struct Args {
     #[arg(long = "interface", value_name = "IP", help_heading = "Auth & TLS")]
     pub interface: Option<String>,
 
+    /// Throttle downloads to at most RATE bytes per second. Accepts
+    /// curl's suffixes: 100K, 2M, 1.5G, or bare bytes.
+    #[arg(long = "limit-rate", value_name = "RATE", help_heading = "HTTP Request")]
+    pub limit_rate: Option<String>,
+
+    /// Abort if the transfer rate stays below BYTES/sec for
+    /// `--speed-time` seconds. Used together; either alone is inert.
+    #[arg(long = "speed-limit", value_name = "BYTES", help_heading = "HTTP Request")]
+    pub speed_limit: Option<u64>,
+
+    /// Window in seconds for `--speed-limit` (default: 30).
+    #[arg(long = "speed-time", value_name = "SECS", default_value_t = 30, help_heading = "HTTP Request")]
+    pub speed_time: u64,
+
     /// HTTP Basic auth or SSH username; format: user or user:pass
     #[arg(short = 'u', long = "user", value_name = "USER:PASS", help_heading = "Auth & TLS")]
     pub user: Option<String>,

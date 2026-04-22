@@ -8,6 +8,24 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-04-22
+
+### Added
+
+- **`--limit-rate <RATE>`** throttles HTTP downloads. Accepts curl's grammar: `100K` = 102,400 B/s, `2M` = 2,097,152 B/s, `1.5G`, `1G`, bare bytes, optional trailing `B`. Implementation: `RateLimitedWriter` that wraps the output writer and sleeps between writes so cumulative throughput tracks the pinned rate.
+- **`--speed-limit <BYTES>` + `--speed-time <SECS>`** aborts slow transfers. When the rolling download rate stays below `speed_limit` B/s for `speed_time` seconds (default 30), the write path returns `ErrorKind::TimedOut`. Useful for failing fast on stalled CDNs / dial-up-class interfaces.
+- **Script parity**: all three flags available on `http(url, opts)` — `limit_rate: "1M"`, `speed_limit: 1024`, `speed_time: 15`.
+
+### Changed
+
+- New `src/ratelimit.rs` module with `parse_rate`, `RateLimitedWriter`, `SpeedWatchWriter`. All three compose on top of `Box<dyn Write + 'a>` so they nest cleanly.
+- `src/output.rs::write_response_to` threads output through `wrap_with_rate_control` when either flag is set. Unaffected when neither is set.
+- TOPIC_HTTP help topic + `recon --examples` TLS section gain rate-control entries.
+
+### Removed from OUT-OF-SCOPE.md
+
+- `--limit-rate`, `--speed-limit`, `--speed-time` (all shipped this release).
+
 ## [0.37.0] - 2026-04-22
 
 ### Added

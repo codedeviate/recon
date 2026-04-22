@@ -231,6 +231,13 @@ pub fn print() {
     ]);
     note("Interface *names* (eth0, en0) are not yet resolved; pass the address directly.");
 
+    example("Rate control and slow-transfer abort", &[
+        "recon --limit-rate 500K https://example.com/big.bin -o big.bin",
+        "recon --limit-rate 2M https://cdn/data -o data.bin",
+        "recon --speed-limit 1024 --speed-time 10 https://slow.example.com -o x",
+    ]);
+    note("--limit-rate suffixes: K/M/G/T (1024-based), B for bytes. --speed-limit together with --speed-time aborts when the rolling rate stays below BYTES/sec for SECS seconds.");
+
     section("DNS LOOKUPS");
 
     example("Look up common DNS records for a host (--dns)", &[

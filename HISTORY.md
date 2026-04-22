@@ -52,6 +52,20 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 40. Rate control: `--limit-rate`, `--speed-limit`, `--speed-time` (0.38.0)
+
+Second of three curl-compat round-out releases. Throttling + slow-transfer abort for HTTP downloads.
+
+**`--limit-rate <RATE>`** → `RateLimitedWriter` wraps the output path in `output.rs`. On each `write()`, the wrapper computes the wall-clock time the pinned rate would have required for the bytes-so-far and sleeps the delta. Simple, low-jitter. Parse accepts curl's grammar: `100K`, `2M`, `1.5G`, `500B`, bare bytes. K/M/G/T multipliers are 1024-based; trailing `B` is tolerated; unknown suffix = error.
+
+**`--speed-limit <BYTES>` + `--speed-time <SECS>`** → `SpeedWatchWriter` samples throughput on each write (checks capped at once per second). When the rolling average stays below `speed_limit` B/s for the entire `speed_time` window, the next write returns `io::ErrorKind::TimedOut`. First `speed_time` seconds are grace (TCP ramp-up can undershoot).
+
+**Layered composition.** Both wrappers implement `Write` over `Box<dyn Write + 'a>`, so `--limit-rate` + `--speed-limit` together produces `SpeedWatchWriter<RateLimitedWriter<W>>`. `wrap_with_rate_control` in output.rs builds the chain conditionally. Lifetime parameter `'a` lets us wrap the `StdoutSink::writer()` return (borrowed lifetime) as well as the owned `File` case.
+
+**Script parity.** ScriptDefaults + http opts overlay gain three fields: `limit_rate` (string), `speed_limit` (i64), `speed_time` (i64, default 30). Scripts get the same throttling + slow-abort knobs on every `http()` / `https()` call.
+
+**Smoke verification.** 10 KB download @ `--limit-rate 5K` took 2.9s (expected ~2s + TLS/DNS overhead). Bad suffix (`100X`) errors with "unknown suffix 'x'". 939 tests passing; 5 new for parse + writer-wrap behaviour.
+
 ### 39. TLS minimum version + `--cacert` + `--interface` (0.37.0)
 
 First of three curl-compat round-out releases. Four flags, all thin wrappers over reqwest's `ClientBuilder`:

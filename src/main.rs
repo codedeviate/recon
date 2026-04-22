@@ -20,6 +20,7 @@ mod hash;
 mod help;
 mod init;
 mod pager;
+mod ratelimit;
 mod jwt;
 mod ldap_probe;
 mod lorem;

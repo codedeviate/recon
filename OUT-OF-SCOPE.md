@@ -47,6 +47,7 @@ Grouped by category. When an item from here ships in a future release, remove it
 - **`-w` `%{output{filename}}`** — redirect part of output to a specific file. Niche.
 - **Interface name resolution for `--interface`** — `--interface eth0` / `en0` lookup. Current impl accepts IP literals only. Unix would need `if_nametoindex` + `getifaddrs`; Windows wants `GetAdapterAddresses`. Defer until someone asks.
 - **`--engine`** — OpenSSL crypto engine selection. N/A under rustls.
+- **`--dns-servers` / `--dns-interface` / `--dns-ipv4-addr` / `--dns-ipv6-addr`** — custom DNS override. Planned for a follow-up release; requires building a hickory-backed resolver and plugging it into reqwest's `Resolve` trait.
 
 ### SMTP / SMTPS (mail delivery)
 
