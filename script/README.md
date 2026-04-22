@@ -42,11 +42,14 @@ surprise failures.
 | `rtsp.rhai` | RTSP OPTIONS + method list |
 | `mqtt.rhai` | MQTT publish with reachability guard |
 
-### Sessions
+### Sessions (scriptable `browser()`)
 
 | Script | What it does |
 |---|---|
-| `browser.rhai` | Stateful HTTP browser: cookies + headers stick across calls |
+| `browser.rhai` | Minimal stateful browser: cookies + headers stick across calls |
+| `browser-login.rhai` | JSON login → protected resource with sticky session cookie |
+| `browser-persist.rhai` | `use_persistent_session()` — jar survives across runs |
+| `browser-multi.rhai` | Three independent browsers with different personas + jars |
 
 ### Data primitives
 
@@ -70,16 +73,16 @@ surprise failures.
 | `email.rhai` | SPF / DMARC / MTA-STS / TLS-RPT / BIMI aggregate |
 | `netstatus.rhai` | Connectivity probe set |
 
-### Browser automation
+### Browser automation (external `agent-browser` CLI)
 
 | Script | What it does |
 |---|---|
 | `agent-browser.rhai` | Minimal open / title / snapshot / close flow |
-| `browser-screenshot.rhai` | Take a screenshot |
-| `browser-title.rhai` | Extract the page title |
-| `browser-snapshot.rhai` | Accessibility-tree dump |
-| `browser-form-login.rhai` | Fill a two-field login form |
-| `browser-guard.rhai` | Prefer browser, fall back to HTTP |
+| `agent-browser-screenshot.rhai` | Take a screenshot |
+| `agent-browser-title.rhai` | Extract the page title |
+| `agent-browser-snapshot.rhai` | Accessibility-tree dump |
+| `agent-browser-form-login.rhai` | Fill a two-field login form |
+| `agent-browser-guard.rhai` | Prefer browser, fall back to HTTP |
 
 Every script starts with a usage comment showing args and a one-line
 description. Scripts that take positional args support a sensible

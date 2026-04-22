@@ -1021,8 +1021,8 @@ recon --script /tmp/title.rhai"#,
 
     example("Shipped example scripts (copy or run in place)", &[
         "ls script/                              # bundled with the repo",
-        "recon --script script/browser-title.rhai https://example.com",
-        "cp script/*.rhai ~/.recon/script/       # then: recon --script browser-title URL",
+        "recon --script script/agent-browser-title.rhai https://example.com",
+        "cp script/*.rhai ~/.recon/script/       # then: recon --script agent-browser-title URL",
     ]);
 
     section("SCRIPTING (--script)");

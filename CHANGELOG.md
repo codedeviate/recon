@@ -8,6 +8,27 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.42.1] - 2026-04-22
+
+### Added
+
+- Three additional `browser()` example scripts in `script/`:
+  - `browser-login.rhai` — JSON login with a Map body → sticky session cookie on a follow-up protected request.
+  - `browser-persist.rhai` — demonstrates `use_persistent_session(name)` and inspects the `~/.recon/jars/NAME.db` jar contents; jar survives across script runs.
+  - `browser-multi.rhai` — three browsers with distinct user-agents and cookie jars in one script, asserting isolation.
+- `browser` added to the `--help` Topics footer so `recon --help` advertises the new topic.
+
+### Changed
+
+- Renamed the five agent-browser example scripts from `browser-*.rhai` → `agent-browser-*.rhai` to disambiguate from the new scripting-`browser()` examples. Old names removed.
+  - `browser-screenshot.rhai` → `agent-browser-screenshot.rhai`
+  - `browser-title.rhai` → `agent-browser-title.rhai`
+  - `browser-snapshot.rhai` → `agent-browser-snapshot.rhai`
+  - `browser-form-login.rhai` → `agent-browser-form-login.rhai`
+  - `browser-guard.rhai` → `agent-browser-guard.rhai`
+- Updated `script/README.md` to separate "Sessions (scriptable browser())" from "Browser automation (external agent-browser CLI)".
+- Help text and example references in `src/help.rs` and `src/examples.rs` point at the renamed files.
+
 ## [0.42.0] - 2026-04-22
 
 ### Added

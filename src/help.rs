@@ -1281,7 +1281,7 @@ static TOPIC_AGENT_BROWSER: Topic = Topic {
     examples: &[
         ExampleHelp { description: "One-shot screenshot via the CLI flag", command: "recon --browser-screenshot https://example.com -o /tmp/shot.png" },
         ExampleHelp { description: "Guard pattern in a script", command: r#"recon --script - <<< 'if !agentBrowser::available { return 2; } agentBrowser::open("https://example.com"); print(agentBrowser::get("title").title); agentBrowser::close();'"# },
-        ExampleHelp { description: "Shipped example scripts (in project script/ folder)", command: "recon --script script/browser-title.rhai https://example.com" },
+        ExampleHelp { description: "Shipped example scripts (in project script/ folder)", command: "recon --script script/agent-browser-title.rhai https://example.com" },
         ExampleHelp { description: "Full reference for agent-browser itself", command: "agent-browser --help" },
     ],
 };
@@ -1456,6 +1456,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "serve-tls",
         "write-out",
         "script",
+        "browser",
         "agent-browser",
         "archive",
     ]
