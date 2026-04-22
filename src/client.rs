@@ -48,6 +48,37 @@ pub fn execute(args: &Args) -> Result<(Response, RequestMetrics)> {
         .danger_accept_invalid_certs(args.insecure)
         .connect_timeout(Duration::from_secs(args.timeout));
 
+    // --tlsv1.2 / --tlsv1.3: pin a minimum TLS version. If both are set,
+    // tlsv1.3 wins (higher minimum).
+    if args.tlsv13 {
+        builder = builder.min_tls_version(reqwest::tls::Version::TLS_1_3);
+    } else if args.tlsv12 {
+        builder = builder.min_tls_version(reqwest::tls::Version::TLS_1_2);
+    }
+
+    // --cacert: trust an additional PEM root.
+    if let Some(path) = &args.cacert {
+        let pem = std::fs::read(path)
+            .with_context(|| format!("--cacert: read {}", path.display()))?;
+        let cert = reqwest::Certificate::from_pem(&pem)
+            .with_context(|| format!("--cacert: parse PEM from {}", path.display()))?;
+        builder = builder.add_root_certificate(cert);
+    }
+
+    // --interface: bind to a specific local IP. First cut accepts IP
+    // literals only — interface names (eth0, en0) are OS-specific and
+    // deferred.
+    if let Some(iface) = &args.interface {
+        let ip: std::net::IpAddr = iface.parse().map_err(|_| {
+            anyhow::anyhow!(
+                "--interface: expected an IP address literal (got '{}'). \
+                 Interface-name resolution not yet supported.",
+                iface
+            )
+        })?;
+        builder = builder.local_address(ip);
+    }
+
     // --max-time: total operation timeout. Accepts fractional seconds.
     if let Some(max) = args.max_time {
         builder = builder.timeout(Duration::from_millis((max * 1000.0) as u64));

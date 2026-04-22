@@ -37,17 +37,16 @@ Grouped by category. When an item from here ships in a future release, remove it
 
 ### HTTP / curl compatibility
 
-- **Additional curl flags still unimplemented** — `--tlsv1.2`, `--cacert`, `--key-type`, `--cert-status`, some others raised earlier but not currently specced.
+- **`--key-type`** — format of a client-cert private key (PEM / DER / ENG). Meaningless on its own without `--cert <PEM>` + `--key <PEM>` / `--cert-type` client-cert support, which recon doesn't currently ship. Shipping the flag in isolation is a trap. Revisit as a package deal with a full client-cert implementation.
+- **`--cert-status`** — OCSP-staple check during the TLS handshake. Requires a custom `rustls::ServerCertVerifier` that inspects the staple and falls back to a network OCSP responder. Niche in practice (most deployments disable OCSP entirely in favour of short-lived certs). Revisit if a concrete need appears.
 - **`-w` / `--write-out` connection-phase timings** — `time_namelookup`, `time_connect`, `time_appconnect`, `time_pretransfer` currently render as `0.000000`. The accurate variables (`time_total`, `time_starttransfer`, `time_redirect`, plus every non-timing variable) work correctly. reqwest 0.12's blocking client wraps an async hyper client internally, so cleanly hooking a custom connector to record DNS/TCP/TLS phases requires either bypassing reqwest for a direct hyper + tokio stack, or waiting for upstream connector-instrumentation hooks. Revisit when either path becomes cheap.
 - **`--anyauth`** — auto-select auth scheme. Security-risky (credential probing) and niche.
 - **`--ntlm` / `--negotiate`** — Windows NTLM / Kerberos-SPNEGO auth. Pulls in external crates; niche for modern APIs.
 - **Netscape-format cookie file** (`--cookie <file>` and `--cookie-jar <file>` in Netscape format). recon's `.db` cookiejar model is intentionally different.
 - **`-w` variables outside the 22-variable subset** — `num_connects`, `proxy_ssl_verify_result`, `http_connect`, FTP-era fields. Unreachable or meaningless via reqwest.
 - **`-w` `%{output{filename}}`** — redirect part of output to a specific file. Niche.
-- **`--interface`** — bind socket to a specific local interface. Rare.
+- **Interface name resolution for `--interface`** — `--interface eth0` / `en0` lookup. Current impl accepts IP literals only. Unix would need `if_nametoindex` + `getifaddrs`; Windows wants `GetAdapterAddresses`. Defer until someone asks.
 - **`--engine`** — OpenSSL crypto engine selection. N/A under rustls.
-- **`--dns-servers` / `--dns-interface` / `--dns-ipv4-addr` / `--dns-ipv6-addr`** — custom DNS override.
-- **`--speed-limit` / `--speed-time`** — minimum-speed abort threshold. `--limit-rate` (planned) covers typical bandwidth control.
 
 ### SMTP / SMTPS (mail delivery)
 

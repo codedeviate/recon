@@ -122,6 +122,10 @@ fn build_args(
     args.referer = defaults.referer.clone();
     args.user = defaults.user.clone();
     args.method = defaults.method.clone();
+    args.tlsv12 = defaults.tlsv12;
+    args.tlsv13 = defaults.tlsv13;
+    args.cacert = defaults.cacert.clone();
+    args.interface = defaults.interface.clone();
 
     if let Some(o) = opts {
         if let Some(m) = opts_get_str(o, "method") {
@@ -148,6 +152,18 @@ fn build_args(
         }
         if let Some(fr) = opts_get_bool(o, "follow_redirects") {
             args.follow_redirects = fr;
+        }
+        if let Some(v) = opts_get_bool(o, "tlsv12") {
+            args.tlsv12 = v;
+        }
+        if let Some(v) = opts_get_bool(o, "tlsv13") {
+            args.tlsv13 = v;
+        }
+        if let Some(p) = opts_get_str(o, "cacert") {
+            args.cacert = Some(std::path::PathBuf::from(p));
+        }
+        if let Some(ip) = opts_get_str(o, "interface") {
+            args.interface = Some(ip);
         }
     }
     Ok(args)

@@ -64,6 +64,18 @@ pub fn build_flags_map(args: &Args) -> Map {
                 .as_deref(),
         ),
     );
+    m.insert("tlsv12".into(), args.tlsv12.into());
+    m.insert("tlsv13".into(), args.tlsv13.into());
+    m.insert(
+        "cacert".into(),
+        opt_string(
+            args.cacert
+                .as_ref()
+                .map(|p| p.to_string_lossy().into_owned())
+                .as_deref(),
+        ),
+    );
+    m.insert("interface".into(), opt_string(args.interface.as_deref()));
 
     m
 }

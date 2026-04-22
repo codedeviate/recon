@@ -52,6 +52,18 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 39. TLS minimum version + `--cacert` + `--interface` (0.37.0)
+
+First of three curl-compat round-out releases. Four flags, all thin wrappers over reqwest's `ClientBuilder`:
+
+- **`--tlsv1.2` / `--tlsv1.3`** → `ClientBuilder::min_tls_version(Version::TLS_1_2 | TLS_1_3)`. One-line add. Both flags together: the higher minimum wins (1.3 beats 1.2).
+- **`--cacert <PATH>`** → read PEM, parse `reqwest::Certificate::from_pem`, `add_root_certificate`. Trust-additive (doesn't replace the system store), so self-signed corporate CAs slot in without also disabling verification with `-k`.
+- **`--interface <IP>`** → `ClientBuilder::local_address(ip)` — IP literal only. Interface names (`eth0`, `en0`) require OS-specific lookup (`if_nametoindex` + `getifaddrs` on Unix, `GetAdapterAddresses` on Windows) that isn't worth the platform split until someone asks. Error message is explicit about the literal-only constraint.
+
+**Script parity.** `ScriptDefaults` gets four new fields (`tlsv12`, `tlsv13`, `cacert`, `interface`); `http_binding::build_args` overlays them from per-call opts; the `flags` global visible to scripts picks them up too. Scripts that already set `insecure: true` now have the full TLS-knob set available in the same opts map.
+
+**Deferred rationale updated in OUT-OF-SCOPE.md.** `--key-type` moved from "unimplemented curl flag" to its own entry noting it needs full client-cert support first. `--cert-status` similarly marked needing a custom rustls `ServerCertVerifier`.
+
 ### 38. Script parity for compression + archive (0.36.0)
 
 Closes the script-parity gap retroactively for the 0.34.0 and 0.35.0 compression / archive work. Also establishes the policy going forward: every new CLI feature ships a Rhai binding alongside.

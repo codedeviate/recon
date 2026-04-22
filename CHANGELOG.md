@@ -8,6 +8,24 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-04-22
+
+### Added
+
+- **`--tlsv1.2` / `--tlsv1.3`** force a minimum TLS version for HTTPS. Handshake fails if the server can't negotiate at least the pinned version. Both flags present → `--tlsv1.3` wins (higher minimum). Curl-compatible spelling.
+- **`--cacert <PATH>`** trusts an additional PEM root certificate on top of the system trust store. Use for self-signed corporate / internal CAs without reaching for `-k`.
+- **`--interface <IP>`** binds outgoing HTTP sockets to a specific local IP (IPv4 or IPv6 literal). Interface-name resolution (e.g. `eth0`) is not yet supported — pass the address directly.
+- **Script parity**: all four flags are available as `http(url, opts)` keys: `tlsv12`, `tlsv13`, `cacert`, `interface`. Reflected in the `flags` global map that scripts inherit from the CLI invocation.
+
+### Changed
+
+- `src/client.rs::execute` extended to wire `min_tls_version`, `add_root_certificate`, and `local_address` onto the reqwest `ClientBuilder` when the respective flags are set.
+- `src/script/defaults.rs::ScriptDefaults` gains the four fields; `src/script/bindings/http.rs::build_args` overlays them from per-call opts; `src/script/bindings/cli.rs` exposes them in the `flags` map.
+
+### Removed from OUT-OF-SCOPE.md
+
+- `--tlsv1.2`, `--cacert`, `--interface` (all shipped this release).
+
 ## [0.36.0] - 2026-04-22
 
 ### Added

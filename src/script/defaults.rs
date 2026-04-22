@@ -7,6 +7,7 @@
 //! binding.
 
 use crate::cli::Args;
+use std::path::PathBuf;
 
 #[derive(Clone, Debug)]
 #[allow(dead_code)] // fields consumed by probe bindings landed in later tasks
@@ -25,6 +26,10 @@ pub struct ScriptDefaults {
     pub verbose: u8,
     pub ping_count: u32,
     pub max_hops: u8,
+    pub tlsv12: bool,
+    pub tlsv13: bool,
+    pub cacert: Option<PathBuf>,
+    pub interface: Option<String>,
 }
 
 impl ScriptDefaults {
@@ -44,6 +49,10 @@ impl ScriptDefaults {
             verbose: args.verbose,
             ping_count: args.ping_count,
             max_hops: args.max_hops,
+            tlsv12: args.tlsv12,
+            tlsv13: args.tlsv13,
+            cacert: args.cacert.clone(),
+            interface: args.interface.clone(),
         }
     }
 }

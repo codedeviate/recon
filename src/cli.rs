@@ -106,6 +106,27 @@ pub struct Args {
     #[arg(short = 'k', long = "insecure", help_heading = "Auth & TLS")]
     pub insecure: bool,
 
+    /// Force minimum TLS version 1.2. Handshake fails if the server
+    /// can't negotiate at least TLS 1.2.
+    #[arg(long = "tlsv1.2", help_heading = "Auth & TLS")]
+    pub tlsv12: bool,
+
+    /// Force minimum TLS version 1.3. Handshake fails if the server
+    /// can't negotiate at least TLS 1.3.
+    #[arg(long = "tlsv1.3", help_heading = "Auth & TLS")]
+    pub tlsv13: bool,
+
+    /// Path to a PEM-encoded CA certificate to trust in addition to the
+    /// system roots. Use for self-signed corporate roots without -k.
+    #[arg(long = "cacert", value_name = "PATH", help_heading = "Auth & TLS")]
+    pub cacert: Option<PathBuf>,
+
+    /// Bind outgoing socket to a specific local address. Accepts an IP
+    /// literal (IPv4 or IPv6). Interface names (eth0, en0) are not yet
+    /// resolved — pass the address directly for now.
+    #[arg(long = "interface", value_name = "IP", help_heading = "Auth & TLS")]
+    pub interface: Option<String>,
+
     /// HTTP Basic auth or SSH username; format: user or user:pass
     #[arg(short = 'u', long = "user", value_name = "USER:PASS", help_heading = "Auth & TLS")]
     pub user: Option<String>,

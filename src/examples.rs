@@ -215,6 +215,22 @@ pub fn print() {
     ]);
     note("Works with expired, self-signed, or hostname-mismatched certs — verification is intentionally skipped.");
 
+    example("Pin a minimum TLS version (curl-compat)", &[
+        "recon --tlsv1.2 https://example.com -I",
+        "recon --tlsv1.3 https://example.com -I",
+    ]);
+    note("Rejects handshakes below the stated version. --tlsv1.3 wins when both are set.");
+
+    example("Trust an extra PEM CA without disabling verification", &[
+        "recon --cacert /etc/ssl/internal-ca.pem https://internal.corp",
+    ]);
+
+    example("Bind outgoing socket to a specific local IP", &[
+        "recon --interface 10.0.0.5 https://example.com",
+        "recon --interface ::1 https://[::1]:8080/",
+    ]);
+    note("Interface *names* (eth0, en0) are not yet resolved; pass the address directly.");
+
     section("DNS LOOKUPS");
 
     example("Look up common DNS records for a host (--dns)", &[
