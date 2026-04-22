@@ -8,9 +8,9 @@ use std::path::Path;
 
 // ---- Passphrase resolution --------------------------------------------
 
-/// Test seam: when set via `set_prompt_override`, `prompt_passphrase`
-/// returns this value instead of calling rpassword. Allows tests to
-/// exercise the prompt branch without a real TTY.
+// Test seam: when set via `set_prompt_override`, `prompt_passphrase`
+// returns this value instead of calling rpassword. Allows tests to
+// exercise the prompt branch without a real TTY.
 #[cfg(test)]
 thread_local! {
     static PROMPT_OVERRIDE: std::cell::RefCell<Option<String>> =
@@ -26,6 +26,7 @@ fn set_prompt_override(v: Option<&str>) {
 
 /// Prompt for a passphrase using the OS's TTY. In tests, returns the
 /// value set by `set_prompt_override`, or errors if not set.
+#[cfg_attr(test, allow(unused_variables))]
 fn prompt_passphrase(confirm: bool) -> Result<String> {
     #[cfg(test)]
     {

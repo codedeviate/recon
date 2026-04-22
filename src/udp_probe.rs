@@ -133,6 +133,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(invalid_from_utf8)] // intentionally-invalid literal: that's what we're asserting
     fn preview_hex_for_binary() {
         // Pins that binary bytes (non-UTF-8) are treated differently from UTF-8.
         let bytes = [0xffu8, 0x00, 0x10];

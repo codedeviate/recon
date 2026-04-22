@@ -227,10 +227,4 @@ mod tests {
         assert_eq!(r.uri().scheme_str(), Some("wss"));
     }
 
-    #[test]
-    fn bad_scheme_rejected() {
-        assert!("http://example.com".into_client_request().is_err() ||
-                // tungstenite versions vary on this — accept either.
-                true);
-    }
 }

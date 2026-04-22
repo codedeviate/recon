@@ -8,8 +8,6 @@
 //! Rhai engine here so the examples are validated against the real
 //! binding set, not just Rhai grammar.
 
-use std::path::Path;
-
 fn script_dir() -> std::path::PathBuf {
     std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("script")
 }

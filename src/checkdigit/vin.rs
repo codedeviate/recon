@@ -125,7 +125,7 @@ mod tests {
     }
 
     #[test]
-    fn vin_rejects_capital_I_at_start() {
+    fn vin_rejects_capital_i_at_start() {
         match verify_vin("I1111111111111111") {
             Verdict::Invalid { reason } => assert!(reason.contains("I, O, Q")),
             v => panic!("{:?}", v),
@@ -149,9 +149,8 @@ mod tests {
 
     #[test]
     fn vin_create_placeholder_form() {
-        let input = "1HGBH41J_MN109186";  // 17 chars with _ at pos 9
-        // Should fail because '_' isn't valid VIN alphanumeric. The create spec says
-        // "any placeholder" — but since transliteration would reject _ too, use '0' as placeholder.
+        // '_' isn't valid VIN alphanumeric, so callers use '0' as the placeholder
+        // at the check-digit position (9th char) instead.
         let input0 = "1HGBH41J0MN109186";
         let full = create_vin(input0, false).unwrap();
         assert_eq!(full, "1HGBH41JXMN109186");

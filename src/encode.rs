@@ -822,7 +822,7 @@ mod tests {
     fn render_png_decodes_back() {
         let bytes = render_png(&tiny_2d_matrix()).unwrap();
         let decoder = png::Decoder::new(bytes.as_slice());
-        let mut reader = decoder.read_info().unwrap();
+        let reader = decoder.read_info().unwrap();
         let info = reader.info();
         // 3 modules + 2 quiet-zones on each side = 7 modules wide; × 8 scale = 56.
         assert_eq!(info.width, 56);

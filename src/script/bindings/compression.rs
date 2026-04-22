@@ -158,18 +158,6 @@ mod tests {
     #[test]
     fn round_trip_gzip_via_script() {
         let e = engine();
-        let script = r#"
-let payload = blob();
-for b in "hello from recon".to_blob() { payload.push(b); }
-let gz = compression::compress("gzip", payload);
-let back = compression::decompress("gzip", gz);
-back.len()
-"#;
-        let _ = e;
-        // The simpler smoke: build a payload and round-trip, compare length.
-        // Rhai doesn't have a direct "blob from string" literal; rely on
-        // `to_blob()` method on Rhai strings.
-        let e = engine();
         let n: i64 = e
             .eval(
                 r#"
