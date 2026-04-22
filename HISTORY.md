@@ -52,6 +52,31 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 43. Per-module example scripts + docs sweep (0.41.0)
+
+Follow-up to #42: with seven new bindings landed, the `script/` directory gets a companion `.rhai` file per binding module so users can see the minimal idiom at a glance. Before 0.41.0 the directory had five `browser-*.rhai` recipes and nothing else.
+
+**Scope.** One example per module, deliberately minimal (~15 lines each). 21 new files:
+
+- Protocol probes: `http`, `tcp`, `ping`, `dns`, `tls`, `ntp`, `redis`, `ws`, `dict`, `ldap`, `whois`, `memcached`, `rtsp`, `mqtt`.
+- Data primitives: `file`, `hash`, `compression`, `archive`, `sqlite`.
+- Domain tools (new in 0.40.0): `encode`, `encrypt`, `checkdigit`, `sample`, `jwt`, `email`, `netstatus`.
+- `agent-browser.rhai` as a minimal example beyond the existing `browser-*.rhai` recipes.
+
+**Convention per file.**
+- Header comment: `// Usage: recon --script <name> [ARGS]` plus a one-paragraph description.
+- Single positional arg defaulted from a sensible test target (`example.com`, `Cargo.toml`, `127.0.0.1:6379`, etc.) so every script works with zero args.
+- `return 0` on success, non-zero when an upstream precondition fails.
+- Scripts hitting external services (`redis`, `memcached`, `mqtt`) start with a `tcp()` reachability probe and return 2 (skip) when the service isn't listening — keeps the "run all examples" smoke loop from flaking.
+
+**README rewrite.** `script/README.md` went from a few paragraphs about the browser examples to a categorised index: four tables (Protocol probes / Data primitives / Domain tools / Browser automation) with one-line descriptions per file. Usage section covers direct execution, installation into `~/.recon/script/`, and the guard pattern.
+
+**Mechanical parse validation.** `tests/script_examples_it.rs` walks `script/` and calls `engine.compile_file()` on every `.rhai`, with a heuristic that distinguishes true parse errors from missing-symbol errors (bare `Engine::new()` doesn't have recon bindings registered, so "identifier not bound" errors are benign at parse time). A second test verifies `script/README.md` contains a reference to every `.rhai` file — catches README drift when new examples are added.
+
+**Docs sweep.** `TOPIC_SCRIPT` help examples now point at the shipped `script/` directory (ls, run, copy-to-global idioms). `recon --examples` SCRIPTING section gains a "Browse per-module example scripts" block. Both place `script/` as the first thing a user reaches for when wondering "how do I use X from a script".
+
+**Tests added: +2.** 968 → 970 total. (The 21 new scripts don't count as individual tests; the parse-validation test covers them collectively.)
+
 ### 42. Script parity for encode / encrypt / checkdigit / sample / jwt / email / netstatus (0.40.0)
 
 Closes the remaining script-binding gaps. Seven new static modules, one per feature group that had a CLI flag but no script surface.

@@ -1203,7 +1203,17 @@ EOF
 recon --script /tmp/sign.rhai"#,
     ]);
 
-    note("Available functions: http/https/request, tcp, ping, dns, tls, ntp, redis, ws/wss, dict, ldap/ldaps, whois, memcached, rtsp/rtsps, mqtt_pub/mqtt_sub, file_read. Hashes: md5, sha1, sha256, sha384, sha512, sha3_256, sha3_512, blake3, crc32, plus hash(algo, x [, \"hex\"|\"base64\"]). Helpers: print, sleep_ms, env, now, now_ms, assert, json_parse, json_stringify (compact or pretty via bool / integer indent). See `recon --help script`.");
+    example("Browse per-module example scripts (one .rhai per binding)", &[
+        "ls script/                                   # 27 shipped examples",
+        "recon --script script/http.rhai https://example.com",
+        "recon --script script/jwt.rhai",
+        "recon --script script/encrypt.rhai           # age round-trip",
+        "recon --script script/email.rhai example.com # SPF + DMARC snapshot",
+        "cp script/*.rhai ~/.recon/script/            # install into global dir",
+    ]);
+    note("The repo's script/ directory ships one example per binding module (http, dns, tls, redis, ws, ldap, encode, encrypt, checkdigit, sample, jwt, email, netstatus, sqlite, archive, compression, hash, agent-browser, …). Each script is ~15 lines, documents its args at the top, and exits 0 on success (non-zero when an upstream precondition is missing).");
+
+    note("Available functions: http/https/request, tcp, ping, dns, tls, ntp, redis, ws/wss, dict, ldap/ldaps, whois, memcached, rtsp/rtsps, mqtt_pub/mqtt_sub, file_read. Module bindings: compression::, archive::, sqlite(), encode::, encrypt::, checkdigit::, sample::, jwt::, email::, netstatus::, agentBrowser::. Hashes: md5, sha1, sha256, sha384, sha512, sha3_256, sha3_512, blake3, crc32, plus hash(algo, x [, \"hex\"|\"base64\"]). Helpers: print, sleep_ms, env, now, now_ms, assert, json_parse, json_stringify. See `recon --help script`.");
 
     section("EDITOR OUTPUT");
 

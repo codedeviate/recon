@@ -15,7 +15,7 @@
 use crate::encrypt;
 use crate::script::convert::err;
 use age::secrecy::ExposeSecret;
-use rhai::{Array, Blob, Dynamic, Engine, EvalAltResult, Map, Module};
+use rhai::{Array, Blob, Engine, EvalAltResult, Map, Module};
 use std::path::PathBuf;
 
 pub fn register(engine: &mut Engine) {

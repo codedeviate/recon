@@ -3,7 +3,7 @@
 
 use crate::encode::{self, Format, OutputFormat};
 use crate::script::convert::err;
-use rhai::{Array, Blob, Dynamic, Engine, EvalAltResult, Map, Module};
+use rhai::{Array, Blob, Dynamic, Engine, EvalAltResult, Module};
 
 pub fn register(engine: &mut Engine) {
     let mut module = Module::new();

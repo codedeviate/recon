@@ -1,0 +1,21 @@
+// Usage: recon --script redis [URL [COMMAND]]
+//
+// Redis PING (default) or arbitrary RESP command.
+// Guards on local-port reachability before invoking.
+
+let url = if args.len() > 1 { args[1] } else { "redis://127.0.0.1:6379/" };
+// Light pre-check: if 127.0.0.1:6379 isn't listening, exit 2 cleanly.
+if url == "redis://127.0.0.1:6379/" {
+    let t = tcp("tcp://127.0.0.1:6379");
+    if !t.ok {
+        print("no redis on 127.0.0.1:6379 — skipping");
+        return 2;
+    }
+}
+let r = if args.len() > 2 {
+    redis(url, args[2])
+} else {
+    redis(url)
+};
+print(`${r.command}: ${r.reply} (${r.command_ms} ms)`);
+return 0;

@@ -8,6 +8,19 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-04-22
+
+### Added
+
+- **Per-module example scripts in `script/`.** One `.rhai` file per script binding, covering every module: protocol probes (`http`, `tcp`, `ping`, `dns`, `tls`, `ntp`, `redis`, `ws`, `dict`, `ldap`, `whois`, `memcached`, `rtsp`, `mqtt`), data primitives (`file`, `hash`, `compression`, `archive`, `sqlite`), domain tools (`encode`, `encrypt`, `checkdigit`, `sample`, `jwt`, `email`, `netstatus`), and a minimal `agent-browser` example beyond the existing five browser recipes. 21 new files; the five `browser-*.rhai` recipes stay.
+- **`tests/script_examples_it.rs`** integration test walks `script/` and `engine.compile_file`s every `.rhai`, flagging parse errors mechanically. A second test verifies `script/README.md` indexes every file.
+
+### Changed
+
+- **`script/README.md`** rewritten as a categorised index (Protocol probes / Data primitives / Domain tools / Browser automation) with one-line descriptions, usage patterns, and guard-pattern guidance for scripts that need external services.
+- **`TOPIC_SCRIPT` help examples** now reference the shipped `script/` directory (ls, run, copy-to-global idioms).
+- **`recon --examples` SCRIPTING** section adds a "Browse per-module example scripts" block pointing users at `script/*.rhai`.
+
 ## [0.40.0] - 2026-04-22
 
 ### Added

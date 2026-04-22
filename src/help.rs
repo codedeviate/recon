@@ -1135,6 +1135,9 @@ static TOPIC_SCRIPT: Topic = Topic {
         ExampleHelp { description: "Pass positional args into a script (args[1..])", command: "recon --script check.rhai example.com 42" },
         ExampleHelp { description: "Inherit CLI flags as script defaults", command: "recon -k -H 'X-Api-Key: abc' --script probe.rhai" },
         ExampleHelp { description: "Query the cookie jar from a script", command: r#"recon --script jar-count  # reads ~/.recon/script/jar-count.rhai"# },
+        ExampleHelp { description: "Browse per-module example scripts shipped in the repo", command: "ls script/*.rhai  # one-per-module demos: http, dns, jwt, email, encrypt, …" },
+        ExampleHelp { description: "Run a shipped example directly", command: "recon --script script/http.rhai https://example.com" },
+        ExampleHelp { description: "Install every shipped example into ~/.recon/script/", command: "cp script/*.rhai ~/.recon/script/" },
         ExampleHelp { description: "Full API surface via the SCRIPTING example block", command: "recon --examples" },
     ],
 };
