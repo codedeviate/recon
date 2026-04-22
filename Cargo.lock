@@ -1991,6 +1991,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "112b39cec0b298b6c1999fee3e31427f74f676e4cb9879ed1a121b43661a4154"
 
 [[package]]
+name = "lz4_flex"
+version = "0.11.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "373f5eceeeab7925e0c1098212f2fbc4d416adec9d35051a6ab251e824c1854a"
+dependencies = [
+ "twox-hash",
+]
+
+[[package]]
+name = "lzma-sys"
+version = "0.1.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5fda04ab3764e6cde78b9974eec4f779acaba7c4e84b36eca3cf77c581b85d27"
+dependencies = [
+ "cc",
+ "libc",
+ "pkg-config",
+]
+
+[[package]]
 name = "md-5"
 version = "0.10.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2577,7 +2597,7 @@ dependencies = [
 
 [[package]]
 name = "recon"
-version = "0.33.0"
+version = "0.34.0"
 dependencies = [
  "age",
  "anyhow",
@@ -2607,6 +2627,7 @@ dependencies = [
  "jsonwebtoken",
  "ldap3",
  "libc",
+ "lz4_flex",
  "md-5",
  "mime_guess",
  "native-tls",
@@ -2629,6 +2650,7 @@ dependencies = [
  "sha1",
  "sha2",
  "sha3",
+ "snap",
  "socket2",
  "ssh2",
  "tempfile",
@@ -2640,6 +2662,7 @@ dependencies = [
  "webpki-roots 1.0.7",
  "wiremock",
  "x509-parser 0.16.0",
+ "xz2",
  "zstd",
 ]
 
@@ -3344,6 +3367,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "snap"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b6b67fb9a61334225b5b790716f609cd58395f895b3fe8b328786812a40bc3b"
+
+[[package]]
 name = "socket2"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3812,6 +3841,12 @@ dependencies = [
  "thiserror 2.0.18",
  "webpki-roots 0.26.11",
 ]
+
+[[package]]
+name = "twox-hash"
+version = "2.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ea3136b675547379c4bd395ca6b938e5ad3c3d20fad76e7fe85f9e0d011419c"
 
 [[package]]
 name = "type-map"
@@ -4512,6 +4547,15 @@ dependencies = [
  "rusticata-macros",
  "thiserror 2.0.18",
  "time",
+]
+
+[[package]]
+name = "xz2"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "388c44dc09d76f1536602ead6d325eb532f5c122f17782bd57fb47baeeb767e2"
+dependencies = [
+ "lzma-sys",
 ]
 
 [[package]]

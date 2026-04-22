@@ -663,25 +663,29 @@ static TOPIC_HASH: Topic = Topic {
 static TOPIC_COMPRESSION: Topic = Topic {
     title: "Compression",
     description: "Compress or decompress any source — a local file, file:// URL, HTTP(S) URL,\n\
-                  or stdin. Output goes to stdout or -o <FILE>. Auto-detects gzip, zstd, and\n\
-                  bzip2 inputs by magic bytes; deflate and brotli lack a signature so their\n\
-                  algorithm must be named explicitly when decompressing.",
+                  or stdin. Output goes to stdout or -o <FILE>. Auto-detects gzip, zstd,\n\
+                  bzip2, lz4, xz, snappy, and zlib inputs by magic bytes; deflate and brotli\n\
+                  lack a signature so their algorithm must be named explicitly when\n\
+                  decompressing.",
     flags: &[
         FlagHelp {
             flags: "--compress <ALGO>",
             description: "Compress with the named algorithm (case-insensitive; alias accepted).\n\
-                          Supported: gzip/gz, deflate, zstd/zst, brotli/br, bzip2/bz2.",
+                          Supported: gzip/gz, deflate, zstd/zst, brotli/br, bzip2/bz2,\n\
+                          lz4/lz, xz/lzma, snappy/snap/sz, zlib/zl.",
         },
         FlagHelp {
             flags: "--decompress [ALGO]",
-            description: "Decompress. Omit ALGO to auto-detect (gzip, zstd, bzip2 by magic\n\
-                          bytes). Pass the algorithm for deflate or brotli.",
+            description: "Decompress. Omit ALGO to auto-detect (gzip, zstd, bzip2, lz4, xz,\n\
+                          snappy, zlib by magic bytes). Pass the algorithm for deflate or\n\
+                          brotli.",
         },
         FlagHelp {
             flags: "--compression-level <LEVEL>",
             description: "Quality for --compress. Number in the algorithm's native range\n\
-                          (gzip 0-9, zstd 1-22, brotli 0-11, bzip2 1-9), or a word:\n\
-                          fastest, fast, default, good, best. Invalid with --decompress.",
+                          (gzip/deflate/zlib/xz 0-9, zstd 1-22, brotli 0-11, bzip2 1-9),\n\
+                          or a word: fastest, fast, default, good, best. lz4 and snappy\n\
+                          have no level setting. Invalid with --decompress.",
         },
         FlagHelp {
             flags: "--compress-list",
@@ -696,6 +700,10 @@ static TOPIC_COMPRESSION: Topic = Topic {
         ExampleHelp { description: "Decompress from URL (auto-detect)", command: "recon --decompress https://cdn/file.zst" },
         ExampleHelp { description: "Decompress brotli (explicit algorithm)", command: "recon --decompress brotli ./web-asset.br" },
         ExampleHelp { description: "Compress stdin", command: "cat data | recon --compress gzip > data.gz" },
+        ExampleHelp { description: "lz4 (fast, no level)", command: "recon --compress lz4 ./data.bin -o data.lz4" },
+        ExampleHelp { description: "xz with best compression", command: "recon --compress xz --compression-level best ./data -o data.xz" },
+        ExampleHelp { description: "Snappy streaming compression", command: "recon --compress snappy ./stream.log -o stream.sz" },
+        ExampleHelp { description: "zlib (RFC 1950, not gzip-wrapped)", command: "recon --compress zlib ./blob.bin -o blob.zlib" },
         ExampleHelp { description: "List supported algorithms", command: "recon --compress-list" },
     ],
 };

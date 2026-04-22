@@ -606,6 +606,18 @@ pub fn print() {
     example("Piping streams without touching disk", &[
         "cat data | recon --compress gzip | recon --decompress > data-roundtrip",
     ]);
+    example("lz4 / snappy (no level setting)", &[
+        "recon --compress lz4 ./data.bin -o data.lz4",
+        "recon --compress snappy ./stream.log -o stream.sz",
+    ]);
+    note("Lz4 and Snappy are frame-format streaming. Both ignore --compression-level; passing one gives a clear error.");
+
+    example("xz and zlib streams", &[
+        "recon --compress xz --compression-level best ./data -o data.xz",
+        "recon --compress zlib ./blob.bin -o blob.zlib",
+    ]);
+    note("zlib produces a raw RFC 1950 stream (not gzip-wrapped). xz supports the full 0-9 level range like gzip.");
+
     example("List supported algorithms", &[
         "recon --compress-list",
     ]);

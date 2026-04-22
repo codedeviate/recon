@@ -52,6 +52,23 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 36. Four more stream-compression algos: lz4, xz, snappy, zlib (0.34.0)
+
+Picks up the four long-parked OUT-OF-SCOPE items from the compression track. Five → nine algorithms in `--compress` / `--decompress`. Each one slotted into the existing `Algo` / `parse_algo` / `compress` / `decompress` machinery with minimal surface change:
+
+- **lz4** via `lz4_flex` (pure Rust). Frame format (the streaming variant, distinguishable from the block format by its `04 22 4d 18` magic). The encoder is **writer-side** in lz4_flex (wraps the output, not the source), so `compress()` grew a special arm that handles lz4 via `std::io::copy(source, encoder)` before the general `Box<dyn Read>` match. Everyone else is read-side.
+- **xz** via `xz2`. Full 0-9 level range like gzip. `xz2::read::XzEncoder` / `XzDecoder` fit the read-side pattern directly.
+- **snappy** via `snap`. Frame format. No level setting — another level-less algo.
+- **zlib** via the existing `flate2`. No new dep; just exposes the already-linked `ZlibEncoder` / `ZlibDecoder`.
+
+**Levelless-algo handling.** Lz4 and Snappy don't expose a level knob. Rather than silently ignore `--compression-level`, `Algo::is_levelless()` is a new method; the `run_compress` entry point checks it and errors out with a clear message when the user passes a level against one of them. `level_range()` returns `(0, 0)` and `default_level()` returns `0` for these two.
+
+**Zlib magic-byte detection.** Unique in not having a constant prefix. Per RFC 1950 §2.2, the header is CMF (always 0x78 in practice — 32 KB window + deflate compression method) + FLG where the big-endian 16-bit composition must be divisible by 31. `detect_from_magic` grew a special-case arm after the table loop that checks exactly this. Gzip (`1f 8b`) and zlib (`78 xx`) remain distinguishable.
+
+**Dep cost.** Three new direct deps (`lz4_flex`, `xz2`, `snap`), plus `xz2` pulls `lzma-sys` for the C library. ~24s build impact on a clean target — acceptable for production value.
+
+**OUT-OF-SCOPE.md cleanup.** The `Compression (0.13.0): lz4, xz, snappy, zlib` line is removed in this release.
+
 ### 35. agent-browser bindings + `--browser-screenshot` flag (0.33.0)
 
 Scripts gain browser-automation primitives by wrapping the external `agent-browser` CLI (a playwright-ish tool distributed via Homebrew / npm / cargo). Rather than link a browser driver into recon (huge dep surface), the binding is a thin shell-out to `agent-browser <subcommand>`. A `--browser-screenshot URL` CLI flag exposes the most common one-shot flow without needing a script.

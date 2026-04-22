@@ -1,6 +1,6 @@
 //! `--compress <ALGO>` / `--decompress [ALGO]`: streaming compression and
-//! decompression over any source (file, URL, stdin, file://). Five
-//! algorithms: gzip, deflate, zstd, brotli, bzip2.
+//! decompression over any source (file, URL, stdin, file://). Nine
+//! algorithms: gzip, deflate, zstd, brotli, bzip2, lz4, xz, snappy, zlib.
 
 use anyhow::{anyhow, Result};
 
@@ -12,6 +12,10 @@ pub enum Algo {
     Zstd,
     Brotli,
     Bzip2,
+    Lz4,
+    Xz,
+    Snappy,
+    Zlib,
 }
 
 impl Algo {
@@ -22,6 +26,10 @@ impl Algo {
             Algo::Zstd => "zstd",
             Algo::Brotli => "brotli",
             Algo::Bzip2 => "bzip2",
+            Algo::Lz4 => "lz4",
+            Algo::Xz => "xz",
+            Algo::Snappy => "snappy",
+            Algo::Zlib => "zlib",
         }
     }
 
@@ -33,10 +41,15 @@ impl Algo {
             Algo::Zstd => &["zst"],
             Algo::Brotli => &["br"],
             Algo::Bzip2 => &["bz2"],
+            Algo::Lz4 => &["lz"],
+            Algo::Xz => &["lzma"],
+            Algo::Snappy => &["snap", "sz"],
+            Algo::Zlib => &["zl"],
         }
     }
 
     /// Native level range (inclusive), per the library's own quality scale.
+    /// `(0, 0)` means "algorithm has no level setting".
     pub fn level_range(&self) -> (u32, u32) {
         match self {
             Algo::Gzip => (0, 9),
@@ -44,6 +57,9 @@ impl Algo {
             Algo::Zstd => (1, 22),
             Algo::Brotli => (0, 11),
             Algo::Bzip2 => (1, 9),
+            Algo::Xz => (0, 9),
+            Algo::Zlib => (0, 9),
+            Algo::Lz4 | Algo::Snappy => (0, 0),
         }
     }
 
@@ -55,16 +71,30 @@ impl Algo {
             Algo::Zstd => 3,
             Algo::Brotli => 4,
             Algo::Bzip2 => 6,
+            Algo::Xz => 6,
+            Algo::Zlib => 6,
+            Algo::Lz4 | Algo::Snappy => 0,
         }
     }
 
-    /// Magic-byte prefix for auto-detect. `None` = no magic bytes (deflate, brotli).
+    /// True when the algorithm has no user-settable level. Scripts that
+    /// pass `--compression-level` against these get a clear error.
+    pub fn is_levelless(&self) -> bool {
+        matches!(self, Algo::Lz4 | Algo::Snappy)
+    }
+
+    /// Magic-byte prefix for auto-detect. `None` = no magic bytes
+    /// (deflate, brotli) or special-cased elsewhere (zlib — see
+    /// `detect_from_magic`).
     pub fn magic(&self) -> Option<&'static [u8]> {
         match self {
             Algo::Gzip => Some(&[0x1f, 0x8b]),
             Algo::Zstd => Some(&[0x28, 0xb5, 0x2f, 0xfd]),
             Algo::Bzip2 => Some(&[0x42, 0x5a, 0x68]),
-            Algo::Deflate | Algo::Brotli => None,
+            Algo::Lz4 => Some(&[0x04, 0x22, 0x4d, 0x18]),
+            Algo::Xz => Some(&[0xfd, 0x37, 0x7a, 0x58, 0x5a, 0x00]),
+            Algo::Snappy => Some(&[0xff, 0x06, 0x00, 0x00, 0x73, 0x4e, 0x61, 0x50, 0x70, 0x59]),
+            Algo::Deflate | Algo::Brotli | Algo::Zlib => None,
         }
     }
 
@@ -74,6 +104,10 @@ impl Algo {
         Algo::Zstd,
         Algo::Brotli,
         Algo::Bzip2,
+        Algo::Lz4,
+        Algo::Xz,
+        Algo::Snappy,
+        Algo::Zlib,
     ];
 }
 
@@ -94,15 +128,27 @@ pub fn parse_algo(input: &str) -> Result<Algo> {
     ))
 }
 
-/// Inspect up to 6 bytes from the start of a stream and match against the
-/// magic table. Returns the detected algorithm, or `None` if nothing matched
-/// (including when the buffer is shorter than any magic prefix).
+/// Inspect the first bytes of a stream and match against the magic
+/// table. Returns the detected algorithm, or `None` if nothing matched.
+/// Zlib is a special case: its header is `CMF(0x78) + FLG` where
+/// `(CMF*256 + FLG) % 31 == 0` — no constant-prefix match, so checked
+/// after the table.
 pub fn detect_from_magic(head: &[u8]) -> Option<Algo> {
     for algo in Algo::ALL {
         if let Some(magic) = algo.magic() {
             if head.len() >= magic.len() && &head[..magic.len()] == magic {
                 return Some(*algo);
             }
+        }
+    }
+    // Zlib header check. CMF byte is 0x78 in ~100% of real-world use
+    // (32 KB window + deflate). The FLG byte's low 5 bits plus CMF's
+    // 8 bits + FLG's upper 3 bits must make the 16-bit big-endian value
+    // divisible by 31 (RFC 1950 §2.2).
+    if head.len() >= 2 && head[0] == 0x78 {
+        let fcheck = ((head[0] as u16) << 8) | head[1] as u16;
+        if fcheck % 31 == 0 {
+            return Some(Algo::Zlib);
         }
     }
     None
@@ -181,14 +227,21 @@ use std::io::Read;
 const BROTLI_BUF_SIZE: usize = 8192;
 
 /// Stream `source` through the chosen encoder, writing compressed bytes to
-/// `out`. The encoder is constructed read-side (wraps `source`); `io::copy`
-/// drains it into `out`.
+/// `out`. Most encoders are read-side wrappers; Lz4 is write-side
+/// (lz4_flex's FrameEncoder wraps a Writer), handled as an early arm.
 pub fn compress(
     algo: Algo,
     level: u32,
-    source: Box<dyn Read>,
+    mut source: Box<dyn Read>,
     out: &mut dyn std::io::Write,
 ) -> Result<u64> {
+    if let Algo::Lz4 = algo {
+        // FrameEncoder wraps the Writer; io::copy drains source into it.
+        let mut encoder = lz4_flex::frame::FrameEncoder::new(out);
+        let n = std::io::copy(&mut source, &mut encoder)?;
+        encoder.finish().map_err(|e| anyhow!("lz4 finish: {e}"))?;
+        return Ok(n);
+    }
     let mut encoder: Box<dyn Read> = match algo {
         Algo::Gzip => Box::new(flate2::read::GzEncoder::new(
             source,
@@ -210,6 +263,13 @@ pub fn compress(
             source,
             bzip2::Compression::new(level),
         )),
+        Algo::Xz => Box::new(xz2::read::XzEncoder::new(source, level)),
+        Algo::Snappy => Box::new(snap::read::FrameEncoder::new(source)),
+        Algo::Zlib => Box::new(flate2::read::ZlibEncoder::new(
+            source,
+            flate2::Compression::new(level),
+        )),
+        Algo::Lz4 => unreachable!("handled above"),
     };
     Ok(std::io::copy(&mut encoder, out)?)
 }
@@ -227,6 +287,10 @@ pub fn decompress(
         Algo::Zstd => Box::new(zstd::stream::read::Decoder::new(source)?),
         Algo::Brotli => Box::new(brotli::Decompressor::new(source, BROTLI_BUF_SIZE)),
         Algo::Bzip2 => Box::new(bzip2::read::BzDecoder::new(source)),
+        Algo::Lz4 => Box::new(lz4_flex::frame::FrameDecoder::new(source)),
+        Algo::Xz => Box::new(xz2::read::XzDecoder::new(source)),
+        Algo::Snappy => Box::new(snap::read::FrameDecoder::new(source)),
+        Algo::Zlib => Box::new(flate2::read::ZlibDecoder::new(source)),
     };
     Ok(std::io::copy(&mut decoder, out)?)
 }
@@ -259,6 +323,21 @@ fn word_to_native(algo: Algo, word: LevelWord) -> u32 {
         (Algo::Bzip2, LevelWord::Default)    => 6,
         (Algo::Bzip2, LevelWord::Good)       => 7,
         (Algo::Bzip2, LevelWord::Best)       => 9,
+        (Algo::Xz, LevelWord::Fastest)       => 1,
+        (Algo::Xz, LevelWord::Fast)          => 3,
+        (Algo::Xz, LevelWord::Default)       => 6,
+        (Algo::Xz, LevelWord::Good)          => 7,
+        (Algo::Xz, LevelWord::Best)          => 9,
+        (Algo::Zlib, LevelWord::Fastest)     => 1,
+        (Algo::Zlib, LevelWord::Fast)        => 3,
+        (Algo::Zlib, LevelWord::Default)     => 6,
+        (Algo::Zlib, LevelWord::Good)        => 7,
+        (Algo::Zlib, LevelWord::Best)        => 9,
+        // Level-less algorithms: the `resolve_native_level` path should
+        // reject a user-supplied level before this is reached. If a word
+        // sneaks through (e.g. from future call sites), return 0 — the
+        // encoders for Lz4/Snappy ignore the level.
+        (Algo::Lz4, _) | (Algo::Snappy, _) => 0,
     }
 }
 
@@ -312,6 +391,12 @@ fn run_compress(args: &Args) -> Result<()> {
 
     let level = match args.compression_level.as_deref() {
         Some(s) => {
+            if algo.is_levelless() {
+                return Err(anyhow!(
+                    "{}: algorithm has no level setting (remove --compression-level)",
+                    algo.canonical()
+                ));
+            }
             let parsed = parse_level(s)?;
             resolve_native_level(algo, parsed)?
         }
@@ -432,10 +517,11 @@ mod tests {
 
     #[test]
     fn parse_algo_unknown_lists_supported() {
-        let err = parse_algo("snappy").unwrap_err().to_string();
-        assert!(err.contains("snappy"), "got: {err}");
+        let err = parse_algo("supercompress").unwrap_err().to_string();
+        assert!(err.contains("supercompress"), "got: {err}");
         assert!(err.contains("gzip"), "got: {err}");
         assert!(err.contains("bzip2"), "got: {err}");
+        assert!(err.contains("snappy"), "got: {err}");
     }
 
     #[test]
@@ -464,8 +550,84 @@ mod tests {
     }
 
     #[test]
+    fn detect_from_magic_matches_new_algos() {
+        assert_eq!(
+            detect_from_magic(&[0x04, 0x22, 0x4d, 0x18]),
+            Some(Algo::Lz4)
+        );
+        assert_eq!(
+            detect_from_magic(&[0xfd, 0x37, 0x7a, 0x58, 0x5a, 0x00]),
+            Some(Algo::Xz)
+        );
+        assert_eq!(
+            detect_from_magic(&[0xff, 0x06, 0x00, 0x00, 0x73, 0x4e, 0x61, 0x50, 0x70, 0x59]),
+            Some(Algo::Snappy)
+        );
+    }
+
+    #[test]
+    fn detect_from_magic_recognises_zlib_cmf_flg() {
+        // 0x78 0x9c is zlib's default level header; 0x78 0x01 is no-compression;
+        // 0x78 0xda is best. All divisible by 31 when packed BE.
+        assert_eq!(detect_from_magic(&[0x78, 0x9c]), Some(Algo::Zlib));
+        assert_eq!(detect_from_magic(&[0x78, 0x01]), Some(Algo::Zlib));
+        assert_eq!(detect_from_magic(&[0x78, 0xda]), Some(Algo::Zlib));
+        // 0x78 0x00: (0x78*256 + 0) % 31 = 30628 % 31 = 0 → matches. Fine, any
+        // CMF=0x78 + valid FLG is accepted by design.
+        // Negative: second byte that doesn't pass the CMF/FLG check.
+        assert_eq!(detect_from_magic(&[0x78, 0x02]), None);
+        // First byte not 0x78 — no match.
+        assert_eq!(detect_from_magic(&[0x77, 0x9c]), None);
+    }
+
+    #[test]
+    fn levelless_algos_have_zero_range() {
+        assert_eq!(Algo::Lz4.level_range(), (0, 0));
+        assert_eq!(Algo::Snappy.level_range(), (0, 0));
+        assert!(Algo::Lz4.is_levelless());
+        assert!(Algo::Snappy.is_levelless());
+        assert!(!Algo::Gzip.is_levelless());
+        assert!(!Algo::Xz.is_levelless());
+        assert!(!Algo::Zlib.is_levelless());
+    }
+
+    #[test]
+    fn new_algos_parse_and_canonicalize() {
+        assert_eq!(parse_algo("lz4").unwrap(), Algo::Lz4);
+        assert_eq!(parse_algo("lz").unwrap(), Algo::Lz4);
+        assert_eq!(parse_algo("xz").unwrap(), Algo::Xz);
+        assert_eq!(parse_algo("lzma").unwrap(), Algo::Xz);
+        assert_eq!(parse_algo("snappy").unwrap(), Algo::Snappy);
+        assert_eq!(parse_algo("snap").unwrap(), Algo::Snappy);
+        assert_eq!(parse_algo("sz").unwrap(), Algo::Snappy);
+        assert_eq!(parse_algo("zlib").unwrap(), Algo::Zlib);
+        assert_eq!(parse_algo("zl").unwrap(), Algo::Zlib);
+    }
+
+    #[test]
+    fn round_trip_all_new_algos() {
+        let payload = b"the quick brown fox jumps over the lazy dog";
+        for algo in [Algo::Lz4, Algo::Xz, Algo::Snappy, Algo::Zlib] {
+            let mut compressed = Vec::new();
+            let reader: Box<dyn std::io::Read> = Box::new(std::io::Cursor::new(payload.to_vec()));
+            compress(algo, algo.default_level(), reader, &mut compressed).unwrap();
+            assert!(!compressed.is_empty(), "{:?} produced empty output", algo);
+
+            let mut decompressed = Vec::new();
+            let reader: Box<dyn std::io::Read> =
+                Box::new(std::io::Cursor::new(compressed.clone()));
+            decompress(algo, reader, &mut decompressed).unwrap();
+            assert_eq!(
+                decompressed, payload,
+                "{:?} round-trip mismatch",
+                algo
+            );
+        }
+    }
+
+    #[test]
     fn algo_all_has_five_variants() {
-        assert_eq!(Algo::ALL.len(), 5);
+        assert_eq!(Algo::ALL.len(), 9);
     }
 
     #[test]

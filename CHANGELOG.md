@@ -8,6 +8,24 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-04-22
+
+### Added
+
+- **Four new stream-compression algorithms on `--compress` / `--decompress`:**
+  - **`lz4`** (alias `lz`) — LZ4 frame format via `lz4_flex`. Fast, no level setting.
+  - **`xz`** (alias `lzma`) — XZ/LZMA via `xz2`. Levels 0-9, default 6.
+  - **`snappy`** (aliases `snap`, `sz`) — Google Snappy frame format via `snap`. No level setting.
+  - **`zlib`** (alias `zl`) — raw RFC 1950 (not gzip-wrapped) via existing `flate2`. Levels 0-9, default 6.
+- Magic-byte auto-detect extended: lz4 (`04 22 4d 18`), xz (`fd 37 7a 58 5a 00`), snappy (`ff 06 00 00 73 4e 61 50 70 59`), and zlib (CMF byte `0x78` + FLG byte where `(CMF*256 + FLG) % 31 == 0`, per RFC 1950).
+- `--compression-level` against lz4 or snappy now errors with a clear "algorithm has no level setting" message rather than silently ignoring the value.
+- `recon --compress-list` picks up the four new entries.
+
+### Changed
+
+- New direct deps: `lz4_flex = "0.11"`, `xz2 = "0.1"`, `snap = "1"`. `flate2` (already in tree) also used for the new zlib support.
+- Docs: TOPIC_COMPRESSION help topic lists every supported algorithm + aliases; `recon --examples` COMPRESSION section adds four new example rows.
+
 ## [0.33.0] - 2026-04-21
 
 ### Added

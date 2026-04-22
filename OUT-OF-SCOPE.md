@@ -28,10 +28,6 @@ Grouped by category. When an item from here ships in a future release, remove it
 - **Logo overlay / colour customisation** on QR codes.
 - **Multi-code image composition** (several codes on one canvas).
 
-### Compression (0.13.0)
-
-- **lz4, xz, snappy, zlib** — alternatives to the gzip/deflate/zstd/brotli/bzip2 already shipped.
-
 ### Encryption (0.15.0)
 
 - **PGP / GPG interop** — age-format only right now.
