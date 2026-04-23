@@ -14,6 +14,11 @@ versions, under `## [Unreleased]` if present). Group entries into the
 keep-a-changelog subsections: `### Added`, `### Changed`, `### Fixed`,
 `### Removed`, `### Deprecated`, `### Security`.
 
+Also update `RELEASE_DATE` in `src/version.rs` to today's date
+(`YYYY-MM-DD`) so `recon --version` reports the actual ship date of the
+current build. Keep it in sync with the CHANGELOG heading for the new
+version.
+
 For changes with notable design rationale (new crate chosen and why, new
 module laid out, cross-cutting refactor), also add a numbered entry to
 the `## Feature Additions` section of `HISTORY.md` or a subsection under

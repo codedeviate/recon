@@ -8,6 +8,16 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.52.2] - 2026-04-23
+
+### Fixed
+
+- `recon --version` now reports the actual ship date of the current
+  build (`Release-Date: 2026-04-23`). Previously stuck at 2026-04-20
+  across the 0.50.0 / 0.51.0 / 0.52.0 / 0.52.1 releases. CLAUDE.md now
+  requires `RELEASE_DATE` in `src/version.rs` to be bumped alongside
+  every `Cargo.toml` version change.
+
 ## [0.52.1] - 2026-04-23
 
 ### Fixed
