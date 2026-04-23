@@ -1100,6 +1100,7 @@ static TOPIC_SCRIPT: Topic = Topic {
         FlagHelp { flags: "memcached(url)", description: "Memcached version (+ /stats). Returns #{ host, port, connect_ms,\nversion, version_ms, stats: #{...} }." },
         FlagHelp { flags: "rtsp(url) / rtsps(url)", description: "RTSP OPTIONS. Returns #{ host, port, tls, connect_ms,\nstatus_line, status_code, headers, methods }." },
         FlagHelp { flags: "mqtt_pub(url, payload) / mqtt_sub(url, max_ms)", description: "MQTT publish / subscribe. Runs the full CLI codepath; protocol\noutput flows to stdout. Returns #{ ok, duration_ms }." },
+        FlagHelp { flags: "smtp(url) / smtp(url, opts)", description: "SMTP probe / mail delivery. Without opts.mail_from, reports\nEHLO capabilities + AUTH methods + STARTTLS status. With\nmail_from + mail_to, sends a message (optional DKIM signing).\nSee `recon --help smtp` for the full opts reference." },
         FlagHelp { flags: "file_read(path)", description: "Read local file (or file:// URL) as a Rhai Blob (Vec<u8>)." },
         FlagHelp { flags: "compression::compress(algo, blob [, level]) / decompress([algo,] blob)", description: "Stream-compress or decompress a Blob. Algorithms match --compress:\ngzip, deflate, zstd, brotli, bzip2, lz4, xz, snappy, zlib. Optional\nlevel is an integer or word (fastest/fast/default/good/best).\n`decompress(blob)` auto-detects from magic bytes. Errors on lz4/snappy\nwith a level, or on deflate/brotli blobs in auto-detect mode.\ncompression::list() enumerates every algo + aliases + level range." },
         FlagHelp { flags: "archive::create(dest, [sources]) / extract(src, dest_dir) / detect(path)", description: "Same formats as --archive / --extract (.zip, .tar, .tar.gz, .tar.xz,\n.tar.bz2). create returns file count; extract returns extracted\ncount and creates dest_dir if missing. detect(path) returns the\nformat name (\"zip\", \"tar.gz\", ...) or () when unrecognised." },
@@ -1143,6 +1144,60 @@ static TOPIC_SCRIPT: Topic = Topic {
         ExampleHelp { description: "Run a shipped example directly", command: "recon --script script/http.rhai https://example.com" },
         ExampleHelp { description: "Install every shipped example into ~/.recon/script/", command: "cp script/*.rhai ~/.recon/script/" },
         ExampleHelp { description: "Full API surface via the SCRIPTING example block", command: "recon --examples" },
+    ],
+};
+
+static TOPIC_SMTP: Topic = Topic {
+    title: "SMTP / SMTPS probe + mail delivery (with DKIM)",
+    description: "Probe an SMTP server or deliver a test message. Two\n\
+                  modes based on which flags are set:\n\
+                  \n\
+                    Probe mode (default): connect, read greeting, send\n\
+                    EHLO, report advertised extensions + AUTH methods +\n\
+                    STARTTLS availability, disconnect.\n\
+                  \n\
+                    Send mode (when --mail-from + --mail-to are given):\n\
+                    full transaction via lettre — EHLO → STARTTLS (or\n\
+                    implicit TLS on smtps://) → AUTH → MAIL → RCPT →\n\
+                    DATA → QUIT. Optional DKIM signing with a local key.\n\
+                  \n\
+                  URL schemes:\n\
+                    smtp://HOST[:PORT]/   (plain, default port 25;\n\
+                                           upgrades via STARTTLS unless\n\
+                                           --no-starttls)\n\
+                    smtps://HOST[:PORT]/  (implicit TLS, default port 465)\n\
+                  \n\
+                  Complements the DNS-based email checks (spf, dmarc,\n\
+                  dkim, mta-sts, bimi, tls-rpt) by exercising the wire,\n\
+                  not just the DNS records.",
+    flags: &[
+        FlagHelp { flags: "--mail-from <ADDR>", description: "Envelope sender for MAIL FROM:<…>. Required in send mode." },
+        FlagHelp { flags: "--mail-to <ADDR>", description: "Envelope recipient. Repeatable for multi-recipient delivery.\nRequired in send mode." },
+        FlagHelp { flags: "--mail-subject <STR>", description: "Subject header. Default: \"recon SMTP test\"." },
+        FlagHelp { flags: "--mail-body <STR>", description: "Body. Accepts @file to load from file, @- from stdin, or the\nliteral text. Default: one-line test note." },
+        FlagHelp { flags: "--mail-header <H: V>", description: "Additional message header (Reply-To, X-*, etc.). Repeatable." },
+        FlagHelp { flags: "--smtp-auth <USER:PASS>", description: "Credentials. Tries AUTH PLAIN then LOGIN. Exit 67 on\nrejection." },
+        FlagHelp { flags: "--smtp-helo <NAME>", description: "HELO / EHLO hostname to advertise. Default: `recon.local`." },
+        FlagHelp { flags: "--no-starttls", description: "Skip STARTTLS upgrade on smtp://. Useful for probing a\nserver's plaintext behaviour." },
+        FlagHelp { flags: "--dkim-key <PATH>", description: "PEM-encoded RSA or Ed25519 private key. Enables DKIM signing\non outbound messages. Requires --dkim-selector." },
+        FlagHelp { flags: "--dkim-selector <SEL>", description: "DKIM selector — the `s=` tag. Matches the selector in the\ncorresponding DNS TXT record at\n<selector>._domainkey.<domain>." },
+        FlagHelp { flags: "--dkim-domain <DOMAIN>", description: "Signing domain (the `d=` tag). Defaults to the domain part\nof --mail-from." },
+        FlagHelp { flags: "-u, --user <USER:PASS>", description: "Alternative credentials source. --smtp-auth takes priority\nwhen both are set." },
+        FlagHelp { flags: "-k, --insecure", description: "Skip TLS certificate verification on smtps:// or STARTTLS." },
+        FlagHelp { flags: "--connect-timeout <SECS>", description: "Per-operation deadline (connect, EHLO reply, etc.)." },
+
+        FlagHelp { flags: "smtp(url [, opts])", description: "Script binding. opts mirrors the CLI flags with snake_case\nkeys: mail_from, mail_to (Array), mail_subject, mail_body,\nmail_header (Array), smtp_auth, smtp_helo, no_starttls,\ndkim_key, dkim_selector, dkim_domain, insecure, timeout_ms.\nReturns #{host, port, tls, connect_ms, banner,\ncapabilities, auth_methods, starttls_ok, send_result}." },
+    ],
+    related: &["--spf", "--dmarc", "--dkim", "--mta-sts", "--bimi", "--tls-rpt", "protocols"],
+    examples: &[
+        ExampleHelp { description: "Probe capabilities of a mail server (no auth, no send)", command: "recon smtp://smtp.gmail.com:587/" },
+        ExampleHelp { description: "Probe SMTPS on port 465", command: "recon smtps://mail.example.com/" },
+        ExampleHelp { description: "Deliver a test message through a local relay", command: r#"recon smtp://localhost:25/ --mail-from me@example.com --mail-to you@example.com --mail-subject 'hi' --mail-body 'test'"# },
+        ExampleHelp { description: "Authenticated send via submission port", command: r#"recon smtp://smtp.gmail.com:587/ --smtp-auth user@gmail.com:apppass --mail-from me@gmail.com --mail-to you@example.com --mail-body 'hi'"# },
+        ExampleHelp { description: "DKIM-sign an outgoing test message", command: r#"recon smtp://localhost:25/ --mail-from me@example.com --mail-to you@example.com --mail-body 'signed' --dkim-key dkim.pem --dkim-selector recon1 --dkim-domain example.com"# },
+        ExampleHelp { description: "Read the body from a file", command: r#"recon smtp://localhost:25/ --mail-from me@… --mail-to you@… --mail-body @message.txt"# },
+        ExampleHelp { description: "Probe without triggering a STARTTLS upgrade", command: "recon smtp://localhost:25/ --no-starttls" },
+        ExampleHelp { description: "Script-side probe", command: r#"recon --script - <<< 'let r = smtp("smtp://localhost:25/"); for c in r.capabilities { print(c); }'"# },
     ],
 };
 
@@ -1376,6 +1431,9 @@ static TOPIC_PROTOCOLS: Topic = Topic {
         FlagHelp { flags: "rtsp://HOST[:PORT][/path]", description: "RTSP OPTIONS probe (RFC 2326). Prints status line + response\nheaders (Public: supported methods, Server:). Default port 554." },
         FlagHelp { flags: "rtsps://HOST[:PORT][/path]", description: "Same as rtsp:// but over TLS. Default port 322. Honours -k\n(skips certificate verification)." },
 
+        FlagHelp { flags: "smtp://HOST[:PORT]/", description: "SMTP probe and optional mail delivery. Reports EHLO\ncapabilities, AUTH methods, STARTTLS availability. With\n--mail-from + --mail-to sends a test message (optional DKIM\nsigning). Default port 25. See `recon --help smtp`." },
+        FlagHelp { flags: "smtps://HOST[:PORT]/", description: "Same as smtp:// but implicit TLS. Default port 465." },
+
         FlagHelp { flags: "--wait-time <SECS>", description: "(udp:// only) Seconds to wait for a response datagram after\nsending. Accepts fractional values. Default: 1.0." },
         FlagHelp { flags: "--connect-timeout <SECS>", description: "Socket connect / response deadline for tcp, udp, ntp, tls,\ndict, redis, memcached, ws, wss, rtsp, rtsps probes." },
         FlagHelp { flags: "-k, --insecure", description: "Skip TLS certificate verification for wss://, ldaps://, rtsps://,\nmqtts://, and https:// connections." },
@@ -1438,6 +1496,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "agent-browser" | "agentbrowser" => Some(&TOPIC_AGENT_BROWSER),
         "browser" | "session" | "browser-session" => Some(&TOPIC_BROWSER),
         "charset" | "encoding-text" | "text-encoding" | "iconv" | "text" => Some(&TOPIC_TEXT_ENCODING),
+        "smtp" | "smtps" | "mail" | "email-send" => Some(&TOPIC_SMTP),
         "archive" | "zip" | "tar" | "extract" => Some(&TOPIC_ARCHIVE),
         _ => None,
     }
@@ -1513,6 +1572,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "agent-browser",
         "archive",
         "charset",
+        "smtp",
     ]
 }
 

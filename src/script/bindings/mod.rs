@@ -25,6 +25,7 @@ pub mod ntp;
 pub mod ping;
 pub mod redis;
 pub mod rtsp;
+pub mod smtp;
 pub mod sqlite;
 pub mod tcp;
 pub mod text;

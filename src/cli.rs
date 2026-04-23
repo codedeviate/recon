@@ -706,6 +706,59 @@ pub struct Args {
     #[arg(long = "mqtt-json", help_heading = "MQTT")]
     pub mqtt_json: bool,
 
+    // ── SMTP ─────────────────────────────────────────────────────────────────
+
+    /// Envelope sender (`MAIL FROM:<…>`). Required for send mode; omit
+    /// for probe-only mode (connect + EHLO + capabilities).
+    #[arg(long = "mail-from", value_name = "ADDR", help_heading = "SMTP")]
+    pub mail_from: Option<String>,
+
+    /// Envelope recipient (`RCPT TO:<…>`). Repeatable for multiple
+    /// recipients. Required for send mode.
+    #[arg(long = "mail-to", value_name = "ADDR", action = clap::ArgAction::Append, help_heading = "SMTP")]
+    pub mail_to: Vec<String>,
+
+    /// Subject header for the test message. Default: "recon SMTP test".
+    #[arg(long = "mail-subject", value_name = "STR", help_heading = "SMTP")]
+    pub mail_subject: Option<String>,
+
+    /// Message body. Accepts `@file` to read from a file, `@-` to read
+    /// from stdin, or the literal text. Default: one-line test note.
+    #[arg(long = "mail-body", value_name = "STR", help_heading = "SMTP")]
+    pub mail_body: Option<String>,
+
+    /// Extra message header (e.g. `Reply-To: me@example.com`). Repeatable.
+    #[arg(long = "mail-header", value_name = "H: V", action = clap::ArgAction::Append, help_heading = "SMTP")]
+    pub mail_header: Vec<String>,
+
+    /// SMTP authentication credentials as `user:pass`. Tries AUTH PLAIN
+    /// then LOGIN.
+    #[arg(long = "smtp-auth", value_name = "USER:PASS", help_heading = "SMTP")]
+    pub smtp_auth: Option<String>,
+
+    /// HELO / EHLO hostname to advertise. Default: `recon.local`.
+    #[arg(long = "smtp-helo", value_name = "NAME", help_heading = "SMTP")]
+    pub smtp_helo: Option<String>,
+
+    /// Don't negotiate STARTTLS even when the server advertises it.
+    /// Useful for probing a server's behaviour without TLS.
+    #[arg(long = "no-starttls", help_heading = "SMTP")]
+    pub no_starttls: bool,
+
+    /// PEM-encoded DKIM signing key (RSA or Ed25519). Enables DKIM
+    /// signing on outbound messages. Requires --dkim-selector.
+    #[arg(long = "dkim-key", value_name = "PATH", help_heading = "SMTP")]
+    pub dkim_key: Option<std::path::PathBuf>,
+
+    /// DKIM selector (the `s=` tag — matches the DNS TXT selector).
+    #[arg(long = "dkim-selector", value_name = "SEL", help_heading = "SMTP")]
+    pub dkim_selector: Option<String>,
+
+    /// DKIM signing domain (the `d=` tag). Defaults to the domain part
+    /// of --mail-from.
+    #[arg(long = "dkim-domain", value_name = "DOMAIN", help_heading = "SMTP")]
+    pub dkim_domain: Option<String>,
+
     // ── Meta ─────────────────────────────────────────────────────────────────
 
     /// Show detailed usage examples for all flags and commands

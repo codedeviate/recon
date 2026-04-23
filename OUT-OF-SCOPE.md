@@ -49,10 +49,6 @@ Grouped by category. When an item from here ships in a future release, remove it
 - **`--engine`** — OpenSSL crypto engine selection. N/A under rustls.
 - **`--dns-interface`** — bind DNS queries to a named interface. Accepted at the CLI but not yet plumbed; hickory 0.24's `NameServerConfig::bind_addr` takes a SocketAddr (IP + port), not an interface name. Socket-level `SO_BINDTODEVICE` (Linux) / `IP_BOUND_IF` (macOS) would need a custom hickory socket factory. Use `--dns-ipv4-addr` / `--dns-ipv6-addr` with the literal address as a workaround.
 
-### SMTP / SMTPS (mail delivery)
-
-- **`smtp://` / `smtps://` protocol support** — send a test message, validate STARTTLS negotiation, exercise DKIM signing at the relay. Would complement the existing MTA-STS / TLS-RPT / SPF / DMARC / DKIM-record validation (which only inspect DNS, not the wire). Natural fit for recon's "diagnose a server" model; `lettre` crate is the standard Rust choice. Deferred pending demand — email-security DNS checks already cover most recon use cases.
-
 ### Two-source comparison
 
 - **`recon --compare <A> <B>`** — diff two sources (URLs, files, stdin). Discussed once as "could be useful"; never specced.
@@ -90,7 +86,7 @@ These are items where we've actively decided not to ship, with a reason.
 
 ### Protocol scope
 
-- **Non-HTTP protocols** — FTP, SMTP, TFTP, LDAP, GOPHER, SMB, POP3, IMAP, RTSP, TELNET (beyond recon's own telnet subcommand), DICT. recon is HTTP(S)-only; these are permanently out of scope, not deferred.
+- **Non-HTTP protocols** — FTP, TFTP, GOPHER, SMB, POP3, IMAP. recon is primarily HTTP(S)-oriented; the above are permanently out of scope. (Note: LDAP, RTSP, TELNET, DICT, NTP, MQTT, Redis, Memcached, TCP, UDP, WS, and SMTP have shipped as protocol probes — this list is the still-excluded remainder.)
 
 ---
 

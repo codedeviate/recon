@@ -1,6 +1,6 @@
 [package]
 name = "recon"
-version = "0.43.0"
+version = "0.44.0"
 edition = "2021"
 
 [[bin]]
@@ -76,6 +76,7 @@ rhai = "1"
 tempfile = "3"
 encoding_rs = "0.8"
 chardetng = "0.1"
+lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "rustls-tls", "ring", "builder", "dkim"] }
 
 [dev-dependencies]
 wiremock = "0.6"

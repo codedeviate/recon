@@ -883,6 +883,51 @@ pub fn print() {
     ]);
     note("Custom samples (including paid APIs with Bearer tokens) can be added in ~/.recon/config.toml under [sampledata.<name>]. See --help sample for details.");
 
+    section("SMTP / SMTPS (0.44.0)");
+
+    example("Probe a mail server (no auth, no send)", &[
+        "recon smtp://smtp.gmail.com:587/",
+        "recon smtps://mail.example.com/",
+        "recon smtp://localhost:1025/        # MailHog / local test relay",
+    ]);
+    note("Probe mode connects, reads the greeting, sends EHLO, reports every advertised extension (SIZE, 8BITMIME, PIPELINING, CHUNKING…), AUTH mechanisms, and STARTTLS availability. No message is sent unless --mail-from + --mail-to are given.");
+
+    example("Deliver a test message through a relay", &[
+        r#"recon smtp://localhost:25/ \
+      --mail-from me@example.com \
+      --mail-to you@example.com \
+      --mail-subject 'recon test' \
+      --mail-body 'hello'"#,
+    ]);
+
+    example("Authenticated submission via port 587 (STARTTLS)", &[
+        r#"recon smtp://smtp.gmail.com:587/ \
+      --smtp-auth user@gmail.com:apppassword \
+      --mail-from me@gmail.com \
+      --mail-to you@example.com \
+      --mail-body 'hi from recon'"#,
+    ]);
+
+    example("DKIM-sign an outgoing message", &[
+        r#"recon smtp://localhost:25/ \
+      --mail-from me@example.com \
+      --mail-to you@example.com \
+      --mail-body 'signed payload' \
+      --dkim-key dkim.pem \
+      --dkim-selector recon1 \
+      --dkim-domain example.com"#,
+    ]);
+    note("The DKIM-Signature header is applied to the message before delivery. Signing algorithm is inferred from the key (RSA or Ed25519). Selector must match a TXT record at <selector>._domainkey.<domain> for the receiver to verify.");
+
+    example("Read the body from a file / stdin", &[
+        "recon smtp://localhost:25/ --mail-from … --mail-to … --mail-body @message.txt",
+        "echo hello | recon smtp://localhost:25/ --mail-from … --mail-to … --mail-body @-",
+    ]);
+
+    example("Script-side probe", &[
+        r#"recon --script - <<< 'let r = smtp("smtp://localhost:1025/"); print(r.capabilities);'"#,
+    ]);
+
     section("MQTT (0.22.0)");
 
     example("Probe a broker (default mode)", &[

@@ -41,6 +41,7 @@ surprise failures.
 | `memcached.rhai` | Text-protocol version + stats |
 | `rtsp.rhai` | RTSP OPTIONS + method list |
 | `mqtt.rhai` | MQTT publish with reachability guard |
+| `smtp.rhai` | SMTP capability + STARTTLS probe |
 
 ### Sessions (scriptable `browser()`)
 

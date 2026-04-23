@@ -52,6 +52,26 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 46. SMTP / SMTPS probe + mail delivery + DKIM signing — 0.44.0
+
+Motivating case: recon already has DNS-side email-security checks (SPF, DMARC, DKIM-record, MTA-STS, BIMI, TLS-RPT) but nothing that actually talks to an SMTP server on the wire. Deferred from early brainstorming under "pending demand"; now shipped as `smtp://` / `smtps://` probe + send modes.
+
+**Two modes in one binary, split on `--mail-from`.** Probe mode hand-rolls the SMTP conversation over `TcpStream` so every EHLO line is preserved verbatim. Send mode delegates to `lettre` because DKIM canonicalisation + correct MIME framing + authenticated-submission plumbing is a lot of code to maintain ourselves. This split means users get full diagnostic detail when they want to see what the server advertised, and a real SMTP client (with DKIM) when they want to deliver.
+
+**lettre 0.11 + ring for RustCrypto.** Added `lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "rustls-tls", "ring", "builder", "dkim"] }`. Picked rustls over native-tls for consistency with the existing HTTPS stack. The `dkim` feature pulls in `rsa` and `ed25519-dalek` — algorithm is auto-detected from the PEM (Ed25519 keys are short and lack the `RSA PRIVATE KEY` guard).
+
+**API wrinkles worth remembering.** `MessageBuilder::header<H: Header>` takes typed headers (Subject, From, To, Content-Type…); raw `"X-Custom: value"` inputs need `builder.raw_header(HeaderValue::new(HeaderName::new_from_ascii(name)?, value))`. The DKIM `header_names` list is `Vec<HeaderName>`, not `Vec<String>` — no FromStr impl. `ProtocolExitCode::LoginDenied` is the 67 variant; "AuthRequired" doesn't exist (I reached for that name first and had to correct).
+
+**Probe-mode implementation detail.** Reads the greeting, then sends EHLO, then reads the multi-line reply, then QUIT (errors on QUIT ignored — some servers drop the connection on sight). Capabilities parser strips the leading `250-` / `250 ` prefix and drops the greeting echo (first line). `parse_ehlo_capabilities` returns `Vec<String>` — "AUTH LOGIN PLAIN", "SIZE 14680064", "STARTTLS", etc. — callers that want the AUTH mechanisms parse the `AUTH ` line themselves.
+
+**Send-mode DKIM.** Requires the private key PEM + selector + (optional) domain. Algorithm inferred heuristically: if the PEM contains `BEGIN PRIVATE KEY` without `RSA PRIVATE KEY` and is short, assume Ed25519; otherwise RSA. Signed headers: From, To, Subject, Date (the standard minimal set for interop). Canonicalisation: relaxed/relaxed.
+
+**Exit-code mapping.** `LoginDenied` when the error message contains "auth"; `CouldntConnect` otherwise. `OperationTimedOut` propagates naturally from `lettre`'s timeout errors wrapped in the catch-all match.
+
+**OUT-OF-SCOPE.md cleanup.** Removed the SMTP line from the "Deferred" section. Updated the "permanent" exclusion line (which listed LDAP, RTSP, DICT etc. as non-HTTP-only — stale since those all shipped as probes between 0.24.0 and 0.44.0) to reflect reality: only FTP / TFTP / GOPHER / SMB / POP3 / IMAP remain permanently excluded.
+
+**Tests added: +9.** URL parsing, default-port resolution, IPv6-literal handling, EHLO parser, queued-ID extraction, script binding opts mapping. No integration tests spinning up a real SMTP server in-process — deferred until a `mailin-embedded`-style dev-dep is added. Smoke testing covered by running against `smtp://gmail-smtp-in.l.google.com:25/` and `smtp://smtp.gmail.com:587/` manually.
+
 ### 45. Text encoding (charsets, iconv) — 0.43.0
 
 Motivating use case: a PHP service talking UTF-8 and a Perl service talking ISO-8859-1 that exchange data via recon. Before 0.43.0, non-UTF-8 responses were silently mangled (`response.text()` lossy-decodes as UTF-8), and request bodies were sent as the shell's UTF-8 regardless of the declared Content-Type charset. Three silent traps fixed in one release.

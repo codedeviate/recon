@@ -8,6 +8,27 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-04-23
+
+### Added
+
+- **`smtp://` / `smtps://` URL-scheme probe** — diagnose an SMTP server end-to-end. Probe mode (default): TCP connect, read greeting, send EHLO, report every advertised extension + AUTH mechanisms + STARTTLS availability, disconnect. Send mode (`--mail-from` + `--mail-to`): full transaction with AUTH / MAIL / RCPT / DATA / QUIT via the `lettre` crate, with optional DKIM signing.
+- **`--mail-from`, `--mail-to` (repeatable), `--mail-subject`, `--mail-body`, `--mail-header`** (repeatable) — compose the test message. `--mail-body` accepts `@file` / `@-` for file / stdin input.
+- **`--smtp-auth <user:pass>`** — AUTH PLAIN → LOGIN fallback. Exit 67 on rejection.
+- **`--smtp-helo <NAME>`** — HELO / EHLO identifier (default: `recon.local`).
+- **`--no-starttls`** — skip the STARTTLS upgrade on `smtp://`.
+- **`--dkim-key <PATH>` + `--dkim-selector <SEL>` + `--dkim-domain <DOMAIN>`** — sign outbound messages with RSA or Ed25519. Algorithm auto-detected from the PEM. Signing domain defaults to the domain part of `--mail-from`.
+- **Script binding `smtp(url)` / `smtp(url, opts)`** — returns a Map with host, port, tls, connect_ms, banner, capabilities (Array), auth_methods (Array), starttls_ok (bool or `()`), send_result (Map or `()`). `opts` mirrors the CLI flags with snake_case keys.
+- **`recon --help smtp`** (aliases `smtps`, `mail`, `email-send`) with flag reference + examples.
+- **`recon --examples` SMTP section** with 7 scenarios (probe, authed send, DKIM sign, @file body, scripted probe).
+- **`script/smtp.rhai`** example script with TCP reachability guard.
+- **Dependency**: `lettre = "0.11"` with `smtp-transport`, `rustls-tls`, `ring`, `builder`, `dkim` features.
+
+### Removed from OUT-OF-SCOPE.md
+
+- SMTP / SMTPS protocol probe (shipped this release).
+- "recon is HTTP(S)-only" blanket statement — superseded by actual shipped protocol probes.
+
 ## [0.43.0] - 2026-04-22
 
 ### Added

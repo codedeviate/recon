@@ -44,6 +44,7 @@ mod serve;
 mod source;
 mod ssh;
 mod ssh_auth;
+mod smtp_probe;
 mod tcp_probe;
 mod telnet;
 mod text_encoding;
@@ -675,6 +676,10 @@ fn main() {
         || args.target_url().starts_with("rtsps://")
     {
         rtsp_probe::run(args.target_url(), args.insecure, args.timeout)
+    } else if args.target_url().starts_with("smtp://")
+        || args.target_url().starts_with("smtps://")
+    {
+        smtp_probe::run(args.target_url(), &args)
     } else if args.target_url().starts_with("scp://") {
         scp::download(args.target_url(), &args)
     } else if args.target_url().starts_with("ssh://") {
