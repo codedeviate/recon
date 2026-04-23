@@ -71,3 +71,62 @@ When a release is in progress and you notice one of the surfaces is
 behind, stop and catch it up before the next feature lands. When
 reviewing a diff before commit, mentally walk the four surfaces for
 each new item and fix anything that's missing.
+
+## Manual — every change also updates `docs/MANUAL.md` and regenerates the PDF
+
+recon ships a long-form user manual alongside the built-in `--help`
+and `--examples` surfaces:
+
+- **`docs/MANUAL.md`** — the source document. Cover page, table of
+  contents, then four parts: Getting started, CLI reference, Script
+  engine, Appendices.
+- **`docs/MANUAL.pdf`** — the rendered artifact, always produced from
+  `docs/MANUAL.md` via recon itself.
+
+**Policy — the manual is a first-class surface.** Every code change
+that touches a user-visible flag, binding, function signature, or
+behaviour MUST update `docs/MANUAL.md` in the same release. The four
+surfaces from the exposure policy above (help / examples / script
+engine / CHANGELOG+HISTORY+OUT-OF-SCOPE) become **five**; the manual
+is the fifth. Missing it is a policy violation — fix it before the
+next feature lands, even if that means a patch release whose only
+job is closing the gap.
+
+Specifically:
+
+- **New CLI flag**: add it to the relevant Part II section's table,
+  plus at least one example showing how to use it.
+- **New / changed script binding function**: add its signature to
+  the relevant Part III section's function table, plus at least one
+  example (prefer 2–3 for non-trivial functions).
+- **New binding module**: new Part III section, with intro paragraph
+  + function table + multiple examples.
+- **Behaviour change in an existing flag/binding**: update the
+  description, and add a note if the change is not backwards-compatible.
+- **New help topic, example section, or script example**: optional
+  cross-link from the manual (the manual is not a duplicate of
+  `--help` or `--examples` — it complements them), but at minimum
+  make sure the relevant Part II / III section covers the underlying
+  feature.
+
+**Regenerate the PDF as soon as the markdown is updated.** Use recon
+itself:
+
+```sh
+./target/release/recon --md-to-pdf docs/MANUAL.md \
+    --toc --toc-depth 3 --gfm \
+    --doc-title 'recon User Manual' \
+    -o docs/MANUAL.pdf
+```
+
+Requires `agent-browser` on PATH (Chrome-backed). The PDF is
+committed alongside the markdown — both files are checked in.
+
+When updating the manual, also bump the **Version:** and **Release
+date:** lines at the top of `docs/MANUAL.md` to match the current
+`Cargo.toml` version + `RELEASE_DATE` from `src/version.rs`.
+
+If a change is docs-only (manual rewording, new example, typo fix),
+that's a PATCH bump per the version-bumping rule above; always
+regenerate the PDF so the binary artifact never drifts from the
+markdown source.

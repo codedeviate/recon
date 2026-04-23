@@ -8,6 +8,27 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.58.2] - 2026-04-24
+
+### Added
+
+- **`docs/MANUAL.md`** — comprehensive user manual covering every
+  CLI flag, every script binding, and many examples. 2450 lines of
+  markdown organized in four parts: Getting started, CLI reference,
+  Script engine, Appendices.
+- **`docs/MANUAL.pdf`** — PDF rendering of the manual, produced via
+  recon's own `--md-to-pdf` flow (with `--toc --toc-depth 3 --gfm`).
+  67 pages, linkable table of contents.
+
+### Changed
+
+- **CLAUDE.md** gains a "Manual" section under the exposure policy.
+  The exposure policy's four surfaces become five — the manual is a
+  first-class surface that must be updated alongside every code
+  change to a user-visible flag, binding, or behaviour. The PDF is
+  regenerated whenever the markdown changes; both files are checked
+  in.
+
 ## [0.58.1] - 2026-04-24
 
 ### Changed
