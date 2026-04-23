@@ -65,6 +65,12 @@ surprise failures.
 |---|---|
 | `ipfs.rhai` | ipfs:// / ipns:// URL rewrite + HTTP gateway fetch |
 
+### Routing
+
+| Script | What it does |
+|---|---|
+| `proxy.rhai` | http() with proxy opts (HTTP / HTTPS / SOCKS5) |
+
 ### Sessions (scriptable `browser()`)
 
 | Script | What it does |

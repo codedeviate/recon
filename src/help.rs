@@ -1193,6 +1193,45 @@ static TOPIC_SCRIPT: Topic = Topic {
     ],
 };
 
+static TOPIC_PROXY: Topic = Topic {
+    title: "Proxy (HTTP / HTTPS / SOCKS5)",
+    description: "Route HTTP(S) requests through a proxy. Scheme on the\n\
+                  proxy URL selects the type:\n\
+                  \n\
+                    http://proxy:8080     plain HTTP proxy (CONNECT)\n\
+                    https://proxy:8443    TLS-to-proxy (TLS before CONNECT)\n\
+                    socks5://proxy:1080   SOCKS5, server-side DNS\n\
+                    socks5h://proxy:1080  SOCKS5, client-side DNS\n\
+                  \n\
+                  Env-var precedence (matches curl):\n\
+                    https:// target  -> $HTTPS_PROXY / $https_proxy\n\
+                    http://  target  -> $HTTP_PROXY  / $http_proxy\n\
+                    either           -> $ALL_PROXY   / $all_proxy\n\
+                  \n\
+                  `--proxy` always beats any env var. `--noproxy` (or\n\
+                  `$NO_PROXY`) provides a bypass list: comma-separated\n\
+                  entries, with a leading-dot entry like `.internal`\n\
+                  matching every subdomain; `*` bypasses all.",
+    flags: &[
+        FlagHelp { flags: "-x, --proxy <URL>", description: "Route through this proxy. See title for scheme handling." },
+        FlagHelp { flags: "-U, --proxy-user <USER:PASS>", description: "Basic-auth credentials. Takes priority over proxy-URL userinfo." },
+        FlagHelp { flags: "--noproxy <LIST>", description: "Comma-separated hosts that bypass the proxy. `.suffix` matches\nsubdomains; `*` bypasses all. Falls back to $NO_PROXY." },
+        FlagHelp { flags: "--proxy-insecure", description: "Skip TLS verification on the https:// proxy connection.\nDoesn't affect the origin's TLS." },
+        FlagHelp { flags: "--proxy-cacert <PATH>", description: "Additional PEM root for the https:// proxy connection.\nTrust-additive (doesn't replace system roots). Because\nreqwest 0.12 applies CA bundles globally, this root also\naffects the origin request." },
+        FlagHelp { flags: "http(url, #{proxy, proxy_user, noproxy, proxy_insecure, proxy_cacert})", description: "Script-binding equivalents — same semantics as the CLI\nflags, routed through `http(url, opts)`." },
+    ],
+    related: &["-k / --insecure", "--cacert", "protocols"],
+    examples: &[
+        ExampleHelp { description: "Route through a corporate HTTP proxy", command: "recon --proxy http://proxy.corp:3128 https://example.com/" },
+        ExampleHelp { description: "Authenticated proxy", command: "recon --proxy http://proxy.corp:3128 --proxy-user alice:secret https://example.com/" },
+        ExampleHelp { description: "TLS-to-proxy (https:// proxy)", command: "recon --proxy https://secure-proxy.corp:8443 https://example.com/" },
+        ExampleHelp { description: "SOCKS5 tunnel with client-side DNS", command: "recon --proxy socks5h://127.0.0.1:9050 https://example.com/" },
+        ExampleHelp { description: "Bypass internal hosts", command: "recon --proxy http://corp-proxy --noproxy '.internal,localhost,127.0.0.1' https://example.com/" },
+        ExampleHelp { description: "Default-from-env", command: "HTTPS_PROXY=http://proxy.corp:3128 recon https://example.com/" },
+        ExampleHelp { description: "Script-side opts", command: r#"recon --script - <<< 'http("https://example.com", #{ proxy: "socks5://127.0.0.1:1080" });'"# },
+    ],
+};
+
 static TOPIC_IPFS: Topic = Topic {
     title: "IPFS / IPNS (gateway rewrite)",
     description: "`ipfs://CID[/path]` and `ipns://NAME[/path]` URLs are\n\
@@ -1755,6 +1794,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "pop3" | "pop3s" => Some(&TOPIC_POP3),
         "imap" | "imaps" => Some(&TOPIC_IMAP),
         "ipfs" | "ipns" => Some(&TOPIC_IPFS),
+        "proxy" | "proxies" => Some(&TOPIC_PROXY),
         "archive" | "zip" | "tar" | "extract" => Some(&TOPIC_ARCHIVE),
         _ => None,
     }
@@ -1838,6 +1878,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "pop3",
         "imap",
         "ipfs",
+        "proxy",
     ]
 }
 

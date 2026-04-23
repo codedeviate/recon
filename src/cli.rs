@@ -792,6 +792,40 @@ pub struct Args {
     #[arg(long = "tftp-blksize", value_name = "N", help_heading = "File Transfer")]
     pub tftp_blksize: Option<usize>,
 
+    // ── Proxy ────────────────────────────────────────────────────────────────
+
+    /// Route HTTP(S) requests through a proxy. Scheme selects the type:
+    /// http:// = plain HTTP proxy; https:// = TLS-to-proxy; socks5:// =
+    /// SOCKS5 (remote DNS); socks5h:// = SOCKS5 with client-side DNS.
+    /// Falls back to $HTTPS_PROXY / $HTTP_PROXY / $ALL_PROXY (matching
+    /// curl's precedence) when the flag isn't given.
+    #[arg(short = 'x', long = "proxy", value_name = "URL", help_heading = "Proxy")]
+    pub proxy: Option<String>,
+
+    /// Basic-auth credentials for the proxy. Format: USER:PASS. Takes
+    /// priority over any userinfo embedded in the proxy URL.
+    #[arg(short = 'U', long = "proxy-user", value_name = "USER:PASS", help_heading = "Proxy")]
+    pub proxy_user: Option<String>,
+
+    /// Comma-separated list of hosts that bypass the proxy. Matches
+    /// curl's NO_PROXY semantics: exact hostname or leading-dot suffix
+    /// match (e.g. `.internal`). `*` means bypass all. Falls back to
+    /// $NO_PROXY when absent.
+    #[arg(long = "noproxy", value_name = "LIST", help_heading = "Proxy")]
+    pub noproxy: Option<String>,
+
+    /// Skip TLS certificate verification on the connection to an
+    /// https:// proxy. Doesn't affect origin-cert verification.
+    #[arg(long = "proxy-insecure", help_heading = "Proxy")]
+    pub proxy_insecure: bool,
+
+    /// Additional PEM-encoded CA certificate trusted for the connection
+    /// to an https:// proxy. Adds to the system roots; doesn't replace.
+    /// reqwest 0.12 applies CA-bundle overrides globally, so this trust
+    /// root also applies to the origin request.
+    #[arg(long = "proxy-cacert", value_name = "PATH", help_heading = "Proxy")]
+    pub proxy_cacert: Option<std::path::PathBuf>,
+
     // ── Mail Retrieval ───────────────────────────────────────────────────────
 
     /// POP3: upgrade to TLS via the STLS command after CAPA. Mirrors

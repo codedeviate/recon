@@ -33,6 +33,7 @@ mod ntp_probe;
 mod output;
 mod ping;
 mod prettify;
+mod proxy;
 mod redis_probe;
 mod remote_name;
 mod rtsp_probe;

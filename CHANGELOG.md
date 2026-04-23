@@ -8,6 +8,40 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.50.0] - 2026-04-23
+
+### Added
+
+First of three planned curl-parity phase-6 releases. Proxy support was a genuine capability gap — recon shipped zero proxy flags prior to 0.50.0.
+
+- **`-x, --proxy <URL>`** — route HTTP(S) requests through a proxy. Scheme selects the type: `http://` (plain HTTP proxy), `https://` (TLS-to-proxy), `socks5://` (SOCKS5 with server-side DNS), `socks5h://` (SOCKS5 with client-side DNS). Env-var precedence matches curl: `$HTTPS_PROXY` (or `$https_proxy`) for https:// targets, `$HTTP_PROXY` (or `$http_proxy`) for http://, `$ALL_PROXY` (or `$all_proxy`) as fallback. CLI flag always wins over env.
+- **`-U, --proxy-user <USER:PASS>`** — Basic-auth credentials against the proxy. Overrides URL userinfo.
+- **`--noproxy <LIST>`** — comma-separated bypass list. Matches curl's semantics: exact hostname match, leading-dot for subdomain match (`.internal`), `*` to bypass everything. Falls back to `$NO_PROXY` / `$no_proxy`.
+- **`--proxy-insecure`** — skip TLS verification on the connection to an `https://` proxy.
+- **`--proxy-cacert <PATH>`** — additional PEM root for the https:// proxy connection. Trust-additive; because reqwest 0.12 applies CA bundles globally, this root also applies to the origin request.
+- **Script binding**: `http(url, opts)` opts gain `proxy`, `proxy_user`, `noproxy`, `proxy_insecure`, `proxy_cacert` — same semantics as the CLI flags.
+- **`recon --help proxy`** (alias `proxies`) — flag reference + env-var precedence table + noproxy grammar.
+- **`recon --examples`** — new `PROXY (0.50.0)` section with 5 blocks.
+- **`script/proxy.rhai`** — example under a new "Routing" category in `script/README.md`.
+- **`docs/curl-parity-matrix.md`** (new) — quick-reference table of recon's coverage of curl's `--version` features: what's shipped, what's always-on via Rust/rustls, what's architecturally N/A, what's deferred.
+
+### Changed
+
+- **`recon --version`** now sorts `Protocols:` and `Features:` lists alphanumerically (case-insensitive) so the output reads like curl's. Also backfills the protocol list with everything shipped since 0.44.0 (ftp/ftps, sftp, tftp, gopher/gophers, pop3/pop3s, imap/imaps, ipfs/ipns, smtp/smtps) and adds build-feature tokens for the newer capabilities (charset, MQTT5, DKIM-signing, PGP-shellout, SOCKS5, etc.).
+- `Cargo.toml` `reqwest` gains the `socks` feature (enables `socks5://` / `socks5h://` proxy URLs). Version 0.49.0 → 0.50.0.
+- `src/client.rs::execute` plumbs `proxy::build_proxy_from_args` + `apply_proxy_tls` onto the `ClientBuilder`.
+
+### OUT-OF-SCOPE.md additions
+
+Four items from the 13-item curl-parity wishlist deferred with rationale:
+
+- **Kerberos / SPNEGO / GSS-API** — cross-platform libgssapi FFI tax.
+- **NTLM** — Windows-only sspi FFI.
+- **alt-svc** — low practical value for a one-shot CLI.
+- **MultiSSL** — architectural mismatch (Rust picks one backend).
+
+The remaining 5 wishlist items (AsynchDNS, Largefile, libz, threadsafe, HTTPS-proxy primitives) were already present — documented in `docs/curl-parity-matrix.md`.
+
 ## [0.49.0] - 2026-04-23
 
 ### Added

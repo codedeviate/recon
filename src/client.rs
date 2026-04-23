@@ -112,6 +112,12 @@ pub fn execute(args: &Args) -> Result<(Response, RequestMetrics)> {
             .no_zstd();
     }
 
+    // Proxy routing (--proxy + env vars).
+    if let Some(proxy) = crate::proxy::build_proxy_from_args(args)? {
+        builder = builder.proxy(proxy);
+    }
+    builder = crate::proxy::apply_proxy_tls(builder, args)?;
+
     let client = builder.build().context("Failed to build HTTP client")?;
     let method = resolve_method(args)?;
     let start_url = effective_url(args);

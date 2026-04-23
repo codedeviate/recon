@@ -979,6 +979,35 @@ recon --rekey \
         "recon gophers://secure-gopher.example/",
     ]);
 
+    section("PROXY (0.50.0)");
+
+    example("Route through an HTTP proxy", &[
+        "recon --proxy http://proxy.corp:3128 https://example.com/",
+        "recon -x proxy.corp:3128 https://example.com/  # scheme defaults to http",
+    ]);
+
+    example("Authenticated proxy", &[
+        "recon --proxy http://proxy.corp:3128 --proxy-user alice:secret https://example.com/",
+    ]);
+
+    example("TLS-to-proxy (https:// proxy URL)", &[
+        "recon --proxy https://secure-proxy.corp:8443 https://example.com/",
+        "recon --proxy https://self-signed-proxy.corp --proxy-insecure https://example.com/",
+        "recon --proxy https://corp-proxy --proxy-cacert corp-ca.pem https://example.com/",
+    ]);
+
+    example("SOCKS5 tunneling (e.g. Tor)", &[
+        "recon --proxy socks5h://127.0.0.1:9050 https://example.com/",
+        "recon --proxy socks5://bastion:1080 https://internal.example/",
+    ]);
+
+    example("Bypass lists and env-var precedence", &[
+        "recon --proxy http://corp --noproxy '.internal,localhost,127.0.0.1' https://example.com/",
+        "HTTPS_PROXY=http://proxy.corp:3128 recon https://example.com/",
+        "NO_PROXY='.internal' HTTPS_PROXY=http://proxy.corp recon https://foo.internal/",
+    ]);
+    note("Precedence: --proxy flag > $HTTPS_PROXY (for https://) / $HTTP_PROXY (for http://) > $ALL_PROXY. --noproxy beats $NO_PROXY. `*` in the bypass list means bypass all. SOCKS5 requires the `socks` feature baked in (on by default).");
+
     section("IPFS / IPNS (0.49.0)");
 
     example("Fetch content by CID via the default gateway (ipfs.io)", &[

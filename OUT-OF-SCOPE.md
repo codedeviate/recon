@@ -49,6 +49,15 @@ Still deferred after 0.46.0's PGP / rekey landing:
 - **`--engine`** — OpenSSL crypto engine selection. N/A under rustls.
 - **`--dns-interface`** — bind DNS queries to a named interface. Accepted at the CLI but not yet plumbed; hickory 0.24's `NameServerConfig::bind_addr` takes a SocketAddr (IP + port), not an interface name. Socket-level `SO_BINDTODEVICE` (Linux) / `IP_BOUND_IF` (macOS) would need a custom hickory socket factory. Use `--dns-ipv4-addr` / `--dns-ipv6-addr` with the literal address as a workaround.
 
+### curl-parity — deferred (0.50.0 sweep)
+
+Tracked alongside `docs/curl-parity-matrix.md` for day-to-day user reference.
+
+- **Kerberos / SPNEGO / GSS-API** — all three share the `libgssapi-krb5` dependency on Linux/macOS and Windows SSPI on Windows. Three FFI integrations is a significant cross-platform maintenance tax for a diagnostic tool. Users needing enterprise auth tend to have curl installed for exactly these cases. Revisit if concrete demand appears.
+- **NTLM** — Windows-only via the `sspi` crate's FFI. Niche in modern APIs; documented as a curl gap recon doesn't try to paper over.
+- **alt-svc** — RFC 7838 Alt-Svc header cache. `reqwest` has zero primitives; hand-rolling a spec-compliant cache + file persistence is ~300 lines. Low practical value for a one-shot CLI (the cache would be populated and discarded on every run). Revisit if IPv6+HTTP/3-adoption changes the calculus.
+- **MultiSSL** — curl can ship with multiple TLS backends (OpenSSL + Schannel + NSS + …). Rust binaries pick one; recon picks rustls. Not a coverage gap; architectural mismatch.
+
 ### Two-source comparison
 
 - **`recon --compare <A> <B>`** — diff two sources (URLs, files, stdin). Discussed once as "could be useful"; never specced.

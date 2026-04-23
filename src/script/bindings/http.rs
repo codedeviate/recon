@@ -220,6 +220,21 @@ pub(crate) fn build_args(
         if let Some(s) = opts_get_str(o, "dns_interface") {
             args.dns_interface = Some(s);
         }
+        if let Some(s) = opts_get_str(o, "proxy") {
+            args.proxy = Some(s);
+        }
+        if let Some(s) = opts_get_str(o, "proxy_user") {
+            args.proxy_user = Some(s);
+        }
+        if let Some(s) = opts_get_str(o, "noproxy") {
+            args.noproxy = Some(s);
+        }
+        if let Some(b) = opts_get_bool(o, "proxy_insecure") {
+            args.proxy_insecure = b;
+        }
+        if let Some(s) = opts_get_str(o, "proxy_cacert") {
+            args.proxy_cacert = Some(std::path::PathBuf::from(s));
+        }
     }
     Ok(args)
 }

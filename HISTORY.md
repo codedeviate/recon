@@ -52,6 +52,28 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 52. Proxy suite — HTTP / HTTPS-to-proxy / SOCKS5 (0.50.0)
+
+First of three planned curl-parity phase-6 releases. Surprising discovery during scoping: recon shipped **zero proxy support** prior to 0.50.0 — not even `$HTTP_PROXY` env-var honoring. Every request went direct to the origin. So what the user framed as "HTTPS-proxy" became a full proxy suite.
+
+**reqwest's Proxy API as the foundation.** reqwest 0.12 has `Proxy::all(url)` that auto-dispatches based on the URL's scheme: http://, https://, socks5://, socks5h://. Enabling the `socks` feature flag on reqwest adds the SOCKS variants. One `builder.proxy(p)` call installs the whole stack. Trying to use `Proxy::http` / `Proxy::https` for finer control would've forced us to reason about which scheme a user's target URL has *before* the proxy is picked — not useful.
+
+**Env-var precedence matches curl.** `$HTTPS_PROXY` wins for https:// targets, `$HTTP_PROXY` for http://, `$ALL_PROXY` as final fallback. Both the SHOUTY and lowercase forms are read. The CLI flag (`--proxy` / `-x`) beats any env var. Empty or whitespace-only env values are ignored (some shells export `HTTP_PROXY=""` which we treat as "no proxy").
+
+**Credential resolution order.** `--proxy-user USER:PASS` beats URL userinfo (`http://alice:secret@proxy:3128`). Neither overrides the origin's `-u` flag — these are distinct namespaces.
+
+**`--noproxy` grammar.** Comma-separated entries. Exact hostname match, `.suffix` matches subdomains (so `.internal` matches `foo.internal` and `bar.internal` but NOT `internal`), `*` bypasses everything. Falls back to `$NO_PROXY`. Delegates to `reqwest::NoProxy::from_string` for the actual matching — reqwest has the same parsing rules as curl.
+
+**`--proxy-cacert` global-scope caveat.** reqwest 0.12 doesn't expose a per-proxy TLS config; adding a CA root via `ClientBuilder::add_root_certificate` applies it globally (both proxy and origin connections see it). Documented in the help topic. For most users this is fine — a corporate trust root typically signs both the proxy and the origin. Users who need scoped trust should use `curl` for that specific request.
+
+**Script-binding extension.** Five new opts keys on `http(url, opts)`: `proxy`, `proxy_user`, `noproxy`, `proxy_insecure`, `proxy_cacert`. All flow through the existing `build_args` overlay — zero new code paths in the script surface.
+
+**Ancillary: `recon --version` now sorted + backfilled.** The PROTOCOLS list was stale; everything shipped in 0.44.0-0.49.0 (ftp, sftp, tftp, gopher, pop3, imap, ipfs, smtp, and their TLS variants) was missing. Added them + sorted case-insensitively so the output reads like curl's. FEATURES list got ~15 new tokens covering the capabilities shipped since the last refresh. Five-line change in `src/version.rs`.
+
+**`docs/curl-parity-matrix.md` (new).** Quick-reference covering every curl feature: shipped, always-on via Rust, architectural N/A, deferred. Lands alongside 0.50.0 so users asking "does recon support X?" have a one-click answer. Explicitly tracks the 5 already-present items (AsynchDNS, Largefile, libz, threadsafe, HTTPS-proxy primitives) that a user ran through — they deserve documented coverage, not silent presence.
+
+**Tests added: +6.** Proxy-URL resolution (explicit > env > none), https-target picks HTTPS_PROXY, empty env = None, credential priority, noproxy flag vs env. 1075 → 1081 passing. No integration test against a live HTTP proxy; curl's integration tests would be good to borrow but we rely on reqwest's unit tests for the proxy primitives. Smoke test would be any user running `--proxy http://their-corp-proxy:3128 https://httpbin.org/ip` and seeing the origin IP change to the proxy's.
+
 ### 51. IPFS / IPNS via HTTP gateway (0.49.0)
 
 Closes the three-release protocol-coverage arc. Unlike 0.47.0 (file-transfer) and 0.48.0 (mail-retrieval), IPFS isn't "a protocol to speak" in the conventional sense — it's a content-addressing system whose canonical access path is already HTTP. The implementation is therefore a ~80-line URL rewriter plus a script-side convenience function.

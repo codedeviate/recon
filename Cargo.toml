@@ -1,6 +1,6 @@
 [package]
 name = "recon"
-version = "0.49.0"
+version = "0.50.0"
 edition = "2021"
 
 [[bin]]
@@ -8,7 +8,7 @@ name = "recon"
 path = "src/main.rs"
 
 [dependencies]
-reqwest = { version = "0.12", features = ["blocking", "json", "multipart", "rustls-tls", "gzip", "deflate", "brotli", "zstd"] }
+reqwest = { version = "0.12", features = ["blocking", "json", "multipart", "rustls-tls", "gzip", "deflate", "brotli", "zstd", "socks"] }
 clap = { version = "4", features = ["derive"] }
 anyhow = "1"
 indicatif = "0.17"

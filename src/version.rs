@@ -15,30 +15,56 @@ const RUSTLS_VERSION: &str = "0.23";
 /// Protocols recon can speak. Keep this list in sync with the URL-scheme
 /// dispatch in `main.rs` (and the `source::resolve_file_url` branch for
 /// `file://`). When adding or removing protocol support, update this list
-/// so `recon --version | grep <proto>` stays accurate.
+/// so `recon --version | grep <proto>` stays accurate. Rendered sorted
+/// case-insensitively in `print_full`.
 const PROTOCOLS: &[&str] = &[
-    "dict", "dig", "dns", "drill", "file", "http", "https", "ldap", "ldaps", "memcached",
-    "mqtt", "mqtts", "ntp",
-    "ping", "redis", "rtsp", "rtsps", "scp", "ssh", "tcp", "telnet", "tls", "traceroute", "udp",
-    "whois", "ws", "wss",
+    "dict", "dig", "dns", "drill", "file", "ftp", "ftps", "gopher", "gophers",
+    "http", "https", "imap", "imaps", "ipfs", "ipns", "ldap", "ldaps", "memcached",
+    "mqtt", "mqtts", "ntp", "ping", "pop3", "pop3s", "redis", "rtsp", "rtsps",
+    "scp", "sftp", "smtp", "smtps", "ssh", "tcp", "telnet", "tftp", "tls",
+    "traceroute", "udp", "whois", "ws", "wss",
 ];
 
 /// Feature tokens. Kept curl-compatible where the concept overlaps (HTTP2,
 /// HTTPS, IPv6, SSL, gzip, deflate, brotli, zstd) and recon-specific
-/// otherwise (rustls-tls).
+/// otherwise (rustls-tls, charset, DKIM-signing, JWT, etc.). Rendered
+/// sorted case-insensitively in `print_full` so the output scans easily.
 const FEATURES: &[&str] = &[
-    "HTTP2",
-    "HTTPS",
-    "IPv6",
-    "SSL",
+    "age-encrypt",
+    "archive",
+    "browser",
+    "brotli",
+    "charset",
+    "checkdigit",
+    "compression",
+    "DKIM-signing",
+    "email-dns",
+    "encode",
     "gzip",
     "deflate",
-    "brotli",
-    "zstd",
+    "hashes",
+    "HTTP2",
+    "HTTPS",
+    "HTTPS-proxy",
+    "IPv6",
+    "JWT",
+    "MQTT5",
+    "netstatus",
+    "PGP-shellout",
+    "sample",
+    "SOCKS5",
+    "sqlite",
+    "SSL",
     "rustls-tls",
+    "zstd",
 ];
 
 pub fn print_full() {
+    let mut protocols: Vec<&str> = PROTOCOLS.to_vec();
+    protocols.sort_by_key(|s| s.to_ascii_lowercase());
+    let mut features: Vec<&str> = FEATURES.to_vec();
+    features.sort_by_key(|s| s.to_ascii_lowercase());
+
     println!(
         "recon {} (reqwest/{} rustls/{})",
         env!("CARGO_PKG_VERSION"),
@@ -46,8 +72,8 @@ pub fn print_full() {
         RUSTLS_VERSION,
     );
     println!("Release-Date: {}", RELEASE_DATE);
-    println!("Protocols: {}", PROTOCOLS.join(" "));
-    println!("Features: {}", FEATURES.join(" "));
+    println!("Protocols: {}", protocols.join(" "));
+    println!("Features: {}", features.join(" "));
 }
 
 pub fn print_short() {
