@@ -246,6 +246,9 @@ pub(crate) fn build_args(
         if let Some(s) = opts_get_str(o, "unix_socket") {
             args.unix_socket = Some(std::path::PathBuf::from(s));
         }
+        if let Some(s) = opts_get_str(o, "hsts") {
+            args.hsts = Some(std::path::PathBuf::from(s));
+        }
     }
     Ok(args)
 }

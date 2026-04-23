@@ -33,7 +33,7 @@ Last sweep: 0.50.0 (2026-04-23).
 | gzip / deflate / brotli / zstd | ✅ Shipped | Pure-Rust implementations. Activate via `--compressed`. |
 | Proxy (HTTP / HTTPS / SOCKS5) | ✅ 0.50.0 | `-x / --proxy URL` with scheme-based routing. See `recon --help proxy`. |
 | UnixSockets | ✅ 0.51.0 | `--unix-socket /path/to/sock`; Docker / systemd / kubelet diagnostics. |
-| HSTS | ⏸ Planned 0.52.0 | `--hsts <file>` persistent cache. |
+| HSTS | ✅ 0.52.0 | `--hsts <file>` persistent cache; curl-compatible file format. |
 | alt-svc | ⏸ Deferred | RFC 7838 Alt-Svc header cache. reqwest exposes no primitives; hand-rolling ~300 lines for a niche one-shot use case didn't pass the bar. See OUT-OF-SCOPE.md. |
 | Kerberos / SPNEGO / GSS-API | ⏸ Deferred | All three share the libgssapi-krb5 FFI dep on Linux/macOS and Windows SSPI on Windows. Cross-platform maintenance tax significant; users needing enterprise auth tend to have curl installed. |
 | NTLM | ⏸ Deferred | Windows-only via the `sspi` crate's FFI. Niche for modern APIs. |

@@ -979,6 +979,22 @@ recon --rekey \
         "recon gophers://secure-gopher.example/",
     ]);
 
+    section("HSTS (0.52.0)");
+
+    example("Populate cache from an https:// response", &[
+        "recon --hsts ~/.recon/hsts.txt https://www.cloudflare.com/",
+        "cat ~/.recon/hsts.txt  # curl-compatible TSV",
+    ]);
+
+    example("Auto-upgrade http:// using the cache", &[
+        "recon --hsts ~/.recon/hsts.txt http://www.cloudflare.com/",
+    ]);
+    note("On request, an http:// URL to a host with a non-expired cache entry is upgraded to https:// before sending. On response, any Strict-Transport-Security header updates the cache (max-age=0 removes). File format matches curl's --hsts. Missing files are silently treated as empty.");
+
+    example("Shared cache across scripts + CLI", &[
+        r#"recon --script - <<< 'http("http://example.com/", #{ hsts: "/tmp/h.txt" });'"#,
+    ]);
+
     section("UNIX SOCKETS (0.51.0)");
 
     example("Docker API over /var/run/docker.sock", &[

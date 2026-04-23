@@ -142,8 +142,45 @@ pub fn execute(args: &Args) -> Result<(Response, RequestMetrics)> {
         if let Some(j) = &jar {
             save_cookies(&response, j, &start_url)?;
         }
+        update_hsts_from_response(args, &response);
         snapshot_response(&mut metrics, args, &response);
         Ok((response, metrics))
+    }
+}
+
+/// Consume the response's Strict-Transport-Security header (if any) and
+/// update the HSTS store when `--hsts <path>` is set. Best-effort — a
+/// load or save failure logs a warning but doesn't fail the request.
+fn update_hsts_from_response(args: &Args, response: &reqwest::blocking::Response) {
+    let Some(hsts_path) = &args.hsts else { return };
+    let Some(sts_value) = response
+        .headers()
+        .get(reqwest::header::STRICT_TRANSPORT_SECURITY)
+        .and_then(|v| v.to_str().ok())
+    else {
+        return;
+    };
+    // Only https:// responses carry authoritative HSTS directives.
+    if response.url().scheme() != "https" {
+        return;
+    }
+    let Some(host) = response.url().host_str() else { return };
+
+    let mut store = match crate::hsts::HstsStore::load(hsts_path) {
+        Ok(s) => s,
+        Err(e) => {
+            if !args.silent {
+                eprintln!("warning: HSTS load: {e}");
+            }
+            return;
+        }
+    };
+    if store.update_from_sts_header(host, sts_value) {
+        if let Err(e) = store.save(hsts_path) {
+            if !args.silent {
+                eprintln!("warning: HSTS save: {e}");
+            }
+        }
     }
 }
 

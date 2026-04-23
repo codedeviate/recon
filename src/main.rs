@@ -19,6 +19,7 @@ mod agent_browser;
 mod archive;
 mod hash;
 mod help;
+mod hsts;
 mod init;
 mod pager;
 mod ratelimit;
@@ -150,6 +151,31 @@ fn main() {
     if let Some(raw) = args.url_flag.clone() {
         if let Some(rewritten) = ipfs::rewrite_url(&raw, args.ipfs_gateway.as_deref()) {
             args.url_flag = Some(rewritten);
+        }
+    }
+
+    // ── HSTS upgrade (http:// → https:// for cached hosts) ────────────────────
+    if let Some(hsts_path) = args.hsts.clone() {
+        match hsts::HstsStore::load(&hsts_path) {
+            Ok(store) => {
+                for url_field in [&mut args.url, &mut args.url_flag] {
+                    if let Some(raw) = url_field.clone() {
+                        if let Some(stripped) = raw.strip_prefix("http://") {
+                            let host = stripped.split('/').next().unwrap_or(stripped);
+                            let host = host.split(':').next().unwrap_or(host);
+                            if store.matches(host) {
+                                if !args.silent {
+                                    eprintln!("* HSTS: upgrading http:// to https:// for {host}");
+                                }
+                                *url_field = Some(format!("https://{stripped}"));
+                            }
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("warning: --hsts: {e}");
+            }
         }
     }
 

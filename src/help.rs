@@ -1193,6 +1193,39 @@ static TOPIC_SCRIPT: Topic = Topic {
     ],
 };
 
+static TOPIC_HSTS: Topic = Topic {
+    title: "HSTS (HTTP Strict Transport Security cache)",
+    description: "Persistent cache of `Strict-Transport-Security` directives.\n\
+                  When `--hsts <file>` is set:\n\
+                  \n\
+                    * Before sending: if the target is http:// and the\n\
+                      hostname has a non-expired HSTS entry, upgrade to\n\
+                      https://. A verbose line is printed announcing the\n\
+                      upgrade (suppressed by -s).\n\
+                    * After receiving: parse the response's STS header,\n\
+                      update the cache, save atomically.\n\
+                  \n\
+                  File format (compatible with curl's --hsts):\n\
+                    # comment\n\
+                    example.com 1756492800\n\
+                    .app        1724956800   (leading '.' = includeSubDomains)\n\
+                  \n\
+                  Missing files are silently treated as empty — safe\n\
+                  first-run UX.",
+    flags: &[
+        FlagHelp { flags: "--hsts <PATH>", description: "Load + update this HSTS cache file for every request. Set\nrepeatedly to share one cache across scripts / shell wrappers." },
+        FlagHelp { flags: "-k, --insecure", description: "HSTS upgrade still happens when -k is set, but cert\nverification is disabled after the upgrade. Useful for\ntesting but a security risk in production." },
+        FlagHelp { flags: "http(url, #{hsts: \"/path/to/file\"})", description: "Script-binding equivalent. Same semantics as the CLI flag." },
+    ],
+    related: &["-k / --insecure", "--cacert", "cookies"],
+    examples: &[
+        ExampleHelp { description: "Use HSTS to upgrade http:// hits automatically", command: "recon --hsts ~/.recon/hsts.txt http://example.com/" },
+        ExampleHelp { description: "Prime the cache from an https:// response", command: "recon --hsts ~/.recon/hsts.txt https://www.cloudflare.com/" },
+        ExampleHelp { description: "Inspect the cache", command: "cat ~/.recon/hsts.txt" },
+        ExampleHelp { description: "Script with a shared cache", command: r#"recon --script - <<< 'http("http://example.com/", #{ hsts: "/tmp/h.txt" });'"# },
+    ],
+};
+
 static TOPIC_UNIX_SOCKET: Topic = Topic {
     title: "Unix-domain sockets (--unix-socket)",
     description: "Route the HTTP request over a local Unix-domain socket\n\
@@ -1837,6 +1870,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "ipfs" | "ipns" => Some(&TOPIC_IPFS),
         "proxy" | "proxies" => Some(&TOPIC_PROXY),
         "unix-socket" | "unixsocket" | "uds" => Some(&TOPIC_UNIX_SOCKET),
+        "hsts" | "strict-transport-security" => Some(&TOPIC_HSTS),
         "archive" | "zip" | "tar" | "extract" => Some(&TOPIC_ARCHIVE),
         _ => None,
     }
@@ -1922,6 +1956,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "ipfs",
         "proxy",
         "unix-socket",
+        "hsts",
     ]
 }
 

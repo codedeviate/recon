@@ -52,6 +52,28 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 54. HSTS persistent cache (0.52.0)
+
+Third and final curl-parity phase-6 release. Closes the `--hsts` gap. `reqwest` has zero HSTS primitives so I hand-rolled a ~300-line store (parse / match / update / save) in `src/hsts.rs`.
+
+**File format chosen for curl compatibility.** Plain TSV, one entry per line: `hostname expires_unix`. A leading `.` on the hostname indicates `includeSubDomains`. Comment lines start with `#`. No per-entry metadata beyond expiry + the subdomains flag — matches what RFC 6797 requires. You can swap files between curl and recon without conversion.
+
+**Integration touch-points in `src/client.rs::execute` + `src/main.rs`.**
+- *Before sending*: the main.rs hook (right after the ipfs:// rewrite) inspects `args.url` / `args.url_flag`. If either is `http://` and the hostname has a non-expired cache entry, rewrite in place to `https://`. Prints a stderr line at default verbosity (suppressed by `-s`) so users know an upgrade happened.
+- *After receiving*: `src/client.rs::update_hsts_from_response` parses the `Strict-Transport-Security` header from the final response. Gates on `scheme == "https"` because RFC 6797 says STS directives from `http://` are non-authoritative. Calls `store.update_from_sts_header(host, value)` which returns true when the store changed — only then save (keeps I/O idempotent).
+
+**Subdomain matching.** `store.matches(host)` walks up the dotted hierarchy: exact match first, then each parent suffix checked for an entry with `include_subdomains = true`. So a cache entry for `.app` matches `myapp.app` but a bare `example.com` entry does not match `foo.example.com`. Standard HSTS semantics.
+
+**Atomic save via `tempfile::NamedTempFile::persist`.** Write to a sibling tempfile in the cache's parent dir, then rename into place. Matches what the existing cookie jar save path does (via `rusqlite` transactions). A save that fails mid-write can't corrupt the existing cache.
+
+**RFC 6797 behaviour NOT implemented.**
+- HSTS preload list isn't bundled (16 MB blob; scripts can pre-populate the file from the Chromium preload list if they want).
+- `preload` directive from server STS headers is parsed but not acted on (recon can't add entries to the global preload list).
+
+**`-k` still works with `--hsts`.** HSTS upgrades `http://` to `https://`, then `-k` disables cert verification after the scheme change. Useful for diagnosing self-signed-cert HSTS-protected hosts; risky in production. Documented in the help topic.
+
+**Tests added: +10.** STS header parsing (plain max-age, quoted, with includeSubDomains, missing max-age), store round-trip (save + load), load-missing-file UX, malformed-line tolerance, subdomain matching, expiry enforcement, insert-then-remove-on-zero. 1088 → 1098 passing.
+
 ### 53. Unix-domain sockets (0.51.0)
 
 Second curl-parity phase-6 release. Hand-rolled minimal HTTP/1.1 client over `std::os::unix::net::UnixStream`. Sits in `src/unix_socket.rs` as a peer to `client.rs`, not as a feature flag on top of reqwest — because reqwest's blocking client has zero UDS support, and building the async-inside-sync bridge (tokio runtime + custom `Connect` trait impl + re-implementing every reqwest feature we already depend on for TCP) was out of proportion for the use case.

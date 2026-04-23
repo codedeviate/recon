@@ -792,6 +792,14 @@ pub struct Args {
     #[arg(long = "tftp-blksize", value_name = "N", help_heading = "File Transfer")]
     pub tftp_blksize: Option<usize>,
 
+    /// Path to a persistent HSTS cache file. On request, an http:// URL
+    /// to a host with a non-expired HSTS entry is upgraded to https://
+    /// before sending. On response, Strict-Transport-Security headers
+    /// are parsed and the cache is updated (max-age=0 removes entries).
+    /// File format matches curl's --hsts.
+    #[arg(long = "hsts", value_name = "PATH", help_heading = "HTTP Request")]
+    pub hsts: Option<std::path::PathBuf>,
+
     /// Route the HTTP request through a Unix-domain socket instead of
     /// TCP. Target URL still supplies Host: header and path; transport
     /// goes over the socket. Useful for Docker (/var/run/docker.sock),

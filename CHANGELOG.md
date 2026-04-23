@@ -8,6 +8,33 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.52.0] - 2026-04-23
+
+### Added
+
+Third and final curl-parity phase-6 release. Closes the `--hsts` gap.
+
+- **`--hsts <PATH>`** — persistent HSTS (HTTP Strict Transport Security) cache. Two-way integration:
+  - **Request side**: load the cache; if the target URL is `http://` and the hostname has a non-expired entry (exact match or subdomain match under `includeSubDomains`), upgrade the URL to `https://` before sending. A verbose line announces the upgrade (suppressed by `-s`).
+  - **Response side**: parse `Strict-Transport-Security` headers from `https://` responses, update the cache (`max-age` sets expiry, `max-age=0` removes, `includeSubDomains` tracked per entry), save atomically via `tempfile::NamedTempFile::persist`.
+- **File format** matches curl's plain-text TSV (one entry per line: `host expires_unix`, leading `.` = includeSubDomains). Cross-compatible; you can share the file with curl.
+- **Missing cache file** is silently treated as empty — first-run UX.
+- **Script binding**: `http(url, opts)` opts gain `hsts: "/path/to/cache"`. Same semantics as the CLI flag.
+- **`recon --help hsts`** (alias `strict-transport-security`) with file-format reference + examples.
+- **`recon --examples`** new `HSTS (0.52.0)` section with 3 blocks.
+- **`script/hsts.rhai`** under the existing "Routing" category.
+- **`docs/curl-parity-matrix.md`** updated — HSTS moves from "planned" to "shipped".
+
+### Rationale
+
+`reqwest` has zero HSTS primitives; hand-rolled a ~300-line store (parse / match / update / save) in `src/hsts.rs`. File format chosen for curl compatibility: exact-match or leading-dot-subdomain entries with a Unix-epoch expiry column. `update_from_sts_header` returns true when the store changed, keeping the save-on-update path idempotent.
+
+### Notes
+
+- HSTS preload list is **not** bundled. Only entries added via an actual server's STS header are honored. Users who want preload-list behaviour should browse with a conventional browser.
+- `--insecure` still works alongside `--hsts`: HSTS upgrades `http://` to `https://`, but `-k` still disables cert verification after the upgrade. Useful for testing; risky in production.
+- HSTS updates only happen on `https://` responses (STS directives from `http://` are non-authoritative per RFC 6797).
+
 ## [0.51.0] - 2026-04-23
 
 ### Added
