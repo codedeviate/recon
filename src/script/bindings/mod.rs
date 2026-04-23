@@ -9,6 +9,7 @@ pub mod compare;
 pub mod compression;
 pub mod dict;
 pub mod dns;
+pub mod docs;
 pub mod email;
 pub mod encode;
 pub mod encrypt;

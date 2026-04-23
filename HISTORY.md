@@ -52,6 +52,29 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 60. Document conversions — markdown / HTML / PDF with linkable TOC (0.58.0)
+
+Three conversions in one release: `--md-to-html` (pure-Rust), `--html-to-pdf` (via agent-browser), `--md-to-pdf` (pipelined md-to-html + html-to-pdf). Linkable tables of contents on all of them.
+
+**Crate choice — `comrak` over `pulldown-cmark`.** Both are actively maintained pure-Rust CommonMark parsers. `comrak` wins because it emits `id="slug"` on headings natively (via `ExtensionOptions::header_ids`). pulldown-cmark would need a separate slugification + post-processing pass. Size difference is negligible (~600 KB vs ~150 KB), and TOC anchor IDs are the load-bearing feature for this release.
+
+**PDF backend — agent-browser, not chromiumoxide.** Considered both. `chromiumoxide` gives us in-process Chrome DevTools Protocol control; agent-browser is an external CLI that recon already integrates with (screenshot / snapshot / open / close / pdf). Picked agent-browser because:
+1. Zero new code paths — `agent_browser::run_cmd(&["pdf", path], false)` is already the call pattern for other browser features.
+2. Zero new Cargo deps on top of `comrak`.
+3. One fewer Chrome-finder discovery path to maintain (agent-browser handles its own Chromium resolution).
+
+**HTML shell.** Generated document wraps comrak's body fragment in a full `<!doctype html>` with a `<title>`, inlined bundled CSS (@page margins, serif body, monospace code, table borders, page-break-inside:avoid on `<pre>`), an optional injected `<nav class="toc">`, and the body inside `<main>`. Chrome's printToPDF honors `@page` for margins + `avoid-inside` for hint preservation, so the PDF looks book-like rather than "browser-print".
+
+**TOC generation — walked AST, not regex.** Single pass over `root.descendants()`, filtering `NodeValue::Heading(h)` where `h.level <= toc_depth`, extracting text via a small recursive walker, slugifying to match comrak's own header_ids rule. Then render a nested `<ul>` tree with `<a href="#slug">` entries. Chrome preserves those anchors as clickable internal PDF links.
+
+**Source-loader reuse.** `docs::load_source()` clones the CLI args, clears the three doc-conversion flags, sets `url = Some(src)`, and calls `source::read_all()`. Same pipeline as `--compare` (0.53.0) — URL sources get every HTTP flag (-H, -u, -L, -k, cookies, proxy, HSTS) for free, stdin via `-` is handled, file:// URLs work.
+
+**`agent-browser open file:// → pdf → close`.** Tempfile lifecycle: write → canonicalize → open → pdf → close → NamedTempFile drops at scope end. Close is attempted on every error path (via `let _ = run_cmd(&["close"], …)` after the main flow) so agent-browser doesn't leak a browser session.
+
+**Default CSS.** ~50 lines inlined in `src/docs.rs`. Opinionated but tasteful: 11pt body, 24pt H1, border-bottom headings, #f5f5f5 code blocks, collapse tables, `@page A4 18mm 20mm` margins, `<nav.toc>` with a light-grey card. Users can append custom CSS via `--doc-css` or replace entirely with `--no-default-css --doc-css print.css`.
+
+**Tests added: +7.** Heading IDs emitted, TOC generated + depth limit honored, default CSS inlined + suppressible, GFM tables, slugify strips punctuation, custom CSS appended, script binding round-trips. 1133 → 1140 passing.
+
 ### 59. Script TCP + UDP server primitives (0.57.0)
 
 Closes out the queued wishlist arc started back in the serialized-foraging-sutherland plan. TCP listen + accept + read + write, UDP bind + recv_from + send_to. Accept-with-timeout on the TCP side lets the main loop poll for shutdown between connections.

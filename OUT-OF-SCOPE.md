@@ -63,6 +63,14 @@ Tracked alongside `docs/curl-parity-matrix.md` for day-to-day user reference.
 - **ICMP raw-socket send/recv primitives** — `ping()` already covers reachability checks; arbitrary ICMP type/code send + recv is niche. Requires raw sockets (`CAP_NET_RAW` on Linux, root on macOS for non-DGRAM types). Revisit when users ask for specific traffic-generation or monitoring use cases.
 - **CLI server flags** (`recon --listen 0.0.0.0:8080`) — server workflows are always multi-step (accept → per-conn handler); scripts are the right layer. Quick HTTP serving is covered by the pre-built `recon --serve`.
 
+### Document conversions — deferred
+
+- **Pure-Rust HTML+CSS → PDF renderer** — `servo`/`blitz` exist but aren't packaged as an embeddable crate yet. `typst` is pure-Rust and has `#outline()` for linkable TOC, but does NOT accept HTML as input (its HTML support is output-only). Revisit if either path matures.
+- **typst-based md→PDF alternative** — Chrome-free path for markdown → PDF via a hand-rolled md→typst translator + the `typst` crate embedded. Would add ~15–25 MB to the release binary and require non-trivial translator logic. Revisit if users explicitly ask for Chrome-free PDF generation.
+- **Other markup → PDF** — reStructuredText, AsciiDoc, Org. Each would need its own parser crate. Revisit per concrete ask.
+- **Custom page sizes / margins / orientations** — agent-browser's `pdf` subcommand's flag surface dictates what's feasible. Punt until real demand shapes the knobs.
+- **PDF metadata beyond title** — author, subject, keywords — niche.
+
 ### UX niggles
 
 - **`--editor` value grabbing** — clap's `num_args = 0..=1` greedily consumes the next token, so `recon --editor https://url` treats the URL as the editor value. Documented workaround (`--editor=value`, or `--url` first); could be fixed with a smarter arg parser.

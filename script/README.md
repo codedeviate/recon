@@ -84,6 +84,12 @@ surprise failures.
 | `browser-multi.rhai` | Three independent browsers with different personas + jars |
 | `browser-iso8859.rhai` | Browser posting to a Latin-1 service; auto-transcodes body |
 
+### Documents
+
+| Script | What it does |
+|---|---|
+| `doc-convert.rhai` | Markdown → HTML (+ TOC) → PDF pipeline demo |
+
 ### Comparison
 
 | Script | What it does |

@@ -21,7 +21,7 @@ pub struct Args {
     // ── Positional (renders under Arguments; no help_heading) ────────────────
 
     /// URL to request (or use --url)
-    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni", "jwt_view", "jwt_sign", "jwt_validate", "netstatus", "editor_cleanup", "sample", "sample_list", "hash", "hash_list", "compress", "decompress", "compress_list", "encode", "encode_list", "encrypt", "decrypt", "encrypt_keygen", "checkdigit", "checkdigit_create", "checkdigit_list", "script", "init", "browser_screenshot", "archive", "extract", "iconv", "list_charsets", "compare", "decode"])]
+    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni", "jwt_view", "jwt_sign", "jwt_validate", "netstatus", "editor_cleanup", "sample", "sample_list", "hash", "hash_list", "compress", "decompress", "compress_list", "encode", "encode_list", "encrypt", "decrypt", "encrypt_keygen", "checkdigit", "checkdigit_create", "checkdigit_list", "script", "init", "browser_screenshot", "archive", "extract", "iconv", "list_charsets", "compare", "decode", "md_to_html", "md_to_pdf", "html_to_pdf"])]
     pub url: Option<String>,
 
     // ── HTTP Request ─────────────────────────────────────────────────────────
@@ -958,6 +958,60 @@ pub struct Args {
     /// of --mail-from.
     #[arg(long = "dkim-domain", value_name = "DOMAIN", help_heading = "SMTP")]
     pub dkim_domain: Option<String>,
+
+    // ── Docs ─────────────────────────────────────────────────────────────────
+
+    /// Render markdown → HTML. SRC = path / URL / `-` (stdin). Output
+    /// via `-o PATH` (or stdout). Honors HTTP flags (-H, -u, -L, -k…)
+    /// when SRC is an http(s):// URL.
+    #[arg(long = "md-to-html", value_name = "SRC", help_heading = "Docs")]
+    pub md_to_html: Option<String>,
+
+    /// Render markdown → PDF via the md-to-html pipeline and
+    /// `agent-browser pdf`. `-o PATH` required. Chrome is needed
+    /// through agent-browser.
+    #[arg(long = "md-to-pdf", value_name = "SRC", help_heading = "Docs")]
+    pub md_to_pdf: Option<String>,
+
+    /// Render HTML → PDF via `agent-browser pdf`. SRC = path / URL /
+    /// `-` (stdin). `-o PATH` required. Chrome is needed through
+    /// agent-browser.
+    #[arg(long = "html-to-pdf", value_name = "SRC", help_heading = "Docs")]
+    pub html_to_pdf: Option<String>,
+
+    /// Inject a linkable table of contents at the top of the
+    /// generated HTML (md-to-html and md-to-pdf only).
+    #[arg(long = "toc", help_heading = "Docs")]
+    pub toc: bool,
+
+    /// Include headings up to H`N` in the TOC. Default 3.
+    #[arg(long = "toc-depth", value_name = "N", default_value_t = 3, help_heading = "Docs")]
+    pub toc_depth: u8,
+
+    /// Heading text for the injected TOC. Default "Contents".
+    #[arg(long = "toc-title", value_name = "STR", default_value = "Contents", help_heading = "Docs")]
+    pub toc_title: String,
+
+    /// Sets <title> (HTML) + PDF metadata title. Default: basename of
+    /// SRC with extension stripped.
+    #[arg(long = "doc-title", value_name = "STR", help_heading = "Docs")]
+    pub doc_title: Option<String>,
+
+    /// Override the bundled print-friendly CSS with a user stylesheet
+    /// (inlined into the generated HTML). Pair with --no-default-css
+    /// to replace rather than append.
+    #[arg(long = "doc-css", value_name = "PATH", help_heading = "Docs")]
+    pub doc_css: Option<PathBuf>,
+
+    /// Skip the bundled default CSS. Only useful paired with
+    /// --doc-css.
+    #[arg(long = "no-default-css", help_heading = "Docs")]
+    pub no_default_css: bool,
+
+    /// Enable GitHub-flavored markdown extensions: tables, task
+    /// lists, strikethrough, autolinks, footnotes, tagfilter.
+    #[arg(long = "gfm", help_heading = "Docs")]
+    pub gfm: bool,
 
     // ── Compare ──────────────────────────────────────────────────────────────
 

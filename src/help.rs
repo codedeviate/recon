@@ -1193,6 +1193,52 @@ static TOPIC_SCRIPT: Topic = Topic {
     ],
 };
 
+static TOPIC_DOCS: Topic = Topic {
+    title: "Document conversions (markdown / HTML / PDF)",
+    description: "Three conversions, one source-loader:\n\
+                  \n\
+                    --md-to-html    markdown → HTML (pure Rust)\n\
+                    --html-to-pdf   HTML → PDF (via agent-browser)\n\
+                    --md-to-pdf     md → HTML → PDF\n\
+                  \n\
+                  Source (SRC) is a path, http(s):// URL, or `-` for\n\
+                  stdin. URL sources honor every HTTP flag (-H, -u,\n\
+                  -L, -k, cookies, proxy, HSTS).\n\
+                  \n\
+                  HTML backend is `comrak` (CommonMark + GFM). PDF\n\
+                  backend is `agent-browser pdf`, which wraps Chrome's\n\
+                  printToPDF — preserves anchor links, @page CSS, and\n\
+                  produces a clickable TOC in the PDF.\n\
+                  \n\
+                  TOC generation: comrak emits `id=\"slug\"` on each\n\
+                  heading; recon adds a `<nav class=\"toc\">` block\n\
+                  with anchor-linked entries up to `--toc-depth`.",
+    flags: &[
+        FlagHelp { flags: "--md-to-html <SRC>", description: "Render markdown → HTML. Output via -o <PATH> or stdout." },
+        FlagHelp { flags: "--md-to-pdf <SRC>", description: "Render markdown → PDF. Requires -o <PATH> and agent-browser." },
+        FlagHelp { flags: "--html-to-pdf <SRC>", description: "Render HTML → PDF. Requires -o <PATH> and agent-browser." },
+        FlagHelp { flags: "--toc", description: "Inject a linkable table of contents at the top of the\ngenerated HTML." },
+        FlagHelp { flags: "--toc-depth <N>", description: "Include headings up to H<N> in the TOC. Default 3." },
+        FlagHelp { flags: "--toc-title <STR>", description: "Heading text for the injected TOC. Default \"Contents\"." },
+        FlagHelp { flags: "--doc-title <STR>", description: "Sets <title> in the HTML + PDF metadata title." },
+        FlagHelp { flags: "--doc-css <PATH>", description: "Inline a user stylesheet (appended after the bundled default)." },
+        FlagHelp { flags: "--no-default-css", description: "Skip the bundled default CSS. Pair with --doc-css." },
+        FlagHelp { flags: "--gfm", description: "Enable GitHub-flavored extensions: tables, task lists,\nstrikethrough, autolinks, footnotes, tagfilter." },
+        FlagHelp { flags: "md_to_html(src, opts)", description: "Script binding. src = string or Blob. Returns HTML string." },
+        FlagHelp { flags: "md_to_pdf(src, dest, opts)", description: "Script binding. src literal, dest path. Needs agent-browser." },
+        FlagHelp { flags: "html_to_pdf(src, dest)", description: "Script binding. Needs agent-browser." },
+    ],
+    related: &["script", "agent-browser", "http"],
+    examples: &[
+        ExampleHelp { description: "Markdown → HTML with TOC + GFM", command: "recon --md-to-html README.md --toc --gfm -o README.html" },
+        ExampleHelp { description: "Fetch live markdown over HTTP, render local", command: "recon --md-to-html https://example.com/doc.md --toc -o doc.html" },
+        ExampleHelp { description: "Markdown → PDF with linkable TOC", command: "recon --md-to-pdf CHANGELOG.md --toc --gfm --doc-title 'recon release notes' -o changelog.pdf" },
+        ExampleHelp { description: "HTML → PDF", command: "recon --html-to-pdf report.html -o report.pdf" },
+        ExampleHelp { description: "Inject custom CSS", command: "recon --md-to-pdf notes.md --toc --doc-css print.css -o notes.pdf" },
+        ExampleHelp { description: "Replace the bundled CSS entirely", command: "recon --md-to-pdf notes.md --no-default-css --doc-css print.css -o notes.pdf" },
+    ],
+};
+
 static TOPIC_SCRIPT_SERVER: Topic = Topic {
     title: "Script network servers (TCP / UDP)",
     description: "Bind and accept from inside a Rhai script. Designed\n\
@@ -2049,6 +2095,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "decode" | "scan" | "barcode-scan" | "decode-image" => Some(&TOPIC_DECODE),
         "threads" | "spawn" | "concurrency" | "thread" => Some(&TOPIC_SCRIPT_THREADS),
         "script-server" | "tcp-server" | "udp-server" | "listen" => Some(&TOPIC_SCRIPT_SERVER),
+        "docs" | "markdown" | "md-to-html" | "md-to-pdf" | "html-to-pdf" | "pdf" => Some(&TOPIC_DOCS),
         "client-cert" | "mtls" | "client-certificate" => Some(&TOPIC_CLIENT_CERT),
         "archive" | "zip" | "tar" | "extract" => Some(&TOPIC_ARCHIVE),
         _ => None,
@@ -2141,6 +2188,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "decode",
         "threads",
         "script-server",
+        "docs",
     ]
 }
 

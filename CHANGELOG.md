@@ -8,6 +8,58 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.58.0] - 2026-04-24
+
+### Added
+
+Document conversions — markdown → HTML / HTML → PDF / markdown → PDF
+with linkable tables of contents.
+
+- **`--md-to-html <SRC>`** — markdown → HTML via the `comrak` crate
+  (CommonMark + GFM, pure Rust). SRC = path / URL / `-` (stdin).
+  Output via `-o PATH` or stdout.
+- **`--md-to-pdf <SRC>`** — markdown → PDF by pipelining md-to-html
+  into agent-browser's `pdf` command. `-o PATH` required.
+- **`--html-to-pdf <SRC>`** — HTML → PDF via agent-browser.
+- **`--toc` / `--toc-depth N` / `--toc-title STR`** — inject a
+  linkable table of contents into the generated HTML. Chrome's
+  printToPDF preserves anchor links so the TOC stays clickable in the
+  PDF.
+- **`--doc-title STR`** — sets `<title>` + PDF metadata title.
+- **`--doc-css PATH`** — inline a custom stylesheet (appended after
+  the bundled print-friendly default).
+- **`--no-default-css`** — skip the bundled default; useful with
+  `--doc-css` for a full override.
+- **`--gfm`** — enable GitHub-flavored extensions (tables, task
+  lists, strikethrough, autolinks, footnotes, tagfilter). Sensible
+  defaults (tables, strikethrough, autolinks, task lists) are on
+  without `--gfm`.
+- **Script bindings**: `md_to_html(src, opts)`, `md_to_pdf(src, dest,
+  opts)`, `html_to_pdf(src, dest)`. Source is a literal string or
+  Blob; scripts fetch / load via existing `http()` / `file_read()`.
+- **`recon --version` Features tokens**: `markdown`, `pdf-export`.
+
+### Technical
+
+- New `src/docs.rs` (~390 LOC) — comrak-driven HTML render, TOC
+  generation, bundled print CSS (@page + serif body + monospace code
+  + table borders).
+- New `src/docs_pdf.rs` — agent-browser orchestration (write HTML to
+  tempfile → open → pdf → close → tempfile drop).
+- PDF generation requires agent-browser on PATH; missing binary
+  reports a clear error with `brew install agent-browser` /
+  `npm install -g agent-browser` hint.
+- New crate dep: `comrak = "0.28"`. No HTML→PDF engine added; Chrome
+  via the existing agent-browser integration is the PDF backend.
+
+### Out of scope
+
+Deferred to follow-ups: pure-Rust HTML→PDF (no mature renderer
+exists); `typst`-based md→PDF alternative (binary bloat + requires a
+hand-rolled md→typst translator); other markup (RST, AsciiDoc, Org);
+custom page sizes / margins beyond what agent-browser's `pdf`
+exposes; encrypted-PKCS#8 in-process decryption.
+
 ## [0.57.0] - 2026-04-24
 
 ### Added

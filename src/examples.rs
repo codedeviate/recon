@@ -979,6 +979,31 @@ recon --rekey \
         "recon gophers://secure-gopher.example/",
     ]);
 
+    section("DOCUMENT CONVERSIONS (0.58.0)");
+
+    example("Markdown → HTML (pure-Rust)", &[
+        "recon --md-to-html README.md -o README.html",
+        "recon --md-to-html README.md --toc --gfm -o README.html",
+        "curl -s https://example.com/doc.md | recon --md-to-html - > doc.html",
+    ]);
+
+    example("Markdown → PDF (via agent-browser)", &[
+        "recon --md-to-pdf CHANGELOG.md --toc --gfm --doc-title 'recon notes' -o changelog.pdf",
+        "recon --md-to-pdf docs.md --toc --toc-depth 4 -o docs.pdf",
+    ]);
+
+    example("HTML → PDF", &[
+        "recon --html-to-pdf report.html -o report.pdf",
+        "recon --html-to-pdf https://example.com/page.html -o page.pdf",
+    ]);
+
+    example("Custom CSS", &[
+        "recon --md-to-pdf notes.md --toc --doc-css print.css -o notes.pdf",
+        "recon --md-to-pdf notes.md --no-default-css --doc-css print.css -o notes.pdf",
+    ]);
+
+    note("HTML backend is `comrak` (CommonMark + GFM, pure Rust). PDF backend is `agent-browser pdf` (wraps Chrome's printToPDF, preserving anchor links so the TOC stays clickable). --md-to-html is pure-Rust / no external deps. --md-to-pdf and --html-to-pdf require agent-browser on PATH (`brew install agent-browser`). URL sources flow through the normal request pipeline and honor every HTTP flag.");
+
     section("SCRIPT TCP / UDP SERVERS (0.57.0)");
 
     example("Run the shipped tcp echo server", &[

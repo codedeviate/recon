@@ -5,6 +5,8 @@ mod client_cert;
 mod compare;
 mod compression;
 mod decode;
+mod docs;
+mod docs_pdf;
 mod config;
 mod cookiejar;
 mod dict_probe;
@@ -227,6 +229,29 @@ fn main() {
     if args.extract.is_some() {
         if let Err(e) = archive::run_extract_cli(&args) {
             eprintln!("error: {e}");
+            std::process::exit(1);
+        }
+        return;
+    }
+
+    // ── Document conversions: markdown / HTML → HTML / PDF ──────────────────
+    if args.md_to_html.is_some() {
+        if let Err(e) = docs::run_md_to_html(&args) {
+            eprintln!("error: {e:#}");
+            std::process::exit(1);
+        }
+        return;
+    }
+    if args.md_to_pdf.is_some() {
+        if let Err(e) = docs::run_md_to_pdf(&args) {
+            eprintln!("error: {e:#}");
+            std::process::exit(1);
+        }
+        return;
+    }
+    if args.html_to_pdf.is_some() {
+        if let Err(e) = docs::run_html_to_pdf(&args) {
+            eprintln!("error: {e:#}");
             std::process::exit(1);
         }
         return;
