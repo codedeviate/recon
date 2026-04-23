@@ -60,6 +60,7 @@ mod iconv;
 mod tls_probe;
 mod traceroute;
 mod udp_probe;
+mod unix_socket;
 mod util;
 mod version;
 mod whois;
@@ -766,6 +767,8 @@ fn main() {
         || args.target_url().starts_with("wss://")
     {
         ws_probe::run(args.target_url(), args.timeout)
+    } else if args.unix_socket.is_some() {
+        unix_socket::run(&args)
     } else {
         let t0 = std::time::Instant::now();
         client::execute(&args).and_then(|(response, mut metrics)| -> anyhow::Result<()> {

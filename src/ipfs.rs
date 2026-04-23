@@ -35,21 +35,34 @@ pub fn rewrite_url(url: &str, gateway_override: Option<&str>) -> Option<String> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    // Serialise env-var tests so they don't race with each other.
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    fn clear_env() {
+        std::env::remove_var("RECON_IPFS_GATEWAY");
+    }
 
     #[test]
     fn rewrite_ipfs_default_gateway() {
+        let _g = ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+        clear_env();
         let r = rewrite_url("ipfs://bafyabcdef/path/to/file", None);
         assert_eq!(r.as_deref(), Some("https://ipfs.io/ipfs/bafyabcdef/path/to/file"));
     }
 
     #[test]
     fn rewrite_ipns_default_gateway() {
+        let _g = ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+        clear_env();
         let r = rewrite_url("ipns://example.eth", None);
         assert_eq!(r.as_deref(), Some("https://ipfs.io/ipns/example.eth"));
     }
 
     #[test]
     fn rewrite_custom_gateway() {
+        // Flag override wins regardless of env, so no lock needed.
         let r = rewrite_url("ipfs://bafy", Some("http://127.0.0.1:8080"));
         assert_eq!(r.as_deref(), Some("http://127.0.0.1:8080/ipfs/bafy"));
     }
@@ -62,14 +75,12 @@ mod tests {
 
     #[test]
     fn rewrite_env_var_fallback() {
+        let _g = ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+        clear_env();
         std::env::set_var("RECON_IPFS_GATEWAY", "https://env.gw");
         let r = rewrite_url("ipfs://bafy", None);
-        // Some other test may have unset it; be defensive about order.
-        assert!(
-            r.as_deref() == Some("https://env.gw/ipfs/bafy")
-                || r.as_deref() == Some("https://ipfs.io/ipfs/bafy")
-        );
-        std::env::remove_var("RECON_IPFS_GATEWAY");
+        assert_eq!(r.as_deref(), Some("https://env.gw/ipfs/bafy"));
+        clear_env();
     }
 
     #[test]

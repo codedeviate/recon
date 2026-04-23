@@ -979,6 +979,25 @@ recon --rekey \
         "recon gophers://secure-gopher.example/",
     ]);
 
+    section("UNIX SOCKETS (0.51.0)");
+
+    example("Docker API over /var/run/docker.sock", &[
+        "recon --unix-socket /var/run/docker.sock http://localhost/_ping",
+        "recon --unix-socket /var/run/docker.sock -p http://localhost/v1.40/version",
+        "recon --unix-socket /var/run/docker.sock http://localhost/v1.40/containers/json",
+    ]);
+
+    example("Path-only target (Host defaults to localhost)", &[
+        "recon --unix-socket /var/run/docker.sock /v1.40/info",
+    ]);
+
+    example("POST to a systemd-activated service", &[
+        r#"recon --unix-socket /run/my-service.sock \
+      -X POST --json '{"hello":"world"}' \
+      http://svc/submit"#,
+    ]);
+    note("HTTP/1.1 over UDS is hand-rolled — no HTTP/2, no TLS, no redirects, no chunked decoding. Sufficient for Docker / systemd / kubelet diagnostics. Scripts pass the socket as `#{ unix_socket: \"/path\" }` on the http() opts map.");
+
     section("PROXY (0.50.0)");
 
     example("Route through an HTTP proxy", &[

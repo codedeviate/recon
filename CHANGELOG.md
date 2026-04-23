@@ -8,6 +8,28 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.51.0] - 2026-04-23
+
+### Added
+
+Second of three curl-parity phase-6 releases. Unix-domain-socket support for Docker API / systemd-activated services / Kubernetes kubelet diagnostics.
+
+- **`--unix-socket <PATH>`** — route the HTTP request over a Unix-domain socket instead of TCP. Target URL's host + path are preserved; transport changes. URL grammar tolerant: `http://localhost/path`, `https://api/v1/info` (host-only; no TLS), or `/v1.40/version` (path-only; Host defaults to `localhost`).
+- **Script binding**: `http(url, opts)` opts gain `unix_socket: "/path"`. When set, routes through `src/unix_socket.rs` and returns a Map identical to a normal `http()` response (with `charset: ()` since UDS payloads aren't decoded).
+- **`recon --help unix-socket`** (aliases `unixsocket`, `uds`) with URL grammar, supported flags, common sockets.
+- **`recon --examples`** new `UNIX SOCKETS (0.51.0)` section with 3 blocks.
+- **`script/unix-socket.rhai`** under the existing "Routing" category.
+- **`docs/curl-parity-matrix.md`** updated — UnixSockets moves from "planned" to "shipped".
+
+### Rationale
+
+reqwest's blocking client has no UDS support, and the full async-inside-sync stack (hyper + tokio + custom connector + duplicating reqwest's feature matrix) was overkill for one-shot diagnostic requests. Hand-rolled a minimal HTTP/1.1 client over `std::os::unix::net::UnixStream`: ~350 lines including tests. Scope is deliberately narrow — no HTTP/2, no TLS, no redirects, no chunked-decoding — matching what users actually reach for UDS for: Docker API, systemd sockets, kubelet endpoints.
+
+### Notes
+
+- Abstract-socket namespace (`@`-prefixed or NUL-prefixed names on Linux) deferred; path-based sockets cover the real-world use case.
+- `--data-urlencode` not plumbed for UDS; use `-d` / `--json` instead (UDS APIs almost always want JSON anyway).
+
 ## [0.50.0] - 2026-04-23
 
 ### Added

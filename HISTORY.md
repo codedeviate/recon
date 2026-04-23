@@ -52,6 +52,24 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 53. Unix-domain sockets (0.51.0)
+
+Second curl-parity phase-6 release. Hand-rolled minimal HTTP/1.1 client over `std::os::unix::net::UnixStream`. Sits in `src/unix_socket.rs` as a peer to `client.rs`, not as a feature flag on top of reqwest — because reqwest's blocking client has zero UDS support, and building the async-inside-sync bridge (tokio runtime + custom `Connect` trait impl + re-implementing every reqwest feature we already depend on for TCP) was out of proportion for the use case.
+
+**Scope intentionally narrow.** HTTP/1.1 only. No TLS (makes no sense over a local socket). No HTTP/2 (local peers don't need it). No redirects (UDS endpoints don't redirect). No chunked-decoding (Docker, systemd, kubelet all return Content-Length). This cuts the implementation to ~350 lines, about 80% of which is verbatim header parsing that I can trust to be correct because the protocol is ancient and stable.
+
+**URL grammar tolerant.** Accepts `http://host/path`, `https://host/path` (the `https://` scheme is a lie — transport stays plaintext over UDS — but users type it habitually, so we accept it), and `/path` alone (Host defaults to `localhost`). The host string becomes the `Host:` request header; the path is what goes on the wire.
+
+**Dispatch placement.** main.rs checks `args.unix_socket.is_some()` right before the fallback HTTP path. When set, routes to `unix_socket::run(&args)` which handles verbose-header rendering + body writing (to stdout or -o). When unset, the normal HTTP path runs as before.
+
+**Script-binding integration.** `http(url, #{ unix_socket: "/path" })` — adding one opts key + a dispatch check inside `do_request`. UDS response shape matches `http()`'s (url, final_url, status, body, body_bytes, charset, headers, http_version, duration_ms) so scripts can't tell the difference. `charset` is always `()` since UDS payloads aren't decoded (content-type parsing skipped).
+
+**Why the shape match matters.** The script-binding policy from CLAUDE.md says every surface gets every feature. If UDS returned a different shape, scripts would have to branch on transport. Now a script like `http(url, #{unix_socket: sock})` composes into any existing pipeline that works with `http()`.
+
+**Docker API smoke test.** `recon --unix-socket /var/run/docker.sock http://localhost/_ping` returned "OK\n" with the full Docker response-header set (Api-Version, Server: Docker/29.4.0, etc.). End-to-end verified.
+
+**Tests added: +7.** URL-grammar coverage (http://, https://, path-only, non-HTTP scheme rejection), status-line parser (standard, no-reason-phrase, malformed). 1081 → 1088 passing.
+
 ### 52. Proxy suite — HTTP / HTTPS-to-proxy / SOCKS5 (0.50.0)
 
 First of three planned curl-parity phase-6 releases. Surprising discovery during scoping: recon shipped **zero proxy support** prior to 0.50.0 — not even `$HTTP_PROXY` env-var honoring. Every request went direct to the origin. So what the user framed as "HTTPS-proxy" became a full proxy suite.

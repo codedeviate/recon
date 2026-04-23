@@ -1193,6 +1193,47 @@ static TOPIC_SCRIPT: Topic = Topic {
     ],
 };
 
+static TOPIC_UNIX_SOCKET: Topic = Topic {
+    title: "Unix-domain sockets (--unix-socket)",
+    description: "Route the HTTP request over a local Unix-domain socket\n\
+                  instead of TCP. The target URL's host + path are\n\
+                  preserved; only the transport changes.\n\
+                  \n\
+                  URL grammar accepted:\n\
+                    http://localhost/path   (host becomes the Host: header)\n\
+                    https://api/v1/info     (host-only; no actual TLS)\n\
+                    /v1.40/version          (path only; Host defaults to\n\
+                                             `localhost`)\n\
+                  \n\
+                  Scope: HTTP/1.1 over UDS, hand-rolled. No HTTP/2 (local\n\
+                  peers don't need it), no TLS (nonsensical over a local\n\
+                  socket), no redirects (UDS endpoints don't redirect),\n\
+                  no chunked transfer decoding.\n\
+                  \n\
+                  Common sockets: /var/run/docker.sock (Docker API),\n\
+                  /run/systemd/private (systemd), /var/run/kubelet.sock\n\
+                  (Kubernetes kubelet).",
+    flags: &[
+        FlagHelp { flags: "--unix-socket <PATH>", description: "Connect to this Unix-domain socket path instead of TCP.\nThe socket file must exist." },
+        FlagHelp { flags: "-X, --request <METHOD>", description: "Override the HTTP method (default GET or POST-with-body)." },
+        FlagHelp { flags: "-H, --header <H: V>", description: "Custom request headers. Same behaviour as the TCP path." },
+        FlagHelp { flags: "-d, --data <DATA>", description: "Request body (String / @file / @- stdin). Defaults method\nto POST." },
+        FlagHelp { flags: "--json <DATA>", description: "JSON body + auto Content-Type." },
+        FlagHelp { flags: "-T, --upload-file <PATH>", description: "PUT the file as body." },
+        FlagHelp { flags: "-o, --output <PATH>", description: "Save response body to a file. Default: stdout." },
+        FlagHelp { flags: "-v / -I / --include", description: "Header visibility — same semantics as the TCP path." },
+        FlagHelp { flags: "http(url, #{unix_socket: \"/path\"})", description: "Script binding equivalent. Pass the socket path through\nthe opts map; response shape identical to a normal http()." },
+    ],
+    related: &["-X", "-H", "-d", "--json", "-T", "-o", "protocols"],
+    examples: &[
+        ExampleHelp { description: "Docker API: ping + version", command: "recon --unix-socket /var/run/docker.sock http://localhost/_ping" },
+        ExampleHelp { description: "Docker API: list containers", command: "recon --unix-socket /var/run/docker.sock -p http://localhost/v1.40/containers/json" },
+        ExampleHelp { description: "Query by path only (Host defaults to `localhost`)", command: "recon --unix-socket /var/run/docker.sock /v1.40/version" },
+        ExampleHelp { description: "POST to a systemd-activated service", command: r#"recon --unix-socket /run/my-service.sock -X POST --json '{"ok":true}' http://svc/submit"# },
+        ExampleHelp { description: "Script-side", command: r#"recon --script - <<< 'http("http://localhost/_ping", #{ unix_socket: "/var/run/docker.sock" });'"# },
+    ],
+};
+
 static TOPIC_PROXY: Topic = Topic {
     title: "Proxy (HTTP / HTTPS / SOCKS5)",
     description: "Route HTTP(S) requests through a proxy. Scheme on the\n\
@@ -1795,6 +1836,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "imap" | "imaps" => Some(&TOPIC_IMAP),
         "ipfs" | "ipns" => Some(&TOPIC_IPFS),
         "proxy" | "proxies" => Some(&TOPIC_PROXY),
+        "unix-socket" | "unixsocket" | "uds" => Some(&TOPIC_UNIX_SOCKET),
         "archive" | "zip" | "tar" | "extract" => Some(&TOPIC_ARCHIVE),
         _ => None,
     }
@@ -1879,6 +1921,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "imap",
         "ipfs",
         "proxy",
+        "unix-socket",
     ]
 }
 

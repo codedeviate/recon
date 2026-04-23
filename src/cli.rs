@@ -792,6 +792,13 @@ pub struct Args {
     #[arg(long = "tftp-blksize", value_name = "N", help_heading = "File Transfer")]
     pub tftp_blksize: Option<usize>,
 
+    /// Route the HTTP request through a Unix-domain socket instead of
+    /// TCP. Target URL still supplies Host: header and path; transport
+    /// goes over the socket. Useful for Docker (/var/run/docker.sock),
+    /// systemd-activated services, and kubelet endpoints.
+    #[arg(long = "unix-socket", value_name = "PATH", help_heading = "HTTP Request")]
+    pub unix_socket: Option<std::path::PathBuf>,
+
     // ── Proxy ────────────────────────────────────────────────────────────────
 
     /// Route HTTP(S) requests through a proxy. Scheme selects the type:

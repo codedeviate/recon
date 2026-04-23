@@ -82,6 +82,14 @@ fn do_request(
     opts: Option<&Map>,
 ) -> Result<Map, Box<EvalAltResult>> {
     let args = build_args(url, defaults, opts).map_err(anyhow_to_rhai)?;
+
+    // Unix-domain socket path — route through the UDS client instead of
+    // the HTTP stack. Different response shape, same Map keys.
+    if args.unix_socket.is_some() {
+        let r = crate::unix_socket::execute(&args).map_err(anyhow_to_rhai)?;
+        return Ok(uds_to_rhai_map(url, r));
+    }
+
     let t0 = Instant::now();
     let (response, metrics) = client::execute(&args).map_err(anyhow_to_rhai)?;
     let status = response.status().as_u16() as i64;
@@ -235,8 +243,36 @@ pub(crate) fn build_args(
         if let Some(s) = opts_get_str(o, "proxy_cacert") {
             args.proxy_cacert = Some(std::path::PathBuf::from(s));
         }
+        if let Some(s) = opts_get_str(o, "unix_socket") {
+            args.unix_socket = Some(std::path::PathBuf::from(s));
+        }
     }
     Ok(args)
+}
+
+fn uds_to_rhai_map(url: &str, r: crate::unix_socket::UdsResponse) -> Map {
+    let mut headers = Map::new();
+    for (k, v) in &r.headers {
+        let entry = headers
+            .entry(k.as_str().into())
+            .or_insert_with(|| rhai::Array::new().into());
+        if let Some(arr) = entry.write_lock::<rhai::Array>() {
+            let mut a = arr;
+            a.push(v.clone().into());
+        }
+    }
+    let body_str = String::from_utf8_lossy(&r.body).into_owned();
+    let mut out = Map::new();
+    out.insert("url".into(), url.to_string().into());
+    out.insert("final_url".into(), r.final_url.into());
+    out.insert("status".into(), (r.status as i64).into());
+    out.insert("body".into(), body_str.into());
+    out.insert("body_bytes".into(), Dynamic::from(r.body));
+    out.insert("charset".into(), Dynamic::UNIT);
+    out.insert("headers".into(), headers.into());
+    out.insert("http_version".into(), r.http_version.into());
+    out.insert("duration_ms".into(), (r.duration_ms as i64).into());
+    out
 }
 
 pub(crate) fn headers_to_rhai_map(headers: &reqwest::header::HeaderMap) -> Map {
