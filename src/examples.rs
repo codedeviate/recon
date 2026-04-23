@@ -948,6 +948,37 @@ recon --rekey \
         r#"recon --script - <<< 'let r = smtp("smtp://localhost:1025/"); print(r.capabilities);'"#,
     ]);
 
+    section("FILE TRANSFER (0.47.0)");
+
+    example("FTP probe + list + retrieve", &[
+        "recon ftp://ftp.gnu.org/gnu/                    # list directory",
+        "recon ftp://ftp.gnu.org/gnu/ls.sig -o ls.sig    # retrieve file",
+        "recon ftp://user:pass@host/dir/ -v",
+    ]);
+    note("Auth priority: URL userinfo > -u user:pass > anonymous. Default mode is passive (PASV / EPSV); use --ftp-active for servers that require it.");
+
+    example("FTPS (explicit AUTH TLS)", &[
+        "recon ftps://test.rebex.net/ -u demo:password",
+        "recon ftps://self-signed.example/ -k",
+    ]);
+
+    example("SFTP via SSH", &[
+        "recon sftp://demo:password@test.rebex.net/",
+        "recon sftp://alice@host/reports/q4.pdf --ssh-key ~/.ssh/id_ed25519 -o q4.pdf",
+    ]);
+
+    example("TFTP (UDP read)", &[
+        "recon tftp://router.local/config.cfg -o config.cfg",
+        "recon tftp://server/firmware.bin --tftp-blksize 1428 -o fw.bin",
+    ]);
+    note("TFTP is UDP-based; servers reply from a new ephemeral port. Firewalls that restrict UDP by source port can drop the transfer after the first reply.");
+
+    example("Gopher selector fetch", &[
+        "recon gopher://gopher.floodgap.com/",
+        "recon gopher://gopher.floodgap.com/0/gopher/proxy",
+        "recon gophers://secure-gopher.example/",
+    ]);
+
     section("MQTT (0.22.0)");
 
     example("Probe a broker (default mode)", &[

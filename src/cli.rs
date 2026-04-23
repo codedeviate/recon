@@ -775,6 +775,23 @@ pub struct Args {
     #[arg(long = "auth-data", value_name = "DATA", help_heading = "MQTT")]
     pub auth_data: Option<String>,
 
+    // ── File Transfer ────────────────────────────────────────────────────────
+
+    /// FTPS: use implicit TLS (port 990) instead of explicit AUTH TLS.
+    /// Has no effect on plain ftp://.
+    #[arg(long = "ftps-implicit", help_heading = "File Transfer")]
+    pub ftps_implicit: bool,
+
+    /// FTP: use active mode (PORT) instead of the default passive mode
+    /// (PASV / EPSV). Rarely needed; servers behind NAT may refuse.
+    #[arg(long = "ftp-active", help_heading = "File Transfer")]
+    pub ftp_active: bool,
+
+    /// TFTP: request a specific transfer block size via the RFC 2348
+    /// `blksize` option. Default is the RFC 1350 fixed size of 512 bytes.
+    #[arg(long = "tftp-blksize", value_name = "N", help_heading = "File Transfer")]
+    pub tftp_blksize: Option<usize>,
+
     // ── SMTP ─────────────────────────────────────────────────────────────────
 
     /// Envelope sender (`MAIL FROM:<…>`). Required for send mode; omit

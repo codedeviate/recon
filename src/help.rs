@@ -1136,6 +1136,11 @@ static TOPIC_SCRIPT: Topic = Topic {
         FlagHelp { flags: "rtsp(url) / rtsps(url)", description: "RTSP OPTIONS. Returns #{ host, port, tls, connect_ms,\nstatus_line, status_code, headers, methods }." },
         FlagHelp { flags: "mqtt_pub(url, payload) / mqtt_sub(url, max_ms)", description: "MQTT publish / subscribe. Runs the full CLI codepath; protocol\noutput flows to stdout. Returns #{ ok, duration_ms }." },
         FlagHelp { flags: "smtp(url) / smtp(url, opts)", description: "SMTP probe / mail delivery. Without opts.mail_from, reports\nEHLO capabilities + AUTH methods + STARTTLS status. With\nmail_from + mail_to, sends a message (optional DKIM signing).\nSee `recon --help smtp` for the full opts reference." },
+
+        FlagHelp { flags: "ftp(url) / ftp(url, opts)", description: "FTP / FTPS probe + retrieve. See `recon --help ftp`." },
+        FlagHelp { flags: "sftp(url) / sftp(url, opts)", description: "SSH-backed file transfer. See `recon --help sftp`." },
+        FlagHelp { flags: "tftp(url) / tftp(url, opts)", description: "RFC 1350 UDP read. See `recon --help tftp`." },
+        FlagHelp { flags: "gopher(url) / gopher(url, opts)", description: "Gopher selector fetch. See `recon --help gopher`." },
         FlagHelp { flags: "file_read(path)", description: "Read local file (or file:// URL) as a Rhai Blob (Vec<u8>)." },
         FlagHelp { flags: "compression::compress(algo, blob [, level]) / decompress([algo,] blob)", description: "Stream-compress or decompress a Blob. Algorithms match --compress:\ngzip, deflate, zstd, brotli, bzip2, lz4, xz, snappy, zlib. Optional\nlevel is an integer or word (fastest/fast/default/good/best).\n`decompress(blob)` auto-detects from magic bytes. Errors on lz4/snappy\nwith a level, or on deflate/brotli blobs in auto-detect mode.\ncompression::list() enumerates every algo + aliases + level range." },
         FlagHelp { flags: "archive::create(dest, [sources]) / extract(src, dest_dir) / detect(path)", description: "Same formats as --archive / --extract (.zip, .tar, .tar.gz, .tar.xz,\n.tar.bz2). create returns file count; extract returns extracted\ncount and creates dest_dir if missing. detect(path) returns the\nformat name (\"zip\", \"tar.gz\", ...) or () when unrecognised." },
@@ -1182,6 +1187,107 @@ static TOPIC_SCRIPT: Topic = Topic {
         ExampleHelp { description: "Run a shipped example directly", command: "recon --script script/http.rhai https://example.com" },
         ExampleHelp { description: "Install every shipped example into ~/.recon/script/", command: "cp script/*.rhai ~/.recon/script/" },
         ExampleHelp { description: "Full API surface via the SCRIPTING example block", command: "recon --examples" },
+    ],
+};
+
+static TOPIC_FTP: Topic = Topic {
+    title: "FTP / FTPS (file transfer)",
+    description: "Probe + retrieve against an FTP or FTPS server.\n\
+                  Path semantics match curl:\n\
+                    ftp://host/              -> list root\n\
+                    ftp://host/dir/          -> list directory\n\
+                    ftp://host/dir/file      -> retrieve file to -o or stdout\n\
+                  Auth priority: URL userinfo > -u user:pass > anonymous.\n\
+                  FTPS uses explicit AUTH TLS by default.",
+    flags: &[
+        FlagHelp { flags: "ftp://[user[:pass]@]host[:port]/path", description: "Plain FTP. Default port 21." },
+        FlagHelp { flags: "ftps://...", description: "Explicit FTPS (AUTH TLS upgrade on port 21)." },
+        FlagHelp { flags: "--ftp-active", description: "Use active mode (PORT) instead of passive (PASV / EPSV)." },
+        FlagHelp { flags: "--ftps-implicit", description: "Accept implicit FTPS intent. Currently falls back to explicit\nAUTH TLS with a warning; revisit when a server forces it." },
+        FlagHelp { flags: "-u, --user <USER:PASS>", description: "Auth when the URL has no userinfo. Defaults to anonymous." },
+        FlagHelp { flags: "-k, --insecure", description: "Skip TLS certificate verification (ftps:// only)." },
+        FlagHelp { flags: "-o, --output <PATH>", description: "Destination for retrieve mode. Defaults to stdout." },
+        FlagHelp { flags: "ftp(url) / ftp(url, opts)", description: "Script binding. opts: user, pass, passive, implicit_tls,\ninsecure, timeout_ms. Returns #{host, port, tls, user,\nconnect_ms, welcome, pwd, mode, listing? | bytes?}." },
+    ],
+    related: &["--connect-timeout", "-k", "-o", "protocols"],
+    examples: &[
+        ExampleHelp { description: "List a public FTP mirror", command: "recon ftp://ftp.gnu.org/gnu/" },
+        ExampleHelp { description: "Retrieve a specific file", command: "recon ftp://ftp.gnu.org/gnu/ls.sig -o ls.sig" },
+        ExampleHelp { description: "FTPS with URL-embedded credentials", command: "recon ftps://demo:password@test.rebex.net/" },
+        ExampleHelp { description: "FTPS with -u and -k for a self-signed cert", command: "recon ftps://example.com/ -u alice:secret -k" },
+        ExampleHelp { description: "Script-side probe", command: r#"recon --script - <<< 'let r = ftp("ftp://ftp.gnu.org/gnu/"); print(r.listing.len());'"# },
+    ],
+};
+
+static TOPIC_SFTP: Topic = Topic {
+    title: "SFTP (SSH file transfer)",
+    description: "Probe + retrieve via SSH's SFTP subsystem. Shares the\n\
+                  SSH auth scaffolding with scp:// and ssh:// (key\n\
+                  identity via --ssh-key, host-key verification via -k /\n\
+                  ~/.ssh/known_hosts).\n\
+                  \n\
+                  Path semantics match curl:\n\
+                    sftp://user@host/            -> list home directory\n\
+                    sftp://user@host/dir/        -> list that directory\n\
+                    sftp://user@host/file        -> retrieve file",
+    flags: &[
+        FlagHelp { flags: "sftp://[user[:pass]@]host[:port]/path", description: "SSH-backed file transfer. Default port 22." },
+        FlagHelp { flags: "--ssh-key <PATH>", description: "SSH private key for authentication. Reused from ssh:// / scp://." },
+        FlagHelp { flags: "--ssh-pass <PASS>", description: "Passphrase for an encrypted private key." },
+        FlagHelp { flags: "-u, --user <USER:PASS>", description: "Password auth (when the URL has no userinfo). Keys preferred." },
+        FlagHelp { flags: "-k, --insecure", description: "Skip SSH host-key verification against ~/.ssh/known_hosts." },
+        FlagHelp { flags: "sftp(url) / sftp(url, opts)", description: "Script binding. opts: insecure, timeout_ms, ssh_key. Returns\n#{host, port, user, connect_ms, path, mode,\nlisting? | bytes?}. Listing entries are\n#{name, size, is_dir, mode}." },
+    ],
+    related: &["--ssh-key", "scp"],
+    examples: &[
+        ExampleHelp { description: "List the home directory on a demo server", command: "recon sftp://demo:password@test.rebex.net/" },
+        ExampleHelp { description: "Retrieve a file with key auth", command: "recon sftp://alice@host/home/alice/report.pdf --ssh-key ~/.ssh/id_ed25519 -o report.pdf" },
+    ],
+};
+
+static TOPIC_TFTP: Topic = Topic {
+    title: "TFTP (UDP file transfer)",
+    description: "RFC 1350 Trivial File Transfer Protocol — UDP-based read.\n\
+                  Upload (WRQ) is not implemented; this is a read-only probe.\n\
+                  \n\
+                  URL: tftp://host[:port]/filename (default port 69).\n\
+                  Block size negotiation (RFC 2348) via --tftp-blksize.",
+    flags: &[
+        FlagHelp { flags: "tftp://host[:port]/filename", description: "TFTP read request (RRQ) against the named file. UDP; the\nserver replies from a new ephemeral port, so firewalls that\nlock down UDP by source port will drop the transfer." },
+        FlagHelp { flags: "--tftp-blksize <N>", description: "RFC 2348 block-size option (default 512). Larger blocks\nmean fewer round-trips; servers that don't support the\noption fall back to 512." },
+        FlagHelp { flags: "-o, --output <PATH>", description: "Destination file. Defaults to stdout." },
+        FlagHelp { flags: "--connect-timeout <SECS>", description: "Per-packet deadline (recv timeout on the UDP socket)." },
+        FlagHelp { flags: "tftp(url) / tftp(url, opts)", description: "Script binding. opts: blksize, timeout_ms. Returns\n#{host, port, filename, blksize, bytes, connect_ms}." },
+    ],
+    related: &["--connect-timeout", "-o"],
+    examples: &[
+        ExampleHelp { description: "Fetch a file from a local TFTP server", command: "recon tftp://127.0.0.1/boot/image.bin -o image.bin" },
+        ExampleHelp { description: "With larger block size for faster transfer", command: "recon tftp://server/firmware.bin --tftp-blksize 1428 -o fw.bin" },
+    ],
+};
+
+static TOPIC_GOPHER: Topic = Topic {
+    title: "Gopher (RFC 1436)",
+    description: "Fetch a selector from a Gopher server and stream the\n\
+                  response bytes to stdout (or -o). URL grammar:\n\
+                    gopher://host[:port]/[TYPE]/selector\n\
+                  TYPE is a single RFC 1436 item type character (0 text,\n\
+                  1 directory, 7 search, …). When the path begins with a\n\
+                  type character, that char is stripped before sending\n\
+                  the selector.\n\
+                  \n\
+                  gophers:// is the same protocol over TLS.",
+    flags: &[
+        FlagHelp { flags: "gopher://host[:port]/[TYPE]/selector", description: "Plaintext Gopher. Default port 70." },
+        FlagHelp { flags: "gophers://...", description: "Gopher over TLS. Default port 70; override via authority." },
+        FlagHelp { flags: "-k, --insecure", description: "Skip TLS cert verification (gophers:// only)." },
+        FlagHelp { flags: "-o, --output <PATH>", description: "Write response to a file. Defaults to stdout." },
+        FlagHelp { flags: "gopher(url) / gopher(url, opts)", description: "Script binding. opts: insecure, timeout_ms. Returns\n#{host, port, tls, selector, item_type, connect_ms,\ncontent (String), bytes (Blob)}." },
+    ],
+    related: &["-o", "protocols"],
+    examples: &[
+        ExampleHelp { description: "Fetch the root of a classic Gopher server", command: "recon gopher://gopher.floodgap.com/" },
+        ExampleHelp { description: "Fetch a type-0 text document", command: "recon gopher://gopher.floodgap.com/0/gopher/proxy" },
     ],
 };
 
@@ -1472,6 +1578,13 @@ static TOPIC_PROTOCOLS: Topic = Topic {
         FlagHelp { flags: "smtp://HOST[:PORT]/", description: "SMTP probe and optional mail delivery. Reports EHLO\ncapabilities, AUTH methods, STARTTLS availability. With\n--mail-from + --mail-to sends a test message (optional DKIM\nsigning). Default port 25. See `recon --help smtp`." },
         FlagHelp { flags: "smtps://HOST[:PORT]/", description: "Same as smtp:// but implicit TLS. Default port 465." },
 
+        FlagHelp { flags: "ftp://[user[:pass]@]HOST[:PORT]/path", description: "FTP probe + retrieve. Trailing slash -> list; no trailing\nslash -> retrieve. Default port 21. See `recon --help ftp`." },
+        FlagHelp { flags: "ftps://...", description: "Same as ftp:// but with AUTH TLS (explicit FTPS)." },
+        FlagHelp { flags: "sftp://[user[:pass]@]HOST[:PORT]/path", description: "SSH-backed file transfer. Default port 22. Shares auth with\nscp:// / ssh://. See `recon --help sftp`." },
+        FlagHelp { flags: "tftp://HOST[:PORT]/filename", description: "RFC 1350 UDP read. Default port 69. See `recon --help tftp`." },
+        FlagHelp { flags: "gopher://HOST[:PORT]/[TYPE]/selector", description: "Gopher selector fetch (RFC 1436). Default port 70." },
+        FlagHelp { flags: "gophers://...", description: "Gopher over TLS." },
+
         FlagHelp { flags: "--wait-time <SECS>", description: "(udp:// only) Seconds to wait for a response datagram after\nsending. Accepts fractional values. Default: 1.0." },
         FlagHelp { flags: "--connect-timeout <SECS>", description: "Socket connect / response deadline for tcp, udp, ntp, tls,\ndict, redis, memcached, ws, wss, rtsp, rtsps probes." },
         FlagHelp { flags: "-k, --insecure", description: "Skip TLS certificate verification for wss://, ldaps://, rtsps://,\nmqtts://, and https:// connections." },
@@ -1535,6 +1648,10 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "browser" | "session" | "browser-session" => Some(&TOPIC_BROWSER),
         "charset" | "encoding-text" | "text-encoding" | "iconv" | "text" => Some(&TOPIC_TEXT_ENCODING),
         "smtp" | "smtps" | "mail" | "email-send" => Some(&TOPIC_SMTP),
+        "ftp" | "ftps" => Some(&TOPIC_FTP),
+        "sftp" => Some(&TOPIC_SFTP),
+        "tftp" => Some(&TOPIC_TFTP),
+        "gopher" | "gophers" => Some(&TOPIC_GOPHER),
         "archive" | "zip" | "tar" | "extract" => Some(&TOPIC_ARCHIVE),
         _ => None,
     }
@@ -1611,6 +1728,10 @@ pub fn topic_keys() -> Vec<&'static str> {
         "archive",
         "charset",
         "smtp",
+        "ftp",
+        "sftp",
+        "tftp",
+        "gopher",
     ]
 }
 

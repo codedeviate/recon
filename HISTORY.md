@@ -52,6 +52,29 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 49. File-transfer protocol family — FTP/FTPS, SFTP, TFTP, Gopher (0.47.0)
+
+First of three planned releases expanding recon's protocol surface toward curl's coverage. Four URL schemes landed together because they share testing scaffolding and docs structure even though the underlying code paths are wildly different (suppaftp crate for FTP, ssh2 for SFTP, hand-rolled UDP for TFTP, hand-rolled TCP for Gopher).
+
+**FTP (suppaftp).** Added `suppaftp = "6"` with `rustls` feature for consistency with recon's existing HTTPS stack. The crate's type system uses `ImplFtpStream<T>` where `T` is `NoTlsStream` or `RustlsStream` — plain FTP and FTPS are genuinely different types, not just a flag. The internal `TlsStream` trait used as a generic bound is private in suppaftp's API, so the code duplicates the path-op logic (list vs. retrieve) for each stream type rather than reaching for a `do_path_op<T>` generic. ~10 lines of duplication in exchange for compiling.
+
+**SFTP (ssh2::Sftp).** Reuses the existing SSH auth machinery from `src/ssh_auth.rs` (shared by scp:// and ssh://) verbatim — `resolve_credentials`, `verify_host_key`, `authenticate`. Path semantics match curl: `sftp://user@host/` lists home, `sftp://user@host/dir/` lists the directory, no trailing slash retrieves the file. ssh2's `Sftp::readdir(path)` returns `Vec<(PathBuf, FileStat)>`; I flatten `file_name()` to a basename string and expose `size`, `is_dir`, and `mode` per entry. Zero new crate deps — ssh2 was already in recon from 0.5.0.
+
+**TFTP (hand-rolled).** Following the `ntp_probe.rs` pattern, hand-rolled over `UdpSocket`. Wire format is trivial: RRQ packet → DATA blocks → ACK each, terminate when a DATA packet is smaller than the negotiated block size. RFC 2348 `blksize` option negotiation: if the client asks, the server replies with an OACK packet; the client ACKs block 0 to start the transfer. ~220 lines including robust re-ACK-on-duplicate handling.
+
+**Gopher (hand-rolled).** ~50 lines of protocol: TCP connect, send `selector\r\n`, read until close. TLS variant (`gophers://`) wraps the TCP stream in rustls using a webpki root store; `-k` installs a NoopVerifier (same pattern as RTSP). URL grammar extracts a single-char item type from the first path segment for informational display; the remainder of the path is the selector that goes on the wire.
+
+**API warts worth noting:**
+1. `suppaftp::RustlsStream` is `pub(crate)` — can't be named in a generic bound without reaching into `sync_ftp::tls` which is also private. Hence the duplicated path-op functions.
+2. suppaftp's `into_secure` keeps the `T` parameter but requires `TlsConnector<Stream = T>`. You can't start with a plain `FtpStream` (T = `NoTlsStream`) and upgrade to RustlsStream — you have to start with `RustlsFtpStream` (T = `RustlsStream`) from the beginning and then call `into_secure`. Caught that on the second compile iteration.
+3. Implicit FTPS (port 990, TLS before greeting) needs a different suppaftp entry point (`connect_secure_implicit`) with a different signature that wants a `ToSocketAddrs` + connector; deferred to a follow-up because none of our target test servers use it.
+
+**URL-parsing consistency.** All four probes settled on the same parse skeleton: strip scheme, split on first `/`, separate authority (host + optional port) from path, preserve trailing-slash semantics where it matters (FTP, SFTP use it for list-vs-retrieve). FTP additionally percent-decodes URL userinfo because `url::Url` doesn't.
+
+**Tests added: +19.** 1037 → 1056 passing. Per-protocol URL parsers each get 4-7 unit tests; credential resolution for FTP gets its own battery. No integration tests against live servers — smoke-tested manually against `ftp.gnu.org`, `test.rebex.net` (FTP/FTPS/SFTP demo server), `gopher.floodgap.com`.
+
+**OUT-OF-SCOPE.md cleanup.** Removed FTP, TFTP, GOPHER, SFTP from the "permanently out of scope" catchall (the blanket statement has been progressively trimmed since 0.44.0 when SMTP first punched through it). Only SMB/SMBS remains deferred with its own rationale block.
+
 ### 48. Encryption expansion — PGP shell-out + rekey (0.46.0)
 
 Three items from OUT-OF-SCOPE.md's "Encryption" section; only two shipped this release.

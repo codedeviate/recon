@@ -81,7 +81,7 @@ These are items where we've actively decided not to ship, with a reason.
 
 ### Protocol scope
 
-- **Non-HTTP protocols** — FTP, TFTP, GOPHER, SMB, POP3, IMAP. recon is primarily HTTP(S)-oriented; the above are permanently out of scope. (Note: LDAP, RTSP, TELNET, DICT, NTP, MQTT, Redis, Memcached, TCP, UDP, WS, and SMTP have shipped as protocol probes — this list is the still-excluded remainder.)
+- **SMB / SMBS** — permanently deferred pending a mature pure-Rust SMB client crate. The `smb` crate is at 0.5.x and low-volume; `pavao` requires system libsmbclient (unacceptable for a cross-platform binary). Revisit when the ecosystem matures. (Note: FTP, TFTP, GOPHER, POP3, IMAP, SFTP and many others have shipped as protocol probes — this note tracks only the still-excluded remainder.)
 
 ---
 

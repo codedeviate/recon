@@ -44,8 +44,12 @@ mod serve;
 mod source;
 mod ssh;
 mod ssh_auth;
+mod ftp_probe;
+mod gopher_probe;
+mod sftp_probe;
 mod smtp_probe;
 mod tcp_probe;
+mod tftp_probe;
 mod telnet;
 mod text_encoding;
 mod iconv;
@@ -680,6 +684,26 @@ fn main() {
         || args.target_url().starts_with("smtps://")
     {
         smtp_probe::run(args.target_url(), &args)
+    } else if args.target_url().starts_with("ftp://")
+        || args.target_url().starts_with("ftps://")
+    {
+        let fargs = ftp_probe::FtpArgs {
+            user: args.user.as_deref().and_then(|s| s.split_once(':').map(|(u, _)| u)),
+            pass: args.user.as_deref().and_then(|s| s.split_once(':').map(|(_, p)| p)),
+            passive: !args.ftp_active,
+            implicit_tls: args.ftps_implicit,
+            insecure: args.insecure,
+            timeout_secs: args.timeout,
+        };
+        ftp_probe::run(args.target_url(), &fargs, args.output.as_deref())
+    } else if args.target_url().starts_with("sftp://") {
+        sftp_probe::run(args.target_url(), &args)
+    } else if args.target_url().starts_with("tftp://") {
+        tftp_probe::run(args.target_url(), args.timeout, args.tftp_blksize)
+    } else if args.target_url().starts_with("gopher://")
+        || args.target_url().starts_with("gophers://")
+    {
+        gopher_probe::run(args.target_url(), args.timeout, args.insecure)
     } else if args.target_url().starts_with("scp://") {
         scp::download(args.target_url(), &args)
     } else if args.target_url().starts_with("ssh://") {

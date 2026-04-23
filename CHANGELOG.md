@@ -8,6 +8,32 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.47.0] - 2026-04-23
+
+### Added
+
+Four new URL-scheme protocol probes covering the curl file-transfer family (minus SMB):
+
+- **`ftp://` / `ftps://`** — probe + directory listing + file retrieval via `suppaftp`. Anonymous by default; URL userinfo / `-u user:pass` for authenticated sessions. Explicit AUTH TLS on `ftps://`; passive mode by default (`--ftp-active` for PORT / active). `--ftps-implicit` accepted but currently warns and falls back to explicit AUTH TLS. Path semantics match curl: trailing `/` → list, no trailing slash → retrieve.
+- **`sftp://`** — SSH-backed file transfer via `ssh2::Sftp` (already linked). Same auth scaffolding as `scp://` and `ssh://` (`--ssh-key`, host-key verification). Directory listings include name / size / is_dir / mode.
+- **`tftp://`** — RFC 1350 UDP read. Hand-rolled over `UdpSocket`. Optional RFC 2348 `blksize` negotiation via `--tftp-blksize`. Upload (WRQ) not in scope.
+- **`gopher://` / `gophers://`** — RFC 1436 selector fetch. Hand-rolled. TLS variant uses rustls with the shared webpki root store.
+- **Script bindings**: `ftp(url [, opts])`, `sftp(url [, opts])`, `tftp(url [, opts])`, `gopher(url [, opts])`. Each returns a Map mirroring the CLI output.
+- **New CLI flags** (help_heading = "File Transfer"): `--ftp-active`, `--ftps-implicit`, `--tftp-blksize`.
+- **Help**: four new topics — `recon --help ftp`, `--help sftp`, `--help tftp`, `--help gopher`. Each listed in `topic_keys()` and with URL-scheme entries in `TOPIC_PROTOCOLS`.
+- **`recon --examples`**: new `FILE TRANSFER (0.47.0)` section with 5 blocks.
+- **Example scripts**: `script/ftp.rhai`, `script/sftp.rhai`, `script/tftp.rhai`, `script/gopher.rhai`, all under a new "File transfer" category in `script/README.md`.
+
+### Changed
+
+- `Cargo.toml` adds `suppaftp = "6"` with `rustls` feature (~500 KB). Version 0.46.1 → 0.47.0.
+- `src/main.rs` URL dispatch gains 6 new branches (`ftp://`, `ftps://`, `sftp://`, `tftp://`, `gopher://`, `gophers://`).
+
+### Removed from OUT-OF-SCOPE.md
+
+- FTP, TFTP, GOPHER, SFTP from the "permanently out of scope" list.
+- The "non-HTTP protocols" blanket line narrowed to list only SMB / SMBS as remaining deferred.
+
 ## [0.46.1] - 2026-04-23
 
 ### Added

@@ -1,6 +1,6 @@
 [package]
 name = "recon"
-version = "0.46.1"
+version = "0.47.0"
 edition = "2021"
 
 [[bin]]
@@ -77,6 +77,7 @@ tempfile = "3"
 encoding_rs = "0.8"
 chardetng = "0.1"
 lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "rustls-tls", "ring", "builder", "dkim"] }
+suppaftp = { version = "6", default-features = false, features = ["rustls"] }
 
 [dev-dependencies]
 wiremock = "0.6"

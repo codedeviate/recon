@@ -43,6 +43,15 @@ surprise failures.
 | `mqtt.rhai` | MQTT publish with reachability guard |
 | `smtp.rhai` | SMTP capability + STARTTLS probe |
 
+### File transfer
+
+| Script | What it does |
+|---|---|
+| `ftp.rhai` | Anonymous FTP/FTPS directory listing or file retrieval |
+| `sftp.rhai` | SSH-backed SFTP directory listing or file retrieval |
+| `tftp.rhai` | RFC 1350 UDP download (with optional block-size negotiation) |
+| `gopher.rhai` | RFC 1436 selector fetch |
+
 ### Sessions (scriptable `browser()`)
 
 | Script | What it does |
