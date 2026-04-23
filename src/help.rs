@@ -802,6 +802,22 @@ static TOPIC_ENCRYPT: Topic = Topic {
             flags: "--encrypt-keygen",
             description: "Standalone action: print a fresh X25519 key pair (age-compatible).",
         },
+        FlagHelp {
+            flags: "--pgp / --age",
+            description: "Force the backend. Without either flag, recon auto-detects per\n\
+                          recipient: `age1…` = age, anything else (fingerprint / email /\n\
+                          key-id) = PGP. --pgp requires a local `gpg` binary on PATH.\n\
+                          The two flags are mutually exclusive.",
+        },
+        FlagHelp {
+            flags: "--rekey",
+            description: "Rotate keys: decrypt the input with --identity (or --passphrase-file\n\
+                          for passphrase-encrypted age files / gpg pinentry for PGP),\n\
+                          then re-encrypt to --recipient. Source format is auto-detected\n\
+                          (age vs PGP magic bytes). Output written to -o. Can switch\n\
+                          backends — age → PGP or PGP → age — by pairing with --pgp /\n\
+                          --age on the new side.",
+        },
     ],
     related: &["-o / --output", "-H / --header"],
     examples: &[
@@ -813,6 +829,10 @@ static TOPIC_ENCRYPT: Topic = Topic {
         ExampleHelp { description: "Decrypt with a passphrase", command: "recon --decrypt secret.age -o secret.bin" },
         ExampleHelp { description: "Decrypt with a private-key file", command: "recon --decrypt payload.age --identity ~/.config/age/keys.txt -o payload.bin" },
         ExampleHelp { description: "Decrypt a URL-hosted payload", command: "recon --decrypt https://cdn/secret.age --identity ~/.age.key -o secret.bin" },
+        ExampleHelp { description: "Encrypt to a PGP recipient (shells out to gpg)", command: "recon --encrypt ./secret.bin --recipient alice@example.com --armor -o secret.pgp" },
+        ExampleHelp { description: "Decrypt a PGP message (format auto-detected)", command: "recon --decrypt secret.pgp -o secret.bin" },
+        ExampleHelp { description: "Rotate keys: re-encrypt with a new recipient", command: "recon --rekey --identity old-key.txt --recipient age1new... old.age -o new.age" },
+        ExampleHelp { description: "Switch backends during rotation (age → PGP)", command: "recon --rekey --identity old-key.txt --pgp --recipient alice@example.com old.age -o new.pgp" },
     ],
 };
 

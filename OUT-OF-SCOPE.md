@@ -28,12 +28,12 @@ Grouped by category. When an item from here ships in a future release, remove it
 - **Logo overlay / colour customisation** on QR codes.
 - **Multi-code image composition** (several codes on one canvas).
 
-### Encryption (0.15.0)
+### Encryption
 
-- **PGP / GPG interop** — age-format only right now.
-- **Hardware-backed keys** (`age-plugin-*`).
-- **Key rotation / management**.
-- **Mixed recipient-and-passphrase in one invocation** — v1 takes recipients-only when both are supplied; could change to produce a header that accepts either.
+Still deferred after 0.46.0's PGP / rekey landing:
+
+- **Hardware-backed keys** (`age-plugin-*`). Requires either an age-crate bump that exposes plugin hooks (0.11 doesn't), or re-implementing age's plugin-protocol state machine ourselves. GPG smartcards work naturally via the `gpg` subprocess when the user's keyring is already configured — no recon work needed there.
+- **Mixed recipient-and-passphrase in one invocation**. age 0.11's `Encryptor::with_recipients` rejects `scrypt::Recipient` alongside X25519 recipients ("scrypt::Recipient can't be used with other recipients"). Producing a mixed-stanza header would require bypassing age's Encryptor and writing custom stanzas — a significant re-implementation. Revisit if age 0.12+ relaxes the constraint, or if there's concrete demand.
 
 ### HTTP / curl compatibility
 

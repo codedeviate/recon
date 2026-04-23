@@ -52,6 +52,26 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 48. Encryption expansion — PGP shell-out + rekey (0.46.0)
+
+Three items from OUT-OF-SCOPE.md's "Encryption" section; only two shipped this release.
+
+**PGP via `gpg` subprocess.** Chose shell-out over pure-Rust OpenPGP crates (`pgp` / rpgp, `sequoia-openpgp`) to avoid adding a new crypto surface to audit. `gpg` is practically universal on Linux / macOS; the subprocess approach also inherits the user's existing keyring configuration — no separate key import step. Downside: Windows users need to install `gnupg` separately (same as git commit signing). `require_gpg_binary()` runs `gpg --version` on every operation and emits a clear "install gnupg" error when absent.
+
+**Backend auto-detection.** `detect_backend(args)` classifies recipients: `age1…` prefix or existing file path → age; anything else (hex fingerprint, email, key-id) → PGP. Explicit `--pgp` / `--age` overrides the heuristic. A mix of age + PGP recipients is currently classified as PGP — no cross-backend recipient bundles in one invocation (would require both backends to encrypt to a shared symmetric key, out of scope).
+
+**Decrypt auto-routing.** `run_decrypt` now peeks at the input's magic bytes. `"-----BEGIN PGP MESSAGE-----"` (armored) or packet-tag high-bit-set first byte (binary) → PGP. Age files (`"age-encryption.org/v1"` / `"-----BEGIN AGE ENCRYPTED FILE-----"`) take the existing path. `--pgp` forces PGP regardless of magic bytes.
+
+**`--rekey` as key rotation.** Decrypt-then-encrypt flow. Reuses existing `--identity` (old keys) and `--recipient` (new keys) rather than inventing new flag names. Source format sniffed; target backend follows the same auto-detection as plain `--encrypt`. Cross-backend rotation works (age → PGP or PGP → age) by pairing `--rekey` with `--pgp` / `--age`. Plaintext passes through memory briefly — no on-disk intermediate. Trade-off vs. atomic rotation: none; the input is untouched.
+
+**Mixed recipient + passphrase dropped.** Plan said this was achievable ("age's file format supports this natively"). Reality: age 0.11's `Encryptor::with_recipients` hardcodes a rejection — `"scrypt::Recipient can't be used with other recipients"`. Producing the right header requires bypassing the Encryptor and writing stanzas directly, which is a significant re-implementation of age's core. Removed from this release, documented in OUT-OF-SCOPE.md with the rationale. One unit test + ~50 lines of implementation deleted.
+
+**Hardware-backed keys (`age-plugin-*`) stays deferred.** age 0.11 doesn't expose plugin hooks in its public API. Implementing the plugin-protocol state machine ourselves (stdin/stdout framing between recon and e.g. `age-plugin-yubikey`) would be ~200 lines plus ongoing compatibility surface — deferred until either age bumps its API or a concrete user asks. GPG smartcard keys come for free via the new shell-out: `gpg` already knows how to talk to YubiKey / SmartCard-HSM / etc. when the user's keyring is configured.
+
+**Tests added: +8.** `detect_backend` (5 cases: all age, hex fingerprint triggers PGP, email triggers PGP, explicit `--age` overrides, `--pgp`+`--age` rejected), magic-byte detection (`looks_like_pgp`, `looks_like_age`), age rekey round-trip. PGP-specific tests would require a test keyring — not added; smoke-tested manually with a local `gpg --quick-gen-key` key.
+
+**Smoke tested.** age rekey round-trip with `recon --encrypt-keygen` generating old + new keys, encrypting then `--rekey`ing then decrypting with the new identity: roundtrips cleanly. Tests: 1027 → 1035 passing.
+
 ### 47. MQTT 5 power-user features (0.45.0)
 
 The six items deferred from 0.22.0. All six are pure MQTT-5 connect/publish/subscribe property machinery — rumqttc 0.24 had the structs (`ConnectProperties`, `LastWill`, `PublishProperties`, `SubscribeProperties`) from day one; recon just never wired them through.

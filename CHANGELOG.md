@@ -8,6 +8,32 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.46.0] - 2026-04-23
+
+### Added
+
+- **PGP / GPG interop via shell-out to `gpg`**. Recon detects OpenPGP recipients (anything not matching `age1…` / an existing file path) and delegates encrypt / decrypt to the system `gpg` binary. Plaintext is piped over stdin; ciphertext is captured from stdout. Requires `gpg` on PATH (install `gnupg`); clear error when absent.
+- **`--pgp` / `--age`** force-backend flags. Mutually exclusive. Without either, recon auto-detects per-recipient: `age1…` → age; anything else (hex fingerprint, key-id, email, uid) → PGP. Decrypt path auto-detects from magic bytes (armored `-----BEGIN PGP MESSAGE-----` or binary OpenPGP packet-tag high bit).
+- **`--rekey`** — key rotation. Decrypts the input with `--identity` (and/or `--passphrase-file` for passphrase-encrypted age), then re-encrypts to the new `--recipient` set. Source format auto-detected (age vs PGP). Can switch backends during rotation — `age → PGP` or `PGP → age` — by pairing with `--pgp` / `--age` on the target side.
+- **`src/encrypt.rs`** gains `pub fn detect_backend`, `pub fn gpg_encrypt_bytes`, `pub fn gpg_decrypt_bytes`, `pub fn decrypt_bytes_age`, `pub fn run_rekey` (available for script bindings in a future release).
+- **`recon --help encrypt`** extended with three new flag entries + four new examples (PGP encrypt/decrypt + basic / cross-backend rekey).
+- **`recon --examples` ENCRYPTION section** gains two new blocks demonstrating PGP auto-detection and `--rekey`.
+
+### Changed
+
+- `src/main.rs` encrypt dispatch now also runs on `--rekey` (mutually exclusive with `--encrypt` / `--decrypt`).
+- `run_decrypt` routes to the PGP backend when the input's magic bytes indicate OpenPGP or when `--pgp` is explicit.
+
+### Removed from OUT-OF-SCOPE.md
+
+- PGP / GPG interop (shipped).
+- Key rotation / management (shipped).
+
+### Still deferred
+
+- **Hardware-backed keys (`age-plugin-*`)** — age 0.11 doesn't expose plugin hooks. GPG smartcards work naturally through the `gpg` subprocess when the user's keyring is configured.
+- **Mixed recipient-and-passphrase in one age header** — age 0.11's `Encryptor::with_recipients` rejects `scrypt::Recipient` alongside X25519 recipients. Would require bypassing age's Encryptor and writing custom stanzas. OUT-OF-SCOPE.md updated with rationale.
+
 ## [0.45.0] - 2026-04-23
 
 ### Added

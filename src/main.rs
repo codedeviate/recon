@@ -382,8 +382,8 @@ fn main() {
         return;
     }
 
-    // ── Encrypt / decrypt the input source ───────────────────────────────────
-    if args.encrypt || args.decrypt {
+    // ── Encrypt / decrypt / rekey the input source ───────────────────────────
+    if args.encrypt || args.decrypt || args.rekey {
         if args.encrypt && args.decrypt {
             eprintln!("error: --encrypt and --decrypt are mutually exclusive");
             std::process::exit(1);

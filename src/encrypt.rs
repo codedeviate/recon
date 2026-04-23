@@ -2,8 +2,9 @@
 //! with passphrase or X25519 recipient-based modes. Includes
 //! `--encrypt-keygen` for generating a fresh X25519 key pair.
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use secrecy::{ExposeSecret, Secret};
+use std::io::Write;
 use std::path::Path;
 
 // ---- Passphrase resolution --------------------------------------------
@@ -362,6 +363,11 @@ pub fn decrypt_bytes_identities(
 }
 
 pub fn run_encrypt(args: &crate::cli::Args) -> Result<()> {
+    let backend = detect_backend(args)?;
+    if matches!(backend, Backend::Pgp) {
+        return run_encrypt_pgp(args);
+    }
+
     let source_kind = crate::source::resolve(args)?;
     let reader = crate::source::open(source_kind.clone(), args)?;
 
@@ -381,6 +387,12 @@ pub fn run_decrypt(args: &crate::cli::Args) -> Result<()> {
 
     let mut buf: Vec<u8> = Vec::new();
     std::io::Read::read_to_end(&mut reader, &mut buf)?;
+
+    // Auto-route to PGP when the input is an OpenPGP message (explicit
+    // --pgp also forces the PGP path).
+    if args.pgp || looks_like_pgp(&buf) {
+        return run_decrypt_pgp(args);
+    }
 
     let params = DecryptParams {
         passphrase_file: args.passphrase_file.as_deref(),
@@ -436,18 +448,277 @@ fn format_iso8601_utc(secs: u64) -> String {
 }
 
 pub fn run(args: &crate::cli::Args) -> Result<()> {
+    if args.rekey {
+        return run_rekey(args);
+    }
     if args.encrypt {
         return run_encrypt(args);
     }
     if args.decrypt {
         return run_decrypt(args);
     }
-    Err(anyhow!("internal: encrypt::run called without --encrypt or --decrypt"))
+    Err(anyhow!("internal: encrypt::run called without --encrypt, --decrypt, or --rekey"))
+}
+
+// ── Backend selection ────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Backend {
+    Age,
+    Pgp,
+}
+
+/// Pick the backend for encrypt / decrypt. Explicit --pgp / --age wins;
+/// otherwise auto-detect from recipient format:
+///   * any recipient starts with `age1` → Age.
+///   * otherwise (hex fingerprint, email, key-id) → PGP.
+///   * no recipients (passphrase-only) → Age.
+pub fn detect_backend(args: &crate::cli::Args) -> Result<Backend> {
+    if args.pgp && args.age {
+        bail!("--pgp and --age are mutually exclusive");
+    }
+    if args.pgp {
+        return Ok(Backend::Pgp);
+    }
+    if args.age {
+        return Ok(Backend::Age);
+    }
+    if args.recipient.is_empty() {
+        return Ok(Backend::Age);
+    }
+    let any_non_age = args.recipient.iter().any(|r| {
+        let t = r.trim();
+        !(t.starts_with("age1") || std::path::Path::new(t).exists())
+    });
+    Ok(if any_non_age { Backend::Pgp } else { Backend::Age })
+}
+
+// ── PGP / GPG shell-out ──────────────────────────────────────────────────────
+
+fn require_gpg_binary() -> Result<()> {
+    std::process::Command::new("gpg")
+        .arg("--version")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map_err(|e| anyhow!("pgp: `gpg` binary not found on PATH ({e}). Install gnupg to use PGP encryption."))?;
+    Ok(())
+}
+
+fn run_encrypt_pgp(args: &crate::cli::Args) -> Result<()> {
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let source_kind = crate::source::resolve(args)?;
+        let mut reader = crate::source::open(source_kind, args)?;
+        std::io::Read::read_to_end(&mut reader, &mut buf)?;
+    }
+    let out = gpg_encrypt_bytes(&buf, &args.recipient, args.armor)?;
+    let mut sink = open_output_path(args.output.as_deref())?;
+    sink.write_all(&out)?;
+    Ok(())
+}
+
+fn run_decrypt_pgp(args: &crate::cli::Args) -> Result<()> {
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let source_kind = crate::source::resolve(args)?;
+        let mut reader = crate::source::open(source_kind, args)?;
+        std::io::Read::read_to_end(&mut reader, &mut buf)?;
+    }
+    let out = gpg_decrypt_bytes(&buf, args.passphrase_file.as_deref())?;
+    let mut sink = open_output_path(args.output.as_deref())?;
+    sink.write_all(&out)?;
+    Ok(())
+}
+
+/// Shell out to `gpg --encrypt` with each recipient on a separate
+/// `--recipient` flag. Stdin → ciphertext on stdout.
+pub fn gpg_encrypt_bytes(plaintext: &[u8], recipients: &[String], armor: bool) -> Result<Vec<u8>> {
+    require_gpg_binary()?;
+    if recipients.is_empty() {
+        bail!("pgp: --recipient is required for PGP encryption (symmetric-only not supported)");
+    }
+    let mut cmd = std::process::Command::new("gpg");
+    cmd.arg("--batch").arg("--yes").arg("--encrypt");
+    if armor {
+        cmd.arg("--armor");
+    }
+    cmd.arg("--trust-model").arg("always");
+    for r in recipients {
+        cmd.arg("--recipient").arg(r);
+    }
+    cmd.stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+
+    let mut child = cmd.spawn().context("pgp: spawn gpg")?;
+    {
+        let stdin = child
+            .stdin
+            .as_mut()
+            .ok_or_else(|| anyhow!("pgp: gpg stdin missing"))?;
+        stdin.write_all(plaintext).context("pgp: write stdin")?;
+    }
+    let output = child.wait_with_output().context("pgp: await gpg")?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("pgp: gpg encrypt failed (exit {}): {stderr}", output.status);
+    }
+    Ok(output.stdout)
+}
+
+/// Shell out to `gpg --decrypt`. Stdin = ciphertext, stdout = plaintext.
+/// Honours --passphrase-file when given (uses loopback pinentry so
+/// gpg doesn't try to pop a GUI).
+pub fn gpg_decrypt_bytes(
+    ciphertext: &[u8],
+    passphrase_file: Option<&std::path::Path>,
+) -> Result<Vec<u8>> {
+    require_gpg_binary()?;
+    let mut cmd = std::process::Command::new("gpg");
+    cmd.arg("--batch").arg("--yes").arg("--decrypt");
+    if let Some(p) = passphrase_file {
+        cmd.arg("--pinentry-mode").arg("loopback")
+            .arg("--passphrase-file").arg(p);
+    }
+    cmd.stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+
+    let mut child = cmd.spawn().context("pgp: spawn gpg")?;
+    {
+        let stdin = child
+            .stdin
+            .as_mut()
+            .ok_or_else(|| anyhow!("pgp: gpg stdin missing"))?;
+        stdin.write_all(ciphertext).context("pgp: write stdin")?;
+    }
+    let output = child.wait_with_output().context("pgp: await gpg")?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("pgp: gpg decrypt failed (exit {}): {stderr}", output.status);
+    }
+    Ok(output.stdout)
+}
+
+// ── Rekey (key rotation) ─────────────────────────────────────────────────────
+
+fn looks_like_pgp(bytes: &[u8]) -> bool {
+    // OpenPGP binary packets start with a packet-tag byte with high bit set;
+    // ASCII-armored PGP starts with "-----BEGIN PGP".
+    bytes.starts_with(b"-----BEGIN PGP")
+        || (!bytes.is_empty() && (bytes[0] & 0x80) != 0 && !looks_like_age(bytes))
+}
+
+fn looks_like_age(bytes: &[u8]) -> bool {
+    bytes.starts_with(b"age-encryption.org/v1")
+        || bytes.starts_with(b"-----BEGIN AGE ENCRYPTED FILE-----")
+}
+
+/// Decrypt with the existing identity / passphrase, then re-encrypt to
+/// the new recipients. Input format is auto-detected (age vs PGP).
+pub fn run_rekey(args: &crate::cli::Args) -> Result<()> {
+    let mut input: Vec<u8> = Vec::new();
+    {
+        let source_kind = crate::source::resolve(args)?;
+        let mut reader = crate::source::open(source_kind, args)?;
+        std::io::Read::read_to_end(&mut reader, &mut input)?;
+    }
+
+    // Detect source format.
+    let source_is_pgp = looks_like_pgp(&input);
+
+    // Decrypt step.
+    let plaintext: Vec<u8> = if source_is_pgp {
+        gpg_decrypt_bytes(&input, args.passphrase_file.as_deref())?
+    } else {
+        decrypt_bytes_age(&input, &args.identity, args.passphrase_file.as_deref())?
+    };
+
+    // Re-encrypt step: backend from explicit flag or recipient format.
+    let target_backend = detect_backend(args)?;
+    let out: Vec<u8> = match target_backend {
+        Backend::Pgp => gpg_encrypt_bytes(&plaintext, &args.recipient, args.armor)?,
+        Backend::Age => {
+            if args.recipient.is_empty() {
+                bail!("--rekey: need --recipient for the new key set");
+            }
+            encrypt_bytes_recipients(&plaintext, &args.recipient, args.armor)?
+        }
+    };
+
+    let mut sink = open_output_path(args.output.as_deref())?;
+    sink.write_all(&out)?;
+    Ok(())
+}
+
+/// In-memory age decrypt — handles both identity-based and passphrase
+/// headers. Used by --rekey (and available for scripts via a future
+/// binding addition).
+pub fn decrypt_bytes_age(
+    ciphertext: &[u8],
+    identity_paths: &[std::path::PathBuf],
+    passphrase_file: Option<&std::path::Path>,
+) -> Result<Vec<u8>> {
+    // Build decryptor once (peek is_scrypt), then rebuild for the actual
+    // decrypt call — age's Decryptor isn't Clone and `.decrypt()` consumes it.
+    let make_decryptor = || {
+        let armored = age::armor::ArmoredReader::new(std::io::Cursor::new(ciphertext));
+        age::Decryptor::new_buffered(armored).map_err(|e| anyhow!("decrypt header: {e}"))
+    };
+    let probe = make_decryptor()?;
+    let is_scrypt = probe.is_scrypt();
+    drop(probe);
+
+    let mut plaintext: Vec<u8> = Vec::new();
+
+    if is_scrypt {
+        let passphrase = resolve_passphrase(passphrase_file, false)?;
+        let pp = age::secrecy::SecretString::from(passphrase.expose_secret().to_string());
+        let identity = age::scrypt::Identity::new(pp);
+        let decryptor = make_decryptor()?;
+        let mut r = decryptor
+            .decrypt(std::iter::once(&identity as &dyn age::Identity))
+            .map_err(|e| anyhow!("decryption failed: {e}"))?;
+        std::io::Read::read_to_end(&mut r, &mut plaintext)?;
+    } else {
+        // Try identities first; if none succeed AND a passphrase source is
+        // available, try the passphrase path (mixed-mode ciphertexts carry
+        // both stanza types).
+        let identities = resolve_identities(identity_paths)?;
+        let id_refs: Vec<&dyn age::Identity> = identities.iter().map(|b| b.as_ref()).collect();
+        let decryptor = make_decryptor()?;
+        let ident_result = decryptor.decrypt(id_refs.clone().into_iter());
+        match ident_result {
+            Ok(mut r) => {
+                std::io::Read::read_to_end(&mut r, &mut plaintext)?;
+            }
+            Err(e_ident) => {
+                if passphrase_file.is_some() || std::env::var("RECON_PASSPHRASE").is_ok() {
+                    let passphrase = resolve_passphrase(passphrase_file, false)?;
+                    let pp =
+                        age::secrecy::SecretString::from(passphrase.expose_secret().to_string());
+                    let identity = age::scrypt::Identity::new(pp);
+                    let decryptor = make_decryptor()?;
+                    let mut r = decryptor
+                        .decrypt(std::iter::once(&identity as &dyn age::Identity))
+                        .map_err(|e| anyhow!("decryption failed (mixed-mode fallback): {e}"))?;
+                    std::io::Read::read_to_end(&mut r, &mut plaintext)?;
+                } else {
+                    return Err(anyhow!("decryption failed: {e_ident}"));
+                }
+            }
+        }
+    }
+    Ok(plaintext)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use age::secrecy::ExposeSecret as _;
+    use clap::Parser;
     use std::io::Write;
     use std::path::PathBuf;
 
@@ -469,6 +740,93 @@ mod tests {
         let sec = resolve_passphrase(Some(&path), false).unwrap();
         assert_eq!(sec.expose_secret(), "hunter2");
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn backend_detection_age_when_all_age1() {
+        let mut args = crate::cli::Args::try_parse_from(["recon", "--encrypt", "x"]).unwrap();
+        args.recipient = vec!["age1foo".into(), "age1bar".into()];
+        let b = detect_backend(&args).unwrap();
+        assert_eq!(b, Backend::Age);
+    }
+
+    #[test]
+    fn backend_detection_pgp_on_hex_fingerprint() {
+        let mut args = crate::cli::Args::try_parse_from(["recon", "--encrypt", "x"]).unwrap();
+        args.recipient = vec!["0xDEADBEEF".into()];
+        let b = detect_backend(&args).unwrap();
+        assert_eq!(b, Backend::Pgp);
+    }
+
+    #[test]
+    fn backend_detection_pgp_on_email() {
+        let mut args = crate::cli::Args::try_parse_from(["recon", "--encrypt", "x"]).unwrap();
+        args.recipient = vec!["alice@example.com".into()];
+        let b = detect_backend(&args).unwrap();
+        assert_eq!(b, Backend::Pgp);
+    }
+
+    #[test]
+    fn backend_detection_explicit_age_overrides_hex() {
+        let mut args = crate::cli::Args::try_parse_from(["recon", "--encrypt", "x"]).unwrap();
+        args.recipient = vec!["0xDEADBEEF".into()];
+        args.age = true;
+        let b = detect_backend(&args).unwrap();
+        assert_eq!(b, Backend::Age);
+    }
+
+    #[test]
+    fn backend_detection_rejects_both_flags() {
+        let mut args = crate::cli::Args::try_parse_from(["recon", "--encrypt", "x"]).unwrap();
+        args.pgp = true;
+        args.age = true;
+        assert!(detect_backend(&args).is_err());
+    }
+
+    #[test]
+    fn looks_like_pgp_armored_header() {
+        assert!(looks_like_pgp(b"-----BEGIN PGP MESSAGE-----\n..."));
+    }
+
+    #[test]
+    fn looks_like_age_armored_header() {
+        assert!(looks_like_age(b"-----BEGIN AGE ENCRYPTED FILE-----\n..."));
+        assert!(looks_like_age(b"age-encryption.org/v1\n..."));
+    }
+
+    #[test]
+    fn rekey_round_trip_age_to_age() {
+        let old = age::x25519::Identity::generate();
+        let new = age::x25519::Identity::generate();
+
+        let old_path = write_tmp(
+            "rekey-old",
+            format!("{}\n", old.to_string().expose_secret()).as_bytes(),
+        );
+        let _new_path = write_tmp(
+            "rekey-new",
+            format!("{}\n", new.to_string().expose_secret()).as_bytes(),
+        );
+
+        let plaintext = b"rotate me";
+        let ct_old =
+            encrypt_bytes_recipients(plaintext, &[old.to_public().to_string()], false).unwrap();
+
+        // Decrypt with old, re-encrypt with new.
+        let decoded = decrypt_bytes_age(&ct_old, &[old_path.clone()], None).unwrap();
+        let ct_new =
+            encrypt_bytes_recipients(&decoded, &[new.to_public().to_string()], false).unwrap();
+
+        // Decrypt the rotated ciphertext with the new identity.
+        let new_id_path = write_tmp(
+            "rekey-new-id",
+            format!("{}\n", new.to_string().expose_secret()).as_bytes(),
+        );
+        let round = decrypt_bytes_age(&ct_new, &[new_id_path.clone()], None).unwrap();
+        assert_eq!(round, plaintext);
+
+        let _ = std::fs::remove_file(&old_path);
+        let _ = std::fs::remove_file(&new_id_path);
     }
 
     #[test]

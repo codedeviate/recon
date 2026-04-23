@@ -727,6 +727,26 @@ pub fn print() {
     ]);
     note("The --passphrase <TEXT> flag is intentionally not offered (secrets on the command line leak to process lists and shell history). Use --passphrase-file, $RECON_PASSPHRASE, or the interactive prompt.");
 
+    example("Encrypt / decrypt with PGP (shells out to `gpg`) — 0.46.0", &[
+        "recon --encrypt ./secret.bin --recipient alice@example.com --armor -o secret.pgp",
+        "recon --encrypt ./secret.bin --pgp --recipient 0xDEADBEEF -o secret.pgp",
+        "recon --decrypt secret.pgp -o secret.bin        # format auto-detected",
+    ]);
+    note("Auto-detection: recipients starting with `age1` or matching an existing file path → age backend; anything else (hex fingerprint, key-id, email, uid) → PGP. --pgp / --age override the heuristic. Requires `gpg` on PATH for PGP operations (install gnupg).");
+
+    example("Rotate keys (--rekey) — 0.46.0", &[
+        r#"recon --rekey \
+      --identity old-key.txt \
+      --recipient age1new... \
+      old.age -o new.age"#,
+        r#"# Cross-backend rotation (age -> PGP):
+recon --rekey \
+      --identity old-key.txt \
+      --pgp --recipient alice@example.com --armor \
+      old.age -o new.pgp"#,
+    ]);
+    note("--rekey decrypts the existing ciphertext with --identity (and/or --passphrase-file for passphrase-encrypted files), then re-encrypts to the new --recipient set. Source format is auto-detected from magic bytes; target backend follows the same rules as plain --encrypt.");
+
     section("CHECK DIGITS");
 
     example("Verify a credit card number", &[

@@ -601,6 +601,24 @@ pub struct Args {
     #[arg(long = "encrypt-keygen", help_heading = "Encryption")]
     pub encrypt_keygen: bool,
 
+    /// Force the PGP / GPG backend instead of age. Recipients are
+    /// passed to `gpg --recipient` (needs a local `gpg` binary).
+    #[arg(long = "pgp", help_heading = "Encryption")]
+    pub pgp: bool,
+
+    /// Force the age backend, even if recipients look PGP-shaped.
+    /// Without --age or --pgp, recon auto-detects per-recipient:
+    /// `age1…` is age, anything else is PGP.
+    #[arg(long = "age", help_heading = "Encryption")]
+    pub age: bool,
+
+    /// Rotate keys: decrypt with --identity and re-encrypt to
+    /// --recipient (and/or --passphrase-file). Reads the existing
+    /// ciphertext from the positional source (file / stdin / URL) and
+    /// writes the rotated ciphertext to -o. Works for age and PGP.
+    #[arg(long = "rekey", help_heading = "Encryption")]
+    pub rekey: bool,
+
     // ── Check Digits ─────────────────────────────────────────────────────────
 
     /// Verify a check digit. Value is the algorithm keyword (luhn, visa, iban, …).
