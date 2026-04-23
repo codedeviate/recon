@@ -311,7 +311,10 @@ fn setup_options_v5(
     client_id: &str,
     args: &Args,
 ) -> Result<rumqttc::v5::MqttOptions> {
+    use rumqttc::v5::mqttbytes::v5::{ConnectProperties, LastWill};
+    use rumqttc::v5::mqttbytes::QoS;
     use std::time::Duration;
+
     let mut options = rumqttc::v5::MqttOptions::new(client_id, &cfg.host, cfg.port);
     options.set_keep_alive(Duration::from_secs(args.keepalive.into()));
     if let Some(u) = &cfg.username {
@@ -321,8 +324,97 @@ fn setup_options_v5(
         configure_tls_v5(&mut options, args.insecure)?;
     }
     options.set_connection_timeout(args.timeout);
-    options.set_clean_start(true);
+    options.set_clean_start(args.clean_start);
+
+    // Connect properties — session-expiry, user-properties, enhanced auth.
+    let user_properties = parse_user_properties(&args.user_property)?;
+    let wants_connect_props = args.session_expiry.is_some()
+        || !user_properties.is_empty()
+        || args.auth_method.is_some()
+        || args.auth_data.is_some();
+    if wants_connect_props {
+        let mut props = ConnectProperties::new();
+        props.session_expiry_interval = args.session_expiry;
+        props.user_properties = user_properties;
+        props.authentication_method = args.auth_method.clone();
+        if let Some(data) = &args.auth_data {
+            let bytes = crate::client::load_body_from_string(data)?;
+            props.authentication_data = Some(bytes.into());
+        }
+        options.set_connect_properties(props);
+    }
+
+    // Last-will message on unexpected disconnect.
+    if let Some(topic) = &args.will_topic {
+        let payload = match args.will_payload.as_deref() {
+            Some(s) => crate::client::load_body_from_string(s)?,
+            None => Vec::new(),
+        };
+        let qos = match args.will_qos {
+            0 => QoS::AtMostOnce,
+            1 => QoS::AtLeastOnce,
+            2 => QoS::ExactlyOnce,
+            other => bail!("--will-qos must be 0, 1, or 2 (got {other})"),
+        };
+        let will = LastWill::new(topic.as_str(), payload, qos, args.will_retain, None);
+        options.set_last_will(will);
+    }
+
     Ok(options)
+}
+
+fn parse_user_properties(specs: &[String]) -> Result<Vec<(String, String)>> {
+    let mut out = Vec::with_capacity(specs.len());
+    for s in specs {
+        let (k, v) = s
+            .split_once('=')
+            .ok_or_else(|| anyhow!("--user-property '{s}' must be KEY=VAL"))?;
+        out.push((k.to_string(), v.to_string()));
+    }
+    Ok(out)
+}
+
+/// Build optional PublishProperties from args (content-type, response-topic,
+/// correlation-data, user-properties). Returns None when no v5-publish
+/// property was set — callers fall back to the non-`_with_properties`
+/// publish method to avoid wire-cost for plain publishes.
+fn publish_properties(args: &Args) -> Result<Option<rumqttc::v5::mqttbytes::v5::PublishProperties>> {
+    let user_properties = parse_user_properties(&args.user_property)?;
+    let has_any = args.content_type.is_some()
+        || args.response_topic.is_some()
+        || args.correlation_data.is_some()
+        || !user_properties.is_empty();
+    if !has_any {
+        return Ok(None);
+    }
+    let mut p = rumqttc::v5::mqttbytes::v5::PublishProperties {
+        payload_format_indicator: None,
+        message_expiry_interval: None,
+        topic_alias: None,
+        response_topic: args.response_topic.clone(),
+        correlation_data: match &args.correlation_data {
+            Some(s) => Some(crate::client::load_body_from_string(s)?.into()),
+            None => None,
+        },
+        user_properties,
+        subscription_identifiers: Vec::new(),
+        content_type: args.content_type.clone(),
+    };
+    // content_type is already set above; avoid `mut` lint noise.
+    let _ = &mut p;
+    Ok(Some(p))
+}
+
+/// Same for subscribe.
+fn subscribe_properties(args: &Args) -> Result<Option<rumqttc::v5::mqttbytes::v5::SubscribeProperties>> {
+    let user_properties = parse_user_properties(&args.user_property)?;
+    if user_properties.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(rumqttc::v5::mqttbytes::v5::SubscribeProperties {
+        id: None,
+        user_properties,
+    }))
 }
 
 /// Assemble a v3 `MqttOptions` + `NetworkOptions` from config + args.
@@ -383,9 +475,17 @@ fn publish_v5(
             }
         }
 
-        client.publish(topic, qos_enum, args.retain, payload.to_vec())
-            .await
-            .map_err(|e| anyhow!("mqtt publish: {e}"))?;
+        let pub_props = publish_properties(args)?;
+        match pub_props {
+            Some(p) => client
+                .publish_with_properties(topic, qos_enum, args.retain, payload.to_vec(), p)
+                .await
+                .map_err(|e| anyhow!("mqtt publish: {e}"))?,
+            None => client
+                .publish(topic, qos_enum, args.retain, payload.to_vec())
+                .await
+                .map_err(|e| anyhow!("mqtt publish: {e}"))?,
+        }
 
         if qos == 0 {
             // QoS 0: fire and forget. Give the event loop a tick.
@@ -820,11 +920,18 @@ fn subscribe_v5(
             }
         }
 
+        let sub_props = subscribe_properties(args)?;
         for filter in &topics {
-            client
-                .subscribe(filter, qos_enum)
-                .await
-                .with_context(|| format!("mqtt subscribe: failed on filter '{filter}'"))?;
+            match &sub_props {
+                Some(p) => client
+                    .subscribe_with_properties(filter.as_str(), qos_enum, p.clone())
+                    .await
+                    .with_context(|| format!("mqtt subscribe: failed on filter '{filter}'"))?,
+                None => client
+                    .subscribe(filter.as_str(), qos_enum)
+                    .await
+                    .with_context(|| format!("mqtt subscribe: failed on filter '{filter}'"))?,
+            }
         }
 
         let mut received: u32 = 0;

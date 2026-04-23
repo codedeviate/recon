@@ -92,6 +92,57 @@ fn base_args(
             let pass = opts_get_str(o, "password").unwrap_or_default();
             args.user = Some(format!("{u}:{pass}"));
         }
+
+        // MQTT 5 power-user properties.
+        if let Some(arr) = crate::script::convert::opts_clone_array(o, "user_properties") {
+            for pair in arr {
+                // Each entry is a #{key, value} map or a "key=value" string.
+                if let Some(s) = pair.clone().try_cast::<String>() {
+                    args.user_property.push(s);
+                } else if let Some(m) = pair.clone().try_cast::<Map>() {
+                    let k = m.get("key").and_then(|v| v.clone().try_cast::<String>());
+                    let v = m.get("value").and_then(|v| v.clone().try_cast::<String>());
+                    if let (Some(k), Some(v)) = (k, v) {
+                        args.user_property.push(format!("{k}={v}"));
+                    }
+                }
+            }
+        }
+        if let Some(will) = crate::script::convert::opts_clone_map(o, "will") {
+            if let Some(t) = opts_get_str(&will, "topic") {
+                args.will_topic = Some(t);
+            }
+            if let Some(p) = opts_get_str(&will, "payload") {
+                args.will_payload = Some(p);
+            }
+            if let Some(q) = opts_get_u64(&will, "qos") {
+                args.will_qos = q as u8;
+            }
+            if let Some(r) = opts_get_bool(&will, "retain") {
+                args.will_retain = r;
+            }
+        }
+        if let Some(s) = opts_get_u64(o, "session_expiry") {
+            args.session_expiry = Some(s as u32);
+        }
+        if let Some(b) = opts_get_bool(o, "clean_start") {
+            args.clean_start = b;
+        }
+        if let Some(s) = opts_get_str(o, "content_type") {
+            args.content_type = Some(s);
+        }
+        if let Some(s) = opts_get_str(o, "response_topic") {
+            args.response_topic = Some(s);
+        }
+        if let Some(s) = opts_get_str(o, "correlation_data") {
+            args.correlation_data = Some(s);
+        }
+        if let Some(s) = opts_get_str(o, "auth_method") {
+            args.auth_method = Some(s);
+        }
+        if let Some(s) = opts_get_str(o, "auth_data") {
+            args.auth_data = Some(s);
+        }
     }
     Ok(args)
 }

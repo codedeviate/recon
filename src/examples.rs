@@ -959,6 +959,35 @@ pub fn print() {
         "recon mqtts://self-signed.broker/ -k",
     ]);
 
+    example("MQTT 5 user-properties + content-type (0.45.0)", &[
+        r#"recon mqtt://broker/events -d '{"ok":true}' \
+      --user-property env=prod \
+      --user-property caller=recon \
+      --content-type application/json"#,
+    ]);
+
+    example("Request/response pattern (0.45.0)", &[
+        r#"recon mqtt://broker/service/req -d '{"action":"ping"}' \
+      --response-topic service/rsp/alice \
+      --correlation-data 'corr-abc-123' \
+      --content-type application/json"#,
+    ]);
+
+    example("Last-will message on unexpected disconnect (0.45.0)", &[
+        r#"recon mqtt://broker/status -d 'online' \
+      --will-topic status/myclient \
+      --will-payload 'offline' \
+      --will-retain --will-qos 1"#,
+    ]);
+
+    example("Resume a persistent session (0.45.0)", &[
+        r#"recon mqtt://broker/ --subscribe 'events/#' \
+      --session-expiry 3600 \
+      --clean-start=false \
+      --client-id myclient-1 --count 10"#,
+    ]);
+    note("0.45.0 added MQTT 5 power-user properties: --user-property, --will-*, --session-expiry, --clean-start, --content-type, --response-topic, --correlation-data, --auth-method, --auth-data. All silently ignored on --mqtt-version 3.");
+
     section("PROTOCOL URL SCHEMES");
 
     example("Read a local file (file://)", &[

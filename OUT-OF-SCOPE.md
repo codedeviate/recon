@@ -57,15 +57,10 @@ Grouped by category. When an item from here ships in a future release, remove it
 
 - **`--editor` value grabbing** — clap's `num_args = 0..=1` greedily consumes the next token, so `recon --editor https://url` treats the URL as the editor value. Documented workaround (`--editor=value`, or `--url` first); could be fixed with a smarter arg parser.
 
-### MQTT (v5 power-user features deferred from 0.22.0)
+### MQTT
 
-0.22.0 ships probe/publish/subscribe with curl-compat flag reuse. The MQTT-5-specific power-user features below are deferred — all achievable with the plumbing in place, just not specced yet:
+Still deferred after 0.45.0's power-user landing:
 
-- **User properties** (`--user-property KEY=VAL`) on publish and subscribe.
-- **Will / testament** (`--will-topic`, `--will-payload`, `--will-qos`, `--will-retain`) for auto-publish on disconnect.
-- **Session expiry interval** (`--session-expiry <secs>`) and resuming persistent sessions (`--clean-start=false`).
-- **Content-Type / Response-Topic / Correlation-Data** publish properties.
-- **Enhanced authentication** (`--auth-method`, `--auth-data`) for MQTT 5 SASL-style flows.
 - **Client-certificate auth (mTLS)** — not yet in recon's HTTP surface either; unify when added.
 - **Dual rustls majors in the binary** — rumqttc 0.24 pins rustls 0.22; recon's HTTPS stack uses rustls 0.23. Both coexist (~300 KB overhead). Revisit when rumqttc bumps to rustls 0.23.
 

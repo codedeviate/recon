@@ -706,6 +706,57 @@ pub struct Args {
     #[arg(long = "mqtt-json", help_heading = "MQTT")]
     pub mqtt_json: bool,
 
+    /// MQTT 5 user-property (repeatable). Format: `KEY=VAL`. Applied to
+    /// PUBLISH + SUBSCRIBE packets. Ignored on --mqtt-version 3.
+    #[arg(long = "user-property", value_name = "KEY=VAL", action = clap::ArgAction::Append, help_heading = "MQTT")]
+    pub user_property: Vec<String>,
+
+    /// MQTT 5 last-will topic (publish this on unexpected disconnect).
+    #[arg(long = "will-topic", value_name = "TOPIC", help_heading = "MQTT")]
+    pub will_topic: Option<String>,
+
+    /// MQTT 5 last-will payload. Accepts @file / @- like -d.
+    #[arg(long = "will-payload", value_name = "PAYLOAD", help_heading = "MQTT")]
+    pub will_payload: Option<String>,
+
+    /// MQTT 5 last-will QoS (0, 1, or 2). Default 0.
+    #[arg(long = "will-qos", value_name = "Q", default_value_t = 0, help_heading = "MQTT")]
+    pub will_qos: u8,
+
+    /// MQTT 5 last-will retain flag.
+    #[arg(long = "will-retain", help_heading = "MQTT")]
+    pub will_retain: bool,
+
+    /// MQTT 5 session-expiry-interval in seconds.
+    #[arg(long = "session-expiry", value_name = "SECS", help_heading = "MQTT")]
+    pub session_expiry: Option<u32>,
+
+    /// MQTT 5 clean-start flag. Default true; set `--clean-start=false`
+    /// to resume a persistent session.
+    #[arg(long = "clean-start", value_name = "BOOL", default_value_t = true, num_args = 0..=1, default_missing_value = "true", help_heading = "MQTT")]
+    pub clean_start: bool,
+
+    /// MQTT 5 publish content-type property (e.g. application/json).
+    #[arg(long = "content-type", value_name = "MIME", help_heading = "MQTT")]
+    pub content_type: Option<String>,
+
+    /// MQTT 5 publish response-topic property (for request/response).
+    #[arg(long = "response-topic", value_name = "TOPIC", help_heading = "MQTT")]
+    pub response_topic: Option<String>,
+
+    /// MQTT 5 publish correlation-data property. Accepts @file / @- or
+    /// raw bytes.
+    #[arg(long = "correlation-data", value_name = "DATA", help_heading = "MQTT")]
+    pub correlation_data: Option<String>,
+
+    /// MQTT 5 enhanced-auth method name.
+    #[arg(long = "auth-method", value_name = "NAME", help_heading = "MQTT")]
+    pub auth_method: Option<String>,
+
+    /// MQTT 5 enhanced-auth data blob. Accepts @file / @- or raw bytes.
+    #[arg(long = "auth-data", value_name = "DATA", help_heading = "MQTT")]
+    pub auth_data: Option<String>,
+
     // ── SMTP ─────────────────────────────────────────────────────────────────
 
     /// Envelope sender (`MAIL FROM:<…>`). Required for send mode; omit

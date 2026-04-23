@@ -8,6 +8,34 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.45.0] - 2026-04-23
+
+### Added
+
+MQTT 5 power-user properties deferred from 0.22.0 — the rumqttc 0.24 machinery was already linked, now exposed through CLI + script surface:
+
+- **`--user-property <KEY=VAL>`** (repeatable) — MQTT 5 user-property on PUBLISH + SUBSCRIBE packets. Silently ignored on `--mqtt-version 3`.
+- **`--will-topic <T>` + `--will-payload <P>` + `--will-qos <0|1|2>` + `--will-retain`** — last-will message published by the broker on unexpected disconnect. Payload accepts `@file` / `@-` for file / stdin input.
+- **`--session-expiry <SECS>`** — MQTT 5 session-expiry-interval connect property.
+- **`--clean-start <BOOL>`** — default `true`; set `--clean-start=false` to resume a persistent session (paired with `--session-expiry` and a fixed `--client-id`).
+- **`--content-type <MIME>`** — publish content-type property (e.g. `application/json`).
+- **`--response-topic <T>`** — publish response-topic property for request/response patterns.
+- **`--correlation-data <DATA>`** — publish correlation-data property. Accepts `@file` / `@-` / raw.
+- **`--auth-method <NAME>` + `--auth-data <DATA>`** — MQTT 5 enhanced-authentication for SASL-style flows.
+- **Script binding**: `mqtt_pub` / `mqtt_sub` opts maps gain `user_properties` (Array of `#{key, value}` or `"k=v"` strings), `will` (Map with topic/payload/qos/retain), `session_expiry`, `clean_start`, `content_type`, `response_topic`, `correlation_data`, `auth_method`, `auth_data`.
+- **`recon --help mqtt`** extended with 10 new `FlagHelp` entries + 4 new examples (user-property publish, request/response pattern, last-will, persistent session resume).
+- **`recon --examples` MQTT section** gains four new blocks demonstrating each property group.
+
+### Changed
+
+- `src/mqtt.rs::setup_options_v5` wires `ConnectProperties` (session-expiry, user-properties, auth-method/data) and `LastWill` through the existing `rumqttc::v5::MqttOptions` setters.
+- `publish_v5` now calls `publish_with_properties` when any publish property is set; falls back to the no-property path otherwise to avoid wire-cost on simple publishes.
+- `subscribe_v5` mirrors the same pattern for user-properties on SUBSCRIBE.
+
+### Removed from OUT-OF-SCOPE.md
+
+- The six MQTT 5 power-user items (shipped this release). Client-cert mTLS + dual rustls majors still deferred; their rationale kept verbatim.
+
 ## [0.44.0] - 2026-04-23
 
 ### Added

@@ -1041,6 +1041,17 @@ static TOPIC_MQTT: Topic = Topic {
         FlagHelp { flags: "-u, --user <USER:PASS>", description: "Broker username/password in the CONNECT packet. Overrides URL userinfo." },
         FlagHelp { flags: "-k, --insecure", description: "Skip broker TLS certificate verification (mqtts:// only)." },
         FlagHelp { flags: "--connect-timeout <SECS>", description: "Socket connect + CONNACK wait timeout. Default: 30." },
+
+        // MQTT 5 power-user properties (ignored on --mqtt-version 3).
+        FlagHelp { flags: "--user-property <KEY=VAL>", description: "MQTT 5 user-property (repeatable). Applied to both PUBLISH\nand SUBSCRIBE packets." },
+        FlagHelp { flags: "--will-topic <T> / --will-payload <P>", description: "Last-will message. Broker publishes P to T if this client\ndisconnects unexpectedly. --will-payload accepts @file / @-." },
+        FlagHelp { flags: "--will-qos <0|1|2> / --will-retain", description: "QoS + retain flag for the last-will message." },
+        FlagHelp { flags: "--session-expiry <SECS>", description: "MQTT 5 session-expiry-interval. Pair with `--clean-start=false`\nto resume a persistent session." },
+        FlagHelp { flags: "--clean-start <BOOL>", description: "MQTT 5 clean-start flag. Default true. Set false to resume\na persistent session (requires --session-expiry on create)." },
+        FlagHelp { flags: "--content-type <MIME>", description: "Publish content-type property (e.g. application/json)." },
+        FlagHelp { flags: "--response-topic <T>", description: "Publish response-topic property for request/response patterns." },
+        FlagHelp { flags: "--correlation-data <DATA>", description: "Publish correlation-data property. Accepts @file / @- or raw." },
+        FlagHelp { flags: "--auth-method <NAME> / --auth-data <DATA>", description: "MQTT 5 enhanced-authentication on connect." },
     ],
     related: &["-w / --write-out", "--cert"],
     examples: &[
@@ -1049,6 +1060,10 @@ static TOPIC_MQTT: Topic = Topic {
         ExampleHelp { description: "Publish a retained message at QoS 1", command: "recon mqtt://broker/devices/fan/state -d \"on\" --qos 1 --retain" },
         ExampleHelp { description: "Subscribe to a topic filter, exit after 10 messages", command: "recon mqtt://broker/ --subscribe \"devices/+/state\" --count 10 -v" },
         ExampleHelp { description: "Fall back to MQTT 3.1.1 on a legacy broker", command: "recon mqtt://legacy-broker/ --mqtt-version 3" },
+        ExampleHelp { description: "Publish with MQTT 5 user-property + content-type", command: r#"recon mqtt://broker/events -d '{"ok":true}' --user-property env=prod --content-type application/json"# },
+        ExampleHelp { description: "Request/response pattern via response-topic", command: "recon mqtt://broker/req -d 'ping' --response-topic 'rsp/abc' --correlation-data 'corr-1'" },
+        ExampleHelp { description: "Set a last-will so the broker announces our disconnect", command: "recon mqtt://broker/status -d 'online' --will-topic status --will-payload offline --will-retain" },
+        ExampleHelp { description: "Resume a persistent session", command: "recon mqtt://broker/ --subscribe 'events/#' --session-expiry 3600 --clean-start=false --client-id myclient-1" },
     ],
 };
 

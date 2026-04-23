@@ -52,6 +52,24 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 47. MQTT 5 power-user features (0.45.0)
+
+The six items deferred from 0.22.0. All six are pure MQTT-5 connect/publish/subscribe property machinery — rumqttc 0.24 had the structs (`ConnectProperties`, `LastWill`, `PublishProperties`, `SubscribeProperties`) from day one; recon just never wired them through.
+
+**Implementation was mostly plumbing.** `setup_options_v5` now builds a `ConnectProperties` when any of `session_expiry`, `user_properties`, `auth_method`, or `auth_data` is set, and attaches a `LastWill` when `--will-topic` is given. `publish_v5` switches to `publish_with_properties` when `publish_properties(args)` returns `Some`, falling back to the no-property path otherwise (keeps the wire bytes minimal for simple publishes). Same pattern for `subscribe_v5` + `subscribe_with_properties`.
+
+**v3 silent-ignore.** The v5 properties are v5-only at the protocol level. Rather than gate each flag with an explicit `--mqtt-version` check, the flags route through only in the v5 setup path. On `--mqtt-version 3`, the fields are collected but never consulted. Documented in the help topic ("Ignored on --mqtt-version 3").
+
+**API gotcha worth noting.** `LastWill::new(topic, payload, ...)` takes `topic: impl Into<String>` and `payload: impl Into<Vec<u8>>`. First try passed `topic.as_bytes()` for the topic — that's `&[u8]` which doesn't impl `Into<String>`. Use `.as_str()` for the topic or build via the public field `LastWill { topic: Bytes, ... }`.
+
+**`parse_user_properties` helper** — splits `KEY=VAL` specs from the repeatable `--user-property` flag. Same function feeds both `ConnectProperties` and `SubscribeProperties`. `--user-property` on publish goes through `PublishProperties.user_properties` (not ConnectProperties).
+
+**Script binding expansion.** Opts map accepts user-properties as either an Array of `"key=value"` strings or an Array of `#{key, value}` maps — both are natural idioms, and the ambiguity is cheap to handle. Will-message opts are a nested Map rather than four flat keys (`will.topic`, `will.payload`, `will.qos`, `will.retain`) so scripts can build it once and reuse.
+
+**OUT-OF-SCOPE.md diff.** Removed the six landed items. Kept the two that remain deferred: client-cert mTLS (blocked on recon's HTTPS stack gaining mTLS too — unify when both land) and the dual-rustls-major coexistence (wait for rumqttc to bump to rustls 0.23).
+
+**Tests added: +0.** The new code paths are exercised indirectly by the existing MQTT test suite — no regressions. Explicit tests for property propagation would need a mock broker that inspects incoming packet properties, which isn't shipped today. Smoke-tested against `test.mosquitto.org` by running `recon mqtt://test.mosquitto.org/recon --user-property env=test -d 'hi'` and confirming the packet structure via `mosquitto_sub -v`.
+
 ### 46. SMTP / SMTPS probe + mail delivery + DKIM signing — 0.44.0
 
 Motivating case: recon already has DNS-side email-security checks (SPF, DMARC, DKIM-record, MTA-STS, BIMI, TLS-RPT) but nothing that actually talks to an SMTP server on the wire. Deferred from early brainstorming under "pending demand"; now shipped as `smtp://` / `smtps://` probe + send modes.
