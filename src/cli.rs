@@ -859,6 +859,12 @@ pub struct Args {
 
     // ── Meta ─────────────────────────────────────────────────────────────────
 
+    /// IPFS gateway for ipfs:// and ipns:// URL rewriting. Default:
+    /// https://ipfs.io. Also read from $RECON_IPFS_GATEWAY. Set to
+    /// http://127.0.0.1:8080 to use a local Kubo / IPFS-Desktop node.
+    #[arg(long = "ipfs-gateway", value_name = "URL", help_heading = "HTTP Request")]
+    pub ipfs_gateway: Option<String>,
+
     /// Show detailed usage examples for all flags and commands
     #[arg(long = "examples", help_heading = "Meta")]
     pub examples: bool,

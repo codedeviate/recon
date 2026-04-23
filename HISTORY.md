@@ -52,6 +52,20 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 51. IPFS / IPNS via HTTP gateway (0.49.0)
+
+Closes the three-release protocol-coverage arc. Unlike 0.47.0 (file-transfer) and 0.48.0 (mail-retrieval), IPFS isn't "a protocol to speak" in the conventional sense — it's a content-addressing system whose canonical access path is already HTTP. The implementation is therefore a ~80-line URL rewriter plus a script-side convenience function.
+
+**Why rewrite instead of native?** `rust-ipfs` is alpha (0.x for years), has a libp2p dep tree that would bloat the recon binary by several MB, and requires either a local IPFS node or peer discovery to resolve content. By contrast, public HTTP gateways (ipfs.io, cloudflare-ipfs.com, dweb.link) and local Kubo daemons are how the ecosystem actually serves IPFS content. A rewrite captures 100% of the real-world use case with 0% of the dep weight.
+
+**Rewrite mechanics.** `src/ipfs.rs::rewrite_url` splits on the scheme, extracts the CID / IPNS-name + optional path, and joins with the gateway URL. Gateway resolution: `--ipfs-gateway` CLI flag → `$RECON_IPFS_GATEWAY` env → `https://ipfs.io` default. Trailing slashes on the gateway are trimmed so `https://ipfs.io/` and `https://ipfs.io` produce identical output. All unit-tested.
+
+**Dispatch integration.** Rather than add a new `else if` branch to the URL-scheme dispatch in main.rs, I rewrite the URL in place (`args.url` and `args.url_flag`) immediately after argument parsing. The HTTP pipeline then sees the gateway URL and does its normal thing. This means every HTTP flag — headers, output path, TLS verification, rate limiting, charset transcoding, everything — works for IPFS URLs without a single special case downstream.
+
+**Script binding.** Just `ipfs_url(url [, opts])` — a thin wrapper over `rewrite_url`. Scripts that want to fetch can compose with `http()`: `http(ipfs_url("ipfs://bafy..."))`. Alternatively, scripts can pass the `ipfs://` URL directly to `http()` — but since `http()` doesn't auto-rewrite script-internal URLs (no argument interception at that layer), `ipfs_url()` is the explicit path for scripts.
+
+**Tests added: +10.** 1066 → 1076 passing. URL-rewrite cases (default gateway, custom gateway, env var, trailing-slash handling, non-IPFS passthrough) plus the script-binding suite.
+
 ### 50. Mail retrieval — POP3/POP3S + IMAP/IMAPS (0.48.0)
 
 Second of three planned protocol-coverage releases. Text-protocol POP3 is hand-rolled mirroring SMTP; IMAP's LITERAL + FETCH parsing is complex enough to justify a crate dependency.

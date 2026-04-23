@@ -47,6 +47,7 @@ mod ssh_auth;
 mod ftp_probe;
 mod gopher_probe;
 mod imap_probe;
+mod ipfs;
 mod pop3_probe;
 mod sftp_probe;
 mod smtp_probe;
@@ -128,12 +129,27 @@ fn main() {
     // Pre-split argv on `--script PATH` so trailing positional args after
     // the script path become `script_args` instead of being assigned to the
     // positional `url` by clap. Non-script invocations are unaffected.
-    let args = match Args::parse_with_script_split(std::env::args()) {
+    let mut args = match Args::parse_with_script_split(std::env::args()) {
         Ok(a) => a,
         Err(e) => {
             e.exit();
         }
     };
+
+    // ── ipfs:// / ipns:// URL rewrite ─────────────────────────────────────────
+    // Rewrite before any protocol dispatch so the URL flows through the
+    // existing HTTP path. Gateway defaults to https://ipfs.io; override
+    // via --ipfs-gateway or $RECON_IPFS_GATEWAY.
+    if let Some(raw) = args.url.clone() {
+        if let Some(rewritten) = ipfs::rewrite_url(&raw, args.ipfs_gateway.as_deref()) {
+            args.url = Some(rewritten);
+        }
+    }
+    if let Some(raw) = args.url_flag.clone() {
+        if let Some(rewritten) = ipfs::rewrite_url(&raw, args.ipfs_gateway.as_deref()) {
+            args.url_flag = Some(rewritten);
+        }
+    }
 
     // ── Cookie jar management commands (no HTTP request needed) ───────────────
     let is_cookie_mgmt = args.cookies || args.cookie_delete.is_some() || args.cookie_set.is_some();

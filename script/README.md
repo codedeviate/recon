@@ -59,6 +59,12 @@ surprise failures.
 | `pop3.rhai` | POP3 capability probe + optional RETR |
 | `imap.rhai` | IMAP capability probe + EXAMINE / FETCH |
 
+### Content addressing
+
+| Script | What it does |
+|---|---|
+| `ipfs.rhai` | ipfs:// / ipns:// URL rewrite + HTTP gateway fetch |
+
 ### Sessions (scriptable `browser()`)
 
 | Script | What it does |

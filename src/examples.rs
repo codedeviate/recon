@@ -979,6 +979,23 @@ recon --rekey \
         "recon gophers://secure-gopher.example/",
     ]);
 
+    section("IPFS / IPNS (0.49.0)");
+
+    example("Fetch content by CID via the default gateway (ipfs.io)", &[
+        "recon ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi",
+        "recon ipfs://bafy... -o out.bin",
+    ]);
+
+    example("Resolve an IPNS DNSLink", &[
+        "recon ipns://ipfs.tech/",
+    ]);
+
+    example("Route through a local Kubo / IPFS-Desktop node", &[
+        "recon ipfs://bafy... --ipfs-gateway http://127.0.0.1:8080",
+        "RECON_IPFS_GATEWAY=https://cloudflare-ipfs.com recon ipfs://bafy...",
+    ]);
+    note("ipfs:// and ipns:// URLs are rewritten to <gateway>/ipfs/CID or <gateway>/ipns/NAME and dispatched through the existing HTTP path, so every HTTP flag (-H, -o, -k, --compressed, --output-charset, etc.) applies verbatim. No native IPFS-protocol client in the binary.");
+
     section("MAIL RETRIEVAL (0.48.0)");
 
     example("POP3 capability probe (no auth)", &[

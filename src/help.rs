@@ -1143,6 +1143,7 @@ static TOPIC_SCRIPT: Topic = Topic {
         FlagHelp { flags: "gopher(url) / gopher(url, opts)", description: "Gopher selector fetch. See `recon --help gopher`." },
         FlagHelp { flags: "pop3(url) / pop3(url, opts)", description: "POP3 probe / retrieve. See `recon --help pop3`." },
         FlagHelp { flags: "imap(url) / imap(url, opts)", description: "IMAP probe / examine / fetch. See `recon --help imap`." },
+        FlagHelp { flags: "ipfs_url(url [, #{gateway}])", description: "Rewrite an ipfs:// / ipns:// URL to its HTTP gateway form.\nScripts combine with http() for fetch." },
         FlagHelp { flags: "file_read(path)", description: "Read local file (or file:// URL) as a Rhai Blob (Vec<u8>)." },
         FlagHelp { flags: "compression::compress(algo, blob [, level]) / decompress([algo,] blob)", description: "Stream-compress or decompress a Blob. Algorithms match --compress:\ngzip, deflate, zstd, brotli, bzip2, lz4, xz, snappy, zlib. Optional\nlevel is an integer or word (fastest/fast/default/good/best).\n`decompress(blob)` auto-detects from magic bytes. Errors on lz4/snappy\nwith a level, or on deflate/brotli blobs in auto-detect mode.\ncompression::list() enumerates every algo + aliases + level range." },
         FlagHelp { flags: "archive::create(dest, [sources]) / extract(src, dest_dir) / detect(path)", description: "Same formats as --archive / --extract (.zip, .tar, .tar.gz, .tar.xz,\n.tar.bz2). create returns file count; extract returns extracted\ncount and creates dest_dir if missing. detect(path) returns the\nformat name (\"zip\", \"tar.gz\", ...) or () when unrecognised." },
@@ -1189,6 +1190,39 @@ static TOPIC_SCRIPT: Topic = Topic {
         ExampleHelp { description: "Run a shipped example directly", command: "recon --script script/http.rhai https://example.com" },
         ExampleHelp { description: "Install every shipped example into ~/.recon/script/", command: "cp script/*.rhai ~/.recon/script/" },
         ExampleHelp { description: "Full API surface via the SCRIPTING example block", command: "recon --examples" },
+    ],
+};
+
+static TOPIC_IPFS: Topic = Topic {
+    title: "IPFS / IPNS (gateway rewrite)",
+    description: "`ipfs://CID[/path]` and `ipns://NAME[/path]` URLs are\n\
+                  rewritten to `<gateway>/ipfs/CID[/path]` and dispatched\n\
+                  through the existing HTTP pipeline. Every HTTP flag\n\
+                  (-H, -o, -k, --compressed, …) applies verbatim.\n\
+                  \n\
+                  Default gateway: https://ipfs.io. Override via\n\
+                  --ipfs-gateway <URL> or $RECON_IPFS_GATEWAY. Point it\n\
+                  at http://127.0.0.1:8080 to use a local Kubo /\n\
+                  IPFS-Desktop node for resolution.\n\
+                  \n\
+                  No native IPFS-protocol client — the pure-Rust\n\
+                  ecosystem (rust-ipfs) is alpha with a large dep tree,\n\
+                  and HTTP gateways are how the IPFS ecosystem actually\n\
+                  serves content today.",
+    flags: &[
+        FlagHelp { flags: "ipfs://CID[/path]", description: "Rewritten to <gateway>/ipfs/CID[/path]." },
+        FlagHelp { flags: "ipns://NAME[/path]", description: "Rewritten to <gateway>/ipns/NAME[/path]. NAME can be a\npublic key hash, ENS name, or DNSLink domain (whatever the\ngateway resolves)." },
+        FlagHelp { flags: "--ipfs-gateway <URL>", description: "Override the default gateway. Also read from\n$RECON_IPFS_GATEWAY. Trailing slash tolerated." },
+        FlagHelp { flags: "ipfs_url(url)", description: "Script binding. Returns the rewritten gateway URL without\nfetching, or throws when the input isn't ipfs:// / ipns://." },
+        FlagHelp { flags: "ipfs_url(url, #{gateway})", description: "Override the default gateway from within a script." },
+    ],
+    related: &["-o", "--compressed", "--ipfs-gateway"],
+    examples: &[
+        ExampleHelp { description: "Fetch a public IPFS CID via the default gateway", command: "recon ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi -o out.bin" },
+        ExampleHelp { description: "Resolve an IPNS name (DNSLink)", command: "recon ipns://ipfs.tech/" },
+        ExampleHelp { description: "Use a local Kubo node", command: "recon ipfs://bafy... --ipfs-gateway http://127.0.0.1:8080" },
+        ExampleHelp { description: "Switch gateway via env var for a whole session", command: "RECON_IPFS_GATEWAY=https://cloudflare-ipfs.com recon ipfs://bafy..." },
+        ExampleHelp { description: "Script-side URL rewriting", command: r#"recon --script - <<< 'let u = ipfs_url("ipfs://bafy"); print(http(u).status);'"# },
     ],
 };
 
@@ -1649,6 +1683,8 @@ static TOPIC_PROTOCOLS: Topic = Topic {
         FlagHelp { flags: "imap://[user[:pass]@]HOST[:PORT]/[MAILBOX[;UID=N]]", description: "IMAP probe / examine / fetch. See `recon --help imap`." },
         FlagHelp { flags: "imaps://...", description: "Implicit-TLS IMAP. Default port 993." },
 
+        FlagHelp { flags: "ipfs://CID[/path] / ipns://NAME[/path]", description: "Rewritten to <gateway>/ipfs/CID[/path] (default gateway:\nhttps://ipfs.io). Dispatches through the existing HTTP path,\nso every HTTP flag applies. Override gateway with\n--ipfs-gateway or $RECON_IPFS_GATEWAY." },
+
         FlagHelp { flags: "--wait-time <SECS>", description: "(udp:// only) Seconds to wait for a response datagram after\nsending. Accepts fractional values. Default: 1.0." },
         FlagHelp { flags: "--connect-timeout <SECS>", description: "Socket connect / response deadline for tcp, udp, ntp, tls,\ndict, redis, memcached, ws, wss, rtsp, rtsps probes." },
         FlagHelp { flags: "-k, --insecure", description: "Skip TLS certificate verification for wss://, ldaps://, rtsps://,\nmqtts://, and https:// connections." },
@@ -1718,6 +1754,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "gopher" | "gophers" => Some(&TOPIC_GOPHER),
         "pop3" | "pop3s" => Some(&TOPIC_POP3),
         "imap" | "imaps" => Some(&TOPIC_IMAP),
+        "ipfs" | "ipns" => Some(&TOPIC_IPFS),
         "archive" | "zip" | "tar" | "extract" => Some(&TOPIC_ARCHIVE),
         _ => None,
     }
@@ -1800,6 +1837,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "gopher",
         "pop3",
         "imap",
+        "ipfs",
     ]
 }
 

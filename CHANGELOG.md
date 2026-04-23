@@ -8,6 +8,27 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.49.0] - 2026-04-23
+
+### Added
+
+Third and final protocol-coverage release in the 0.47.0–0.49.0 arc.
+
+- **`ipfs://CID[/path]` and `ipns://NAME[/path]` URL schemes** — rewritten to `<gateway>/ipfs/CID[/path]` or `<gateway>/ipns/NAME[/path]` and dispatched through the existing HTTP pipeline. Every HTTP flag (`-H`, `-o`, `-k`, `--compressed`, `--output-charset`, etc.) applies to the rewritten request unchanged. Default gateway `https://ipfs.io`.
+- **`--ipfs-gateway <URL>`** (help_heading = "HTTP Request") — override the default gateway. Also read from `$RECON_IPFS_GATEWAY`. Trailing slashes tolerated. Point at `http://127.0.0.1:8080` to use a local Kubo / IPFS-Desktop node for resolution.
+- **Script binding `ipfs_url(url [, #{gateway}])`** — returns the gateway URL for a given `ipfs://` / `ipns://` address without fetching. Scripts compose with `http()` for retrieval. Throws on non-IPFS URLs.
+- **Help**: `recon --help ipfs` (alias `ipns`) with URL grammar + gateway configuration. Added to `topic_keys()` and `TOPIC_PROTOCOLS`.
+- **`recon --examples`**: new `IPFS / IPNS (0.49.0)` section.
+- **Example script**: `script/ipfs.rhai` under a new "Content addressing" category in `script/README.md`.
+
+### Changed
+
+- `src/main.rs` rewrites `args.url` / `args.url_flag` in place before URL dispatch when either starts with `ipfs://` or `ipns://`. Clean separation — no new dispatch branch.
+
+### Rationale
+
+No new pure-Rust IPFS crate dep. The `rust-ipfs` alpha has a large dep tree and requires a local node or libp2p peer discovery; HTTP gateways are how the IPFS ecosystem actually serves content today. Revisit only if a mature native-protocol client emerges and a user asks.
+
 ## [0.48.0] - 2026-04-23
 
 ### Added
