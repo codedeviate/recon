@@ -14,6 +14,8 @@ pub enum Format {
     Code39,
     Ean13,
     UpcA,
+    Aztec,
+    Pdf417,
 }
 
 impl Format {
@@ -25,12 +27,17 @@ impl Format {
             Format::Code39 => "code39",
             Format::Ean13 => "ean13",
             Format::UpcA => "upca",
+            Format::Aztec => "aztec",
+            Format::Pdf417 => "pdf417",
         }
     }
 
     pub fn kind(&self) -> MatrixKind {
         match self {
-            Format::Qr | Format::DataMatrix => MatrixKind::TwoD,
+            Format::Qr
+            | Format::DataMatrix
+            | Format::Aztec
+            | Format::Pdf417 => MatrixKind::TwoD,
             Format::Code128 | Format::Code39 | Format::Ean13 | Format::UpcA => MatrixKind::OneD,
         }
     }
@@ -43,6 +50,8 @@ impl Format {
             Format::Code39 => "uppercase alphanumeric + -.$/+%* ",
             Format::Ean13 => "12 or 13 digits",
             Format::UpcA => "11 or 12 digits",
+            Format::Aztec => "any text (compact; popular on transit tickets)",
+            Format::Pdf417 => "any bytes (larger rectangular; used on IDs and shipping)",
         }
     }
 
@@ -53,6 +62,8 @@ impl Format {
         Format::Code39,
         Format::Ean13,
         Format::UpcA,
+        Format::Aztec,
+        Format::Pdf417,
     ];
 }
 
@@ -199,7 +210,48 @@ pub fn encode_with_opts(
         Format::Code39 => encode_1d(format, input),
         Format::Ean13 => encode_1d(format, input),
         Format::UpcA => encode_1d(format, input),
+        Format::Aztec => encode_via_rxing(format, input),
+        Format::Pdf417 => encode_via_rxing(format, input),
     }
+}
+
+fn encode_via_rxing(format: Format, input: &[u8]) -> Result<BitMatrix> {
+    use rxing::{BarcodeFormat, Writer};
+
+    let bf = match format {
+        Format::Aztec => BarcodeFormat::AZTEC,
+        Format::Pdf417 => BarcodeFormat::PDF_417,
+        _ => return Err(anyhow!("encode_via_rxing: unsupported format {:?}", format)),
+    };
+    let text = std::str::from_utf8(input)
+        .map_err(|e| anyhow!("{}: payload must be UTF-8 text ({e})", format.canonical()))?;
+
+    // rxing requires a hinted target size; pass 0 for square formats
+    // and a rectangular hint for PDF417 (width ≥ height).
+    let (w, h) = match format {
+        Format::Pdf417 => (300, 120),
+        _ => (0, 0),
+    };
+
+    let writer = rxing::MultiFormatWriter;
+    let rxing_matrix = writer
+        .encode(text, &bf, w, h)
+        .map_err(|e| anyhow!("{} encode error: {e:?}", format.canonical()))?;
+
+    let width = rxing_matrix.getWidth();
+    let height = rxing_matrix.getHeight();
+    let mut bits = Vec::with_capacity((width * height) as usize);
+    for y in 0..height {
+        for x in 0..width {
+            bits.push(rxing_matrix.get(x, y));
+        }
+    }
+    Ok(BitMatrix {
+        width,
+        height,
+        bits,
+        kind: format.kind(),
+    })
 }
 
 fn encode_qr(input: &[u8], level: QrLevel) -> Result<BitMatrix> {
@@ -659,8 +711,8 @@ mod tests {
 
     #[test]
     fn parse_format_unknown_lists_supported() {
-        let err = parse_format("aztec").unwrap_err().to_string();
-        assert!(err.contains("aztec"), "got: {err}");
+        let err = parse_format("absolutely-not-a-format").unwrap_err().to_string();
+        assert!(err.contains("absolutely-not-a-format"), "got: {err}");
         assert!(err.contains("qr"), "got: {err}");
         assert!(err.contains("upca"), "got: {err}");
     }
@@ -732,8 +784,8 @@ mod tests {
     }
 
     #[test]
-    fn format_all_has_six_variants() {
-        assert_eq!(Format::ALL.len(), 6);
+    fn format_all_has_all_variants() {
+        assert_eq!(Format::ALL.len(), 8);
     }
 
     #[test]
@@ -930,14 +982,16 @@ mod tests {
     }
 
     #[test]
-    fn print_list_has_six_lines() {
+    fn print_list_has_all_lines() {
         let mut out = Vec::new();
         print_list(&mut out).unwrap();
         let text = String::from_utf8(out).unwrap();
-        assert_eq!(text.lines().count(), 6, "got:\n{text}");
+        assert_eq!(text.lines().count(), 8, "got:\n{text}");
         assert!(text.contains("qr"));
         assert!(text.contains("datamatrix"));
         assert!(text.contains("upca"));
+        assert!(text.contains("aztec"));
+        assert!(text.contains("pdf417"));
     }
 
     #[test]

@@ -111,6 +111,7 @@ surprise failures.
 | Script | What it does |
 |---|---|
 | `encode.rhai` | QR / DataMatrix / barcode to PNG |
+| `decode.rhai` | Scan a PNG/JPEG/WebP for a barcode or 2D code |
 | `encrypt.rhai` | age keypair generation (CLI companion for full encrypt/decrypt) |
 | `checkdigit.rhai` | Verify or inspect any check-digit algorithm |
 | `sample.rhai` | Enumerate built-in sample sources |

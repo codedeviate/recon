@@ -1193,6 +1193,35 @@ static TOPIC_SCRIPT: Topic = Topic {
     ],
 };
 
+static TOPIC_DECODE: Topic = Topic {
+    title: "Barcode / QR / DataMatrix decoding (--decode)",
+    description: "Scan an image for a barcode and print the embedded\n\
+                  text. Supports: QR, DataMatrix, Aztec, PDF417,\n\
+                  MaxiCode, Code128, Code39, Code93, Codabar, EAN-13,\n\
+                  EAN-8, ITF, UPC-A, UPC-E, RSS-14, RSS-Expanded.\n\
+                  \n\
+                  Backed by the `rxing` crate (a pure-Rust port of\n\
+                  ZXing, the canonical multi-format decoder).\n\
+                  \n\
+                  Output format: `<FORMAT>\\t<TEXT>` to stdout. Use\n\
+                  `--decode-hints` to restrict the scan to specific\n\
+                  formats — speeds things up and avoids ambiguity\n\
+                  when codes share prefixes.",
+    flags: &[
+        FlagHelp { flags: "--decode <IMAGE>", description: "Image path, or `-` to read the image bytes from stdin." },
+        FlagHelp { flags: "--decode-hints <LIST>", description: "Comma-separated format restriction: qr, datamatrix, aztec, pdf417, maxicode,\ncode128, code39, code93, codabar, ean13, ean8, itf, upca, upce, rss14." },
+        FlagHelp { flags: "encode::decode(blob)", description: "Script binding. Takes PNG/JPEG/WebP bytes already in memory and returns\n#{ text, format }." },
+    ],
+    related: &["encode", "encoding"],
+    examples: &[
+        ExampleHelp { description: "Decode a QR PNG", command: "recon --decode ticket.png" },
+        ExampleHelp { description: "Read image from stdin", command: "cat code.jpg | recon --decode -" },
+        ExampleHelp { description: "Restrict to EAN-13 for a product barcode", command: "recon --decode bottle.jpg --decode-hints ean13" },
+        ExampleHelp { description: "Restrict to QR + DataMatrix (ambiguous dense codes)", command: "recon --decode mystery.png --decode-hints qr,datamatrix" },
+        ExampleHelp { description: "Round-trip encode → decode", command: "recon --encode qr -o /tmp/q.png 'round-trip test' && recon --decode /tmp/q.png" },
+    ],
+};
+
 static TOPIC_CLIENT_CERT: Topic = Topic {
     title: "Client certificates (mTLS)",
     description: "Present a client certificate during the TLS handshake\n\
@@ -1942,6 +1971,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "unix-socket" | "unixsocket" | "uds" => Some(&TOPIC_UNIX_SOCKET),
         "hsts" | "strict-transport-security" => Some(&TOPIC_HSTS),
         "compare" | "diff" => Some(&TOPIC_COMPARE),
+        "decode" | "scan" | "barcode-scan" | "decode-image" => Some(&TOPIC_DECODE),
         "client-cert" | "mtls" | "client-certificate" => Some(&TOPIC_CLIENT_CERT),
         "archive" | "zip" | "tar" | "extract" => Some(&TOPIC_ARCHIVE),
         _ => None,
@@ -2031,6 +2061,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "hsts",
         "compare",
         "client-cert",
+        "decode",
     ]
 }
 

@@ -92,11 +92,27 @@ pub fn register(engine: &mut Engine) {
 
     let _ = module.set_native_fn("list", || -> Result<Array, Box<EvalAltResult>> {
         let mut out = Array::new();
-        for name in ["qr", "datamatrix", "code128", "code39", "ean13", "upca"] {
+        for name in [
+            "qr", "datamatrix", "code128", "code39", "ean13", "upca",
+            "aztec", "pdf417",
+        ] {
             out.push(Dynamic::from(name.to_string()));
         }
         Ok(out)
     });
+
+    // decode(blob) → #{ text, format } — scan a PNG/JPEG/WebP image
+    // for a barcode, QR, DataMatrix, Aztec, PDF417, or MaxiCode.
+    let _ = module.set_native_fn(
+        "decode",
+        |img: Blob| -> Result<rhai::Map, Box<EvalAltResult>> {
+            let d = crate::decode::decode_bytes(&img, &[]).map_err(|e| err(e.to_string()))?;
+            let mut m = rhai::Map::new();
+            m.insert("text".into(), d.text.into());
+            m.insert("format".into(), d.format.to_string().into());
+            Ok(m)
+        },
+    );
 
     engine.register_static_module("encode", module.into());
 }

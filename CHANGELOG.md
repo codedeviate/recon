@@ -8,6 +8,50 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.55.0] - 2026-04-24
+
+### Added
+
+Encoding & decoding expansion backed by the `rxing` crate (pure-Rust
+port of ZXing). Closes four of the encoding-deferred entries in
+`OUT-OF-SCOPE.md`.
+
+- **`--decode <IMAGE>`** — scan a PNG / JPEG / WebP / GIF / BMP for a
+  barcode, QR, DataMatrix, Aztec, PDF417, or MaxiCode. Accepts a path
+  or `-` for stdin. Output: `<FORMAT>\t<TEXT>`.
+- **`--decode-hints <LIST>`** — comma-separated format restriction
+  (qr, datamatrix, aztec, pdf417, maxicode, code128, code39, code93,
+  codabar, ean13, ean8, itf, upca, upce, rss14). Speeds up scanning
+  and disambiguates codes that share prefixes.
+- **`--encode aztec`, `--encode pdf417`** — two new 2D barcode formats.
+  Render to ASCII / SVG / PNG like the existing QR and DataMatrix
+  paths. MaxiCode is available as a decode-only format (ZXing /
+  rxing ship no MaxiCode encoder today).
+- **Script binding `encode::decode(blob)`** — scans an in-memory image
+  Blob; returns `#{ text, format }`.
+- **`encode::list()`** — now enumerates the three new formats.
+- **`recon --version` Features tokens**: `aztec`, `decode`,
+  `maxicode`, `pdf417`.
+
+### Technical
+
+- New `src/decode.rs` wrapping `rxing::helpers::detect_in_file`, with
+  a byte path via tempfile for stdin / in-memory blobs (rxing's
+  decoder pipeline expects a filesystem path for format autodetection).
+- Existing `src/encode.rs` extended with an `encode_via_rxing` branch
+  for the new formats; QR and DataMatrix continue to flow through the
+  original `qrcode` / `datamatrix` crates for ASCII/SVG rendering
+  continuity. BitMatrix adapter converts rxing's matrix type into
+  recon's own render-ready shape.
+
+### Out of scope
+
+Removed from `OUT-OF-SCOPE.md`: image→text decoding, Aztec, PDF417.
+Partially closed: MaxiCode (decode works; encode requires a separate
+encoder library that doesn't exist in pure Rust). Still deferred: logo
+overlay / colour customisation, multi-code composition, MaxiCode
+encoding, multi-barcode scanning, --encode-hints.
+
 ## [0.54.0] - 2026-04-24
 
 ### Added

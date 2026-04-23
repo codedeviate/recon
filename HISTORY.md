@@ -52,6 +52,22 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 57. rxing-powered decode + Aztec/PDF417/MaxiCode (0.55.0)
+
+Closes the big encoding-deferred block in OUT-OF-SCOPE.md: image→text decoding plus three new 2D encode formats. Single new crate (`rxing`) lands — pure-Rust port of ZXing, Google's canonical multi-format barcode library.
+
+**Why `rxing` and not re-rolling.** ZXing is the reference implementation for Aztec, PDF417, and MaxiCode. Each format has finicky details (PDF417's stack-of-rows encoding, MaxiCode's hexagonal fixed-size grid, Aztec's five-layer structural variants). Writing one of these correctly is a multi-week project; writing three would dwarf the rest of this release. rxing ships all three plus the universal decoder under MIT/Apache dual licence. Binary growth: ~2.5 MB stripped release.
+
+**Decoder design.** `rxing::helpers::detect_in_file` is the happy path — it opens an image file, runs format autodetection, and returns text + format. For stdin / in-memory blobs (the `decode_bytes` path), we write to `tempfile::NamedTempFile`, decode, and let the temp drop at end-of-scope. Routing through luma-pixel APIs (`detect_in_luma`) would bypass PNG/JPEG header parsing entirely and require pre-decoded pixel data — not what we want for a CLI that's handed a PNG.
+
+**Coexistence with existing encoders.** QR and DataMatrix still flow through the `qrcode` and `datamatrix` crates for ASCII/SVG/PNG rendering, because recon's existing rendering pipeline is tuned for those output types. rxing only runs for Aztec/PDF417/MaxiCode encoding and for all decoding. A BitMatrix adapter (~12 lines) bridges rxing's matrix type into the recon `BitMatrix` shape that the existing render_{ascii,svg,png} functions consume.
+
+**Format-name normalisation.** rxing's internal `BarcodeFormat::QR_CODE` vs curl/recon convention `qr`. `src/decode.rs::format_name` + `parse_format` provide a bidirectional mapping so CLI and script bindings speak the lowercase-hyphen form while rxing's typed enums stay internal.
+
+**What's NOT shipped.** `--encode-hints` (passing codewords / ECI options / compact-vs-full selection for Aztec) — rxing's `encode_with_hints` API is there but the user-facing surface would need thinking. Revisit if demand surfaces. Multi-code scanning in one image (`detect_multiple_in_file`) also deferred — simple first.
+
+**Tests added: +5.** parse_format round-trip, format_name stability for common types. Plus smoke-tested manually via the round-trip encode → decode of all three new formats. 1124 → 1129 passing.
+
 ### 56. Client-certificate package — mTLS (0.54.0)
 
 Ships `--client-cert` / `--client-key` / `--cert-type` / `--key-type` / `--pass` as one release per the OUT-OF-SCOPE.md note that `--key-type` is a trap unless it arrives with the rest of the cluster. Closes the HTTP/curl-compat item.

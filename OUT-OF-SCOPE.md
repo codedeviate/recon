@@ -21,11 +21,12 @@ Grouped by category. When an item from here ships in a future release, remove it
 
 ### Encoding (0.14.0)
 
-- **Image → text decoding** (barcode/QR scanning). Would pull in `rxing` or similar heavier dependency.
-- **Aztec, PDF417, MaxiCode** and other 2D formats beyond QR / DataMatrix.
 - **Human-readable text under 1D barcodes** (the digits shown below an EAN-13, for example).
 - **Logo overlay / colour customisation** on QR codes.
 - **Multi-code image composition** (several codes on one canvas).
+- **Multi-barcode scanning in one image** — rxing's `detect_multiple_in_file` exists; not yet wired. Revisit if users report multi-code source images.
+- **`--encode-hints` (rxing encode_with_hints)** — ECI options, Aztec compact-vs-full, PDF417 error-correction level. The API exists; user-facing flag surface isn't designed yet.
+- **MaxiCode encoding** — no pure-Rust encoder exists. rxing (ZXing port) decodes MaxiCode but ships no encoder. Revisit if someone writes one or if shelling out to `dmtx-utils` / `zint` becomes acceptable.
 
 ### Encryption
 

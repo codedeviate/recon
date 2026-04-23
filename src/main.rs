@@ -4,6 +4,7 @@ mod client;
 mod client_cert;
 mod compare;
 mod compression;
+mod decode;
 mod config;
 mod cookiejar;
 mod dict_probe;
@@ -225,6 +226,15 @@ fn main() {
     // ── Archive: extract (no HTTP request needed) ────────────────────────────
     if args.extract.is_some() {
         if let Err(e) = archive::run_extract_cli(&args) {
+            eprintln!("error: {e}");
+            std::process::exit(1);
+        }
+        return;
+    }
+
+    // ── Decode a barcode image (no HTTP request needed) ─────────────────────
+    if args.decode.is_some() {
+        if let Err(e) = decode::run(&args) {
             eprintln!("error: {e}");
             std::process::exit(1);
         }

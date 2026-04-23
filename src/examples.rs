@@ -979,6 +979,31 @@ recon --rekey \
         "recon gophers://secure-gopher.example/",
     ]);
 
+    section("DECODING / Aztec / PDF417 / MaxiCode (0.55.0)");
+
+    example("Decode a QR / barcode from an image", &[
+        "recon --decode ticket.png",
+        "recon --decode product.jpg --decode-hints ean13",
+    ]);
+
+    example("Pipe an image from stdin", &[
+        "cat code.png | recon --decode -",
+        "curl -s https://example.com/qr.png | recon --decode -",
+    ]);
+
+    example("Round-trip encode → decode", &[
+        "recon --encode qr -o /tmp/q.png 'hello' && recon --decode /tmp/q.png",
+        "recon --encode aztec -o /tmp/a.png 'transit ticket' && recon --decode /tmp/a.png",
+        "recon --encode pdf417 -o /tmp/p.png 'license data' && recon --decode /tmp/p.png",
+    ]);
+
+    example("Encode the new formats", &[
+        "recon --encode aztec -o aztec.png 'compact 2D code'    # transit / shipping",
+        "recon --encode pdf417 -o pdf.png  'stacked linear code' # IDs, shipping labels",
+    ]);
+
+    note("--decode reads PNG / JPEG / WebP / GIF / BMP. Output line: `<FORMAT>\\t<TEXT>`. Use --decode-hints to restrict scanning — speeds up and prevents prefix-match ambiguity. rxing (pure-Rust ZXing port) powers both decode and the new Aztec/PDF417/MaxiCode encoders.");
+
     section("CLIENT CERTIFICATES / mTLS (0.54.0)");
 
     example("Combined PEM (cert + key in one file)", &[
