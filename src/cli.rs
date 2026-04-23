@@ -8,7 +8,7 @@ const HELP_STYLES: Styles = Styles::styled()
     .literal(AnsiColor::Cyan.on_default())
     .placeholder(AnsiColor::Green.on_default());
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Clone)]
 #[command(
     name = "recon",
     about = "A versatile network reconnaissance tool",
@@ -21,7 +21,7 @@ pub struct Args {
     // ── Positional (renders under Arguments; no help_heading) ────────────────
 
     /// URL to request (or use --url)
-    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni", "jwt_view", "jwt_sign", "jwt_validate", "netstatus", "editor_cleanup", "sample", "sample_list", "hash", "hash_list", "compress", "decompress", "compress_list", "encode", "encode_list", "encrypt", "decrypt", "encrypt_keygen", "checkdigit", "checkdigit_create", "checkdigit_list", "script", "init", "browser_screenshot", "archive", "extract", "iconv", "list_charsets"])]
+    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni", "jwt_view", "jwt_sign", "jwt_validate", "netstatus", "editor_cleanup", "sample", "sample_list", "hash", "hash_list", "compress", "decompress", "compress_list", "encode", "encode_list", "encrypt", "decrypt", "encrypt_keygen", "checkdigit", "checkdigit_create", "checkdigit_list", "script", "init", "browser_screenshot", "archive", "extract", "iconv", "list_charsets", "compare"])]
     pub url: Option<String>,
 
     // ── HTTP Request ─────────────────────────────────────────────────────────
@@ -567,6 +567,13 @@ pub struct Args {
     #[arg(long = "encode-list", help_heading = "Encoding")]
     pub encode_list: bool,
 
+    /// QR error-correction level. `L` = ~7% recoverable (smaller matrix);
+    /// `M` = ~15% (default); `Q` = ~25%; `H` = ~30% (largest, best for
+    /// codes that will be scratched, laminated, or overlaid). Only
+    /// meaningful when --encode qr is active.
+    #[arg(long = "qr-level", value_name = "L|M|Q|H", default_value = "M", help_heading = "Encoding")]
+    pub qr_level: String,
+
     // ── Encryption ───────────────────────────────────────────────────────────
 
     /// Encrypt the input source (age format). Requires at least one --recipient
@@ -905,6 +912,25 @@ pub struct Args {
     /// of --mail-from.
     #[arg(long = "dkim-domain", value_name = "DOMAIN", help_heading = "SMTP")]
     pub dkim_domain: Option<String>,
+
+    // ── Compare ──────────────────────────────────────────────────────────────
+
+    /// Diff two sources. Each source is a URL, a local path, or `-` for
+    /// stdin. HTTP(S) sources honor all existing request flags (-H, -u,
+    /// -L, -k, headers, cookies, …). Exit code: 0 = identical, 1 =
+    /// differ, 2+ = source-load error.
+    #[arg(long = "compare", value_names = ["A", "B"], num_args = 2, help_heading = "Compare")]
+    pub compare: Option<Vec<String>>,
+
+    /// Output format for --compare. `unified` (default) prints a unified
+    /// diff. `summary` prints a one-liner (identical / differ / binary).
+    /// `sxs` prints a side-by-side view column-wrapped to terminal width.
+    #[arg(long = "compare-format", value_name = "FMT", default_value = "unified", help_heading = "Compare")]
+    pub compare_format: String,
+
+    /// Context lines around each unified-diff hunk. Default 3.
+    #[arg(long = "compare-context", value_name = "N", default_value_t = 3, help_heading = "Compare")]
+    pub compare_context: usize,
 
     // ── Meta ─────────────────────────────────────────────────────────────────
 

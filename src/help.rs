@@ -1193,6 +1193,39 @@ static TOPIC_SCRIPT: Topic = Topic {
     ],
 };
 
+static TOPIC_COMPARE: Topic = Topic {
+    title: "Source comparison (--compare A B)",
+    description: "Diff two sources side-by-side. Each source is a URL, a\n\
+                  local path, or `-` for stdin. HTTP(S) sources flow\n\
+                  through the same pipeline as a normal request and\n\
+                  honor all existing flags (-H, -u, -L, -k, cookies,\n\
+                  proxy, …).\n\
+                  \n\
+                  Exit codes follow the GNU diff convention:\n\
+                    0  identical\n\
+                    1  differ\n\
+                    2+ source load error (e.g. network failure)\n\
+                  \n\
+                  Binary content is detected by a NUL-byte probe in the\n\
+                  first 8 KiB and reported as a byte-count delta instead\n\
+                  of a line diff.",
+    flags: &[
+        FlagHelp { flags: "--compare <A> <B>", description: "Two sources to diff. Each is a URL / path / `-` (stdin)." },
+        FlagHelp { flags: "--compare-format <FMT>", description: "Output format: `unified` (default, curl-style +/- diff),\n`summary` (one-liner), `sxs` (column-wrapped side-by-side)." },
+        FlagHelp { flags: "--compare-context <N>", description: "Unified-diff context lines around each hunk (default 3)." },
+        FlagHelp { flags: "compare(a, b)", description: "Script binding. Takes two Blobs (or strings) already in\nmemory and returns a map with `identical`, `added`,\n`removed`, `binary`, `a_bytes`, `b_bytes`, `diff`." },
+    ],
+    related: &["http", "output", "script"],
+    examples: &[
+        ExampleHelp { description: "Compare two local files", command: "recon --compare one.json two.json" },
+        ExampleHelp { description: "Compare a URL against a local baseline", command: "recon --compare https://api.example.com/v1/status ./baseline.json" },
+        ExampleHelp { description: "Stdin vs a file", command: "curl -s https://a/ | recon --compare - ./b.txt" },
+        ExampleHelp { description: "Just tell me if they differ", command: "recon --compare a b --compare-format summary" },
+        ExampleHelp { description: "Side-by-side for visual scan", command: "recon --compare a b --compare-format sxs" },
+        ExampleHelp { description: "Compare a POST response to a baseline, follow redirects", command: "recon --compare https://a/ ./ref.txt -L -H 'Accept: text/plain'" },
+    ],
+};
+
 static TOPIC_HSTS: Topic = Topic {
     title: "HSTS (HTTP Strict Transport Security cache)",
     description: "Persistent cache of `Strict-Transport-Security` directives.\n\
@@ -1871,6 +1904,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "proxy" | "proxies" => Some(&TOPIC_PROXY),
         "unix-socket" | "unixsocket" | "uds" => Some(&TOPIC_UNIX_SOCKET),
         "hsts" | "strict-transport-security" => Some(&TOPIC_HSTS),
+        "compare" | "diff" => Some(&TOPIC_COMPARE),
         "archive" | "zip" | "tar" | "extract" => Some(&TOPIC_ARCHIVE),
         _ => None,
     }
@@ -1957,6 +1991,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "proxy",
         "unix-socket",
         "hsts",
+        "compare",
     ]
 }
 

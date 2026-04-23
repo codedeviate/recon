@@ -979,6 +979,58 @@ recon --rekey \
         "recon gophers://secure-gopher.example/",
     ]);
 
+    section("COMPARE (0.53.0)");
+
+    example("Diff two local files", &[
+        "recon --compare one.json two.json",
+        "recon --compare --compare-context 5 one.json two.json",
+    ]);
+
+    example("Diff a live URL against a baseline", &[
+        "recon --compare https://api.example.com/v1/status ./baseline.json",
+        "recon --compare ./ref.html https://example.com/ -L",
+    ]);
+
+    example("Summary / side-by-side formats", &[
+        "recon --compare a.txt b.txt --compare-format summary",
+        "recon --compare a.txt b.txt --compare-format sxs",
+    ]);
+
+    example("Pipe stdin as one of the two sources", &[
+        "curl -s https://a/ | recon --compare - ./baseline.json",
+    ]);
+
+    note("Exit code follows GNU diff: 0 = identical, 1 = differ, 2+ = source-load error. Binary content (NUL in first 8 KiB) skips the line diff and reports a byte-count delta instead. All HTTP flags (-H, -u, -L, -k, cookies, proxy) apply to URL sources.");
+
+    section("SCRIPTING FILE I/O (0.53.0)");
+
+    example("Streaming handle — read, seek, write, close", &[
+        r#"recon --script - <<< 'let h = file_open("/tmp/log.bin", "rwc"); file_write(h, "abcdef"); file_seek(h, 0, "start"); let first3 = file_read(h, 3); file_close(h); print(first3.len());'"#,
+    ]);
+
+    example("Whole-file helpers", &[
+        r#"recon --script - <<< 'file_write_all("/tmp/x", "hello"); file_append_all("/tmp/x", " world"); print(file_read("/tmp/x"));'"#,
+        r#"recon --script - <<< 'if file_exists("/etc/hosts") { print(file_size("/etc/hosts")); }'"#,
+    ]);
+
+    note("file_open modes: `r` read, `w` write/truncate/create, `rw` read+write, `rwc` / `w+` read+write+create+truncate, `a` append, `ra` read+append. `file_seek(h, pos, whence)` takes whence = start|cur|end. Handles wrap Arc<Mutex<File>> so they survive thread boundaries.");
+
+    example("Raw print without trailing newline", &[
+        r#"recon --script - <<< 'print_raw("loading"); sleep_ms(200); print_raw(".\n");'"#,
+        r#"recon --script - <<< 'eprint("warn: something"); eprint_raw("status: ")'"#,
+    ]);
+
+    note("`print_raw(s|blob)` writes to stdout without appending a newline and flushes. `eprint(s)` writes to stderr with newline; `eprint_raw` is the no-newline variant. Useful for progress bars, line protocols, or pre-framed byte output.");
+
+    section("QR ERROR CORRECTION (0.53.0)");
+
+    example("Tune QR redundancy", &[
+        "recon --encode qr --qr-level L -o low.png 'small text'",
+        "recon --encode qr --qr-level H -o durable.png 'long-lived sticker'",
+    ]);
+
+    note("Levels: L (~7%), M (~15%, default), Q (~25%), H (~30%). Higher levels recover more scratched / partly obscured codes but produce larger matrices. Only meaningful for --encode qr; ignored by other formats.");
+
     section("HSTS (0.52.0)");
 
     example("Populate cache from an https:// response", &[

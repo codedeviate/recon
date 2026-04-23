@@ -83,6 +83,12 @@ surprise failures.
 | `browser-multi.rhai` | Three independent browsers with different personas + jars |
 | `browser-iso8859.rhai` | Browser posting to a Latin-1 service; auto-transcodes body |
 
+### Comparison
+
+| Script | What it does |
+|---|---|
+| `compare.rhai` | In-script diff of two strings or Blobs (`compare(a, b)`) |
+
 ### Text processing
 
 | Script | What it does |

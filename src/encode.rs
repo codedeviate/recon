@@ -86,6 +86,53 @@ pub fn parse_format(input: &str) -> Result<Format> {
     ))
 }
 
+/// QR error-correction level. Controls how much damage the code can
+/// sustain and still decode. Bigger level = more redundancy = larger
+/// matrix. Default `M` matches curl/qrcode's traditional pick.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QrLevel {
+    L,
+    M,
+    Q,
+    H,
+}
+
+impl QrLevel {
+    pub fn parse(s: &str) -> Result<Self> {
+        match s.trim().to_ascii_uppercase().as_str() {
+            "L" => Ok(QrLevel::L),
+            "M" => Ok(QrLevel::M),
+            "Q" => Ok(QrLevel::Q),
+            "H" => Ok(QrLevel::H),
+            other => Err(anyhow!(
+                "unknown QR level '{other}' (want L, M, Q, or H)"
+            )),
+        }
+    }
+
+    pub(crate) fn as_ec(self) -> qrcode::EcLevel {
+        match self {
+            QrLevel::L => qrcode::EcLevel::L,
+            QrLevel::M => qrcode::EcLevel::M,
+            QrLevel::Q => qrcode::EcLevel::Q,
+            QrLevel::H => qrcode::EcLevel::H,
+        }
+    }
+}
+
+impl Default for QrLevel {
+    fn default() -> Self {
+        QrLevel::M
+    }
+}
+
+/// Options that tune individual encoders. Empty/default today; extended
+/// as features land. Most callers use `EncodeOptions::default()`.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct EncodeOptions {
+    pub qr_level: QrLevel,
+}
+
 /// Parse `--encode-format` into `OutputFormat`. Case-insensitive.
 pub fn parse_output_format(input: &str) -> Result<OutputFormat> {
     match input.trim().to_ascii_lowercase().as_str() {
@@ -136,8 +183,17 @@ impl BitMatrix {
 // ---- Encoders — Task 3 -------------------------------------------------
 
 pub fn encode(format: Format, input: &[u8]) -> Result<BitMatrix> {
+    encode_with_opts(format, input, &EncodeOptions::default())
+}
+
+/// Like `encode`, but threads per-encoder tuning from `EncodeOptions`.
+pub fn encode_with_opts(
+    format: Format,
+    input: &[u8],
+    opts: &EncodeOptions,
+) -> Result<BitMatrix> {
     match format {
-        Format::Qr => encode_qr(input),
+        Format::Qr => encode_qr(input, opts.qr_level),
         Format::DataMatrix => encode_datamatrix(input),
         Format::Code128 => encode_1d(format, input),
         Format::Code39 => encode_1d(format, input),
@@ -146,8 +202,8 @@ pub fn encode(format: Format, input: &[u8]) -> Result<BitMatrix> {
     }
 }
 
-fn encode_qr(input: &[u8]) -> Result<BitMatrix> {
-    let qr = qrcode::QrCode::new(input)
+fn encode_qr(input: &[u8], level: QrLevel) -> Result<BitMatrix> {
+    let qr = qrcode::QrCode::with_error_correction_level(input, level.as_ec())
         .map_err(|e| anyhow!("qr encode error: {e}"))?;
     let width = qr.width() as u32;
     let bits: Vec<bool> = qr
@@ -541,7 +597,10 @@ pub fn run(args: &Args) -> Result<()> {
 
     let input = resolve_input(args.from_file.as_deref(), args.target_url())?;
 
-    let matrix = encode(format, &input)?;
+    let opts = EncodeOptions {
+        qr_level: QrLevel::parse(&args.qr_level)?,
+    };
+    let matrix = encode_with_opts(format, &input, &opts)?;
 
     if args.verbose >= 1 {
         let of_label = match out_format {

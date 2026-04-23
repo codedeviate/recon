@@ -64,6 +64,7 @@ pub fn build_engine(defaults: &ScriptDefaults) -> rhai::Engine {
     super::bindings::archive::register(&mut engine);
     super::bindings::browser::register(&mut engine, defaults.clone());
     super::bindings::checkdigit::register(&mut engine);
+    super::bindings::compare::register(&mut engine);
     super::bindings::compression::register(&mut engine);
     super::bindings::email::register(&mut engine);
     super::bindings::encode::register(&mut engine);
@@ -73,6 +74,7 @@ pub fn build_engine(defaults: &ScriptDefaults) -> rhai::Engine {
     super::bindings::ipfs::register(&mut engine, defaults.clone());
     super::bindings::jwt::register(&mut engine);
     super::bindings::netstatus::register(&mut engine);
+    super::bindings::output::register(&mut engine);
     super::bindings::sample::register(&mut engine);
     super::bindings::dict::register(&mut engine, defaults.clone());
     super::bindings::dns::register(&mut engine);

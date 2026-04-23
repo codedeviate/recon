@@ -8,6 +8,48 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.53.0] - 2026-04-24
+
+### Added
+
+Quick-wins bundle kicking off the post-curl-parity expansion roadmap.
+
+- **`--compare <A> <B>`** — diff two sources (URL, local path, or `-`
+  for stdin). HTTP(S) sides flow through the normal request pipeline
+  and honor every existing flag (`-H`, `-u`, `-L`, `-k`, cookies,
+  proxy, HSTS). Exit code follows GNU `diff` convention: `0` identical,
+  `1` differ, `2+` source-load error. Formats: `unified` (default),
+  `summary` (one-liner), `sxs` (side-by-side). Context-line count
+  tunable via `--compare-context`. Binary content is detected by a
+  NUL-byte probe in the first 8 KiB and reported as a byte-count delta
+  rather than attempting a line diff.
+- **Script `compare(a, b)`** — in-memory counterpart returning a map
+  with `identical`, `added`, `removed`, `binary`, `a_bytes`, `b_bytes`,
+  `diff`. Accepts `Blob` or `&str` on both sides.
+- **Script raw-print helpers** — `print_raw(s|blob)` writes to stdout
+  without a trailing newline and flushes; `eprint(s)` writes to stderr
+  with newline; `eprint_raw(s|blob)` is the stderr no-newline variant;
+  `flush()` forces an explicit stdout flush. Useful for progress
+  displays, line protocols, and byte-precise output.
+- **Streaming file I/O in scripts** — `file_open(path, mode)` returns a
+  `FileHandle` (an `Arc<Mutex<File>>` newtype), plus `file_read(h, n)`,
+  `file_read_all(h)`, `file_write(h, data)`, `file_seek(h, pos, whence)`,
+  `file_tell(h)`, `file_flush(h)`, `file_close(h)`. Whole-file
+  convenience helpers land alongside: `file_write_all`, `file_append_all`,
+  `file_exists`, `file_size`, `file_delete`. Handle type is deliberately
+  `Send + Sync` so it survives the rhai `sync`-feature flip planned for
+  0.56.0.
+- **`--qr-level <L|M|Q|H>`** — QR error-correction level (default `M`).
+  Script callers pass `#{ qr_level: "H" }` via the four-arg
+  `encode::encode(fmt, data, output, opts)` overload.
+- **New `--version` Features tokens**: `compare`.
+
+### Changed
+
+- `cli::Args` now derives `Clone` so subcommand code paths (starting
+  with `compare::run`) can mutate a per-call copy without touching the
+  main Args.
+
 ## [0.52.2] - 2026-04-23
 
 ### Fixed

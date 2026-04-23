@@ -1,6 +1,6 @@
 [package]
 name = "recon"
-version = "0.52.2"
+version = "0.53.0"
 edition = "2021"
 
 [[bin]]
@@ -79,6 +79,7 @@ chardetng = "0.1"
 lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "rustls-tls", "ring", "builder", "dkim"] }
 suppaftp = { version = "6", default-features = false, features = ["rustls"] }
 imap = { version = "3.0.0-alpha.15", default-features = false, features = ["rustls-tls"] }
+similar = "2"
 
 [dev-dependencies]
 wiremock = "0.6"

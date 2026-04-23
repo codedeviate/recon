@@ -1,9 +1,18 @@
 //! `encode::*` static module — Rhai bindings for QR / DataMatrix / 1D
 //! barcode generation. Wraps `src/encode.rs` primitives.
 
-use crate::encode::{self, Format, OutputFormat};
+use crate::encode::{self, EncodeOptions, Format, OutputFormat, QrLevel};
 use crate::script::convert::err;
-use rhai::{Array, Blob, Dynamic, Engine, EvalAltResult, Module};
+use rhai::{Array, Blob, Dynamic, Engine, EvalAltResult, Map, Module};
+
+fn opts_from_map(m: &Map) -> Result<EncodeOptions, Box<EvalAltResult>> {
+    let mut opts = EncodeOptions::default();
+    if let Some(v) = m.get("qr_level") {
+        let s = v.clone().into_string().map_err(|_| err("qr_level: string expected"))?;
+        opts.qr_level = QrLevel::parse(&s).map_err(|e| err(e.to_string()))?;
+    }
+    Ok(opts)
+}
 
 pub fn register(engine: &mut Engine) {
     let mut module = Module::new();
@@ -24,6 +33,26 @@ pub fn register(engine: &mut Engine) {
             let fmt = encode::parse_format(format).map_err(|e| err(e.to_string()))?;
             let out = encode::parse_output_format(out_format).map_err(|e| err(e.to_string()))?;
             let matrix = encode::encode(fmt, data.as_bytes()).map_err(|e| err(e.to_string()))?;
+            Ok(match out {
+                OutputFormat::Png => {
+                    let bytes = encode::render_png(&matrix).map_err(|e| err(e.to_string()))?;
+                    Dynamic::from(bytes)
+                }
+                OutputFormat::Svg => Dynamic::from(encode::render_svg(&matrix)),
+                OutputFormat::Ascii => Dynamic::from(encode::render_ascii(&matrix)),
+            })
+        },
+    );
+
+    let _ = module.set_native_fn(
+        "encode",
+        |format: &str, data: &str, out_format: &str, opts: Map|
+         -> Result<Dynamic, Box<EvalAltResult>> {
+            let fmt = encode::parse_format(format).map_err(|e| err(e.to_string()))?;
+            let out = encode::parse_output_format(out_format).map_err(|e| err(e.to_string()))?;
+            let opts = opts_from_map(&opts)?;
+            let matrix = encode::encode_with_opts(fmt, data.as_bytes(), &opts)
+                .map_err(|e| err(e.to_string()))?;
             Ok(match out {
                 OutputFormat::Png => {
                     let bytes = encode::render_png(&matrix).map_err(|e| err(e.to_string()))?;

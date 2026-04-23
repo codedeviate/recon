@@ -24,7 +24,6 @@ Grouped by category. When an item from here ships in a future release, remove it
 - **Image → text decoding** (barcode/QR scanning). Would pull in `rxing` or similar heavier dependency.
 - **Aztec, PDF417, MaxiCode** and other 2D formats beyond QR / DataMatrix.
 - **Human-readable text under 1D barcodes** (the digits shown below an EAN-13, for example).
-- **QR error-correction level tuning** (currently defaulted).
 - **Logo overlay / colour customisation** on QR codes.
 - **Multi-code image composition** (several codes on one canvas).
 
@@ -57,10 +56,6 @@ Tracked alongside `docs/curl-parity-matrix.md` for day-to-day user reference.
 - **NTLM** — Windows-only via the `sspi` crate's FFI. Niche in modern APIs; documented as a curl gap recon doesn't try to paper over.
 - **alt-svc** — RFC 7838 Alt-Svc header cache. `reqwest` has zero primitives; hand-rolling a spec-compliant cache + file persistence is ~300 lines. Low practical value for a one-shot CLI (the cache would be populated and discarded on every run). Revisit if IPv6+HTTP/3-adoption changes the calculus.
 - **MultiSSL** — curl can ship with multiple TLS backends (OpenSSL + Schannel + NSS + …). Rust binaries pick one; recon picks rustls. Not a coverage gap; architectural mismatch.
-
-### Two-source comparison
-
-- **`recon --compare <A> <B>`** — diff two sources (URLs, files, stdin). Discussed once as "could be useful"; never specced.
 
 ### UX niggles
 

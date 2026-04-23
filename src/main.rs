@@ -1,6 +1,7 @@
 mod cert;
 mod cli;
 mod client;
+mod compare;
 mod compression;
 mod config;
 mod cookiejar;
@@ -227,6 +228,17 @@ fn main() {
             std::process::exit(1);
         }
         return;
+    }
+
+    // ── Compare two sources (no HTTP request needed unless one is http(s)) ──
+    if args.compare.is_some() {
+        match compare::run(&args) {
+            Ok(verdict) => std::process::exit(verdict.exit_code()),
+            Err(e) => {
+                eprintln!("error: {e:#}");
+                std::process::exit(2);
+            }
+        }
     }
 
     // ── Browser screenshot convenience (no HTTP request needed) ──────────────

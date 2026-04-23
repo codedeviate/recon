@@ -52,6 +52,28 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 55. `--compare` + streaming file I/O + raw-print (0.53.0)
+
+Quick-wins bundle — five independent items folded into one release because each on its own is small and the docs/test churn amortises well. Marks the opening of the post-curl-parity wishlist plan (`serialized-foraging-sutherland`).
+
+**`--compare <A> <B>`** — `src/compare.rs`. Reuses the existing `src/source.rs` uniformity: each side is a URL, local path, or `-` (stdin), and HTTP(S) sides flow through `client::execute` so every request flag (`-H`, `-u`, `-L`, `-k`, cookies, proxy, HSTS) applies to a compare source just as it would to a normal request. The dispatch is a per-call `args.clone()` with `url` rewritten to the chosen side — `Args` gained a `Clone` derive for this single use case and it'll see further use in the planned script-threading release.
+
+**Diff crate choice — `similar` 2.x.** Two viable options: `similar` (BurntSushi-style unified-diff + sequence matcher, no external deps, MIT) and `diffy` (simpler but tighter). Picked `similar` because it gives us unified + side-by-side + line-level granularity from one API and is the de-facto standard in the Rust cargo/ecosystem tooling. ~80 KB added to the dep tree.
+
+**Binary detection heuristic.** NUL byte in the first 8 KiB on either side → skip line diff, emit byte-count delta. Same pattern as `diff -a`. No MIME sniffing, no false-positive paranoia around UTF-16 (rare enough to pay for with a `--compare-format unified` override). Exit codes follow `diff`: 0 identical, 1 differ, 2+ load error.
+
+**`sxs` (side-by-side) format.** Column width computed from terminal width via `crossterm::terminal::size`. Simple left/right truncation (no word-wrap). Good enough for quick visual scans; users who want polished side-by-side piping should use `git diff --color-words` or similar.
+
+**Script-binding design.** `compare(a, b)` takes two Blobs OR two strings already in memory. Deliberately does NOT accept URLs — scripts that want to compare URLs should fetch with `http()` first and then pass the response bytes to `compare()`. Keeps the binding focused and composable; keeps the URL-dispatch story entirely in CLI territory.
+
+**Streaming file I/O.** `FileHandle` is a newtype around `Arc<Mutex<File>>` — not `Rc<RefCell<File>>`. Chose the sync-safe flavour deliberately: when the 0.56.0 rhai-threading release flips on the `sync` feature, every custom type registered into the engine needs to be `Send + Sync`. Building the handle that way today means zero refactor when the switch happens. Full set: `file_open/read/read_all/write/seek/tell/flush/close` plus whole-file conveniences `file_write_all`, `file_append_all`, `file_exists`, `file_size`, `file_delete`. Modes: `r`, `w` (truncate+create), `rw`, `rwc` (read+write+create+truncate, a.k.a. `w+`), `a` (append+create), `ra` (append+read).
+
+**Raw-print bindings.** Rhai's built-in `print()` appends a newline and goes through the engine debug callback. `print_raw(s|blob)` writes byte-precise to stdout and flushes. `eprint(s)` + `eprint_raw(s|blob)` are the stderr siblings. `flush()` is explicit. Small (~40 lines) but user-requested and unblocks progress bars, sub-line output, and binary-precise output.
+
+**QR error-correction tuning.** `--qr-level <L|M|Q|H>` + `qr_level` script-opts key. Trivial pass-through to `qrcode::QrCode::with_error_correction_level`. Shipping as a tiny convenience ahead of the bigger 0.55.0 encoding overhaul (rxing-based decoding + Aztec/PDF417/MaxiCode).
+
+**Tests added: +18.** Compare unit tests (parse, verdict, exit code, binary detection, line delta), streaming-file tests (round-trip, append, exists/size/delete, streaming handle read-write-seek, unknown mode), compare-binding tests. 1099 → 1117 passing.
+
 ### 54. HSTS persistent cache (0.52.0)
 
 Third and final curl-parity phase-6 release. Closes the `--hsts` gap. `reqwest` has zero HSTS primitives so I hand-rolled a ~300-line store (parse / match / update / save) in `src/hsts.rs`.
