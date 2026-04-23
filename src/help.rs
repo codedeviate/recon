@@ -1193,6 +1193,43 @@ static TOPIC_SCRIPT: Topic = Topic {
     ],
 };
 
+static TOPIC_CLIENT_CERT: Topic = Topic {
+    title: "Client certificates (mTLS)",
+    description: "Present a client certificate during the TLS handshake\n\
+                  (mutual TLS / mTLS). Works for any https:// URL; the\n\
+                  server must be configured to request a client cert.\n\
+                  \n\
+                  Two PEM layouts are accepted:\n\
+                    * Combined: one file contains both the CERTIFICATE\n\
+                      chain and the PRIVATE KEY block. Pass it via\n\
+                      --client-cert; leave --client-key unset.\n\
+                    * Split: cert in one file, key in another. Pass both.\n\
+                  \n\
+                  Under the hood, recon builds a single PEM bundle and\n\
+                  hands it to rustls via reqwest's `Identity::from_pem`.\n\
+                  \n\
+                  Non-PEM formats (DER) and encrypted PKCS#8 keys are\n\
+                  detected at load time and rejected with a clear\n\
+                  message pointing to a `openssl` conversion recipe.\n\
+                  Rustls has no crypto-engine concept, so --key-type ENG\n\
+                  errors immediately.",
+    flags: &[
+        FlagHelp { flags: "-E, --client-cert <PATH>", description: "PEM-encoded client certificate. May contain the key inline." },
+        FlagHelp { flags: "--client-key <PATH>", description: "PEM-encoded private key. Only needed when --client-cert is cert-only." },
+        FlagHelp { flags: "--cert-type <PEM|DER>", description: "Format of --client-cert (default PEM). DER support deferred under rustls." },
+        FlagHelp { flags: "--key-type <PEM|DER|ENG>", description: "Format of --client-key. Only PEM is honored; DER and ENG error cleanly." },
+        FlagHelp { flags: "--pass <PASS>", description: "Passphrase placeholder. Encrypted PKCS#8 keys are not yet decrypted\ninternally — convert externally via `openssl pkcs8`." },
+        FlagHelp { flags: "http(url, #{client_cert, client_key, pass})", description: "Script-binding equivalent." },
+    ],
+    related: &["-k / --insecure", "--cacert", "--tlsv1.2 / --tlsv1.3"],
+    examples: &[
+        ExampleHelp { description: "Combined cert + key file", command: "recon --client-cert ~/keys/client-bundle.pem https://mtls.example.com/" },
+        ExampleHelp { description: "Split cert and key", command: "recon -E ~/keys/client.crt --client-key ~/keys/client.key https://mtls.example.com/" },
+        ExampleHelp { description: "badssl.com mTLS sandbox (client-cert required)", command: "recon -E badssl.com.pem https://client.badssl.com/" },
+        ExampleHelp { description: "Script binding", command: r#"recon --script - <<< 'http("https://mtls.example.com/", #{ client_cert: "/path/bundle.pem" });'"# },
+    ],
+};
+
 static TOPIC_COMPARE: Topic = Topic {
     title: "Source comparison (--compare A B)",
     description: "Diff two sources side-by-side. Each source is a URL, a\n\
@@ -1905,6 +1942,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "unix-socket" | "unixsocket" | "uds" => Some(&TOPIC_UNIX_SOCKET),
         "hsts" | "strict-transport-security" => Some(&TOPIC_HSTS),
         "compare" | "diff" => Some(&TOPIC_COMPARE),
+        "client-cert" | "mtls" | "client-certificate" => Some(&TOPIC_CLIENT_CERT),
         "archive" | "zip" | "tar" | "extract" => Some(&TOPIC_ARCHIVE),
         _ => None,
     }
@@ -1992,6 +2030,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "unix-socket",
         "hsts",
         "compare",
+        "client-cert",
     ]
 }
 

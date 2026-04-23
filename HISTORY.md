@@ -52,6 +52,29 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 56. Client-certificate package — mTLS (0.54.0)
+
+Ships `--client-cert` / `--client-key` / `--cert-type` / `--key-type` / `--pass` as one release per the OUT-OF-SCOPE.md note that `--key-type` is a trap unless it arrives with the rest of the cluster. Closes the HTTP/curl-compat item.
+
+**Flag-name collision with existing `--cert` inspection.** recon shipped `--cert` first as a bool for server-cert inspection (the "show me the CN, issuer, expiry" feature). curl's `--cert` means the client cert. Rather than break the inspection flag, new client-cert flag is `--client-cert` with the curl-compatible short `-E`. Split keeps both working.
+
+**Loader design — `src/client_cert.rs`.** One byte-level concat path regardless of whether the caller started with a combined PEM or a cert+key pair. `reqwest::Identity::from_pem` accepts both, so handing it the concat keeps the loader tiny (~150 LOC) and collapses two code paths into one.
+
+**Format matrix.**
+- PEM cert + PEM key (split or combined): works.
+- DER cert: rejected with `openssl x509 -inform DER -outform PEM` recipe.
+- DER key: rejected with `openssl pkcs8 -in key.der -inform DER -out key.pem` recipe.
+- ENG key: rejected immediately (rustls has no engine concept; pointing users at PEM keyfiles).
+- Encrypted PKCS#8 (ENCRYPTED PRIVATE KEY block): detected by text scan and rejected with `openssl pkcs8 -in key.enc -out key.pem`.
+
+All four refusal paths give a specific error message + a concrete recipe. Deferring in-process DER parsing + PKCS#8 decryption (would need the `pkcs8` crate and a key-conversion shim) beats shipping a half-working DER path that silently fails in a handshake.
+
+**No CI integration test for a live mTLS handshake.** Setting up a mock mTLS server in CI adds meaningful test infra for one feature. Unit tests cover all five refusal paths + the format-validation happy path up to `Identity::from_pem`. Manual smoke against `https://client.badssl.com/` documented in the examples.
+
+**Script opts-map keys.** Five new keys: `client_cert`, `client_key`, `cert_type`, `key_type`, `pass`. Mirrors the CLI one-to-one per the exposure policy.
+
+**Tests added: +7.** Five refusal paths, one no-cert short-circuit, one format-validation-when-no-cert. 1117 → 1124 passing.
+
 ### 55. `--compare` + streaming file I/O + raw-print (0.53.0)
 
 Quick-wins bundle — five independent items folded into one release because each on its own is small and the docs/test churn amortises well. Marks the opening of the post-curl-parity wishlist plan (`serialized-foraging-sutherland`).

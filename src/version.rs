@@ -37,6 +37,7 @@ const FEATURES: &[&str] = &[
     "brotli",
     "charset",
     "checkdigit",
+    "client-cert",
     "compare",
     "compression",
     "DKIM-signing",

@@ -118,6 +118,11 @@ pub fn execute(args: &Args) -> Result<(Response, RequestMetrics)> {
     }
     builder = crate::proxy::apply_proxy_tls(builder, args)?;
 
+    // Client certificate (--cert + --key, mTLS).
+    if let Some(identity) = crate::client_cert::build_identity(args)? {
+        builder = builder.identity(identity);
+    }
+
     let client = builder.build().context("Failed to build HTTP client")?;
     let method = resolve_method(args)?;
     let start_url = effective_url(args);

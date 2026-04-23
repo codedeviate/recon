@@ -72,6 +72,7 @@ surprise failures.
 | `proxy.rhai` | http() with proxy opts (HTTP / HTTPS / SOCKS5) |
 | `unix-socket.rhai` | http() over a Unix-domain socket (Docker / systemd / kubelet) |
 | `hsts.rhai` | HSTS cache populate + http:// upgrade |
+| `client-cert.rhai` | mTLS — present a client cert during the TLS handshake |
 
 ### Sessions (scriptable `browser()`)
 

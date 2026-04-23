@@ -249,6 +249,21 @@ pub(crate) fn build_args(
         if let Some(s) = opts_get_str(o, "hsts") {
             args.hsts = Some(std::path::PathBuf::from(s));
         }
+        if let Some(s) = opts_get_str(o, "client_cert") {
+            args.client_cert = Some(std::path::PathBuf::from(s));
+        }
+        if let Some(s) = opts_get_str(o, "client_key") {
+            args.client_key = Some(std::path::PathBuf::from(s));
+        }
+        if let Some(s) = opts_get_str(o, "cert_type") {
+            args.cert_type = s;
+        }
+        if let Some(s) = opts_get_str(o, "key_type") {
+            args.key_type = s;
+        }
+        if let Some(s) = opts_get_str(o, "pass") {
+            args.cert_pass = Some(s);
+        }
     }
     Ok(args)
 }

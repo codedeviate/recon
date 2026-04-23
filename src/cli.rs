@@ -121,6 +121,38 @@ pub struct Args {
     #[arg(long = "cacert", value_name = "PATH", help_heading = "Auth & TLS")]
     pub cacert: Option<PathBuf>,
 
+    /// Client certificate for mTLS. Path to a PEM file. May include
+    /// the private key inline (combined PEM with both CERTIFICATE and
+    /// PRIVATE KEY blocks); otherwise pair with --client-key. Use
+    /// --cert-type to select non-PEM formats. `-E` is the curl-compatible
+    /// short form.
+    #[arg(long = "client-cert", short = 'E', value_name = "PATH", help_heading = "Auth & TLS")]
+    pub client_cert: Option<PathBuf>,
+
+    /// Private key for the client certificate. PEM-encoded. Only
+    /// needed when --client-cert contains only the cert chain. Use
+    /// --key-type for non-PEM key formats (DER).
+    #[arg(long = "client-key", visible_alias = "key", value_name = "PATH", help_heading = "Auth & TLS")]
+    pub client_key: Option<PathBuf>,
+
+    /// Format of --client-cert. `PEM` (default) or `DER`. DER support
+    /// is deferred under rustls — pass PEM for now; non-PEM values
+    /// error with a clear message.
+    #[arg(long = "cert-type", value_name = "PEM|DER", default_value = "PEM", help_heading = "Auth & TLS")]
+    pub cert_type: String,
+
+    /// Format of --client-key. `PEM` (default), `DER`, or `ENG`
+    /// (OpenSSL engine). Only `PEM` is honored under rustls; `DER`
+    /// is deferred and `ENG` has no rustls equivalent.
+    #[arg(long = "key-type", value_name = "PEM|DER|ENG", default_value = "PEM", help_heading = "Auth & TLS")]
+    pub key_type: String,
+
+    /// Passphrase for an encrypted PKCS#8 private key. Currently
+    /// unsupported — if the key is encrypted, decrypt externally
+    /// (`openssl pkcs8 -in key.enc -out key.pem`) first.
+    #[arg(long = "pass", value_name = "PASS", help_heading = "Auth & TLS")]
+    pub cert_pass: Option<String>,
+
     /// Bind outgoing socket to a specific local address. Accepts an IP
     /// literal (IPv4 or IPv6). Interface names (eth0, en0) are not yet
     /// resolved — pass the address directly for now.

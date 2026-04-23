@@ -36,8 +36,8 @@ Still deferred after 0.46.0's PGP / rekey landing:
 
 ### HTTP / curl compatibility
 
-- **`--key-type`** — format of a client-cert private key (PEM / DER / ENG). Meaningless on its own without `--cert <PEM>` + `--key <PEM>` / `--cert-type` client-cert support, which recon doesn't currently ship. Shipping the flag in isolation is a trap. Revisit as a package deal with a full client-cert implementation.
 - **`--cert-status`** — OCSP-staple check during the TLS handshake. Requires a custom `rustls::ServerCertVerifier` that inspects the staple and falls back to a network OCSP responder. Niche in practice (most deployments disable OCSP entirely in favour of short-lived certs). Revisit if a concrete need appears.
+- **DER client-cert / client-key formats + encrypted PKCS#8** — Non-PEM client-cert formats and encrypted-at-rest keys. Currently rejected at load time with `openssl` conversion recipes. In-process parsing would add the `pkcs8` crate and a DER→rustls shim; shipping conversion-via-shell is the right trade-off until there's concrete demand.
 - **`-w` / `--write-out` connection-phase timings** — `time_namelookup`, `time_connect`, `time_appconnect`, `time_pretransfer` currently render as `0.000000`. The accurate variables (`time_total`, `time_starttransfer`, `time_redirect`, plus every non-timing variable) work correctly. reqwest 0.12's blocking client wraps an async hyper client internally, so cleanly hooking a custom connector to record DNS/TCP/TLS phases requires either bypassing reqwest for a direct hyper + tokio stack, or waiting for upstream connector-instrumentation hooks. Revisit when either path becomes cheap.
 - **`--anyauth`** — auto-select auth scheme. Security-risky (credential probing) and niche.
 - **`--ntlm` / `--negotiate`** — Windows NTLM / Kerberos-SPNEGO auth. Pulls in external crates; niche for modern APIs.

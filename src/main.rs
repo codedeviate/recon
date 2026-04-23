@@ -1,6 +1,7 @@
 mod cert;
 mod cli;
 mod client;
+mod client_cert;
 mod compare;
 mod compression;
 mod config;
@@ -964,6 +965,11 @@ fn friendly_message(err: &anyhow::Error) -> String {
         || msg.starts_with("Could not resolve")
         || msg.starts_with("Invalid URL")
         || msg.starts_with("--cert")
+        || msg.starts_with("--client-cert")
+        || msg.starts_with("--key")
+        || msg.starts_with("--cert-type")
+        || msg.starts_with("--key-type")
+        || msg.starts_with("--pass")
         || msg.starts_with("TLS handshake")
         || msg.starts_with("Server did not")
         || msg.starts_with("ICMP ping requires")

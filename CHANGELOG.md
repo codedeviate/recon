@@ -8,6 +8,45 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.54.0] - 2026-04-24
+
+### Added
+
+Client-certificate package — closes the `--key-type` trap documented in
+`OUT-OF-SCOPE.md` by shipping it as a full mTLS bundle rather than a
+single flag that means nothing without its partners.
+
+- **`-E, --client-cert <PATH>`** — PEM-encoded client certificate.
+  Accepts combined PEMs (cert + key in one file) or cert-only PEMs
+  paired with `--client-key`.
+- **`--client-key <PATH>`** (alias `--key`) — separate PEM key file.
+- **`--cert-type <PEM|DER>`** — cert format. PEM is honored; DER is
+  accepted at parse time and errors with a `openssl` conversion recipe
+  (rustls has no DER client-cert path today).
+- **`--key-type <PEM|DER|ENG>`** — key format. `ENG` (OpenSSL engines)
+  errors immediately; `DER` errors with a conversion recipe; `PEM`
+  flows through.
+- **`--pass <PASS>`** — passphrase placeholder. Encrypted PKCS#8 keys
+  are detected and refused with a clear message pointing at
+  `openssl pkcs8`; real in-process decryption is a follow-up.
+- **Script opts-map keys**: `client_cert`, `client_key`, `cert_type`,
+  `key_type`, `pass`.
+- **`recon --version` Features token**: `client-cert`.
+
+### Technical
+
+New `src/client_cert.rs` owns the loader. `reqwest::Identity::from_pem`
+accepts the same combined form regardless of whether the caller started
+with one file or two, so both paths funnel through a single byte-level
+concat before handing off to rustls. No new crate dependencies.
+
+### Out of scope
+
+Removed from `OUT-OF-SCOPE.md`: `--key-type` (the package-deal trap).
+Remaining entries around TLS: `--cert-status` (OCSP staple), `--engine`
+(rustls), DER cert/key formats (deferred with clear error), encrypted
+PKCS#8 in-process decryption (deferred with clear error).
+
 ## [0.53.0] - 2026-04-24
 
 ### Added

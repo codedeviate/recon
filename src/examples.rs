@@ -979,6 +979,28 @@ recon --rekey \
         "recon gophers://secure-gopher.example/",
     ]);
 
+    section("CLIENT CERTIFICATES / mTLS (0.54.0)");
+
+    example("Combined PEM (cert + key in one file)", &[
+        "recon --client-cert ~/keys/bundle.pem https://mtls.example.com/",
+        "recon -E ~/keys/bundle.pem https://mtls.example.com/  # curl-compatible -E",
+    ]);
+
+    example("Split cert and key", &[
+        "recon -E client.crt --client-key client.key https://mtls.example.com/",
+    ]);
+
+    example("Encrypted PKCS#8 key — decrypt externally first", &[
+        "openssl pkcs8 -in encrypted.key -out client.key",
+        "recon -E client.crt --client-key client.key https://mtls.example.com/",
+    ]);
+
+    example("Script binding", &[
+        r#"recon --script - <<< 'http("https://mtls.example.com/", #{ client_cert: "/path/bundle.pem" });'"#,
+    ]);
+
+    note("DER cert/key format is accepted at parse time but errors with a conversion recipe (`openssl x509 -inform DER -outform PEM …`) — rustls wants PEM. `--key-type ENG` has no rustls equivalent and errors immediately. Encrypted keys are detected and refused; decrypt externally then re-feed.");
+
     section("COMPARE (0.53.0)");
 
     example("Diff two local files", &[
