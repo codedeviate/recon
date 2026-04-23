@@ -65,7 +65,93 @@ pub fn register(engine: &mut Engine) {
         Ok(m)
     });
 
+    // encrypt::rekey(ciphertext, old_identity_paths, new_recipients) -> Blob
+    // Decrypts the input (age auto-detected) then re-encrypts to the new
+    // recipient set. Binary-armored output; add `true` as a 4th arg for
+    // ASCII armor. Works for age; PGP is not supported via script (use
+    // encrypt::pgp_rekey via agentBrowser::cmd / shelling out).
+    let _ = module.set_native_fn(
+        "rekey",
+        |ciphertext: Blob, old_identities: Array, new_recipients: Array| -> Result<Blob, Box<EvalAltResult>> {
+            rekey_age(&ciphertext, old_identities, new_recipients, false)
+        },
+    );
+    let _ = module.set_native_fn(
+        "rekey",
+        |ciphertext: Blob, old_identities: Array, new_recipients: Array, armor: bool| -> Result<Blob, Box<EvalAltResult>> {
+            rekey_age(&ciphertext, old_identities, new_recipients, armor)
+        },
+    );
+
+    // encrypt::pgp_encrypt(plaintext, recipients) -> Blob
+    // Shells out to `gpg` (must be on PATH). Returns binary ciphertext;
+    // use pgp_encrypt_armored for the ASCII form.
+    let _ = module.set_native_fn(
+        "pgp_encrypt",
+        |plaintext: Blob, recipients: Array| -> Result<Blob, Box<EvalAltResult>> {
+            let recipients = array_to_strings(recipients)?;
+            encrypt::gpg_encrypt_bytes(&plaintext, &recipients, false)
+                .map_err(|e| err(e.to_string()))
+        },
+    );
+    let _ = module.set_native_fn(
+        "pgp_encrypt_armored",
+        |plaintext: Blob, recipients: Array| -> Result<Blob, Box<EvalAltResult>> {
+            let recipients = array_to_strings(recipients)?;
+            encrypt::gpg_encrypt_bytes(&plaintext, &recipients, true)
+                .map_err(|e| err(e.to_string()))
+        },
+    );
+
+    // encrypt::pgp_decrypt(ciphertext) -> Blob
+    // Uses the user's gpg keyring. Passphrase-protected secret keys prompt
+    // via gpg's usual pinentry unless the agent has unlocked them.
+    let _ = module.set_native_fn(
+        "pgp_decrypt",
+        |ciphertext: Blob| -> Result<Blob, Box<EvalAltResult>> {
+            encrypt::gpg_decrypt_bytes(&ciphertext, None)
+                .map_err(|e| err(e.to_string()))
+        },
+    );
+
+    // encrypt::detect_backend(recipient) -> "age" | "pgp"
+    // Mirrors the CLI's auto-detection logic. Useful for scripts that
+    // want to branch before calling encrypt::* vs encrypt::pgp_*.
+    let _ = module.set_native_fn(
+        "detect_backend",
+        |recipient: &str| -> Result<String, Box<EvalAltResult>> {
+            let t = recipient.trim();
+            let backend =
+                if t.starts_with("age1") || std::path::Path::new(t).exists() {
+                    "age"
+                } else {
+                    "pgp"
+                };
+            Ok(backend.to_string())
+        },
+    );
+
     engine.register_static_module("encrypt", module.into());
+}
+
+fn rekey_age(
+    ciphertext: &[u8],
+    old_identities: Array,
+    new_recipients: Array,
+    armor: bool,
+) -> Result<Blob, Box<EvalAltResult>> {
+    let id_paths: Vec<PathBuf> = array_to_strings(old_identities)?
+        .into_iter()
+        .map(PathBuf::from)
+        .collect();
+    let recipients = array_to_strings(new_recipients)?;
+    if recipients.is_empty() {
+        return Err(err("encrypt::rekey: new_recipients must not be empty"));
+    }
+    let plaintext = encrypt::decrypt_bytes_age(ciphertext, &id_paths, None)
+        .map_err(|e| err(format!("encrypt::rekey decrypt: {e}")))?;
+    encrypt::encrypt_bytes_recipients(&plaintext, &recipients, armor)
+        .map_err(|e| err(format!("encrypt::rekey encrypt: {e}")))
 }
 
 fn array_to_strings(arr: Array) -> Result<Vec<String>, Box<EvalAltResult>> {
@@ -136,5 +222,49 @@ back == "the quick brown fox".to_blob()
         let res: Result<Blob, _> =
             e.eval(r#"encrypt::encrypt("x".to_blob(), [])"#);
         assert!(res.is_err());
+    }
+
+    #[test]
+    fn rekey_age_round_trip() {
+        let e = engine();
+        // Generate two independent keypairs.
+        let k1: Map = e.eval("encrypt::keygen()").unwrap();
+        let k2: Map = e.eval("encrypt::keygen()").unwrap();
+        let pub1 = k1.get("public").unwrap().clone().into_string().unwrap();
+        let priv1 = k1.get("private").unwrap().clone().into_string().unwrap();
+        let pub2 = k2.get("public").unwrap().clone().into_string().unwrap();
+        let priv2 = k2.get("private").unwrap().clone().into_string().unwrap();
+
+        let id1 = NamedTempFile::new().unwrap();
+        std::fs::write(id1.path(), format!("{priv1}\n")).unwrap();
+        let id2 = NamedTempFile::new().unwrap();
+        std::fs::write(id2.path(), format!("{priv2}\n")).unwrap();
+
+        let script = format!(
+            r#"
+let plain = "rotate this".to_blob();
+let c1 = encrypt::encrypt(plain, ["{pub1}"]);
+let c2 = encrypt::rekey(c1, ["{id1}"], ["{pub2}"]);
+let back = encrypt::decrypt(c2, ["{id2}"]);
+back == "rotate this".to_blob()
+"#,
+            pub1 = pub1,
+            pub2 = pub2,
+            id1 = id1.path().display(),
+            id2 = id2.path().display(),
+        );
+        let ok: bool = e.eval(&script).expect("eval");
+        assert!(ok);
+    }
+
+    #[test]
+    fn detect_backend_classifies() {
+        let e = engine();
+        let s1: String = e.eval(r#"encrypt::detect_backend("age1abcdef")"#).unwrap();
+        assert_eq!(s1, "age");
+        let s2: String = e.eval(r#"encrypt::detect_backend("0xDEADBEEF")"#).unwrap();
+        assert_eq!(s2, "pgp");
+        let s3: String = e.eval(r#"encrypt::detect_backend("alice@example.com")"#).unwrap();
+        assert_eq!(s3, "pgp");
     }
 }

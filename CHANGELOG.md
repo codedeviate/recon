@@ -8,6 +8,23 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.46.1] - 2026-04-23
+
+### Added
+
+Catch-up patch closing the script-binding gap from 0.46.0 and bringing 0.45.0 / 0.46.0 script examples in line with the shipped features.
+
+- **`encrypt::rekey(blob, old_identity_paths, new_recipients [, armor])`** script binding. Decrypts age-format input with the old identities, re-encrypts to the new recipient set. Armor is optional (default binary).
+- **`encrypt::pgp_encrypt(blob, recipients)`** + **`encrypt::pgp_encrypt_armored(...)`** + **`encrypt::pgp_decrypt(blob)`** script bindings. Shell out to the system `gpg` binary, same as the CLI path.
+- **`encrypt::detect_backend(recipient)`** — returns `"age"` or `"pgp"` using the same heuristic as the CLI auto-detection. Handy for scripts that accept recipients as user input and need to branch.
+- **`script/encrypt.rhai`** rewritten to exercise keygen, in-memory encrypt / armored encrypt, rekey round-trip, and backend dispatch.
+- **`script/mqtt.rhai`** extended to publish with MQTT-5 `user_properties` + `content_type` via the opts map (demonstrates the 0.45.0 work from the script side).
+
+### Changed
+
+- **`CLAUDE.md`** gains an "Exposure policy — every feature must reach every surface" section. Every new flag / function / protocol probe / script binding must land in all four surfaces in the same release: `recon --help <topic>`, `recon --examples`, the Rhai script engine, and the documentation trio (CHANGELOG / HISTORY / OUT-OF-SCOPE + `script/*.rhai` examples where applicable).
+- `TOPIC_SCRIPT` gains FlagHelp entries for the four new `encrypt::*` functions.
+
 ## [0.46.0] - 2026-04-23
 
 ### Added
