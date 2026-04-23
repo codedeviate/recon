@@ -58,6 +58,11 @@ Tracked alongside `docs/curl-parity-matrix.md` for day-to-day user reference.
 - **alt-svc** — RFC 7838 Alt-Svc header cache. `reqwest` has zero primitives; hand-rolling a spec-compliant cache + file persistence is ~300 lines. Low practical value for a one-shot CLI (the cache would be populated and discarded on every run). Revisit if IPv6+HTTP/3-adoption changes the calculus.
 - **MultiSSL** — curl can ship with multiple TLS backends (OpenSSL + Schannel + NSS + …). Rust binaries pick one; recon picks rustls. Not a coverage gap; architectural mismatch.
 
+### Script engine — deferred
+
+- **ICMP raw-socket send/recv primitives** — `ping()` already covers reachability checks; arbitrary ICMP type/code send + recv is niche. Requires raw sockets (`CAP_NET_RAW` on Linux, root on macOS for non-DGRAM types). Revisit when users ask for specific traffic-generation or monitoring use cases.
+- **CLI server flags** (`recon --listen 0.0.0.0:8080`) — server workflows are always multi-step (accept → per-conn handler); scripts are the right layer. Quick HTTP serving is covered by the pre-built `recon --serve`.
+
 ### UX niggles
 
 - **`--editor` value grabbing** — clap's `num_args = 0..=1` greedily consumes the next token, so `recon --editor https://url` treats the URL as the editor value. Documented workaround (`--editor=value`, or `--url` first); could be fixed with a smarter arg parser.

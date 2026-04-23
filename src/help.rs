@@ -1193,6 +1193,43 @@ static TOPIC_SCRIPT: Topic = Topic {
     ],
 };
 
+static TOPIC_SCRIPT_SERVER: Topic = Topic {
+    title: "Script network servers (TCP / UDP)",
+    description: "Bind and accept from inside a Rhai script. Designed\n\
+                  to pair with 0.56.0's `thread_spawn` — accept on the\n\
+                  main thread, spawn a handler per connection.\n\
+                  \n\
+                  Deliberately NOT exposed as CLI flags — server\n\
+                  workflows are always multi-step (accept → per-conn\n\
+                  logic) which is what scripts are for. For quick\n\
+                  HTTP serving use `recon --serve`.\n\
+                  \n\
+                  ICMP raw-socket primitives are deferred in 0.57.0.\n\
+                  For pinging, use the existing `ping()` script\n\
+                  binding.",
+    flags: &[
+        FlagHelp { flags: "tcp_listen(addr)", description: "Bind a TCP listener. `addr` like \"0.0.0.0:8080\" or \"[::]:8080\"." },
+        FlagHelp { flags: "tcp_accept(listener)", description: "Blocking accept. Returns a TcpConn." },
+        FlagHelp { flags: "tcp_accept(listener, timeout_ms)", description: "Accept with timeout; raises an error on timeout." },
+        FlagHelp { flags: "tcp_read(conn, n, timeout_ms)", description: "Read up to N bytes; returns a Blob." },
+        FlagHelp { flags: "tcp_read_line(conn, timeout_ms)", description: "Read one \\n-terminated line; trailing CR/LF stripped." },
+        FlagHelp { flags: "tcp_write(conn, blob|str)", description: "Write all bytes / the full string. Returns bytes written." },
+        FlagHelp { flags: "tcp_peer_addr(conn)", description: "The remote peer's SocketAddr as a string." },
+        FlagHelp { flags: "tcp_close(conn)", description: "Close the connection." },
+        FlagHelp { flags: "tcp_close_listener(l)", description: "Close the listener; any in-flight accept() will error." },
+        FlagHelp { flags: "udp_bind(addr)", description: "Bind a UDP socket." },
+        FlagHelp { flags: "udp_recv_from(sock, max_len, [timeout_ms])", description: "Returns #{ data: Blob, addr: string }." },
+        FlagHelp { flags: "udp_send_to(sock, blob|str, addr)", description: "Returns bytes sent." },
+        FlagHelp { flags: "udp_close(sock)", description: "Release the socket." },
+    ],
+    related: &["script", "threads", "serve"],
+    examples: &[
+        ExampleHelp { description: "Run the shipped tcp echo server", command: "recon --script script/tcp-echo.rhai 127.0.0.1:9000" },
+        ExampleHelp { description: "Run the shipped udp listener", command: "recon --script script/udp-listen.rhai 127.0.0.1:9001" },
+        ExampleHelp { description: "Test the echo server", command: "printf 'hello\\n' | nc -w1 127.0.0.1 9000" },
+    ],
+};
+
 static TOPIC_SCRIPT_THREADS: Topic = Topic {
     title: "Script threading (spawn / channels / join)",
     description: "Fan-out concurrency inside a Rhai script. Backed by\n\
@@ -2011,6 +2048,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "compare" | "diff" => Some(&TOPIC_COMPARE),
         "decode" | "scan" | "barcode-scan" | "decode-image" => Some(&TOPIC_DECODE),
         "threads" | "spawn" | "concurrency" | "thread" => Some(&TOPIC_SCRIPT_THREADS),
+        "script-server" | "tcp-server" | "udp-server" | "listen" => Some(&TOPIC_SCRIPT_SERVER),
         "client-cert" | "mtls" | "client-certificate" => Some(&TOPIC_CLIENT_CERT),
         "archive" | "zip" | "tar" | "extract" => Some(&TOPIC_ARCHIVE),
         _ => None,
@@ -2102,6 +2140,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "client-cert",
         "decode",
         "threads",
+        "script-server",
     ]
 }
 

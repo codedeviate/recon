@@ -52,6 +52,22 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 59. Script TCP + UDP server primitives (0.57.0)
+
+Closes out the queued wishlist arc started back in the serialized-foraging-sutherland plan. TCP listen + accept + read + write, UDP bind + recv_from + send_to. Accept-with-timeout on the TCP side lets the main loop poll for shutdown between connections.
+
+**Handle types wrap `Arc<Mutex<Option<T>>>`.** The `Option<T>` is there so `*_close` can drop the underlying socket without dropping the handle (scripts can still hold references). `Arc<Mutex<>>` gives us Send+Sync for the 0.56.0 `thread_spawn` pairing — accept on main, spawn a closure per connection. This is the primary use case for these bindings.
+
+**Accept with timeout — set_nonblocking + spin.** `std::net::TcpListener` has no `accept_with_timeout`. For the timeout form we flip to non-blocking, poll with 20ms sleeps until either the accept succeeds or the deadline passes, then flip back to blocking for subsequent reads. ~80 LOC in `src/script/bindings/tcp_server.rs`. Clean, no tokio, no external crates.
+
+**`tcp_read_line` vs `tcp_read(n)`.** Both supported. `read_line` is the common case for text protocols (SMTP lines, HTTP request lines, custom line-based IPC). `tcp_read(n, timeout_ms)` gives byte-precise control for binary protocols or peek-ahead patterns.
+
+**ICMP deferred.** Originally planned for 0.57.0; pulled out to keep scope tight. recon already has `ping()` (ICMP + TCP ping modes) for basic reachability. Raw-socket send/recv for arbitrary ICMP types is niche; can land as 0.58.x or later if asked.
+
+**No CLI flag surface.** The plan called this out explicitly — server workflows are multi-step and belong in scripts, not single-shot CLI invocations. `recon --serve` already covers quick HTTP serving. The new script bindings are purely additive.
+
+**Tests added: +3.** listen + close round-trip, accept_timeout errors cleanly, UDP bind+close round-trip. 1130 → 1133 passing.
+
 ### 58. Script concurrency primitives — thread_spawn / channels / join (0.56.0)
 
 Long-queued from the wishlist plan. The user wanted fork/thread/concurrency primitives "not only for servers" — this release lands the general-purpose surface so 0.57.0's TCP/UDP/ICMP server bindings can accept multiple connections concurrently.

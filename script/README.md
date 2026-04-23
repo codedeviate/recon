@@ -101,6 +101,8 @@ surprise failures.
 | Script | What it does |
 |---|---|
 | `thread.rhai` | Spawn workers, collect via channel, demo bounded channels |
+| `tcp-echo.rhai` | Concurrent TCP echo server (accept → thread_spawn per conn) |
+| `udp-listen.rhai` | UDP beacon listener that prints each datagram |
 
 ### Data primitives
 

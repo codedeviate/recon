@@ -979,6 +979,20 @@ recon --rekey \
         "recon gophers://secure-gopher.example/",
     ]);
 
+    section("SCRIPT TCP / UDP SERVERS (0.57.0)");
+
+    example("Run the shipped tcp echo server", &[
+        "recon --script script/tcp-echo.rhai 127.0.0.1:9000",
+        "printf 'hello\\n' | nc -w1 127.0.0.1 9000   # in another shell",
+    ]);
+
+    example("Run the shipped udp listener", &[
+        "recon --script script/udp-listen.rhai 127.0.0.1:9001",
+        "echo 'beacon' | nc -u -w1 127.0.0.1 9001   # in another shell",
+    ]);
+
+    note("Server bindings are script-only (no CLI flag surface). Pair with thread_spawn (0.56.0): accept on the main thread, hand each connection off to a spawned closure. tcp_accept + udp_recv_from both have timeout variants so the main loop can poll for shutdown signals. ICMP raw-socket primitives are deferred — use the existing ping() binding for basic reachability checks.");
+
     section("SCRIPT THREADING (0.56.0)");
 
     example("Spawn, channel, join", &[

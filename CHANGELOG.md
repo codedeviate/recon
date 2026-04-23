@@ -8,6 +8,35 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.57.0] - 2026-04-24
+
+### Added
+
+Script-side TCP + UDP server primitives. Pairs with 0.56.0's
+thread_spawn so scripts can accept on the main thread and hand each
+connection to a worker — the classic concurrent server shape.
+
+- **TCP**: `tcp_listen`, `tcp_accept(listener [, timeout_ms])`,
+  `tcp_read(conn, n, timeout_ms)`, `tcp_read_line(conn, timeout_ms)`,
+  `tcp_write(conn, blob|str)`, `tcp_peer_addr(conn)`, `tcp_close(conn)`,
+  `tcp_close_listener(l)`.
+- **UDP**: `udp_bind(addr)`, `udp_recv_from(sock, max_len [, timeout_ms])`,
+  `udp_send_to(sock, blob|str, addr)`, `udp_close(sock)`.
+- **New script examples**: `script/tcp-echo.rhai` (concurrent echo
+  server), `script/udp-listen.rhai` (UDP beacon listener).
+- **`recon --version` Features token**: `script-servers`.
+
+### Deferred
+
+- **ICMP raw-socket primitives** — recon already has `ping()` for
+  reachability checks; full ICMP type/code send/recv would add raw
+  sockets + kernel permission handling. Documented in
+  `OUT-OF-SCOPE.md`; revisit when users ask for specific traffic-
+  generation or monitoring use cases.
+- **CLI server flags** (`recon --listen …`) — deliberately not added.
+  Server workflows are multi-step; scripts are the right layer. Use
+  `recon --serve` for the pre-built HTTP server.
+
 ## [0.56.0] - 2026-04-24
 
 ### Added
