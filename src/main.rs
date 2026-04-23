@@ -46,6 +46,8 @@ mod ssh;
 mod ssh_auth;
 mod ftp_probe;
 mod gopher_probe;
+mod imap_probe;
+mod pop3_probe;
 mod sftp_probe;
 mod smtp_probe;
 mod tcp_probe;
@@ -704,6 +706,27 @@ fn main() {
         || args.target_url().starts_with("gophers://")
     {
         gopher_probe::run(args.target_url(), args.timeout, args.insecure)
+    } else if args.target_url().starts_with("pop3://")
+        || args.target_url().starts_with("pop3s://")
+    {
+        let pargs = pop3_probe::Pop3Args {
+            user: args.user.as_deref().and_then(|s| s.split_once(':').map(|(u, _)| u)),
+            pass: args.user.as_deref().and_then(|s| s.split_once(':').map(|(_, p)| p)),
+            stls: args.stls,
+            insecure: args.insecure,
+            timeout_secs: args.timeout,
+        };
+        pop3_probe::run(args.target_url(), &pargs)
+    } else if args.target_url().starts_with("imap://")
+        || args.target_url().starts_with("imaps://")
+    {
+        let iargs = imap_probe::ImapArgs {
+            user: args.user.as_deref().and_then(|s| s.split_once(':').map(|(u, _)| u)),
+            pass: args.user.as_deref().and_then(|s| s.split_once(':').map(|(_, p)| p)),
+            insecure: args.insecure,
+            peek: args.imap_peek,
+        };
+        imap_probe::run(args.target_url(), &iargs)
     } else if args.target_url().starts_with("scp://") {
         scp::download(args.target_url(), &args)
     } else if args.target_url().starts_with("ssh://") {

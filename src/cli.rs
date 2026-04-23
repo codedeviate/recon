@@ -792,6 +792,18 @@ pub struct Args {
     #[arg(long = "tftp-blksize", value_name = "N", help_heading = "File Transfer")]
     pub tftp_blksize: Option<usize>,
 
+    // ── Mail Retrieval ───────────────────────────────────────────────────────
+
+    /// POP3: upgrade to TLS via the STLS command after CAPA. Mirrors
+    /// SMTP's STARTTLS. Ignored on pop3s:// (already implicit-TLS).
+    #[arg(long = "stls", help_heading = "Mail Retrieval")]
+    pub stls: bool,
+
+    /// IMAP: use BODY.PEEK[] when fetching a message so the server
+    /// doesn't flip the \Seen flag. Matches curl's IMAP default.
+    #[arg(long = "imap-peek", help_heading = "Mail Retrieval")]
+    pub imap_peek: bool,
+
     // ── SMTP ─────────────────────────────────────────────────────────────────
 
     /// Envelope sender (`MAIL FROM:<…>`). Required for send mode; omit

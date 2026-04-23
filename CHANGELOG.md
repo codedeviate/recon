@@ -8,6 +8,29 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.48.0] - 2026-04-23
+
+### Added
+
+Two new URL-scheme probes covering the mail-retrieval protocols deferred at 0.47.0:
+
+- **`pop3://` / `pop3s://`** — hand-rolled over TCP + rustls (mirroring the SMTP probe pattern). URL path grammar matches curl: empty path runs a capability-only probe (CAPA + STAT when authed); numeric path N retrieves message N (RETR). `--stls` upgrades a `pop3://` connection to TLS via the STLS command after CAPA.
+- **`imap://` / `imaps://`** — uses the `imap = "3.0.0-alpha.15"` crate. Path grammar matches curl: empty path → CAPABILITY + LIST; `/MAILBOX` → EXAMINE that mailbox + report EXISTS/RECENT; `/MAILBOX;UID=N` → FETCH UID N body. `--imap-peek` uses `BODY.PEEK[]` so the server doesn't flip the `\Seen` flag.
+- **Script bindings**: `pop3(url [, opts])` and `imap(url [, opts])`. Each returns a Map with the same shape as the CLI output.
+- **New CLI flags** (help_heading = "Mail Retrieval"): `--stls`, `--imap-peek`.
+- **Help**: `recon --help pop3`, `--help imap`. Added to `topic_keys()` and TOPIC_PROTOCOLS.
+- **`recon --examples`**: new `MAIL RETRIEVAL (0.48.0)` section with 6 blocks.
+- **Example scripts**: `script/pop3.rhai`, `script/imap.rhai` under a new "Mail retrieval" category in `script/README.md`.
+
+### Changed
+
+- `Cargo.toml` adds `imap = "3.0.0-alpha.15"` with `rustls-tls` feature. Version 0.47.0 → 0.48.0.
+- `src/main.rs` URL dispatch gains 4 new branches (`pop3://`, `pop3s://`, `imap://`, `imaps://`).
+
+### Known limitations
+
+- IMAP `--insecure` (skip TLS verification) is not wired through the imap 3 alpha's ClientBuilder in this release; tracked as a follow-up when a custom-verifier hook lands upstream.
+
 ## [0.47.0] - 2026-04-23
 
 ### Added

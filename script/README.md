@@ -52,6 +52,13 @@ surprise failures.
 | `tftp.rhai` | RFC 1350 UDP download (with optional block-size negotiation) |
 | `gopher.rhai` | RFC 1436 selector fetch |
 
+### Mail retrieval
+
+| Script | What it does |
+|---|---|
+| `pop3.rhai` | POP3 capability probe + optional RETR |
+| `imap.rhai` | IMAP capability probe + EXAMINE / FETCH |
+
 ### Sessions (scriptable `browser()`)
 
 | Script | What it does |

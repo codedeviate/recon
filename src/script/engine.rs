@@ -69,6 +69,7 @@ pub fn build_engine(defaults: &ScriptDefaults) -> rhai::Engine {
     super::bindings::encode::register(&mut engine);
     super::bindings::encrypt::register(&mut engine);
     super::bindings::helpers::register(&mut engine);
+    super::bindings::imap::register(&mut engine, defaults.clone());
     super::bindings::jwt::register(&mut engine);
     super::bindings::netstatus::register(&mut engine);
     super::bindings::sample::register(&mut engine);
@@ -84,6 +85,7 @@ pub fn build_engine(defaults: &ScriptDefaults) -> rhai::Engine {
     super::bindings::mqtt::register(&mut engine, defaults.clone());
     super::bindings::ntp::register(&mut engine, defaults.clone());
     super::bindings::ping::register(&mut engine, defaults.clone());
+    super::bindings::pop3::register(&mut engine, defaults.clone());
     super::bindings::redis::register(&mut engine, defaults.clone());
     super::bindings::rtsp::register(&mut engine, defaults.clone());
     super::bindings::sftp::register(&mut engine, defaults.clone());

@@ -979,6 +979,35 @@ recon --rekey \
         "recon gophers://secure-gopher.example/",
     ]);
 
+    section("MAIL RETRIEVAL (0.48.0)");
+
+    example("POP3 capability probe (no auth)", &[
+        "recon pop3s://pop.gmail.com/",
+        "recon pop3s://pop.example.com/ -v",
+    ]);
+
+    example("POP3 auth + mailbox stats", &[
+        "recon pop3s://me%40gmail.com:apppass@pop.gmail.com/",
+    ]);
+
+    example("POP3 retrieve message 3", &[
+        "recon pop3s://me:pass@mail.example.com/3",
+    ]);
+
+    example("POP3 with STARTTLS (STLS command)", &[
+        "recon pop3://me:pass@mail.example.com/ --stls",
+    ]);
+
+    example("IMAP capability probe", &[
+        "recon imaps://imap.gmail.com/",
+    ]);
+
+    example("IMAP EXAMINE INBOX + fetch UID 42 (without \\Seen)", &[
+        "recon imaps://me:pass@imap.example.com/INBOX",
+        "recon imaps://me:pass@imap.example.com/INBOX;UID=42 --imap-peek",
+    ]);
+    note("Path grammar mirrors curl: empty path -> probe; mailbox -> EXAMINE; `;UID=N` suffix -> FETCH. --imap-peek uses BODY.PEEK[] so the server doesn't set \\Seen.");
+
     section("MQTT (0.22.0)");
 
     example("Probe a broker (default mode)", &[

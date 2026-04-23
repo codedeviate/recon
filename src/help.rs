@@ -1141,6 +1141,8 @@ static TOPIC_SCRIPT: Topic = Topic {
         FlagHelp { flags: "sftp(url) / sftp(url, opts)", description: "SSH-backed file transfer. See `recon --help sftp`." },
         FlagHelp { flags: "tftp(url) / tftp(url, opts)", description: "RFC 1350 UDP read. See `recon --help tftp`." },
         FlagHelp { flags: "gopher(url) / gopher(url, opts)", description: "Gopher selector fetch. See `recon --help gopher`." },
+        FlagHelp { flags: "pop3(url) / pop3(url, opts)", description: "POP3 probe / retrieve. See `recon --help pop3`." },
+        FlagHelp { flags: "imap(url) / imap(url, opts)", description: "IMAP probe / examine / fetch. See `recon --help imap`." },
         FlagHelp { flags: "file_read(path)", description: "Read local file (or file:// URL) as a Rhai Blob (Vec<u8>)." },
         FlagHelp { flags: "compression::compress(algo, blob [, level]) / decompress([algo,] blob)", description: "Stream-compress or decompress a Blob. Algorithms match --compress:\ngzip, deflate, zstd, brotli, bzip2, lz4, xz, snappy, zlib. Optional\nlevel is an integer or word (fastest/fast/default/good/best).\n`decompress(blob)` auto-detects from magic bytes. Errors on lz4/snappy\nwith a level, or on deflate/brotli blobs in auto-detect mode.\ncompression::list() enumerates every algo + aliases + level range." },
         FlagHelp { flags: "archive::create(dest, [sources]) / extract(src, dest_dir) / detect(path)", description: "Same formats as --archive / --extract (.zip, .tar, .tar.gz, .tar.xz,\n.tar.bz2). create returns file count; extract returns extracted\ncount and creates dest_dir if missing. detect(path) returns the\nformat name (\"zip\", \"tar.gz\", ...) or () when unrecognised." },
@@ -1187,6 +1189,63 @@ static TOPIC_SCRIPT: Topic = Topic {
         ExampleHelp { description: "Run a shipped example directly", command: "recon --script script/http.rhai https://example.com" },
         ExampleHelp { description: "Install every shipped example into ~/.recon/script/", command: "cp script/*.rhai ~/.recon/script/" },
         ExampleHelp { description: "Full API surface via the SCRIPTING example block", command: "recon --examples" },
+    ],
+};
+
+static TOPIC_POP3: Topic = Topic {
+    title: "POP3 / POP3S (mail retrieval)",
+    description: "Connect to a POP3 server, read capabilities, optionally\n\
+                  retrieve a specific message. URL path is the message\n\
+                  number (N) to RETR, or empty for a pure probe.\n\
+                  \n\
+                  pop3://   default port 110, plain.\n\
+                  pop3s://  default port 995, implicit TLS.\n\
+                  --stls    upgrade a pop3:// connection via the STLS\n\
+                            command after CAPA.",
+    flags: &[
+        FlagHelp { flags: "pop3://[user[:pass]@]host[:port]/", description: "Probe: CAPA + (with auth) STAT. Disconnect." },
+        FlagHelp { flags: "pop3://user:pass@host/N", description: "RETR message N. Requires auth via userinfo or -u." },
+        FlagHelp { flags: "pop3s://...", description: "Implicit TLS." },
+        FlagHelp { flags: "--stls", description: "Negotiate STLS after CAPA (pop3:// only). Mirrors SMTP STARTTLS." },
+        FlagHelp { flags: "-u, --user <USER:PASS>", description: "Auth source when URL has no userinfo." },
+        FlagHelp { flags: "-k, --insecure", description: "Skip TLS verification (pop3s:// and --stls)." },
+        FlagHelp { flags: "pop3(url) / pop3(url, opts)", description: "Script binding. opts: user, pass, stls, insecure,\ntimeout_ms. Returns #{host, port, tls, banner,\ncapabilities, message_count, total_bytes, message,\nconnect_ms}." },
+    ],
+    related: &["--stls", "-u", "-k", "protocols"],
+    examples: &[
+        ExampleHelp { description: "Capability probe (no auth)", command: "recon pop3s://pop.gmail.com/" },
+        ExampleHelp { description: "Auth + mailbox stats", command: "recon pop3s://me@gmail.com:apppass@pop.gmail.com/" },
+        ExampleHelp { description: "Retrieve message 3", command: "recon pop3s://me:pass@pop.example.com/3" },
+        ExampleHelp { description: "STARTTLS upgrade on plain pop3", command: "recon pop3://me:pass@mail.example.com/ --stls" },
+    ],
+};
+
+static TOPIC_IMAP: Topic = Topic {
+    title: "IMAP / IMAPS (mail retrieval)",
+    description: "Connect to an IMAP server, report capabilities,\n\
+                  optionally select a mailbox or fetch a message.\n\
+                  \n\
+                  URL path grammar (curl-compatible):\n\
+                    imap://host/                -> CAPABILITY + LIST\n\
+                    imap://host/INBOX           -> EXAMINE INBOX\n\
+                    imap://host/INBOX;UID=N     -> FETCH UID N body\n\
+                  \n\
+                  imap://   default port 143; STARTTLS negotiated when\n\
+                            the server advertises it.\n\
+                  imaps://  default port 993, implicit TLS.",
+    flags: &[
+        FlagHelp { flags: "imap://[user[:pass]@]host[:port]/[MAILBOX[;UID=N]]", description: "Probe / select / fetch based on the path." },
+        FlagHelp { flags: "imaps://...", description: "Implicit TLS." },
+        FlagHelp { flags: "--imap-peek", description: "Use BODY.PEEK[] when fetching so the server doesn't mark\nthe message \\Seen." },
+        FlagHelp { flags: "-u, --user <USER:PASS>", description: "Auth source when URL has no userinfo." },
+        FlagHelp { flags: "imap(url) / imap(url, opts)", description: "Script binding. opts: user, pass, insecure, peek.\nReturns #{host, port, tls, capabilities, mailbox?,\nexists?, recent?, mailboxes?, uid?, body?}." },
+    ],
+    related: &["--imap-peek", "protocols"],
+    examples: &[
+        ExampleHelp { description: "Capability probe (no auth)", command: "recon imaps://imap.gmail.com/" },
+        ExampleHelp { description: "List mailboxes", command: "recon imaps://me%40gmail.com:apppass@imap.gmail.com/" },
+        ExampleHelp { description: "EXAMINE INBOX", command: "recon imaps://me:pass@imap.example.com/INBOX" },
+        ExampleHelp { description: "Fetch UID 42 without marking \\Seen", command: "recon imaps://me:pass@imap.example.com/INBOX;UID=42 --imap-peek" },
     ],
 };
 
@@ -1585,6 +1644,11 @@ static TOPIC_PROTOCOLS: Topic = Topic {
         FlagHelp { flags: "gopher://HOST[:PORT]/[TYPE]/selector", description: "Gopher selector fetch (RFC 1436). Default port 70." },
         FlagHelp { flags: "gophers://...", description: "Gopher over TLS." },
 
+        FlagHelp { flags: "pop3://[user[:pass]@]HOST[:PORT]/[N]", description: "POP3 probe / retrieve. Empty path -> CAPA + STAT;\nnumeric path -> RETR. See `recon --help pop3`." },
+        FlagHelp { flags: "pop3s://...", description: "Implicit-TLS POP3. Default port 995." },
+        FlagHelp { flags: "imap://[user[:pass]@]HOST[:PORT]/[MAILBOX[;UID=N]]", description: "IMAP probe / examine / fetch. See `recon --help imap`." },
+        FlagHelp { flags: "imaps://...", description: "Implicit-TLS IMAP. Default port 993." },
+
         FlagHelp { flags: "--wait-time <SECS>", description: "(udp:// only) Seconds to wait for a response datagram after\nsending. Accepts fractional values. Default: 1.0." },
         FlagHelp { flags: "--connect-timeout <SECS>", description: "Socket connect / response deadline for tcp, udp, ntp, tls,\ndict, redis, memcached, ws, wss, rtsp, rtsps probes." },
         FlagHelp { flags: "-k, --insecure", description: "Skip TLS certificate verification for wss://, ldaps://, rtsps://,\nmqtts://, and https:// connections." },
@@ -1652,6 +1716,8 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "sftp" => Some(&TOPIC_SFTP),
         "tftp" => Some(&TOPIC_TFTP),
         "gopher" | "gophers" => Some(&TOPIC_GOPHER),
+        "pop3" | "pop3s" => Some(&TOPIC_POP3),
+        "imap" | "imaps" => Some(&TOPIC_IMAP),
         "archive" | "zip" | "tar" | "extract" => Some(&TOPIC_ARCHIVE),
         _ => None,
     }
@@ -1732,6 +1798,8 @@ pub fn topic_keys() -> Vec<&'static str> {
         "sftp",
         "tftp",
         "gopher",
+        "pop3",
+        "imap",
     ]
 }
 

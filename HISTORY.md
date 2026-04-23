@@ -52,6 +52,23 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 50. Mail retrieval — POP3/POP3S + IMAP/IMAPS (0.48.0)
+
+Second of three planned protocol-coverage releases. Text-protocol POP3 is hand-rolled mirroring SMTP; IMAP's LITERAL + FETCH parsing is complex enough to justify a crate dependency.
+
+**POP3 hand-roll.** ~400 lines. Three session variants (plain, implicit TLS via pop3s://, STARTTLS upgrade via `--stls`) share read_line / capability-fetch / auth / retrieve helpers but have to be split at the TLS boundary because the `BufReader<TcpStream>` vs. `rustls::StreamOwned<_>` types are different and the `Read + Write` trait object would need more setup than the duplication saves. The plain session and the TLS session have parallel implementations — ~30 lines of duplication for a clean borrow story.
+
+**IMAP via `imap = "3.0.0-alpha.15"`.** The stable 2.x releases don't carry the `rustls-tls` feature; 3.x is still alpha but has `ClientBuilder::mode(ConnectionMode::{Tls, StartTls, Plaintext})` which cleanly covers `imap://` + `imaps://`. `Client::capabilities()` + `Client::login()` → `Session`; from there `examine()` / `uid_fetch()` do the heavy lifting.
+
+**URL path grammar.** Both probes match curl's convention: empty path = probe, non-empty = target. POP3 uses the path as a message number (RETR N). IMAP uses it as a mailbox name optionally followed by `;UID=N` for a fetch. Parse the URL once, dispatch to the right action inside the session.
+
+**Gotchas.**
+1. imap 3-alpha's `ClientBuilder` has no TLS-verifier override hook — `--insecure` is accepted at the CLI but not plumbed through for IMAP. Documented as a known limitation in CHANGELOG; tracked for a follow-up when the upstream API exposes it. POP3's hand-rolled TLS respects `--insecure` normally.
+2. imap 2.x has a `rustls-tls` feature that was removed by 3.x alpha (which uses `rustls-connector` unconditionally). Picked 3.x despite the alpha tag because 2.x's TLS story is worse.
+3. `Client::logout()` only exists on `Session` (authenticated). Unauthenticated probe path drops the `Client` to close; no explicit LOGOUT is needed before the underlying socket closes.
+
+**Tests added: +10.** 1056 → 1066 passing. URL parsing (mailbox vs. UID vs. probe for IMAP; message number vs. probe for POP3), STAT parsing, URL credential extraction. Smoke-tested against `pop.gmail.com:995` and `imap.gmail.com:993` — both return capability lists as expected.
+
 ### 49. File-transfer protocol family — FTP/FTPS, SFTP, TFTP, Gopher (0.47.0)
 
 First of three planned releases expanding recon's protocol surface toward curl's coverage. Four URL schemes landed together because they share testing scaffolding and docs structure even though the underlying code paths are wildly different (suppaftp crate for FTP, ssh2 for SFTP, hand-rolled UDP for TFTP, hand-rolled TCP for Gopher).
