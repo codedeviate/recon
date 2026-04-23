@@ -8,6 +8,15 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.52.1] - 2026-04-23
+
+### Fixed
+
+- `recon --version` Features list now includes the always-on and shipped
+  curl-parity tokens that were missing from the banner: `AsynchDNS`,
+  `HSTS`, `Largefile`, `libz`, `threadsafe`, `UnixSockets`. Banner-only
+  change — capabilities were already present, just not advertised.
+
 ## [0.52.0] - 2026-04-23
 
 ### Added

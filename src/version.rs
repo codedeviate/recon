@@ -32,6 +32,7 @@ const PROTOCOLS: &[&str] = &[
 const FEATURES: &[&str] = &[
     "age-encrypt",
     "archive",
+    "AsynchDNS",
     "browser",
     "brotli",
     "charset",
@@ -43,11 +44,14 @@ const FEATURES: &[&str] = &[
     "gzip",
     "deflate",
     "hashes",
+    "HSTS",
     "HTTP2",
     "HTTPS",
     "HTTPS-proxy",
     "IPv6",
     "JWT",
+    "Largefile",
+    "libz",
     "MQTT5",
     "netstatus",
     "PGP-shellout",
@@ -56,6 +60,8 @@ const FEATURES: &[&str] = &[
     "sqlite",
     "SSL",
     "rustls-tls",
+    "threadsafe",
+    "UnixSockets",
     "zstd",
 ];
 
