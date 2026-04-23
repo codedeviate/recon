@@ -8,6 +8,18 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.58.1] - 2026-04-24
+
+### Changed
+
+- Reorganized `OUT-OF-SCOPE.md` into four explicit buckets by reason:
+  **Waiting** (can be done, not asked), **Deferred** (possible but
+  put off), **Not yet supported** (blocked on upstream), **Out of
+  scope** (architecturally / policy-declined). No content removed;
+  entries reshuffled to the most honest bucket. Process notes at the
+  bottom spell out when entries can migrate between buckets as the
+  world changes.
+
 ## [0.58.0] - 2026-04-24
 
 ### Added
