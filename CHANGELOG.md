@@ -8,6 +8,47 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.56.0] - 2026-04-24
+
+### Added
+
+Script concurrency primitives. Scripts can now fan out work across OS
+threads, coordinate via MPSC channels, and gather results — opening
+the door to parallel probe suites, stream processing, and the 0.57.0
+script-server release.
+
+- **`thread_spawn(fn_ptr)`** — spawn a closure on a fresh OS thread.
+  Optional forms: `thread_spawn(fn, arg)`, `thread_spawn(fn, args_array)`.
+  Returns a `ThreadHandle`. `spawn` alone is reserved by Rhai.
+- **`join(handle)`** — block on the handle; returns the closure's
+  return value or raises the worker's error.
+- **`channel()`** — unbounded MPSC. Returns `[sender, receiver]`.
+- **`channel_bounded(n)`** — bounded MPSC with capacity `n`;
+  `try_send` returns false on full.
+- **`send(tx, val)` / `try_send(tx, val)` / `recv(rx)` /
+  `recv(rx, timeout_ms)` / `try_recv(rx)`** — channel ops.
+- **`tid()`** — current thread ID (stable within a run).
+- **`sleep(ms)`** — alias of `sleep_ms` for thread-side readability.
+- **`recon --version` Features token**: `script-concurrency`.
+
+### Changed
+
+- **`rhai` crate**: flipped on the `sync` feature. Makes the engine
+  Send+Sync at a small per-value locking overhead (~10-15% on hot
+  paths, irrelevant for diagnostic scripts).
+- **`BrowserHandle`** + **`SqliteHandle`**: swapped internal
+  `Rc<RefCell<…>>` state for `Arc<Mutex<…>>` so they survive the
+  thread-boundary crossing that the sync-feature unlocks.
+
+### Technical
+
+New `src/script/bindings/thread.rs` (~230 LOC). Spawn worker builds a
+fresh engine per thread (~ms) and re-registers threading primitives so
+nested `thread_spawn` calls work. Shares the compiled AST via
+`rhai::Shared<AST>` so workers dispatch the same program text. Parent's
+`ScriptDefaults` are Arc-shared to each worker, preserving CLI-flag
+inheritance across threads.
+
 ## [0.55.0] - 2026-04-24
 
 ### Added

@@ -26,17 +26,18 @@ use crate::script::bindings::http;
 use crate::script::convert::{anyhow_to_rhai, err, opts_get_str, to_string};
 use crate::script::defaults::ScriptDefaults;
 use rhai::{Array, Blob, Dynamic, Engine, EvalAltResult, Map};
-use std::cell::RefCell;
 use std::path::PathBuf;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use tempfile::NamedTempFile;
 
 /// Handle returned by `browser()`. Cheap to clone — interior state is
-/// shared via `Rc<RefCell<_>>`, matching the `SqliteHandle` pattern.
+/// shared via `Arc<Mutex<_>>`, matching the `SqliteHandle` pattern.
+/// Send+Sync so the handle survives rhai's sync-feature thread
+/// boundaries when scripts `spawn` new tasks.
 #[derive(Clone)]
 pub struct BrowserHandle {
-    state: Rc<RefCell<BrowserState>>,
+    state: Arc<Mutex<BrowserState>>,
 }
 
 struct BrowserState {
@@ -90,7 +91,7 @@ impl BrowserHandle {
     fn new(defaults: ScriptDefaults) -> Result<Self, Box<EvalAltResult>> {
         let tmp = new_temp_jar()?;
         Ok(BrowserHandle {
-            state: Rc::new(RefCell::new(BrowserState {
+            state: Arc::new(Mutex::new(BrowserState {
                 defaults,
                 user_agent: None,
                 extra_headers: Vec::new(),
@@ -108,7 +109,7 @@ impl BrowserHandle {
     /// Apply an initial-config map (passed to `browser(#{...})`).
     fn configure(self, init: &Map) -> Result<Self, Box<EvalAltResult>> {
         {
-            let mut s = self.state.borrow_mut();
+            let mut s = self.state.lock().unwrap();
             if let Some(ua) = opts_get_str(init, "user_agent") {
                 s.user_agent = Some(ua);
             }
@@ -170,16 +171,16 @@ pub fn register(engine: &mut Engine, defaults: ScriptDefaults) {
 
     // ── Configuration setters ─────────────────────────────────────────────
     engine.register_fn("set_user_agent", |h: &mut BrowserHandle, ua: &str| {
-        h.state.borrow_mut().user_agent = Some(ua.to_string());
+        h.state.lock().unwrap().user_agent = Some(ua.to_string());
     });
     engine.register_fn("set_header", |h: &mut BrowserHandle, name: &str, value: &str| {
-        let mut s = h.state.borrow_mut();
+        let mut s = h.state.lock().unwrap();
         // Case-insensitive replace; single-value semantics.
         s.extra_headers.retain(|(k, _)| !k.eq_ignore_ascii_case(name));
         s.extra_headers.push((name.to_string(), value.to_string()));
     });
     engine.register_fn("set_headers", |h: &mut BrowserHandle, headers: Map| {
-        let mut s = h.state.borrow_mut();
+        let mut s = h.state.lock().unwrap();
         for (k, v) in headers.iter() {
             let name = k.to_string();
             s.extra_headers.retain(|(kk, _)| !kk.eq_ignore_ascii_case(&name));
@@ -188,36 +189,36 @@ pub fn register(engine: &mut Engine, defaults: ScriptDefaults) {
     });
     engine.register_fn("remove_header", |h: &mut BrowserHandle, name: &str| {
         h.state
-            .borrow_mut()
+            .lock().unwrap()
             .extra_headers
             .retain(|(k, _)| !k.eq_ignore_ascii_case(name));
     });
     engine.register_fn("clear_headers", |h: &mut BrowserHandle| {
-        h.state.borrow_mut().extra_headers.clear();
+        h.state.lock().unwrap().extra_headers.clear();
     });
     engine.register_fn("set_timeout_ms", |h: &mut BrowserHandle, ms: i64| {
         if ms >= 0 {
-            h.state.borrow_mut().max_time = Some((ms as f64) / 1000.0);
+            h.state.lock().unwrap().max_time = Some((ms as f64) / 1000.0);
         }
     });
     engine.register_fn("set_connect_timeout", |h: &mut BrowserHandle, secs: i64| {
         if secs >= 0 {
-            h.state.borrow_mut().connect_timeout = Some(secs as u64);
+            h.state.lock().unwrap().connect_timeout = Some(secs as u64);
         }
     });
     engine.register_fn("set_insecure", |h: &mut BrowserHandle, v: bool| {
-        h.state.borrow_mut().insecure = Some(v);
+        h.state.lock().unwrap().insecure = Some(v);
     });
     engine.register_fn("follow_redirects", |h: &mut BrowserHandle, v: bool| {
-        h.state.borrow_mut().follow_redirects = Some(v);
+        h.state.lock().unwrap().follow_redirects = Some(v);
     });
     engine.register_fn("set_max_redirects", |h: &mut BrowserHandle, n: i64| {
         if n >= 0 {
-            h.state.borrow_mut().max_redirects = Some(n as usize);
+            h.state.lock().unwrap().max_redirects = Some(n as usize);
         }
     });
     engine.register_fn("set_basic_auth", |h: &mut BrowserHandle, user: &str, pass: &str| {
-        h.state.borrow_mut().basic_auth = Some(format!("{user}:{pass}"));
+        h.state.lock().unwrap().basic_auth = Some(format!("{user}:{pass}"));
     });
 
     // ── Session control ───────────────────────────────────────────────────
@@ -227,7 +228,7 @@ pub fn register(engine: &mut Engine, defaults: ScriptDefaults) {
             if name.is_empty() {
                 return Err(err("browser: use_persistent_session: name must not be empty"));
             }
-            let mut s = h.state.borrow_mut();
+            let mut s = h.state.lock().unwrap();
             s.jar = JarLocation::Named(name.to_string());
             Ok(())
         },
@@ -236,14 +237,14 @@ pub fn register(engine: &mut Engine, defaults: ScriptDefaults) {
         "use_ephemeral_session",
         |h: &mut BrowserHandle| -> Result<(), Box<EvalAltResult>> {
             let tmp = new_temp_jar()?;
-            h.state.borrow_mut().jar = JarLocation::Temp(tmp);
+            h.state.lock().unwrap().jar = JarLocation::Temp(tmp);
             Ok(())
         },
     );
     engine.register_fn(
         "session_name",
         |h: &mut BrowserHandle| -> Dynamic {
-            match h.state.borrow().jar.name() {
+            match h.state.lock().unwrap().jar.name() {
                 Some(n) => n.into(),
                 None => Dynamic::UNIT,
             }
@@ -252,7 +253,7 @@ pub fn register(engine: &mut Engine, defaults: ScriptDefaults) {
     engine.register_fn(
         "clear_cookies",
         |h: &mut BrowserHandle| -> Result<(), Box<EvalAltResult>> {
-            let path = h.state.borrow().jar.path();
+            let path = h.state.lock().unwrap().jar.path();
             if !path.exists() || std::fs::metadata(&path).map(|m| m.len() == 0).unwrap_or(true) {
                 return Ok(());
             }
@@ -265,7 +266,7 @@ pub fn register(engine: &mut Engine, defaults: ScriptDefaults) {
     engine.register_fn(
         "cookies",
         |h: &mut BrowserHandle| -> Result<Array, Box<EvalAltResult>> {
-            let path = h.state.borrow().jar.path();
+            let path = h.state.lock().unwrap().jar.path();
             if !path.exists() || std::fs::metadata(&path).map(|m| m.len() == 0).unwrap_or(true) {
                 return Ok(Array::new());
             }
@@ -424,7 +425,7 @@ fn do_request(
     opts: Option<&Map>,
 ) -> Result<Map, Box<EvalAltResult>> {
     let (mut args, jar_path) = {
-        let state = h.state.borrow();
+        let state = h.state.lock().unwrap();
         let mut args = http::build_args(url, &state.defaults, opts).map_err(anyhow_to_rhai)?;
 
         // Overlay browser-level config above CLI defaults, below per-call opts

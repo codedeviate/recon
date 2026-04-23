@@ -1193,6 +1193,44 @@ static TOPIC_SCRIPT: Topic = Topic {
     ],
 };
 
+static TOPIC_SCRIPT_THREADS: Topic = Topic {
+    title: "Script threading (spawn / channels / join)",
+    description: "Fan-out concurrency inside a Rhai script. Backed by\n\
+                  rhai's `sync` feature (enabled in 0.56.0), which\n\
+                  makes the engine Send+Sync at a small per-value\n\
+                  locking cost.\n\
+                  \n\
+                  Each spawned closure runs on a fresh OS thread with\n\
+                  its own engine. The spawning engine shares its\n\
+                  compiled AST + ScriptDefaults with the worker, so\n\
+                  bindings like `http()` see the same CLI-flag\n\
+                  inheritance chain.\n\
+                  \n\
+                  Channels are MPSC (multi-producer, single-consumer).\n\
+                  Clone the sender to fan out; share the receiver via\n\
+                  the same channel() call site.",
+    flags: &[
+        FlagHelp { flags: "thread_spawn(fn_ptr)", description: "Spawn a closure. Returns a ThreadHandle. `spawn` alone is reserved\nin rhai; use `thread_spawn`." },
+        FlagHelp { flags: "thread_spawn(fn_ptr, arg)", description: "Spawn with one argument forwarded to the closure." },
+        FlagHelp { flags: "thread_spawn(fn_ptr, args_array)", description: "Spawn with N arguments forwarded in order." },
+        FlagHelp { flags: "join(h)", description: "Block until the handle's thread finishes; returns the closure's\nreturn value, or raises a script error if the worker errored." },
+        FlagHelp { flags: "tid()", description: "Current thread ID (stable within a run). Useful for log lines." },
+        FlagHelp { flags: "sleep(ms)", description: "Block the current thread. Alias of `sleep_ms` for readability." },
+        FlagHelp { flags: "channel()", description: "Returns [sender, receiver]. Unbounded MPSC." },
+        FlagHelp { flags: "channel_bounded(n)", description: "Returns [sender, receiver] with capacity N — try_send returns\nfalse when the buffer is full." },
+        FlagHelp { flags: "send(tx, val)", description: "Blocking send. Errors only when every receiver has dropped." },
+        FlagHelp { flags: "try_send(tx, val)", description: "Non-blocking. Returns true on success, false when bounded and\nfull, errors when the channel is closed." },
+        FlagHelp { flags: "recv(rx)", description: "Blocking receive. Errors when every sender has dropped." },
+        FlagHelp { flags: "recv(rx, timeout_ms)", description: "Receive with timeout. Errors on timeout or disconnect." },
+        FlagHelp { flags: "try_recv(rx)", description: "Non-blocking. Returns () when the channel is empty or closed." },
+    ],
+    related: &["script", "scripting"],
+    examples: &[
+        ExampleHelp { description: "Run the shipped demo", command: "recon --script script/thread.rhai" },
+        ExampleHelp { description: "Fan out 3 probes + gather", command: r#"recon --script - <<< 'let c = channel(); let tx = c[0]; let rx = c[1]; for i in 0..3 { thread_spawn(|n| { send(tx, http(`https://httpbin.org/anything?i=${n}`).status); }, i); } for j in 0..3 { print(recv(rx, 5000)); }'"# },
+    ],
+};
+
 static TOPIC_DECODE: Topic = Topic {
     title: "Barcode / QR / DataMatrix decoding (--decode)",
     description: "Scan an image for a barcode and print the embedded\n\
@@ -1972,6 +2010,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "hsts" | "strict-transport-security" => Some(&TOPIC_HSTS),
         "compare" | "diff" => Some(&TOPIC_COMPARE),
         "decode" | "scan" | "barcode-scan" | "decode-image" => Some(&TOPIC_DECODE),
+        "threads" | "spawn" | "concurrency" | "thread" => Some(&TOPIC_SCRIPT_THREADS),
         "client-cert" | "mtls" | "client-certificate" => Some(&TOPIC_CLIENT_CERT),
         "archive" | "zip" | "tar" | "extract" => Some(&TOPIC_ARCHIVE),
         _ => None,
@@ -2062,6 +2101,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "compare",
         "client-cert",
         "decode",
+        "threads",
     ]
 }
 

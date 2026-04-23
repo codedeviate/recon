@@ -38,6 +38,7 @@ pub mod sqlite;
 pub mod tcp;
 pub mod text;
 pub mod tftp;
+pub mod thread;
 pub mod tls;
 pub mod whois;
 pub mod ws;

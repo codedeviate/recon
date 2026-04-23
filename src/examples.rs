@@ -979,6 +979,25 @@ recon --rekey \
         "recon gophers://secure-gopher.example/",
     ]);
 
+    section("SCRIPT THREADING (0.56.0)");
+
+    example("Spawn, channel, join", &[
+        "recon --script script/thread.rhai",
+    ]);
+
+    example("Fan-out probes", &[
+        r#"recon --script - <<< '
+  let c = channel();
+  let tx = c[0]; let rx = c[1];
+  for u in ["https://a.com/", "https://b.com/", "https://c.com/"] {
+      thread_spawn(|url| { send(tx, `${url} → ${http(url).status}`); }, u);
+  }
+  for i in 0..3 { print(recv(rx, 10000)); }
+'"#,
+    ]);
+
+    note("`spawn` is reserved in Rhai; use `thread_spawn` (takes a FnPtr, optional arg or args array). `channel()` returns [sender, receiver]; clone the sender to fan out. `channel_bounded(n)` adds back-pressure. Worker threads build a fresh engine and inherit the parent's ScriptDefaults (so http/tcp/etc. probes see the same CLI-flag defaults). `sync`-feature cost: ~10-15% locking overhead on hot paths, irrelevant for diagnostic workloads.");
+
     section("DECODING / Aztec / PDF417 / MaxiCode (0.55.0)");
 
     example("Decode a QR / barcode from an image", &[

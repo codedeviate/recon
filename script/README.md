@@ -96,6 +96,12 @@ surprise failures.
 |---|---|
 | `text.rhai` | Charset detect / decode / encode + newline normalisation |
 
+### Concurrency
+
+| Script | What it does |
+|---|---|
+| `thread.rhai` | Spawn workers, collect via channel, demo bounded channels |
+
 ### Data primitives
 
 | Script | What it does |

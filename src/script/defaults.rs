@@ -9,7 +9,7 @@
 use crate::cli::Args;
 use std::path::PathBuf;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 #[allow(dead_code)] // fields consumed by probe bindings landed in later tasks
 pub struct ScriptDefaults {
     pub headers: Vec<String>,

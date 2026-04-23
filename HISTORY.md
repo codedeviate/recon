@@ -52,6 +52,28 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 58. Script concurrency primitives — thread_spawn / channels / join (0.56.0)
+
+Long-queued from the wishlist plan. The user wanted fork/thread/concurrency primitives "not only for servers" — this release lands the general-purpose surface so 0.57.0's TCP/UDP/ICMP server bindings can accept multiple connections concurrently.
+
+**`rhai` `sync` feature flip.** Enabling the feature took one line in Cargo.toml but broke two binding modules that stored their state in `Rc<RefCell<_>>`. Both (`src/script/bindings/browser.rs` and `src/script/bindings/sqlite.rs`) were swapped to `Arc<Mutex<_>>`. No semantic change — the single-threaded-by-default behaviour is preserved; the sync feature just makes Send+Sync available for cross-thread moves. Per-value lock overhead runs ~10-15% on hot paths per rhai's own benchmarks, which is irrelevant for the diagnostic workloads recon runs.
+
+**Spawn-worker design.** Each `thread_spawn` call builds a fresh engine in the worker thread via `build_engine(&defaults)`. Alternatives considered and rejected:
+- `Arc<Engine>` shared between threads — Engine isn't `Clone` even with `sync`, and wrapping it adds lifetime friction to every binding registration.
+- Single-engine, blocking-pool pattern — would require an executor + task queue; much more code for the same observable behaviour.
+
+Fresh-engine-per-spawn is a few ms of registration overhead per spawn, dwarfed by any real script work. The AST is shared via `rhai::Shared<AST>` (cheap Arc clone). `ScriptDefaults` is `Arc<ScriptDefaults>` so CLI-flag inheritance reaches every worker.
+
+**Nested `thread_spawn`.** The worker engine re-registers the threading bindings so nested `thread_spawn` / `send` / `recv` work inside spawned closures. Without this, a closure trying to spawn a sub-task or send on a channel would fail with "function not found".
+
+**Rhai reserved-word gotcha.** `spawn` is a reserved keyword in Rhai. The binding is exposed as `thread_spawn`. The help topic mentions this explicitly so users don't hit the same rake.
+
+**Channels — stdlib mpsc.** `std::sync::mpsc::channel` for unbounded, `sync_channel(capacity)` for bounded. Receiver wrapped in `Arc<Mutex<Receiver<Dynamic>>>` so it can be cloned across closures (Rhai custom types must be Clone). Sender stays thin — std's `Sender::clone` works natively. Channels transport `Dynamic` values, which Rhai clones on the send side; the receiver owns its copy.
+
+**`FnPtr::call` is the dispatch primitive.** When a closure is passed into `thread_spawn`, it's captured as a `FnPtr` — a reference plus captured scope. In the worker, `fn_ptr.call::<Dynamic>(&engine, &ast, args)` runs it. Errors surface as strings via `.to_string()` and get re-raised from `join`.
+
+**Tests added: +4.** tid returns an integer, channel send+recv, bounded channel try_send fills, recv_timeout errors when empty. 1126 → 1130 passing.
+
 ### 57. rxing-powered decode + Aztec/PDF417/MaxiCode (0.55.0)
 
 Closes the big encoding-deferred block in OUT-OF-SCOPE.md: image→text decoding plus three new 2D encode formats. Single new crate (`rxing`) lands — pure-Rust port of ZXing, Google's canonical multi-format barcode library.

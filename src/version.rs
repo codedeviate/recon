@@ -62,6 +62,7 @@ const FEATURES: &[&str] = &[
     "pdf417",
     "PGP-shellout",
     "sample",
+    "script-concurrency",
     "SOCKS5",
     "sqlite",
     "SSL",

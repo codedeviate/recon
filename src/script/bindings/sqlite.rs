@@ -17,14 +17,13 @@
 use crate::script::convert::err;
 use rhai::{Array, Blob, Dynamic, Engine, EvalAltResult, Map};
 use rusqlite::{types::ValueRef, Connection, OpenFlags, ToSql};
-use std::cell::RefCell;
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 #[derive(Clone)]
 pub struct SqliteHandle {
-    conn: Rc<RefCell<Connection>>,
-    path: Rc<PathBuf>,
+    conn: Arc<Mutex<Connection>>,
+    path: Arc<PathBuf>,
 }
 
 pub fn register(engine: &mut Engine) {
@@ -160,8 +159,8 @@ fn open_spec(spec: &str, mode: Option<&str>) -> Result<SqliteHandle, Box<EvalAlt
     };
 
     Ok(SqliteHandle {
-        conn: Rc::new(RefCell::new(conn)),
-        path: Rc::new(path),
+        conn: Arc::new(Mutex::new(conn)),
+        path: Arc::new(path),
     })
 }
 
@@ -247,7 +246,7 @@ fn run_query(
     sql: &str,
     params: Vec<BoundValue>,
 ) -> Result<Array, Box<EvalAltResult>> {
-    let conn = h.conn.borrow();
+    let conn = h.conn.lock().map_err(|_| err("sqlite: mutex poisoned"))?;
     let mut stmt = conn
         .prepare(sql)
         .map_err(|e| map_err_path(&h.path, e))?;
@@ -268,7 +267,7 @@ fn run_query_one(
     sql: &str,
     params: Vec<BoundValue>,
 ) -> Result<Dynamic, Box<EvalAltResult>> {
-    let conn = h.conn.borrow();
+    let conn = h.conn.lock().map_err(|_| err("sqlite: mutex poisoned"))?;
     let mut stmt = conn
         .prepare(sql)
         .map_err(|e| map_err_path(&h.path, e))?;
@@ -288,7 +287,7 @@ fn run_query_value(
     sql: &str,
     params: Vec<BoundValue>,
 ) -> Result<Dynamic, Box<EvalAltResult>> {
-    let conn = h.conn.borrow();
+    let conn = h.conn.lock().map_err(|_| err("sqlite: mutex poisoned"))?;
     let mut stmt = conn
         .prepare(sql)
         .map_err(|e| map_err_path(&h.path, e))?;
@@ -309,7 +308,7 @@ fn run_exec(
     sql: &str,
     params: Vec<BoundValue>,
 ) -> Result<i64, Box<EvalAltResult>> {
-    let conn = h.conn.borrow();
+    let conn = h.conn.lock().map_err(|_| err("sqlite: mutex poisoned"))?;
     let param_refs: Vec<&dyn ToSql> = params.iter().map(|p| p as &dyn ToSql).collect();
     let n = conn
         .execute(sql, rusqlite::params_from_iter(param_refs))

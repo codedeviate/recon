@@ -17,7 +17,7 @@ pub fn run_file(path: &Path, args: &Args) -> i32 {
 
     clear_protocol_exit_code();
     let defaults = ScriptDefaults::from_args(args);
-    let engine = build_engine(&defaults);
+    let mut engine = build_engine(&defaults);
 
     // Expose `args` (array) and `flags` (map) as read-only top-level
     // constants via a Scope. Constants because scripts should observe the
@@ -38,6 +38,13 @@ pub fn run_file(path: &Path, args: &Args) -> i32 {
         }
     };
     ast.set_source(path.to_string_lossy().into_owned());
+
+    // Threading primitives need the compiled AST to dispatch spawned
+    // FnPtr calls. Register them here (post-compile) with a Shared
+    // handle to the AST so worker threads can dispatch against the
+    // same program text.
+    let ast_shared: rhai::Shared<rhai::AST> = rhai::Shared::new(ast.clone());
+    super::bindings::thread::register(&mut engine, ast_shared, defaults);
 
     match engine.eval_ast_with_scope::<rhai::Dynamic>(&mut scope, &ast) {
         Ok(val) => {
