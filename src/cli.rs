@@ -1013,6 +1013,21 @@ pub struct Args {
     #[arg(long = "gfm", help_heading = "Docs")]
     pub gfm: bool,
 
+    /// Allow raw HTML to pass through the markdown parser verbatim
+    /// (comrak's `unsafe_` render option). Needed for cover pages,
+    /// styled `<div class="page-break">` markers, and arbitrary
+    /// inline HTML. Disabled by default — the markdown input is
+    /// assumed safe when this is on.
+    #[arg(long = "unsafe-html", help_heading = "Docs")]
+    pub unsafe_html: bool,
+
+    /// Start a new PDF page before every top-level `#` heading
+    /// (except the first). Inserts `break-before: page` CSS on
+    /// every H1 after the opening one. Use with --md-to-pdf /
+    /// --html-to-pdf; has no visible effect in HTML output.
+    #[arg(long = "page-break-on-h1", help_heading = "Docs")]
+    pub page_break_on_h1: bool,
+
     // ── Compare ──────────────────────────────────────────────────────────────
 
     /// Diff two sources. Each source is a URL, a local path, or `-` for

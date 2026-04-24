@@ -1002,6 +1002,15 @@ recon --rekey \
         "recon --md-to-pdf notes.md --no-default-css --doc-css print.css -o notes.pdf",
     ]);
 
+    example("Cover page + chapter breaks (book-style layout)", &[
+        "recon --md-to-pdf book.md --toc --gfm --unsafe-html --page-break-on-h1 --doc-title Book -o book.pdf",
+    ]);
+
+    example("Raw-HTML passthrough — explicit page breaks", &[
+        r#"printf '# A\n\nFirst.\n\n<div class="page-break"></div>\n\n# B\n\nSecond.\n' > tmp.md"#,
+        "recon --md-to-pdf tmp.md --unsafe-html -o tmp.pdf",
+    ]);
+
     note("HTML backend is `comrak` (CommonMark + GFM, pure Rust). PDF backend is `agent-browser pdf` (wraps Chrome's printToPDF, preserving anchor links so the TOC stays clickable). --md-to-html is pure-Rust / no external deps. --md-to-pdf and --html-to-pdf require agent-browser on PATH (`brew install agent-browser`). URL sources flow through the normal request pipeline and honor every HTTP flag.");
 
     section("SCRIPT TCP / UDP SERVERS (0.57.0)");

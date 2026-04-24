@@ -115,9 +115,14 @@ itself:
 ```sh
 ./target/release/recon --md-to-pdf docs/MANUAL.md \
     --toc --toc-depth 3 --gfm \
+    --unsafe-html --page-break-on-h1 \
     --doc-title 'recon User Manual' \
     -o docs/MANUAL.pdf
 ```
+
+The `--unsafe-html` flag is required because the manual uses a styled
+`<div class="cover">` block for its title page. `--page-break-on-h1`
+gives every top-level `#` heading its own PDF page.
 
 Requires `agent-browser` on PATH (Chrome-backed). The PDF is
 committed alongside the markdown — both files are checked in.

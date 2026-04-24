@@ -59,6 +59,7 @@ const FEATURES: &[&str] = &[
     "markdown",
     "maxicode-decode",
     "MQTT5",
+    "pdf-cover-page",
     "pdf-export",
     "netstatus",
     "pdf417",

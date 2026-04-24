@@ -52,6 +52,22 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 61. Cover pages + chapter page breaks in PDF output (0.59.0)
+
+Follow-up to 0.58.0's doc conversions. User asked whether recon's md→PDF flow could produce a proper book-style cover page plus page breaks between major chapters. Both doable via existing Chrome printToPDF primitives; wired through two new flags + a TOC placement marker.
+
+**`--unsafe-html` flips comrak's `unsafe_`.** By default comrak escapes raw HTML blocks in markdown (safe for rendering untrusted input). Book-style covers need styled `<div class="cover">`, custom page-break markers, and similar — all raw HTML. Flag defaults to off; users opt in when they own the markdown input.
+
+**`--page-break-on-h1` is a CSS injection.** `main > h1:not(:first-of-type) { break-before: page; page-break-before: always; }`. The `:not(:first-of-type)` skips the opening H1 so the document doesn't start with a pointless blank page. Modern browsers + printToPDF honour both the newer `break-before` and the legacy `page-break-before`.
+
+**Cover page is pure CSS + raw HTML.** No dedicated `--cover <PATH>` flag needed — authors write `<div class="cover">…</div>` in the markdown (with `--unsafe-html`) and the bundled stylesheet handles layout: `min-height: 90vh` + centered flex, `.subtitle` / `.version` / `.date` / `.author` / `.meta` child classes, `<hr>` as a narrow divider, automatic `break-after: page` so the cover sits on its own page. Inside the cover, `<h1>` in raw HTML (not markdown `#`) stops the TOC generator from picking it up — discovered during smoke test when the cover's "recon" heading bled into the TOC.
+
+**`<!-- toc -->` marker lets authors position the TOC.** Previously TOC was injected at the top of every document unconditionally. Now `markdown_to_html` scans the post-comrak body for `<!-- toc -->`; if found, the auto-TOC replaces the marker in-place and the top-of-body injection is suppressed. Lets users put the TOC after a cover page (common book-style convention). The marker survives only with `--unsafe-html` on since comrak strips HTML comments otherwise — which is the typical pairing anyway.
+
+**Manual migration.** `docs/MANUAL.md` swapped its hand-written numbered TOC for the `<!-- toc -->` marker, added a cover block, and now renders to a 71-page PDF (up from 67 pre-cover-breaks). `CLAUDE.md`'s recommended regenerate command gained `--unsafe-html --page-break-on-h1`.
+
+**Tests added: +4.** raw-HTML passthrough on / off, page-break-on-h1 CSS emission, suppression when flag off. 1142 → 1146 passing.
+
 ### 60. Document conversions — markdown / HTML / PDF with linkable TOC (0.58.0)
 
 Three conversions in one release: `--md-to-html` (pure-Rust), `--html-to-pdf` (via agent-browser), `--md-to-pdf` (pipelined md-to-html + html-to-pdf). Linkable tables of contents on all of them.

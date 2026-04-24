@@ -1,9 +1,16 @@
-# recon — User Manual
+<div class="cover">
+<h1>recon</h1>
+<div class="subtitle">User Manual</div>
+<hr>
+<div class="version">Version 0.59.0</div>
+<div class="date">2026-04-24</div>
+<div class="meta">
+Repository · https://github.com/thomas-starweb/recon<br>
+License · MIT
+</div>
+</div>
 
-**Version:** 0.58.2
-**Release date:** 2026-04-24
-**Repository:** <https://github.com/thomas-starweb/recon>
-**License:** MIT
+# About this manual
 
 recon is a versatile network reconnaissance CLI written in Rust. It started as a
 curl clone and grew into a multi-protocol investigation tool covering HTTP(S),
@@ -18,98 +25,27 @@ reference; this document is the long-form companion.
 
 A PDF rendering of this manual lives alongside it at [`MANUAL.pdf`](MANUAL.pdf).
 It is regenerated every time the markdown changes — see
-`CLAUDE.md` for the maintenance policy.
+`CLAUDE.md` for the maintenance policy. Generate locally with:
 
----
+```sh
+recon --md-to-pdf docs/MANUAL.md \
+    --toc --toc-depth 3 --gfm --unsafe-html --page-break-on-h1 \
+    --doc-title 'recon User Manual' \
+    -o docs/MANUAL.pdf
+```
 
 # Table of Contents
 
-## Part I — Getting started
+<!-- toc -->
 
-1. [Introduction](#introduction)
-2. [Installation](#installation)
-3. [Quick start](#quick-start)
-4. [How recon is organized](#how-recon-is-organized)
-5. [Global conventions](#global-conventions)
+The table of contents above is auto-generated from H1/H2/H3 headings.
+Every entry is a clickable anchor in the PDF. For a narrative
+walkthrough of the structure, the four parts are:
 
-## Part II — CLI reference
-
-6. [HTTP / HTTPS requests](#http--https-requests)
-7. [Output control](#output-control)
-8. [Authentication & TLS](#authentication--tls)
-9. [Client certificates (mTLS)](#client-certificates-mtls)
-10. [Proxy routing](#proxy-routing)
-11. [Unix-domain sockets](#unix-domain-sockets)
-12. [HSTS persistent cache](#hsts-persistent-cache)
-13. [IPFS / IPNS](#ipfs--ipns)
-14. [Cookies](#cookies)
-15. [DNS](#dns)
-16. [TLS certificate inspection](#tls-certificate-inspection)
-17. [Ping, traceroute, netstatus](#ping-traceroute-netstatus)
-18. [Email protection (SPF / DMARC / DKIM / MTA-STS / BIMI / TLS-RPT)](#email-protection)
-19. [SMTP send & probe](#smtp)
-20. [Mail retrieval (POP3, IMAP)](#mail-retrieval-pop3-imap)
-21. [File transfer (FTP, FTPS, SFTP, TFTP, Gopher)](#file-transfer)
-22. [Other protocols (SSH, SCP, Telnet, LDAP, WS, RTSP, Dict, NTP, Memcached, Redis, MQTT)](#other-protocols)
-23. [Source comparison (`--compare`)](#source-comparison)
-24. [Document conversions (markdown / HTML / PDF)](#document-conversions)
-25. [Barcode encoding & decoding](#barcode-encoding--decoding)
-26. [Hashing](#hashing)
-27. [Compression & archiving](#compression--archiving)
-28. [Encryption (age / PGP)](#encryption)
-29. [Check digits](#check-digits)
-30. [Sample data](#sample-data)
-31. [JWT tokens](#jwt-tokens)
-32. [Text encoding (charsets)](#text-encoding)
-33. [Serve mode](#serve-mode)
-34. [Write-out format (`-w`)](#write-out-format)
-35. [Browser automation (`agent-browser`)](#browser-automation)
-36. [Meta flags (`--examples`, `--init`, `--editor`)](#meta-flags)
-
-## Part III — Script engine
-
-37. [Running scripts](#running-scripts)
-38. [Script language (Rhai)](#script-language-rhai)
-39. [CLI inheritance & the `args` / `flags` globals](#cli-inheritance)
-40. [Core helpers](#core-helpers)
-41. [Output bindings (`print_raw`, `eprint`)](#output-bindings)
-42. [File I/O bindings](#file-io-bindings)
-43. [Comparison bindings](#comparison-bindings)
-44. [HTTP binding](#http-binding)
-45. [Browser (sticky-session) binding](#browser-sticky-session-binding)
-46. [TCP, TCP-server, UDP](#tcp-udp)
-47. [Threading (`thread_spawn`, `channel`)](#threading-bindings)
-48. [DNS binding](#dns-binding)
-49. [TLS probe binding](#tls-probe-binding)
-50. [Ping binding](#ping-binding)
-51. [FTP, SFTP, TFTP, Gopher](#file-transfer-bindings)
-52. [POP3, IMAP bindings](#mail-retrieval-bindings)
-53. [SMTP binding](#smtp-binding)
-54. [WebSocket binding](#websocket-binding)
-55. [LDAP, RTSP, Dict, NTP, Memcached, Redis, MQTT](#other-protocol-bindings)
-56. [Encoding & decoding bindings](#encoding--decoding-bindings)
-57. [Hashing binding](#hashing-binding)
-58. [Compression & archive bindings](#compression--archive-bindings)
-59. [Encryption bindings](#encryption-bindings)
-60. [Check-digit binding](#check-digit-binding)
-61. [Sample-data binding](#sample-data-binding)
-62. [JWT binding](#jwt-binding)
-63. [Email-protection binding](#email-protection-binding)
-64. [Netstatus binding](#netstatus-binding)
-65. [Text-encoding binding](#text-encoding-binding)
-66. [Whois binding](#whois-binding)
-67. [IPFS binding](#ipfs-binding)
-68. [Agent-browser binding](#agent-browser-binding)
-69. [SQLite binding](#sqlite-binding)
-70. [Document-conversion bindings](#document-conversion-bindings)
-
-## Part IV — Appendices
-
-71. [Exit codes](#exit-codes)
-72. [Environment variables](#environment-variables)
-73. [Configuration file (`~/.recon/config.toml`)](#configuration-file)
-74. [The `~/.recon/` layout](#recon-layout)
-75. [Glossary of recon-specific terms](#glossary)
+- **Part I — Getting started**: introduction, installation, quick start.
+- **Part II — CLI reference**: every flag grouped by area, with examples.
+- **Part III — Script engine**: the Rhai interpreter, every binding, many examples.
+- **Part IV — Appendices**: exit codes, env vars, config, glossary.
 
 ---
 
@@ -824,6 +760,8 @@ recon --compare a.json b.json --compare-context 5
 | `--doc-css <PATH>` | Inline a custom stylesheet. |
 | `--no-default-css` | Skip bundled default CSS. |
 | `--gfm` | Enable GitHub-flavored extensions (tables, task lists, strikethrough, autolinks, footnotes, tagfilter). |
+| `--unsafe-html` | Allow raw HTML passthrough (comrak's `unsafe_` flag). Needed for cover pages and explicit `<div class="page-break">` markers. Off by default; assume the markdown is trusted when on. |
+| `--page-break-on-h1` | Start a new PDF page before every top-level `#` heading except the first. No visible effect in HTML output (Chrome's printToPDF honours the `break-before: page` rule). |
 
 ### Examples
 
@@ -834,7 +772,64 @@ recon --html-to-pdf report.html -o report.pdf
 curl -s https://example.com/doc.md | recon --md-to-html - --toc -o doc.html
 recon --md-to-pdf notes.md --toc --doc-css print.css -o notes.pdf
 recon --md-to-pdf notes.md --no-default-css --doc-css corp.css -o notes.pdf
+
+# Book-style: cover page + chapter breaks
+recon --md-to-pdf book.md --toc --gfm --unsafe-html --page-break-on-h1 \
+      --doc-title 'My Book' -o book.pdf
 ```
+
+### Cover pages
+
+With `--unsafe-html`, raw HTML passes through the markdown parser
+verbatim. The bundled CSS styles `<div class="cover">` as a full-page
+centered block with an automatic page break after:
+
+```markdown
+<div class="cover">
+
+# My Document
+
+<div class="subtitle">An illustrated guide</div>
+
+<hr>
+
+<div class="version">Version 1.0</div>
+<div class="date">2026-04-24</div>
+<div class="author">Alice Example</div>
+
+</div>
+
+# First chapter
+
+Body text...
+```
+
+The cover block uses a `min-height: 90vh` flex container with centered
+content. `.subtitle`, `.version`, `.date`, `.author`, and `.meta` child
+classes pick up smaller, muted styling. A horizontal rule becomes a
+narrow divider.
+
+### Page breaks
+
+Two routes:
+
+1. **`--page-break-on-h1`** — every top-level `#` heading starts a new
+   PDF page (except the first, which opens the document). No markdown
+   changes required.
+2. **Explicit markers (needs `--unsafe-html`)** — embed one of:
+
+   ```markdown
+   <div class="page-break"></div>
+   <hr class="page-break">
+   ```
+
+   anywhere in the markdown. The CSS `break-after: page` kicks in.
+
+Chrome's printToPDF is the renderer for both `--md-to-pdf` and
+`--html-to-pdf`, so any CSS that speaks `break-before`, `break-after`,
+or `page-break-*` works. `@page` rules for size and margins (defined in
+the bundled default CSS) are honored too — override via `--doc-css` or
+inline `<style>` with `--unsafe-html`.
 
 ## Barcode encoding & decoding
 

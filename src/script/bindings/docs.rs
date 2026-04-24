@@ -46,6 +46,12 @@ fn opts_from_map(m: &Map) -> Result<DocOptions, Box<EvalAltResult>> {
     if let Some(v) = m.get("gfm") {
         opts.gfm = v.as_bool().unwrap_or(false);
     }
+    if let Some(v) = m.get("unsafe_html") {
+        opts.unsafe_html = v.as_bool().unwrap_or(false);
+    }
+    if let Some(v) = m.get("page_break_on_h1") {
+        opts.page_break_on_h1 = v.as_bool().unwrap_or(false);
+    }
     Ok(opts)
 }
 

@@ -8,6 +8,34 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.59.0] - 2026-04-24
+
+### Added
+
+- **`--unsafe-html`** — allow raw HTML passthrough in markdown (comrak's
+  `unsafe_` option). Needed for cover pages and explicit page-break
+  markers. Off by default; assume the markdown input is trusted when on.
+- **`--page-break-on-h1`** — start a new PDF page before every top-level
+  `#` heading except the first. Injects `break-before: page` CSS; no
+  visible effect in HTML output (Chrome's printToPDF honours it).
+- **Cover-page CSS** — the bundled default stylesheet styles
+  `<div class="cover">` as a full-page centered block with automatic
+  page break after. Supports `.subtitle`, `.version`, `.date`,
+  `.author`, `.meta` child classes plus `<hr>` dividers.
+- **`<!-- toc -->` marker** — when present in the rendered body, the
+  auto-generated TOC is injected at that marker instead of at the top
+  of the document. Lets users place the TOC after a cover page.
+- **Script opts keys**: `unsafe_html`, `page_break_on_h1` on
+  `md_to_html` / `md_to_pdf` / `html_to_pdf`.
+- **`recon --version` Features token**: `pdf-cover-page`.
+
+### Changed
+
+- **`docs/MANUAL.md`** gained a styled cover page (raw HTML inside
+  `<div class="cover">`) and relies on `<!-- toc -->` placement so the
+  auto-TOC lands on page 2. `--page-break-on-h1` gives every top-level
+  section its own page. Regenerated `docs/MANUAL.pdf`: 67 → 71 pages.
+
 ## [0.58.2] - 2026-04-24
 
 ### Added

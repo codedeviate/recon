@@ -64,6 +64,55 @@ nav.toc h2 { margin: 0.2em 0 0.4em 0; border: 0; font-size: 14pt; }
 nav.toc ul { list-style: none; padding-left: 1em; margin: 0.2em 0; }
 nav.toc > ul { padding-left: 0; }
 nav.toc a { color: #0366d6; }
+
+/* --- Page-break helpers (need --unsafe-html to be set in markdown) --- */
+
+/* Explicit break marker: put <div class="page-break"></div> in markdown. */
+div.page-break { break-after: page; page-break-after: always; height: 0; }
+
+/* Inline marker equivalent for compatibility: <hr class="page-break"> */
+hr.page-break { border: 0; break-after: page; page-break-after: always; }
+
+/* --- Cover page (<div class="cover">…</div> in markdown with --unsafe-html) --- */
+
+div.cover {
+    min-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 2em 1em;
+    break-after: page;
+    page-break-after: always;
+}
+div.cover h1 {
+    font-size: 48pt;
+    border: 0;
+    margin: 0 0 0.2em 0;
+    font-weight: 600;
+    color: #111;
+}
+div.cover .subtitle {
+    font-size: 20pt;
+    color: #555;
+    margin-bottom: 2em;
+}
+div.cover .version,
+div.cover .date,
+div.cover .author,
+div.cover .meta {
+    font-size: 12pt;
+    color: #666;
+    margin: 0.2em 0;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+}
+div.cover hr {
+    width: 60%;
+    margin: 1.5em auto;
+    border: 0;
+    border-top: 1px solid #ccc;
+}
 "#;
 
 /// Options for document conversion. Parsed from CLI flags or opts map.
@@ -76,6 +125,8 @@ pub struct DocOptions {
     pub custom_css: Option<String>,
     pub no_default_css: bool,
     pub gfm: bool,
+    pub unsafe_html: bool,
+    pub page_break_on_h1: bool,
 }
 
 impl DocOptions {
@@ -95,6 +146,8 @@ impl DocOptions {
             custom_css,
             no_default_css: args.no_default_css,
             gfm: args.gfm,
+            unsafe_html: args.unsafe_html,
+            page_break_on_h1: args.page_break_on_h1,
         })
     }
 }
@@ -118,10 +171,21 @@ pub fn markdown_to_html(markdown: &[u8], opts: &DocOptions) -> Result<String> {
     let mut body = Vec::new();
     comrak::format_html(root, &comrak_opts, &mut body)
         .context("comrak: format_html")?;
-    let body_str = String::from_utf8(body).context("comrak output is not UTF-8")?;
+    let mut body_str = String::from_utf8(body).context("comrak output is not UTF-8")?;
+
+    // If the author placed a `<!-- toc -->` marker in the markdown,
+    // expand it in-place and suppress the automatic top-of-body
+    // injection — lets users position the TOC after a cover page.
+    // The marker survives the comrak pipeline only when
+    // `--unsafe-html` is on.
+    let toc_in_body = body_str.contains("<!-- toc -->");
+    if toc_in_body {
+        body_str = body_str.replacen("<!-- toc -->", &toc_html, 1);
+    }
+    let top_toc = if toc_in_body { "" } else { toc_html.as_str() };
 
     let title = opts.title.clone().unwrap_or_else(|| "Document".into());
-    Ok(wrap_document(&title, opts, &toc_html, &body_str))
+    Ok(wrap_document(&title, opts, top_toc, &body_str))
 }
 
 fn comrak_options(opts: &DocOptions) -> Options {
@@ -145,7 +209,7 @@ fn comrak_options(opts: &DocOptions) -> Options {
     }
 
     let mut render = RenderOptions::default();
-    render.unsafe_ = false;
+    render.unsafe_ = opts.unsafe_html;
 
     Options {
         extension: ext,
@@ -257,10 +321,21 @@ fn html_escape(s: &str) -> String {
         .replace('"', "&quot;")
 }
 
-fn wrap_document(title: &str, opts: &DocOptions, toc_html: &str, body_html: &str) -> String {
+fn wrap_document(title: &str, opts: &DocOptions, top_toc_html: &str, body_html: &str) -> String {
     let mut css = String::new();
     if !opts.no_default_css {
         css.push_str(DEFAULT_CSS);
+    }
+    if opts.page_break_on_h1 {
+        // Every top-level heading after the first starts a new page.
+        // Skip the cover block's own <h1> (it handles its own break).
+        css.push_str(
+            "\n/* --page-break-on-h1 */\n\
+             main > h1:not(:first-of-type) {\n\
+             \x20\x20break-before: page;\n\
+             \x20\x20page-break-before: always;\n\
+             }\n",
+        );
     }
     if let Some(extra) = opts.custom_css.as_deref() {
         css.push('\n');
@@ -284,7 +359,7 @@ fn wrap_document(title: &str, opts: &DocOptions, toc_html: &str, body_html: &str
 </html>\n",
         title = html_escape(title),
         css = css,
-        toc = toc_html,
+        toc = top_toc_html,
         body = body_html,
     )
 }
@@ -439,5 +514,56 @@ mod tests {
         opts.custom_css = Some("body { color: red; }".into());
         let html = markdown_to_html(b"x\n", &opts).unwrap();
         assert!(html.contains("color: red"), "html: {html}");
+    }
+
+    #[test]
+    fn unsafe_html_passes_raw_markup_through() {
+        let mut opts = DocOptions::default();
+        opts.unsafe_html = true;
+        let md = b"# T\n\n<div class=\"cover\"><h1>Hello</h1></div>\n\nBody.\n";
+        let html = markdown_to_html(md, &opts).unwrap();
+        assert!(
+            html.contains("<div class=\"cover\"><h1>Hello</h1></div>"),
+            "html: {html}",
+        );
+    }
+
+    #[test]
+    fn unsafe_html_off_escapes_raw_markup() {
+        let opts = DocOptions::default();
+        let md = b"# T\n\n<div class=\"cover\">Hello</div>\n\nBody.\n";
+        let html = markdown_to_html(md, &opts).unwrap();
+        // When unsafe_html is off, comrak replaces the raw block with
+        // a comment or strips it — either way the class attribute
+        // doesn't survive as live HTML.
+        assert!(
+            !html.contains("<div class=\"cover\">Hello</div>"),
+            "expected raw div to be stripped, html: {html}",
+        );
+    }
+
+    #[test]
+    fn page_break_on_h1_injects_css_rule() {
+        let mut opts = DocOptions::default();
+        opts.page_break_on_h1 = true;
+        let html = markdown_to_html(b"# A\n", &opts).unwrap();
+        assert!(
+            html.contains("break-before: page"),
+            "expected break-before rule, html: {html}",
+        );
+        assert!(
+            html.contains("main > h1:not(:first-of-type)"),
+            "expected H1 selector, html: {html}",
+        );
+    }
+
+    #[test]
+    fn page_break_on_h1_disabled_omits_rule() {
+        let opts = DocOptions::default();
+        let html = markdown_to_html(b"# A\n", &opts).unwrap();
+        assert!(
+            !html.contains("--page-break-on-h1"),
+            "expected no page-break CSS, html: {html}",
+        );
     }
 }

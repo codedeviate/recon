@@ -1224,6 +1224,8 @@ static TOPIC_DOCS: Topic = Topic {
         FlagHelp { flags: "--doc-css <PATH>", description: "Inline a user stylesheet (appended after the bundled default)." },
         FlagHelp { flags: "--no-default-css", description: "Skip the bundled default CSS. Pair with --doc-css." },
         FlagHelp { flags: "--gfm", description: "Enable GitHub-flavored extensions: tables, task lists,\nstrikethrough, autolinks, footnotes, tagfilter." },
+        FlagHelp { flags: "--unsafe-html", description: "Allow raw HTML passthrough (comrak's `unsafe_`). Needed for cover\npages and explicit <div class=\"page-break\"> markers. Assume the\nmarkdown input is trusted when this is on." },
+        FlagHelp { flags: "--page-break-on-h1", description: "Start a new PDF page before every top-level `#` heading except\nthe first. Injects `break-before: page` CSS. No visible effect\nin HTML output (printToPDF honours it)." },
         FlagHelp { flags: "md_to_html(src, opts)", description: "Script binding. src = string or Blob. Returns HTML string." },
         FlagHelp { flags: "md_to_pdf(src, dest, opts)", description: "Script binding. src literal, dest path. Needs agent-browser." },
         FlagHelp { flags: "html_to_pdf(src, dest)", description: "Script binding. Needs agent-browser." },
@@ -1236,6 +1238,8 @@ static TOPIC_DOCS: Topic = Topic {
         ExampleHelp { description: "HTML → PDF", command: "recon --html-to-pdf report.html -o report.pdf" },
         ExampleHelp { description: "Inject custom CSS", command: "recon --md-to-pdf notes.md --toc --doc-css print.css -o notes.pdf" },
         ExampleHelp { description: "Replace the bundled CSS entirely", command: "recon --md-to-pdf notes.md --no-default-css --doc-css print.css -o notes.pdf" },
+        ExampleHelp { description: "Cover page + chapter breaks", command: "recon --md-to-pdf book.md --toc --gfm --unsafe-html --page-break-on-h1 --doc-title Book -o book.pdf" },
+        ExampleHelp { description: "Explicit page break in markdown (with --unsafe-html)", command: r#"printf '# A\n\nFirst.\n\n<div class="page-break"></div>\n\n# B\n\nSecond.\n' > tmp.md && recon --md-to-pdf tmp.md --unsafe-html -o tmp.pdf"# },
     ],
 };
 
