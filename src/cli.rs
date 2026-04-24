@@ -21,7 +21,7 @@ pub struct Args {
     // ── Positional (renders under Arguments; no help_heading) ────────────────
 
     /// URL to request (or use --url)
-    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni", "jwt_view", "jwt_sign", "jwt_validate", "netstatus", "editor_cleanup", "sample", "sample_list", "hash", "hash_list", "compress", "decompress", "compress_list", "encode", "encode_list", "encrypt", "decrypt", "encrypt_keygen", "checkdigit", "checkdigit_create", "checkdigit_list", "script", "init", "browser_screenshot", "archive", "extract", "iconv", "list_charsets", "compare", "decode", "decode_all", "md_to_html", "md_to_pdf", "html_to_pdf"])]
+    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni", "jwt_view", "jwt_sign", "jwt_validate", "netstatus", "editor_cleanup", "sample", "sample_list", "hash", "hash_list", "compress", "decompress", "compress_list", "encode", "encode_list", "encrypt", "decrypt", "encrypt_keygen", "checkdigit", "checkdigit_create", "checkdigit_list", "script", "init", "browser_screenshot", "archive", "extract", "iconv", "list_charsets", "compare", "decode", "decode_all", "md_to_html", "md_to_pdf", "html_to_pdf", "input_file"])]
     pub url: Option<String>,
 
     // ── HTTP Request ─────────────────────────────────────────────────────────
@@ -96,6 +96,73 @@ pub struct Args {
     /// unix-style newlines.
     #[arg(long = "crlf", help_heading = "HTTP Request")]
     pub crlf: bool,
+
+    /// Retry N times on transient failures (5xx, DNS, connect reset,
+    /// timeouts). Default 0 = no retries. Use --retry-all-errors to
+    /// also retry on 4xx.
+    #[arg(long = "retry", value_name = "N", default_value_t = 0u32, help_heading = "HTTP Request")]
+    pub retry: u32,
+
+    /// When --retry is active, also retry on non-transient errors
+    /// (4xx, parser errors). Default: transient-only.
+    #[arg(long = "retry-all-errors", help_heading = "HTTP Request")]
+    pub retry_all_errors: bool,
+
+    /// Retry on ECONNREFUSED specifically (some servers take a while
+    /// to come up after startup; useful for liveness-wait loops).
+    #[arg(long = "retry-connrefused", help_heading = "HTTP Request")]
+    pub retry_connrefused: bool,
+
+    /// Fixed seconds between retries. When unset, recon applies an
+    /// exponential backoff: 1s, 2s, 4s, 8s, 16s, 32s (capped).
+    #[arg(long = "retry-delay", value_name = "SECS", help_heading = "HTTP Request")]
+    pub retry_delay: Option<u64>,
+
+    /// Total time budget across all retries (seconds). Abort once
+    /// exceeded, regardless of --retry N.
+    #[arg(long = "retry-max-time", value_name = "SECS", help_heading = "HTTP Request")]
+    pub retry_max_time: Option<u64>,
+
+    /// Request rate cap. Format: `N/s` / `N/m` / `N/h` (integer N).
+    /// Engages when running batches via --input-file: at most N
+    /// requests per second/minute/hour.
+    #[arg(long = "rate", value_name = "N/s|N/m|N/h", help_heading = "HTTP Request")]
+    pub rate: Option<String>,
+
+    /// Curl-compatible protocol allow-list. Syntax: `=proto` means
+    /// "only this set", `+proto` allow (default), `-proto` deny.
+    /// Example: `=https` (HTTPS only), `+https,-ftp` (add HTTPS,
+    /// remove FTP from the defaults).
+    #[arg(long = "proto", value_name = "LIST", help_heading = "HTTP Request")]
+    pub proto: Option<String>,
+
+    /// Default scheme for URLs that don't carry one. Example:
+    /// `--proto-default https` will treat `example.com/foo` as
+    /// `https://example.com/foo`.
+    #[arg(long = "proto-default", value_name = "SCHEME", help_heading = "HTTP Request")]
+    pub proto_default: Option<String>,
+
+    /// Apply --proto's filter to redirect targets too (so an -L
+    /// response that redirects to a disallowed scheme is refused).
+    #[arg(long = "proto-redir", value_name = "LIST", help_heading = "HTTP Request")]
+    pub proto_redir: Option<String>,
+
+    /// Batch-fetch URLs listed in FILE (one per line, `#` comments,
+    /// blank lines ignored, `-` reads the list from stdin). Each
+    /// URL is processed independently; errors are reported per URL.
+    #[arg(long = "input-file", value_name = "FILE", help_heading = "HTTP Request")]
+    pub input_file: Option<String>,
+
+    /// Resume an interrupted download. wget-compatible: reads the
+    /// current size of the -o target (or basename from the URL) and
+    /// sets `Range: bytes=<size>-`. Equivalent to `--continue-at -`.
+    #[arg(long = "continue", help_heading = "HTTP Request")]
+    pub continue_auto: bool,
+
+    /// Resume from BYTE offset (curl-compatible). Pass `-` to auto-
+    /// detect from the local file size (same behaviour as --continue).
+    #[arg(short = 'C', long = "continue-at", value_name = "OFFSET", help_heading = "HTTP Request")]
+    pub continue_at: Option<String>,
 
     /// Follow redirects
     #[arg(short = 'L', long = "location", help_heading = "HTTP Request")]

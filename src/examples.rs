@@ -979,6 +979,39 @@ recon --rekey \
         "recon gophers://secure-gopher.example/",
     ]);
 
+    section("RETRY + PROTO FILTER + BATCH (0.64.0)");
+
+    example("Retry transient failures", &[
+        "recon --retry 3 https://flaky.example.com/api/",
+        "recon --retry 5 --retry-delay 2 https://api.example.com/",
+        "recon --retry 3 --retry-all-errors https://api.example.com/",
+        "recon --retry 10 --retry-connrefused --retry-max-time 60 https://starting.example.com/",
+    ]);
+
+    example("Rate-limit a batch", &[
+        "recon --input-file urls.txt --rate 2/s -O",
+        "recon --input-file urls.txt --rate 60/m --spider",
+    ]);
+
+    example("Protocol restriction", &[
+        "recon --proto '=https' https://example.com/     # HTTPS only",
+        "recon --proto '-ftp,-ftps' https://example.com/  # block FTP variants",
+        "recon --proto-default https example.com          # scheme injection",
+        "recon --proto-redir '=https' -L http://example.com/  # forbid downgrades",
+    ]);
+
+    example("Batch fetch with --input-file", &[
+        "recon --input-file urls.txt --spider        # bulk link check",
+        "recon --input-file urls.txt -O --rate 5/s   # polite download",
+        "cat urls.txt | recon --input-file -",
+    ]);
+
+    example("Resume a download", &[
+        "recon --continue -O https://example.com/big.iso       # wget-style auto-resume",
+        "recon -C - -O https://example.com/big.iso              # curl-style auto",
+        "recon -C 5242880 -O https://example.com/big.iso        # explicit 5 MiB offset",
+    ]);
+
     section("FORMS + NETRC + HTTP VERSION (0.63.0)");
 
     example("Multipart form uploads (-F / --form)", &[

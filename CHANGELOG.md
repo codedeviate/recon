@@ -8,6 +8,40 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.64.0] - 2026-04-24
+
+### Added
+
+Release 4 of the Waiting-arc. Retry cluster + protocol restriction
++ wget-style batching. 11 new flags.
+
+**Retry layer** (`src/retry.rs`):
+- `--retry <N>` — retry count (default 0).
+- `--retry-all-errors` — also retry non-transient errors (4xx, parse).
+- `--retry-connrefused` — retry ECONNREFUSED specifically.
+- `--retry-delay <SECS>` — fixed delay (else exponential backoff).
+- `--retry-max-time <SECS>` — total wall-clock cap.
+- `--rate <N/s|N/m|N/h>` — request rate limit (in batches).
+
+**Protocol restriction** (`src/proto_filter.rs`):
+- `--proto <LIST>` — curl syntax: `=https` (set), `+ftp` (add),
+  `-ftp` (remove), `all` (wildcard).
+- `--proto-default <SCHEME>` — default scheme for URLs without one.
+- `--proto-redir <LIST>` — filter applied to redirect targets
+  (accepted; redirect-time enforcement in a follow-up).
+
+**Wget batching** (`src/input_file.rs`):
+- `--input-file <PATH>` — URL list; `#` comments; `-` for stdin.
+  Iterates each URL through the full HTTP pipeline including retry.
+- `--continue` (wget bool) = auto-resume via Range: bytes=<size>-
+  from the -o target.
+- `-C, --continue-at <OFFSET>` (curl form) — explicit byte offset
+  or `-` for auto-detect.
+
+### Features tokens
+
+`input-file`, `proto-filter`, `resume`, `retry`.
+
 ## [0.63.0] - 2026-04-24
 
 ### Added

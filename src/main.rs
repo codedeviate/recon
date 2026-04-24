@@ -28,6 +28,7 @@ mod help;
 mod iface;
 mod hsts;
 mod init;
+mod input_file;
 mod pager;
 mod ratelimit;
 mod jwt;
@@ -42,9 +43,11 @@ mod ntp_probe;
 mod output;
 mod ping;
 mod prettify;
+mod proto_filter;
 mod proxy;
 mod redis_probe;
 mod remote_name;
+mod retry;
 mod rtsp_probe;
 mod writeout;
 mod sampledata;
@@ -155,6 +158,95 @@ fn main() {
             e.exit();
         }
     };
+
+    // ── --input-file: batch URL fetch ──
+    if let Some(path) = args.input_file.clone() {
+        match input_file::load_urls(&path) {
+            Ok(urls) => {
+                let rate_delay = args
+                    .rate
+                    .as_deref()
+                    .map(input_file::parse_rate)
+                    .transpose()
+                    .unwrap_or_else(|e| {
+                        eprintln!("error: {e}");
+                        std::process::exit(2);
+                    });
+                let mut any_err = false;
+                for (i, url) in urls.iter().enumerate() {
+                    if let Some(d) = rate_delay {
+                        if i > 0 {
+                            std::thread::sleep(d);
+                        }
+                    }
+                    let mut per = args.clone();
+                    per.input_file = None;
+                    per.url = Some(url.clone());
+                    per.url_flag = None;
+                    if !args.silent {
+                        eprintln!("# {} ({}/{})", url, i + 1, urls.len());
+                    }
+                    match retry::execute_with_retry(&per) {
+                        Ok((response, mut metrics)) => {
+                            if per.spider {
+                                let status = response.status().as_u16();
+                                println!("{status} {url}");
+                                if !response.status().is_success() {
+                                    any_err = true;
+                                }
+                            } else if let Err(e) = output::write_response(response, &per, &mut metrics) {
+                                eprintln!("  error: {e}");
+                                any_err = true;
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("  error: {e}");
+                            any_err = true;
+                        }
+                    }
+                }
+                if any_err {
+                    std::process::exit(1);
+                }
+                return;
+            }
+            Err(e) => {
+                eprintln!("error: {e}");
+                std::process::exit(2);
+            }
+        }
+    }
+
+    // ── --proto-default: scheme injection for scheme-less URLs ──
+    if let Some(scheme) = args.proto_default.clone() {
+        for url_field in [&mut args.url, &mut args.url_flag] {
+            if let Some(raw) = url_field.clone() {
+                let rewritten = proto_filter::apply_default_scheme(&raw, Some(&scheme));
+                if rewritten != raw {
+                    *url_field = Some(rewritten);
+                }
+            }
+        }
+    }
+
+    // ── --proto: allow-list check ──
+    if let Some(spec) = &args.proto {
+        match proto_filter::ProtoFilter::parse(spec) {
+            Ok(filter) => {
+                let url = args.target_url();
+                if !url.is_empty() {
+                    if let Err(e) = filter.validate_url(url) {
+                        eprintln!("error: {e}");
+                        std::process::exit(1);
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("error: --proto: {e}");
+                std::process::exit(1);
+            }
+        }
+    }
 
     // ── --stderr redirect (early so all subsequent error output routes through it) ──
     if let Some(path) = args.stderr_file.clone() {
@@ -884,7 +976,7 @@ fn main() {
         unix_socket::run(&args)
     } else {
         let t0 = std::time::Instant::now();
-        client::execute(&args).and_then(|(response, mut metrics)| -> anyhow::Result<()> {
+        retry::execute_with_retry(&args).and_then(|(response, mut metrics)| -> anyhow::Result<()> {
             if args.verbose >= 2 {
                 eprintln!("* Elapsed: {:.3}s", t0.elapsed().as_secs_f64());
             }

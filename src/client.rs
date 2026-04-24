@@ -353,6 +353,36 @@ fn resolve_time_cond(args: &Args) -> Result<Option<(&'static str, String)>> {
     }
 }
 
+/// Resolve `--continue` / `--continue-at` into a byte offset to
+/// append to the Range header. Returns `Ok(None)` when no resume is
+/// requested or the local file doesn't exist (→ fresh download).
+fn resolve_continue_offset(args: &Args) -> Result<Option<u64>> {
+    let auto = args.continue_auto || matches!(args.continue_at.as_deref(), Some("-"));
+    let explicit = match args.continue_at.as_deref() {
+        Some(raw) if raw != "-" => Some(raw.parse::<u64>().with_context(|| {
+            format!("--continue-at: '{raw}' is not a byte offset (or `-` for auto)")
+        })?),
+        _ => None,
+    };
+    if let Some(off) = explicit {
+        return Ok(Some(off));
+    }
+    if auto {
+        // Auto-resume uses the -o target's current size.
+        if let Some(path) = args.output.as_ref() {
+            if path.exists() {
+                let meta = std::fs::metadata(path)
+                    .with_context(|| format!("--continue: stat {}", path.display()))?;
+                return Ok(Some(meta.len()));
+            }
+            // File doesn't exist yet — nothing to resume, start fresh.
+            return Ok(None);
+        }
+        anyhow::bail!("--continue / --continue-at -: need -o PATH to know which file to resume");
+    }
+    Ok(None)
+}
+
 fn mtime_to_header(name: &'static str, path: &std::path::Path) -> Result<(&'static str, String)> {
     let meta = std::fs::metadata(path)
         .with_context(|| format!("read mtime of {}", path.display()))?;
@@ -518,6 +548,18 @@ fn send_request(
     if let Some(range) = &args.range {
         if !user_has_header(&args.header, "Range") {
             request = request.header("Range", format!("bytes={range}"));
+        }
+    }
+
+    // --continue / --continue-at: resume from offset. Takes precedence
+    // over --range when both are set (--range doesn't apply to resumes
+    // in curl's model).
+    if let Some(off) = resolve_continue_offset(args)? {
+        if !user_has_header(&args.header, "Range") {
+            request = request.header("Range", format!("bytes={off}-"));
+            if args.verbose >= 1 {
+                eprintln!("* resuming from byte {off}");
+            }
         }
     }
 
