@@ -2,7 +2,7 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.59.1</div>
+<div class="version">Version 0.60.0</div>
 <div class="date">2026-04-24</div>
 <div class="meta">
 Repository · https://github.com/thomas-starweb/recon<br>
@@ -139,6 +139,7 @@ recon --init                                                      # bootstrap ~/
 
 # Help surface
 recon --help                                                      # clap-generated flag list
+recon --flags                                                     # curl-style alphabetical index
 recon --help http                                                 # deep-dive on HTTP topic
 recon --help script                                               # deep-dive on scripting
 recon --examples                                                  # curated examples, paged
@@ -1074,11 +1075,50 @@ recon --browser-screenshot https://example.com -o example.png
 
 | Flag | Description |
 |------|-------------|
+| `--flags` | Alphabetical curl-style flag listing (`--help all` equivalent). |
 | `--examples` | Curated examples, paged. |
 | `--init` | Bootstrap `~/.recon/` (script/, jars/, sni/, config.toml). |
 | `--editor` | Open response in `$EDITOR`. |
 | `--editor-cleanup` | Remove leftover `~/.recon/editor-*` tempfiles. |
-| `--no-pager` | Disable paging of `--help` / `--examples`. |
+| `--no-pager` | Disable paging of `--help` / `--examples` / `--flags`. |
+
+### `--flags` — the quick lookup
+
+`recon --flags` prints every flag alphabetically sorted by long name,
+curl's `--help all` layout:
+
+```
+(short or 4-space pad) --long <VALUE>  short description
+```
+
+Short description is capped at ~52 characters (first sentence of each
+flag's internal help text). Use this as the quick index when you know
+roughly what you want but not the flag name; follow up with
+`recon --help <topic>` for the long-form deep-dive.
+
+Example:
+
+```
+$ recon --flags | head
+    --age                           Force the age backend, even if…
+    --archive <DEST>                Create an archive
+    --armor                         Produce ASCII-armored output…
+    --bimi <SELECTOR>               Validate the BIMI record
+    --browser-screenshot <URL>      Open URL in a browser and save…
+    --cacert <PATH>                 Path to a PEM-encoded CA certificate…
+    --cert                          Fetch and display the server's TLS cert
+    --cert-type <PEM|DER>           Format of --client-cert
+-E, --client-cert <PATH>            Client certificate for mTLS
+    --client-key <PATH>             Private key for the client certificate
+```
+
+The listing is auto-paged through `$PAGER`. Pipe to `grep` for
+search:
+
+```sh
+recon --flags | grep -i cookie
+recon --flags | grep -E '^\s*-[a-zA-Z],'   # only flags with short keys
+```
 
 ---
 

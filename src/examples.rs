@@ -979,6 +979,21 @@ recon --rekey \
         "recon gophers://secure-gopher.example/",
     ]);
 
+    section("FLAG LISTING (0.60.0)");
+
+    example("Browse the full flag list", &[
+        "recon --flags",
+        "recon --flags | less",
+        "recon --flags > flags.txt",
+    ]);
+
+    example("Search for a specific area", &[
+        "recon --flags | grep -i cookie",
+        "recon --flags | grep -E '^\\s*-[a-zA-Z],'       # just the flags with short keys",
+    ]);
+
+    note("--flags is curl's `--help all` layout: short key (or 4 spaces) + long name + <VALUE> + a short description capped at ~52 chars. Sorted alphabetically by long name. Use --flags as the quick-lookup index; follow up with `recon --help <topic>` for any feature area's long-form deep dive.");
+
     section("DOCUMENT CONVERSIONS (0.58.0)");
 
     example("Markdown → HTML (pure-Rust)", &[

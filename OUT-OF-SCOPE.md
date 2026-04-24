@@ -46,6 +46,301 @@ Organized into four buckets by reason for non-inclusion. When an item ships, rem
 
 - **Client-certificate auth (mTLS)** — now that recon ships `--client-cert` / `--client-key` (0.54.0), plumbing the same opts through to `rumqttc` is straightforward. Just not asked for yet.
 
+### Additional curl flags (`curl --help all` sweep)
+
+A full walk through `curl --help all` against recon's flag set found
+~200 curl flags not yet present. Items **already documented**
+elsewhere in this file are omitted (alt-svc, anyauth, aws-sigv4,
+cert-status, delegation, digest, engine, haproxy-*, krb, negotiate,
+netrc*, ntlm, pinnedpubkey, proxy-{cert,key,ssl,gssapi}-*,
+socks5-gssapi-*, sslv2/3, ssl-{allow-beast,auto-client-cert,
+no-revoke,revoke-best-effort}, tlsauthtype/password/user,
+cert-status, DER formats).
+
+Grouped by theme. Pros / cons are spelled out for the high-value
+items (likely next features if wishlist pressure arrives); the long
+tail is listed compactly so the inventory stays complete.
+
+**HTTP version pinning** (high value for interop testing):
+
+- `-0, --http1.0`, `--http1.1`, `--http2`, `--http2-prior-knowledge`, `--http3`, `--http3-only`
+  - Pro: force a specific version; invaluable when debugging HTTP/2 push,
+    HTTP/3 QUIC, or legacy servers. Most flags are thin wrappers around
+    reqwest's `http1_only` / `http2_prior_knowledge` builders.
+  - Con: HTTP/3 needs reqwest's QUIC feature (disabled in recon); not
+    free.
+
+**Form uploads** (high value; curl parity gap):
+
+- `-F, --form <NAME=VALUE>`, `--form-string <NAME=STRING>`, `--form-escape`
+  - Pro: recon has multipart via the script `http()` opts map but NOT
+    as CLI flags. Parity closes a common "why can't I do this from
+    the command line?" gap.
+  - Con: `-F` has a rich mini-language (`name=@file`, `name=@file;type=…`,
+    `name=<file` for content from file, `name=<@-` for stdin); faithful
+    reproduction is ~200 LOC.
+
+**Conditional requests** (high value for polling):
+
+- `-z, --time-cond <TIME|FILE>` — `If-Modified-Since` from an absolute
+  date or local file's mtime.
+  - Pro: saves bandwidth on reruns; pairs with `-O` for idempotent
+    mirrors. Already listed on the wget side (`-N`); curl's version is
+    more flexible (date strings vs file mtime).
+  - Con: ~50 LOC including RFC-822 date parsing.
+
+- `--etag-compare <FILE>` + `--etag-save <FILE>` — ETag-based conditional.
+  - Pro: complements time-cond for servers that care about ETag.
+  - Con: requires persistent state (the ETag file).
+
+**Byte-range requests**:
+
+- `-r, --range <RANGE>` — byte-range fetch. `0-1023`, `2048-`, `-500`.
+  - Pro: essential for partial-content testing + resume support.
+  - Con: low effort, high value. Probably ships the same release as
+    `--max-filesize`.
+
+- `--max-filesize <BYTES>` — cap download size. Server reports
+  Content-Length; abort if larger.
+  - Pro: safety fuse for runaway downloads (especially paired with
+    a future `-i / --input-file` from the wget list).
+  - Con: only useful when Content-Length is honest.
+
+**Output control extras**:
+
+- `--output-dir <DIR>` — prefix for `-o` / `-O`.
+- `--remote-name-all` — apply `-O` to every URL in a multi-URL invocation.
+- `--remove-on-error` — delete the partial output file on failure.
+- `--create-file-mode <MODE>` — chmod octal for files `-o` creates.
+- `-N, --no-buffer` — unbuffered stdout (useful when piping into
+  another tool that wants bytes now).
+- `--no-clobber` — don't overwrite existing output.
+- `-D, --dump-header <FILE>` — save response headers to a file.
+- `--stderr <FILE>` — redirect stderr to a file.
+- `-#, --progress-bar` — bar-style progress vs the default percent meter.
+- `--no-progress-meter`, `--styled-output`, `--suppress-connect-headers`
+
+  - Pro: every item is a minor quality-of-life tweak. Collectively
+    they close ~20 user papercuts.
+  - Con: each is small alone; worth bundling into a single "output
+    quality-of-life" release once a few get requested.
+
+**Retry / rate**:
+
+- `--retry <N>`, `--retry-all-errors`, `--retry-connrefused`,
+  `--retry-delay <SECS>`, `--retry-max-time <SECS>` — retry loop for
+  transient failures. Curl's model is self-contained; reqwest
+  doesn't ship retry primitives.
+  - Pro: essential for flaky networks; pairs with CI use cases.
+  - Con: recon would need to build a retry layer around `client::execute`
+    (~100 LOC + backoff logic).
+
+- `--rate <MAX>` — request rate limit per interval (e.g. `2/s`).
+  - Pro: useful when batching multiple URLs without tripping rate limits.
+  - Con: only meaningful with multi-URL or `-i` input-file modes.
+
+**Protocol restriction**:
+
+- `--proto <PROTOCOLS>`, `--proto-default <PROTO>`, `--proto-redir <PROTOCOLS>`
+  - Pro: security hardening (reject `-L` redirects to unexpected
+    schemes). Curl's syntax (`=https,-ftp` etc.) is well-established.
+  - Con: state-machine to evaluate the filter expression; ~80 LOC
+    including parser.
+
+- `-:, --next` — separator between URL-specific flag sets in a
+  single invocation. `curl URL1 -H 'X: a' -: URL2 -H 'Y: b'`.
+  - Pro: one-shot multi-request without scripting.
+  - Con: substantial clap restructure — the positional-vs-flag pairing
+    would need an argv-splitter pre-pass similar to how `--script`
+    args are handled today.
+
+**URL surface**:
+
+- `--url-query <DATA>` — append query params (URL-encodes like
+  `--data-urlencode`).
+- `--request-target <PATH>` — override the request-target in the
+  first request line.
+- `--path-as-is` — don't collapse `..` / `.` in URLs.
+- `-g, --globoff` — disable curl's `{a,b,c}` / `[1-10]` URL globbing.
+  (recon doesn't glob, so this would be a no-op — skip unless we
+  add globbing.)
+- `--disallow-username-in-url` — security hardening.
+
+**Parallel transfers**:
+
+- `-Z, --parallel`, `--parallel-max <N>`, `--parallel-immediate`
+  - Pro: first-class parallel fetching; complements a future `-i`
+    input-file feature.
+  - Con: needs a work-queue, progress aggregation, per-stream output
+    routing. Non-trivial.
+
+**Auth shortcuts**:
+
+- `-n, --netrc`, `--netrc-file <FILE>`, `--netrc-optional` — ~/.netrc.
+  - Pro: big user-quality-of-life feature; standard Unix convention.
+    Many CI setups already have a netrc.
+  - Con: ~80 LOC including parser and URL-match logic. Low risk.
+
+- `--oauth2-bearer <TOKEN>` — sets `Authorization: Bearer TOKEN`.
+  - Pro: curl-parity sugar; saves `-H "Authorization: Bearer $TOK"`.
+  - Con: trivial (~10 LOC) but redundant with -H.
+
+- `--digest` — HTTP Digest auth.
+  - Pro: some legacy enterprise servers still use it.
+  - Con: reqwest 0.12 has no Digest support; would require a custom
+    401-challenge layer. ~150 LOC.
+
+**Upload variants**:
+
+- `-a, --append` — append to remote instead of overwrite
+  (FTP / SFTP).
+- `--crlf` — convert LF to CRLF during upload.
+- `-T, --upload-file -` — upload from stdin (recon has `-T` but
+  accepts a path; check stdin path).
+
+**Connection tuning**:
+
+- `--connect-to <HOST:PORT:TARGET:PORT>` — override connection target
+  per-host (like `--resolve` but address-level).
+- `--tcp-fastopen`, `--tcp-nodelay` — TCP tuning.
+- `--keepalive-time <SECS>`, `--no-keepalive` — TCP keepalive.
+- `--local-port <RANGE>` — pick source port from a range.
+- `--happy-eyeballs-timeout-ms <MS>` — IPv6→IPv4 fallback timing.
+- `--no-alpn`, `--no-npn`, `--no-sessionid` — TLS feature disables
+  for misbehaving servers.
+
+**TLS tuning** (niche but legitimate):
+
+- `--ciphers <LIST>`, `--tls13-ciphers <LIST>` — custom cipher lists.
+- `--tls-max <VERSION>` — upper bound.
+- `--curves <LIST>` — allowed ECDH curves.
+- `--crlfile <PATH>` — TLS CRL.
+- `--ca-native`, `--capath <DIR>` — alternate trust stores.
+- `--ssl`, `--ssl-reqd` — soft/hard TLS requirement for FTP/SMTP/etc.
+- `--false-start` — TLS False Start.
+- `--tlsv1`, `--tlsv1.0`, `--tlsv1.1` — force specific old versions.
+- `--tr-encoding` — request Transfer-Encoding compression.
+
+**DNS-over-HTTPS**:
+
+- `--doh-url <URL>`, `--doh-insecure`, `--doh-cert-status`
+  - Pro: privacy + censorship-resilience; would pair with `--dns-servers`.
+  - Con: hickory-resolver has no DoH yet; would need hickory 0.25 or
+    a side-car DoH client.
+
+**FTP** (listed in full since recon's FTP probe binding exists):
+
+- `--ftp-account`, `--ftp-alternative-to-user`, `--ftp-create-dirs`,
+  `--ftp-method`, `--ftp-pasv`, `-P, --ftp-port`, `--ftp-pret`,
+  `--ftp-skip-pasv-ip`, `--ftp-ssl-ccc`, `--ftp-ssl-ccc-mode`,
+  `--ftp-ssl-control`, `-Q, --quote`, `--disable-epsv`, `--disable-eprt`,
+  `-l, --list-only`, `--tftp-no-options`
+  - Pro: mirrors curl's FTP flag surface 1:1.
+  - Con: each is a small patch on top of suppaftp. Ship per-request.
+
+**SMTP / IMAP / POP3**:
+
+- `--mail-auth <ADDR>` — SMTP original-sender address.
+- `--mail-rcpt-allowfails` — allow RCPT TO failures.
+- `--login-options <STR>` — IMAP/POP3 login options.
+- `--sasl-authzid <ID>`, `--sasl-ir` — SASL tweaks.
+
+**SSH**:
+
+- `--hostpubmd5 <HEX>`, `--hostpubsha256 <SHA>` — pin SSH host key.
+- `--pubkey <FILE>` — SSH public-key file.
+- `--compressed-ssh` — SSH compression.
+
+**Proxy** (detailed proxy auth + TLS — mostly curl-parity):
+
+- `--preproxy <URL>` — chain two proxies.
+- `--proxy-header <H: V>` — headers on the CONNECT request.
+- `--proxy-http2`, `--proxy1.0 <HOST>`, `-p, --proxytunnel`
+- `--proxy-ca-native`, `--proxy-capath`, `--proxy-crlfile`
+- `--proxy-ciphers`, `--proxy-tls13-ciphers`, `--proxy-pinnedpubkey`
+- `--proxy-pass`, `--proxy-tlsauthtype`, `--proxy-tlspassword`, `--proxy-tlsuser`
+- `--proxy-tlsv1`
+
+**Tracing / debug** (high value for debugging wire-level issues):
+
+- `--trace <FILE>`, `--trace-ascii <FILE>` — hex / ASCII wire dump.
+- `--trace-ids`, `--trace-time`, `--trace-config` — trace modifiers.
+- `--libcurl <FILE>` — emit a C source file that reproduces the
+  invocation via libcurl.
+  - Pro: every advanced curl user uses `--trace-ascii` at least
+    once. Recon's `-vvv` is close but not identical.
+  - Con: need to hook reqwest's connector at the byte level; the
+    same work that blocks `-w` phase timings. Revisit together.
+
+**Multi-config**:
+
+- `-K, --config <FILE>` — read flags from a file (one per line, `#`
+  comments, `@FILE` for another).
+- `-q, --disable` — ignore `~/.curlrc`. (recon has no analogue; if
+  `--config` lands, add this alongside.)
+
+**Variables / expansion**:
+
+- `--variable <NAME=VAL[@FILE]>` — named variable usable as `{{NAME}}`
+  in other flags.
+- `--expand-*` — variant spellings that enable variable expansion
+  in specific flag values.
+  - Pro: lets CI configurations stay DRY without shell-side
+    templating.
+  - Con: substantial parser work; interacts with clap's positional
+    handling. Low-value until multiple flags need it.
+
+**Telnet**:
+
+- `-t, --telnet-option <opt=val>` — set telnet options during a
+  `telnet://` probe.
+
+**Filesystem metadata**:
+
+- `--xattr` — write URL / MIME type into extended attributes of
+  the downloaded file. macOS / Linux.
+
+**Misc / legacy / already-N/A**:
+
+- `--metalink` — deprecated even in curl.
+- `--egd-file` — EGD randomness source (Unix-only, legacy).
+- `--manual` — curl's full manual; recon has `--examples` + `docs/MANUAL.md`.
+- `--use-ascii` / `-B` — legacy FTP ASCII mode.
+- `--ssl-allow-beast`, `--ssl-auto-client-cert`, `--ssl-no-revoke`,
+  `--ssl-revoke-best-effort` — Windows Schannel-only (architectural
+  mismatch; rustls doesn't expose these knobs).
+- `--xattr` — already listed above.
+
+**Already-present aliases worth noting**:
+
+- recon's `-b` is `--cookiejar` (saves + loads). curl splits this into
+  `-b, --cookie` (send) and `-c, --cookie-jar` (save). Behaviour
+  overlaps but not 1:1 — if strict parity matters, clap aliases can
+  be added.
+- `--show-error` is likely worth adding as the counterpart to `-s`
+  (force-show errors even when silent).
+
+**Assessment.** Per-release phasing if curl-parity becomes a goal:
+
+1. **Quick wins** (one release, ~500 LOC): `-F / --form` +
+   `--form-string`, `-n / --netrc*`, `-z / --time-cond`,
+   `-r / --range`, `--max-filesize`, `--output-dir`,
+   `--oauth2-bearer`, `--remove-on-error`, `--connect-to`.
+2. **HTTP version knob** (small): `--http1.0`, `--http1.1`,
+   `--http2`, `--http2-prior-knowledge`. Thin reqwest wrappers.
+3. **Retry layer** (medium): `--retry*` cluster. Needs a new layer
+   around `client::execute`.
+4. **Parallel** (medium): `-Z / --parallel`, `--parallel-max`. Needs
+   an async work queue.
+5. **Proxy cluster** (medium-large): `--preproxy`, `--proxy-http2`,
+   `--proxy-{ca-native,capath,crlfile,ciphers,tls13-ciphers,pinnedpubkey}`.
+6. **Trace/debug** (blocked): `--trace*`, `--libcurl`. Interacts with
+   the same reqwest-connector issue that blocks `-w` phase timings.
+7. **FTP / SMTP / IMAP / SSH specifics**: per-ask.
+
+`-F` and `--netrc` are probably the two most-requested-in-curl-issues
+omissions; worth prioritising if user demand surfaces.
+
 ### wget features (things curl — and therefore recon — doesn't have)
 
 Catalog of wget-unique capabilities that could land in recon if asked. Most

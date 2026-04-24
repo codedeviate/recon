@@ -72,6 +72,28 @@ behind, stop and catch it up before the next feature lands. When
 reviewing a diff before commit, mentally walk the four surfaces for
 each new item and fix anything that's missing.
 
+**Fifth surface — `recon --flags` (alphabetical index)**. Every flag
+added to `src/cli.rs` automatically shows up in `recon --flags`
+because that listing is generated at runtime from clap's introspection.
+BUT — the short description shown in `--flags` is the first line of
+the flag's clap doc comment, truncated to ~52 characters. When adding
+or changing a flag, make sure:
+
+1. The doc comment's **first sentence** is self-contained and makes
+   sense on its own (not "…continued from the previous paragraph").
+2. The first sentence fits within ~52 characters. Longer sentences
+   are truncated with an ellipsis in `--flags` output — readable but
+   not ideal. Keep headlines short; put detail in subsequent
+   sentences.
+3. Explicit `value_name` is set when the default clap-derived
+   uppercase version would look ugly (`<CHECKDIGIT_LIST>` vs just
+   omitting it for a bool).
+
+`recon --flags` itself doesn't need a separate "registration" step
+for new flags — it picks them up for free from clap. But the
+guidelines above keep its output scannable. Run `recon --flags` after
+adding a flag to confirm the first-line summary reads well.
+
 ## Manual — every change also updates `docs/MANUAL.md` and regenerates the PDF
 
 recon ships a long-form user manual alongside the built-in `--help`

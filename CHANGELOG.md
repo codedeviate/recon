@@ -8,6 +8,44 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.60.0] - 2026-04-24
+
+### Added
+
+- **`--flags`** — alphabetical curl-style flag listing. Format:
+  `(short, ) --long <VALUE>  short description`, sorted by long name,
+  one flag per line, descriptions capped at ~52 characters (first
+  sentence of each flag's clap doc comment). Auto-paged through
+  `$PAGER`. Complements `--help` (topic deep-dives) and `--examples`
+  (curated scenarios) — this is the quick lookup index.
+- **Help topic**: `recon --help flags` explains the listing format
+  plus grep-friendly usage patterns.
+- **`--version` Features token**: `flag-listing`.
+
+### Changed
+
+- **`CLAUDE.md`** gains a "Fifth surface" note under the exposure
+  policy: every flag's **first sentence** must be self-contained and
+  fit within ~52 chars so the `--flags` listing stays scannable.
+  Doesn't require a separate registration step (clap introspection
+  handles it automatically) but flag authoring has to keep the
+  headline tight.
+- **`OUT-OF-SCOPE.md`** grew a new subsection under **Waiting**
+  cataloguing ~150 curl flags not in recon, grouped by theme (HTTP
+  version pinning, forms, conditional requests, byte-range, output
+  control, retry/rate, parallel transfers, protocol restriction,
+  proxy, TLS tuning, DoH, FTP, SMTP/IMAP/POP3, SSH, tracing,
+  multi-config, variables, telnet, xattr, legacy). Pros/cons for the
+  ~15 high-value items; compact list for the long tail. Assessment
+  paragraph recommends a 7-release phasing if curl-parity ever
+  becomes a goal; `-F / --form` and `-n / --netrc` flagged as the
+  two most-requested omissions.
+
+### Regenerated
+
+- **`docs/MANUAL.md`** + **`docs/MANUAL.pdf`** — gained a `--flags`
+  subsection under Meta flags. Version bumped to 0.60.0.
+
 ## [0.59.1] - 2026-04-24
 
 ### Changed

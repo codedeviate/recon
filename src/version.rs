@@ -42,6 +42,7 @@ const FEATURES: &[&str] = &[
     "compare",
     "compression",
     "decode",
+    "flag-listing",
     "DKIM-signing",
     "email-dns",
     "encode",

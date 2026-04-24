@@ -1059,6 +1059,13 @@ pub struct Args {
     #[arg(long = "examples", help_heading = "Meta")]
     pub examples: bool,
 
+    /// List every flag alphabetically by long name, curl-style.
+    /// Short key on the left (or padding), long name, value hint,
+    /// short description. Complements --help (topic deep-dives) and
+    /// --examples (curated scenarios) — this is the quick lookup.
+    #[arg(long = "flags", help_heading = "Meta")]
+    pub flags: bool,
+
     /// Bootstrap `~/.recon/` with script/, jars/, sni/ subdirectories and
     /// a commented config.toml skeleton. Existing files and directories
     /// are not overwritten — safe to re-run.

@@ -7,6 +7,7 @@ mod compression;
 mod decode;
 mod docs;
 mod docs_pdf;
+mod flaglist;
 mod config;
 mod cookiejar;
 mod dict_probe;
@@ -130,6 +131,15 @@ fn main() {
     if std::env::args().any(|a| a == "--examples") {
         let pager_child = pager::activate(pager::no_pager_requested());
         examples::print();
+        pager::finish(pager_child);
+        return;
+    }
+
+    // --flags lists every flag alphabetically (curl --help all style).
+    // Same early-intercept treatment so clap doesn't demand a URL first.
+    if std::env::args().any(|a| a == "--flags") {
+        let pager_child = pager::activate(pager::no_pager_requested());
+        flaglist::print_flags_listing();
         pager::finish(pager_child);
         return;
     }

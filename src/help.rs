@@ -1825,6 +1825,32 @@ static TOPIC_TEXT_ENCODING: Topic = Topic {
     ],
 };
 
+static TOPIC_FLAGS: Topic = Topic {
+    title: "Flag listing (`--flags`)",
+    description: "A curl-style alphabetical listing of every flag.\n\
+                  Format: `(short, ) --long <VALUE>  short description`,\n\
+                  sorted by long name, one flag per line, descriptions\n\
+                  capped at ~52 characters.\n\
+                  \n\
+                  Use `recon --flags` for the quick lookup; follow up\n\
+                  with `recon --help <topic>` for the long-form\n\
+                  explanation of any feature area.\n\
+                  \n\
+                  Paging: auto-paged through $PAGER when stdout is a\n\
+                  TTY. Disable with --no-pager or $RECON_NO_PAGER.",
+    flags: &[
+        FlagHelp { flags: "--flags", description: "Print the alphabetical flag list and exit." },
+        FlagHelp { flags: "--no-pager", description: "Skip paging; print directly to stdout." },
+    ],
+    related: &["help", "examples"],
+    examples: &[
+        ExampleHelp { description: "Browse the full flag list", command: "recon --flags" },
+        ExampleHelp { description: "Search for a specific area", command: "recon --flags | grep -i cookie" },
+        ExampleHelp { description: "Count flags", command: "recon --flags | wc -l" },
+        ExampleHelp { description: "Pipe to a file", command: "recon --flags > flags.txt" },
+    ],
+};
+
 static TOPIC_ARCHIVE: Topic = Topic {
     title: "Archive Tools (zip, tar, and friends)",
     description: "Create and extract file archives. Two unified flags:\n\
@@ -2102,6 +2128,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "docs" | "markdown" | "md-to-html" | "md-to-pdf" | "html-to-pdf" | "pdf" => Some(&TOPIC_DOCS),
         "client-cert" | "mtls" | "client-certificate" => Some(&TOPIC_CLIENT_CERT),
         "archive" | "zip" | "tar" | "extract" => Some(&TOPIC_ARCHIVE),
+        "flags" | "flag-list" | "list-flags" => Some(&TOPIC_FLAGS),
         _ => None,
     }
 }
@@ -2193,6 +2220,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "threads",
         "script-server",
         "docs",
+        "flags",
     ]
 }
 
