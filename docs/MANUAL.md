@@ -2,7 +2,7 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.60.0</div>
+<div class="version">Version 0.61.0</div>
 <div class="date">2026-04-24</div>
 <div class="meta">
 Repository · https://github.com/thomas-starweb/recon<br>
@@ -332,7 +332,7 @@ recon https://api.example.com/ -w '\n%{http_code} in %{time_total}s (%{size_down
 | `-k, --insecure` | Skip TLS cert verification. |
 | `--tlsv1.2` / `--tlsv1.3` | Force minimum TLS version. |
 | `--cacert <PATH>` | Trust an extra PEM root (on top of system roots). |
-| `--interface <IP>` | Bind outgoing socket to a specific local IP. |
+| `--interface <IP\|NAME>` | Bind outgoing socket to a specific local IP **or** interface name (eth0, en0 on Linux/macOS via getifaddrs; Windows accepts IP literals only). |
 | `--limit-rate <RATE>` | Throttle download. Suffixes: K, M, G. |
 | `--speed-limit <BYTES>` | Minimum bytes-per-second (fails if rate drops). |
 | `--speed-time <SECS>` | Window for `--speed-limit` (default 30). |
@@ -841,8 +841,10 @@ inline `<style>` with `--unsafe-html`.
 | `--from-file <PATH>` | Encode input from file (mutually exclusive with positional). |
 | `--encode-list` | List all supported formats. |
 | `--qr-level <L\|M\|Q\|H>` | QR error-correction level (default M). |
+| `--hrt` / `--no-hrt` | Human-readable text under 1D barcodes. Default on for EAN/UPC, off for Code128/39. SVG + ASCII only (PNG HRT deferred). |
 | `--decode <IMAGE>` | Scan a PNG/JPEG/WebP for any supported format. `-` for stdin. |
 | `--decode-hints <LIST>` | Comma-separated format restriction. |
+| `--decode-all <IMAGE>` | Scan for every barcode in the image; one line per detection. |
 
 ### Examples
 
@@ -860,6 +862,19 @@ recon --decode ticket.png                           # → aztec<TAB>transit tick
 cat code.png | recon --decode -
 recon --decode mystery.png --decode-hints qr,datamatrix
 recon --decode bottle.jpg --decode-hints ean13
+recon --decode-all sheet.png                        # every code in the image
+```
+
+### HRT (human-readable text under 1D barcodes)
+
+EAN-13 and UPC-A get HRT by default; Code128 and Code39 don't unless you
+pass `--hrt`. Implemented for ASCII and SVG output. PNG output ignores
+the flag — PNG HRT is deferred pending bundled-font work.
+
+```sh
+recon --encode ean13 --encode-format svg '4006381333931' -o retail.svg
+recon --encode code128 --hrt --encode-format svg 'SHIP-4711' -o box.svg
+recon --encode ean13 --no-hrt '4006381333931' -o bare.svg
 ```
 
 ## Hashing
@@ -939,7 +954,19 @@ recon --encrypt --pgp-recipient alice@example.com msg.txt -o msg.txt.pgp
 |------|-------------|
 | `--checkdigit <ALGO>` | Verify an input. |
 | `--checkdigit-create <ALGO>` | Compute and append the check digit. |
-| `--checkdigit-list` | List supported algorithms (60+). |
+| `--checkdigit-list` | List supported algorithms (70+). |
+
+Notable algorithms shipped in 0.61.0:
+
+- **Latin-American + Australian + Mexican tax IDs**: `br_cpf`,
+  `br_cnpj`, `ar_cuit`, `ar_cuil`, `cl_rut`, `pe_ruc`, `au_abn`,
+  `mx_rfc`. All except ABN support `--checkdigit-create`; ABN's
+  mod-89 algorithm has no single-digit inverse.
+- **110+ year warnings** on Nordic + Bulgarian personal IDs: `cpr`
+  (Denmark), `henkilotunnus` (Finland), `fodselsnummer` (Norway),
+  `bg-egn` (Bulgaria). Same idiom as the Swedish `personnummer`:
+  when the parsed birth year implies age ≥ 110, the verdict's
+  `comment` flags a likely data-entry error.
 
 ### Examples
 

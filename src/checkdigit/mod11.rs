@@ -138,10 +138,28 @@ pub fn verify_cpr(input: &str) -> Verdict {
         sum += weights[i] * c.to_digit(10).unwrap();
     }
     let formatted = format!("{}-{}", &clean[..6], &clean[6..]);
-    if sum % 11 == 0 {
-        Verdict::Valid { formatted, detected: "Danish CPR".into(), comment: String::new() }
-    } else {
-        Verdict::Invalid { reason: "CPR mod-11 check failed (note: post-2007 CPRs may legitimately fail)".into() }
+    if sum % 11 != 0 {
+        return Verdict::Invalid {
+            reason: "CPR mod-11 check failed (note: post-2007 CPRs may legitimately fail)".into(),
+        };
+    }
+    let comment = match full_year {
+        Some(y) => {
+            let age = super::country_id::current_year().saturating_sub(y);
+            if age >= 110 {
+                format!(
+                    "person \u{2265} 110 years old \u{2014} likely data entry error (born {y})"
+                )
+            } else {
+                String::new()
+            }
+        }
+        None => String::new(),
+    };
+    Verdict::Valid {
+        formatted,
+        detected: "Danish CPR".into(),
+        comment,
     }
 }
 
@@ -217,7 +235,39 @@ pub fn verify_fodselsnummer(input: &str) -> Verdict {
     }
 
     let formatted = format!("{} {}", &clean[..6], &clean[6..]);
-    Verdict::Valid { formatted, detected: "Norwegian fødselsnummer".into(), comment: String::new() }
+    // Parse birth year from NNN + YY to emit a 110+ warning. Norwegian
+    // FNR encodes the century in the individual number (NNN, digits 7-9):
+    //   000-499            → 1900-1999
+    //   500-749, YY 54-99  → 1855-1899
+    //   500-999, YY 00-39  → 2000-2039
+    //   900-999, YY 40-99  → 1940-1999
+    let yy: u32 = clean[4..6].parse().unwrap();
+    let nnn: u32 = clean[6..9].parse().unwrap();
+    let century: Option<u32> = if nnn <= 499 {
+        Some(1900)
+    } else if (500..=749).contains(&nnn) && yy >= 54 {
+        Some(1800)
+    } else if (900..=999).contains(&nnn) && yy >= 40 {
+        Some(1900)
+    } else if (500..=999).contains(&nnn) && yy <= 39 {
+        Some(2000)
+    } else {
+        None
+    };
+    let comment = match century.map(|c| c + yy) {
+        Some(y) => {
+            let age = super::country_id::current_year().saturating_sub(y);
+            if age >= 110 {
+                format!(
+                    "person \u{2265} 110 years old \u{2014} likely data entry error (born {y})"
+                )
+            } else {
+                String::new()
+            }
+        }
+        None => String::new(),
+    };
+    Verdict::Valid { formatted, detected: "Norwegian fødselsnummer".into(), comment }
 }
 
 pub fn create_fodselsnummer(input: &str, raw: bool) -> Result<String> {

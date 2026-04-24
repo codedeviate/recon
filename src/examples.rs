@@ -979,6 +979,46 @@ recon --rekey \
         "recon gophers://secure-gopher.example/",
     ]);
 
+    section("RECON-OWN WAITING ITEMS (0.61.0)");
+
+    example("Latin-American + Australian + Mexican tax IDs", &[
+        "recon --checkdigit br_cpf '529.982.247-25'           # Brazilian CPF",
+        "recon --checkdigit br_cnpj '11.444.777/0001-61'      # Brazilian CNPJ",
+        "recon --checkdigit ar_cuit '20-12345678-9'           # Argentinian CUIT",
+        "recon --checkdigit cl_rut '12.345.678-5'             # Chilean RUT",
+        "recon --checkdigit au_abn '51 824 753 556'           # Australian ABN",
+        "recon --checkdigit-create br_cpf '529982247'         # → 52998224725",
+    ]);
+
+    example("110+ year warning on Nordic + Bulgarian IDs", &[
+        "recon --checkdigit cpr '0101891234'           # Danish CPR — warns if ≥110",
+        "recon --checkdigit fnr '01018912345'          # Norwegian FNR",
+        "recon --checkdigit henkilotunnus '010189-1234'  # Finnish HETU",
+        "recon --checkdigit bg-egn '8901011234'        # Bulgarian EGN",
+    ]);
+
+    example("Human-readable text under 1D barcodes (--hrt)", &[
+        "recon --encode ean13 --encode-format svg '4006381333931' -o product.svg   # HRT default-on for EAN/UPC",
+        "recon --encode code128 --encode-format svg --hrt 'SHIP-4711' -o ship.svg  # explicit opt-in",
+        "recon --encode ean13 --no-hrt '4006381333931' -o bare.svg                  # suppress HRT",
+    ]);
+    note("HRT is rendered for ASCII and SVG output in 0.61.0. PNG HRT is deferred (needs bundled font); PNG output ignores --hrt with no warning.");
+
+    example("Scan every barcode in an image (--decode-all)", &[
+        "recon --decode-all sheet.png          # one line per detected code",
+        "cat photo.jpg | recon --decode-all -",
+    ]);
+
+    example("MQTT over TLS with mutual auth", &[
+        "recon mqtts://broker.example.com -E client.pem --client-key client.key --mqtt-topic 'sensors/#'",
+    ]);
+
+    example("Bind outgoing socket to an interface by name", &[
+        "recon --interface eth0 https://example.com/",
+        "recon --interface en0 https://example.com/          # macOS",
+        "recon --interface 10.0.0.5 https://example.com/     # IP literal still works",
+    ]);
+
     section("FLAG LISTING (0.60.0)");
 
     example("Browse the full flag list", &[

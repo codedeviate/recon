@@ -409,10 +409,27 @@ const QUIET_ZONE_MODULES: u32 = 2;     // blank modules around the matrix
 ///   looks square-ish in the terminal.
 /// - 1D codes: extrude the single row into a tall block using full blocks.
 pub fn render_ascii(matrix: &BitMatrix) -> String {
-    match matrix.kind {
+    render_ascii_with_hrt(matrix, None)
+}
+
+/// Like `render_ascii`, but optionally prints a human-readable text
+/// (HRT) line below the barcode. Centered if it fits; left-aligned
+/// otherwise.
+pub fn render_ascii_with_hrt(matrix: &BitMatrix, hrt: Option<&str>) -> String {
+    let mut out = match matrix.kind {
         MatrixKind::TwoD => render_ascii_2d(matrix),
         MatrixKind::OneD => render_ascii_1d(matrix),
+    };
+    if let Some(text) = hrt {
+        let total_cols = (matrix.width + 2 * QUIET_ZONE_MODULES) as usize;
+        let pad = total_cols.saturating_sub(text.chars().count()) / 2;
+        for _ in 0..pad {
+            out.push(' ');
+        }
+        out.push_str(text);
+        out.push('\n');
     }
+    out
 }
 
 fn render_ascii_2d(matrix: &BitMatrix) -> String {
@@ -470,15 +487,29 @@ fn render_ascii_1d(matrix: &BitMatrix) -> String {
 
 /// Render to a self-contained SVG document. Black-on-white.
 pub fn render_svg(matrix: &BitMatrix) -> String {
+    render_svg_with_hrt(matrix, None)
+}
+
+/// Like `render_svg`, but optionally emits an HRT `<text>` element
+/// below the barcode body. Font-family is left to the rendering
+/// environment (sans-serif by default).
+pub fn render_svg_with_hrt(matrix: &BitMatrix, hrt: Option<&str>) -> String {
     let (scale, height_mul) = match matrix.kind {
         MatrixKind::TwoD => (TWOD_PIXEL_SCALE, 1),
         MatrixKind::OneD => (ONED_PIXEL_WIDTH, ONED_BAR_HEIGHT),
     };
     let qz = QUIET_ZONE_MODULES;
     let module_w = matrix.width + 2 * qz;
+    // Extra space below for HRT when present: ~1.2x the per-module
+    // pixel scale gives a readable row under the bars.
+    let hrt_px = if hrt.is_some() {
+        (scale as f32 * 1.6) as u32
+    } else {
+        0
+    };
     let module_h = (matrix.height * height_mul) + 2 * qz;
     let px_w = module_w * scale;
-    let px_h = module_h * scale;
+    let px_h = module_h * scale + hrt_px;
 
     let mut out = String::new();
     out.push_str(&format!(
@@ -516,6 +547,23 @@ pub fn render_svg(matrix: &BitMatrix) -> String {
                 }
             }
         }
+    }
+
+    if let Some(text) = hrt {
+        let escaped = text
+            .replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('>', "&gt;");
+        let text_x = px_w / 2;
+        let text_y = module_h * scale + (hrt_px * 3) / 4;
+        let font_px = ((scale as f32) * 1.2) as u32;
+        out.push_str(&format!(
+            "  <text x=\"{text_x}\" y=\"{text_y}\" \
+              text-anchor=\"middle\" \
+              font-family=\"monospace, sans-serif\" \
+              font-size=\"{font_px}\" \
+              fill=\"black\">{escaped}</text>\n"
+        ));
     }
 
     out.push_str("</svg>\n");
@@ -669,10 +717,24 @@ pub fn run(args: &Args) -> Result<()> {
         );
     }
 
+    // HRT decision: explicit --no-hrt wins; else --hrt wins; else
+    // default-on for EAN-13 / UPC-A, off for the others.
+    let hrt_text: Option<&str> = if args.no_hrt {
+        None
+    } else if args.hrt || matches!(format, Format::Ean13 | Format::UpcA) {
+        std::str::from_utf8(&input).ok()
+    } else {
+        None
+    };
+
     let bytes: Vec<u8> = match out_format {
-        OutputFormat::Ascii => render_ascii(&matrix).into_bytes(),
-        OutputFormat::Svg => render_svg(&matrix).into_bytes(),
-        OutputFormat::Png => render_png(&matrix)?,
+        OutputFormat::Ascii => render_ascii_with_hrt(&matrix, hrt_text).into_bytes(),
+        OutputFormat::Svg => render_svg_with_hrt(&matrix, hrt_text).into_bytes(),
+        OutputFormat::Png => {
+            // PNG HRT rendering is deferred pending font bundling.
+            // Fall back to the plain bar image.
+            render_png(&matrix)?
+        }
     };
 
     match &args.output {

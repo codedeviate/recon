@@ -65,17 +65,11 @@ pub fn execute(args: &Args) -> Result<(Response, RequestMetrics)> {
         builder = builder.add_root_certificate(cert);
     }
 
-    // --interface: bind to a specific local IP. First cut accepts IP
-    // literals only — interface names (eth0, en0) are OS-specific and
-    // deferred.
+    // --interface: bind to a specific local IP. Accepts IP literals OR
+    // interface names (eth0, en0, lo0 on Linux/macOS via getifaddrs).
+    // Windows falls back to "literal IP only" with a clear error.
     if let Some(iface) = &args.interface {
-        let ip: std::net::IpAddr = iface.parse().map_err(|_| {
-            anyhow::anyhow!(
-                "--interface: expected an IP address literal (got '{}'). \
-                 Interface-name resolution not yet supported.",
-                iface
-            )
-        })?;
+        let ip = crate::iface::resolve_interface(iface)?;
         builder = builder.local_address(ip);
     }
 

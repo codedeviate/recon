@@ -19,19 +19,13 @@ Organized into four buckets by reason for non-inclusion. When an item ships, rem
 
 ### Check digits
 
-- **110+ year warning for non-SE personal IDs** — Danish CPR, Finnish henkilötunnus, Norwegian fødselsnummer, Bulgarian EGN. Mechanically identical to the Swedish personnummer case in 0.18.0; just not asked for yet.
 - **Partial / prefix verification** — "is this a plausible IIN / EDRPOU prefix?" for inputs shorter than the full length. UX pattern rather than an algorithm.
-- **Non-European tax IDs** — ASEAN, Latin America (Brazilian CPF / CNPJ are the most-requested gap), African, Middle Eastern, Australian ABN, US EIN / SSN format check, etc.
+- **ASEAN / African / Middle Eastern tax IDs** — beyond the Latin-American + Australian + Mexican set shipped in 0.61.0. Add per concrete request.
 
 ### Encoding
 
-- **Human-readable text under 1D barcodes** (the digits shown below an EAN-13, for example). ~80 LOC with `ab_glyph` for PNG; an `<text>` element for SVG.
-- **Multi-barcode scanning in one image** — `rxing::helpers::detect_multiple_in_file` exists; not yet wired. Revisit if users report multi-code source images.
+- **PNG HRT** — 0.61.0 shipped HRT for ASCII + SVG output; PNG HRT is deferred pending font bundling. `ab_glyph` + a permissive TTF (~50–100 KB compiled) is the path; picking a font + rasterization positioning wasn't worth it in this release.
 - **`--encode-hints` (rxing encode_with_hints)** — ECI options, Aztec compact-vs-full, PDF417 error-correction level. The API exists; user-facing flag surface isn't designed yet.
-
-### HTTP / curl compatibility
-
-- **Interface name resolution for `--interface`** — `--interface eth0` / `en0` lookup. Current impl accepts IP literals only. Unix would need `if_nametoindex` + `getifaddrs`; Windows wants `GetAdapterAddresses`. Defer until someone asks.
 
 ### Script engine
 
@@ -41,10 +35,6 @@ Organized into four buckets by reason for non-inclusion. When an item ships, rem
 
 - **Other markup → PDF** — reStructuredText, AsciiDoc, Org. Each would need its own parser crate. Revisit per concrete ask.
 - **PDF metadata beyond title** — author, subject, keywords.
-
-### MQTT
-
-- **Client-certificate auth (mTLS)** — now that recon ships `--client-cert` / `--client-key` (0.54.0), plumbing the same opts through to `rumqttc` is straightforward. Just not asked for yet.
 
 ### Additional curl flags (`curl --help all` sweep)
 

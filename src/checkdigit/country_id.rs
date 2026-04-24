@@ -37,7 +37,7 @@ pub fn valid_ddmmyy(
 
 /// Current calendar year in local time (approximate — good enough for
 /// age-based warnings; not for millisecond-accurate calendar math).
-fn current_year() -> u32 {
+pub(crate) fn current_year() -> u32 {
     use std::time::{SystemTime, UNIX_EPOCH};
     let secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)

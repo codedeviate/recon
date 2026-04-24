@@ -75,7 +75,20 @@ pub fn verify_henkilotunnus(input: &str) -> Verdict {
             reason: format!("check char mismatch: expected '{}', got '{}'", expected, chars[10]),
         };
     }
-    Verdict::Valid { formatted: clean, detected: "Finnish henkilötunnus".into(), comment: String::new() }
+    let comment = match full_year {
+        Some(y) => {
+            let age = crate::checkdigit::country_id::current_year().saturating_sub(y);
+            if age >= 110 {
+                format!(
+                    "person \u{2265} 110 years old \u{2014} likely data entry error (born {y})"
+                )
+            } else {
+                String::new()
+            }
+        }
+        None => String::new(),
+    };
+    Verdict::Valid { formatted: clean, detected: "Finnish henkilötunnus".into(), comment }
 }
 
 pub fn create_henkilotunnus(input: &str, _raw: bool) -> Result<String> {

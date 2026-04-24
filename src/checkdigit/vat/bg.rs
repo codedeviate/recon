@@ -85,16 +85,28 @@ pub fn verify_bg_egn(input: &str) -> Verdict {
 
     let expected = egn_check(&digits[..9]);
     let got = digits[9];
-    if expected == got {
-        Verdict::Valid {
-            formatted: clean.clone(),
-            detected: "Bulgarian EGN".into(),
-            comment: String::new(),
-        }
-    } else {
-        Verdict::Invalid {
+    if expected != got {
+        return Verdict::Invalid {
             reason: format!("EGN check mismatch: expected {}, got {}", expected, got),
+        };
+    }
+    let comment = match full_year {
+        Some(y) => {
+            let age = crate::checkdigit::country_id::current_year().saturating_sub(y);
+            if age >= 110 {
+                format!(
+                    "person \u{2265} 110 years old \u{2014} likely data entry error (born {y})"
+                )
+            } else {
+                String::new()
+            }
         }
+        None => String::new(),
+    };
+    Verdict::Valid {
+        formatted: clean.clone(),
+        detected: "Bulgarian EGN".into(),
+        comment,
     }
 }
 

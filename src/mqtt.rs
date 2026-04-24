@@ -321,7 +321,7 @@ fn setup_options_v5(
         options.set_credentials(u, cfg.password.clone().unwrap_or_default());
     }
     if cfg.tls {
-        configure_tls_v5(&mut options, args.insecure)?;
+        configure_tls_v5(&mut options, args.insecure, args)?;
     }
     options.set_connection_timeout(args.timeout);
     options.set_clean_start(args.clean_start);
@@ -432,7 +432,7 @@ fn setup_options_v3(
         options.set_credentials(u, cfg.password.clone().unwrap_or_default());
     }
     if cfg.tls {
-        configure_tls_v3(&mut options, args.insecure)?;
+        configure_tls_v3(&mut options, args.insecure, args)?;
     }
     options.set_clean_session(true);
     let mut net_options = rumqttc::NetworkOptions::new();
@@ -1072,6 +1072,100 @@ fn qos_v5_to_u8(qos: rumqttc::v5::mqttbytes::QoS) -> u8 {
 // the two rustls versions.
 use rumqttc::tokio_rustls::rustls as mqtt_rustls;
 
+/// Parse the caller's --client-cert / --client-key into a (chain, key)
+/// pair typed against rumqttc's rustls 0.22 — the rustls version the
+/// broker config needs. Reuses the same PEM-only policy as the HTTPS
+/// client-cert path (`src/client_cert.rs`): combined PEMs work,
+/// separate cert+key PEM work, encrypted PKCS#8 is refused with an
+/// openssl recipe, DER formats are refused.
+///
+/// Returns `Ok(None)` when no client-cert flags are set.
+fn build_client_auth_material(
+    args: &crate::cli::Args,
+) -> Result<
+    Option<(
+        Vec<mqtt_rustls::pki_types::CertificateDer<'static>>,
+        mqtt_rustls::pki_types::PrivateKeyDer<'static>,
+    )>,
+> {
+    let cert_path = match args.client_cert.as_ref() {
+        Some(p) => p,
+        None => return Ok(None),
+    };
+    // Reuse the same format validation as the HTTPS path.
+    if !args.cert_type.eq_ignore_ascii_case("PEM") {
+        anyhow::bail!(
+            "MQTT mTLS: --cert-type {} is not supported under rustls; pass PEM",
+            args.cert_type
+        );
+    }
+    if !args.key_type.eq_ignore_ascii_case("PEM") {
+        anyhow::bail!(
+            "MQTT mTLS: --key-type {} is not supported under rustls; pass PEM",
+            args.key_type
+        );
+    }
+
+    let cert_bytes = std::fs::read(cert_path)
+        .with_context(|| format!("--client-cert: read {}", cert_path.display()))?;
+    let key_bytes = match args.client_key.as_ref() {
+        Some(p) => std::fs::read(p)
+            .with_context(|| format!("--client-key: read {}", p.display()))?,
+        None => cert_bytes.clone(),
+    };
+
+    // Refuse encrypted keys — same stance as src/client_cert.rs.
+    if let Ok(s) = std::str::from_utf8(&key_bytes) {
+        if s.contains("ENCRYPTED PRIVATE KEY") {
+            anyhow::bail!(
+                "MQTT mTLS: encrypted PKCS#8 keys not supported. \
+                 Decrypt externally (`openssl pkcs8 -in key.enc -out key.pem`) first."
+            );
+        }
+    }
+
+    // Parse cert chain (one or more CERTIFICATE blocks) + first key.
+    let cert_pems =
+        pem::parse_many(&cert_bytes).context("--client-cert: not valid PEM")?;
+    let key_pems =
+        pem::parse_many(&key_bytes).context("--client-key: not valid PEM")?;
+
+    let chain: Vec<mqtt_rustls::pki_types::CertificateDer<'static>> = cert_pems
+        .iter()
+        .filter(|b| b.tag() == "CERTIFICATE")
+        .map(|b| mqtt_rustls::pki_types::CertificateDer::from(b.contents().to_vec()))
+        .collect();
+    if chain.is_empty() {
+        anyhow::bail!("--client-cert: no CERTIFICATE blocks in {}", cert_path.display());
+    }
+
+    // Key: accept PRIVATE KEY (PKCS#8), RSA PRIVATE KEY (PKCS#1),
+    // or EC PRIVATE KEY (SEC1). Fall back to whichever arrives first.
+    let key = key_pems
+        .iter()
+        .find(|b| {
+            matches!(
+                b.tag(),
+                "PRIVATE KEY" | "RSA PRIVATE KEY" | "EC PRIVATE KEY"
+            )
+        })
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "--client-key: no PRIVATE KEY / RSA PRIVATE KEY / EC PRIVATE KEY block found"
+            )
+        })?;
+    let der = key.contents().to_vec();
+    let key_der: mqtt_rustls::pki_types::PrivateKeyDer<'static> = match key.tag() {
+        "RSA PRIVATE KEY" => {
+            mqtt_rustls::pki_types::PrivatePkcs1KeyDer::from(der).into()
+        }
+        "EC PRIVATE KEY" => mqtt_rustls::pki_types::PrivateSec1KeyDer::from(der).into(),
+        _ => mqtt_rustls::pki_types::PrivatePkcs8KeyDer::from(der).into(),
+    };
+
+    Ok(Some((chain, key_der)))
+}
+
 /// Build a rustls (0.22) ClientConfig for MQTT-over-TLS. Trusts the Mozilla root
 /// CA set via webpki-roots. When `insecure` is true, attaches a verifier that
 /// accepts every server certificate — matches recon's HTTPS `-k` flag.
@@ -1079,30 +1173,44 @@ use rumqttc::tokio_rustls::rustls as mqtt_rustls;
 /// Uses `builder_with_provider(ring)` (matching `tls_probe.rs` / `serve/https.rs`)
 /// so we don't rely on a process-global rustls `CryptoProvider` having been
 /// installed: each ClientConfig carries its own provider.
-fn build_rustls_config(insecure: bool) -> Result<mqtt_rustls::ClientConfig> {
+fn build_rustls_config(
+    insecure: bool,
+    client_auth: Option<(
+        Vec<mqtt_rustls::pki_types::CertificateDer<'static>>,
+        mqtt_rustls::pki_types::PrivateKeyDer<'static>,
+    )>,
+) -> Result<mqtt_rustls::ClientConfig> {
     use std::sync::Arc;
 
     let provider = Arc::new(mqtt_rustls::crypto::ring::default_provider());
 
     if insecure {
-        let config = mqtt_rustls::ClientConfig::builder_with_provider(provider)
+        let builder = mqtt_rustls::ClientConfig::builder_with_provider(provider)
             .with_safe_default_protocol_versions()
             .context("mqtt TLS: failed to configure protocol versions")?
             .dangerous()
-            .with_custom_certificate_verifier(Arc::new(NoCertificateVerification))
-            .with_no_client_auth();
-        Ok(config)
+            .with_custom_certificate_verifier(Arc::new(NoCertificateVerification));
+        Ok(match client_auth {
+            Some((chain, key)) => builder
+                .with_client_auth_cert(chain, key)
+                .context("mqtt mTLS: with_client_auth_cert")?,
+            None => builder.with_no_client_auth(),
+        })
     } else {
         let mut roots = mqtt_rustls::RootCertStore::empty();
         // webpki-roots 1.x: TLS_SERVER_ROOTS is &[TrustAnchor<'static>] on
         // rustls-pki-types 1.x — compatible with rustls 0.22's RootCertStore.
         roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
-        let config = mqtt_rustls::ClientConfig::builder_with_provider(provider)
+        let builder = mqtt_rustls::ClientConfig::builder_with_provider(provider)
             .with_safe_default_protocol_versions()
             .context("mqtt TLS: failed to configure protocol versions")?
-            .with_root_certificates(roots)
-            .with_no_client_auth();
-        Ok(config)
+            .with_root_certificates(roots);
+        Ok(match client_auth {
+            Some((chain, key)) => builder
+                .with_client_auth_cert(chain, key)
+                .context("mqtt mTLS: with_client_auth_cert")?,
+            None => builder.with_no_client_auth(),
+        })
     }
 }
 
@@ -1161,8 +1269,13 @@ impl mqtt_rustls::client::danger::ServerCertVerifier for NoCertificateVerificati
     }
 }
 
-fn configure_tls_v5(options: &mut rumqttc::v5::MqttOptions, insecure: bool) -> Result<()> {
-    let config = build_rustls_config(insecure)?;
+fn configure_tls_v5(
+    options: &mut rumqttc::v5::MqttOptions,
+    insecure: bool,
+    args: &crate::cli::Args,
+) -> Result<()> {
+    let client_auth = build_client_auth_material(args)?;
+    let config = build_rustls_config(insecure, client_auth)?;
     let transport = rumqttc::Transport::tls_with_config(rumqttc::TlsConfiguration::Rustls(
         std::sync::Arc::new(config),
     ));
@@ -1170,8 +1283,13 @@ fn configure_tls_v5(options: &mut rumqttc::v5::MqttOptions, insecure: bool) -> R
     Ok(())
 }
 
-fn configure_tls_v3(options: &mut rumqttc::MqttOptions, insecure: bool) -> Result<()> {
-    let config = build_rustls_config(insecure)?;
+fn configure_tls_v3(
+    options: &mut rumqttc::MqttOptions,
+    insecure: bool,
+    args: &crate::cli::Args,
+) -> Result<()> {
+    let client_auth = build_client_auth_material(args)?;
+    let config = build_rustls_config(insecure, client_auth)?;
     let transport = rumqttc::Transport::tls_with_config(rumqttc::TlsConfiguration::Rustls(
         std::sync::Arc::new(config),
     ));

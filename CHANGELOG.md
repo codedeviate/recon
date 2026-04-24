@@ -8,6 +8,46 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.61.0] - 2026-04-24
+
+### Added
+
+Start of the Waiting-implementation arc (0.61.0 → 0.66.0 planned).
+Release 1 focuses on recon's own pre-existing Waiting items.
+
+- **Check digits — Latin-American + Australian + Mexican tax IDs**:
+  - `br_cpf` (Brazilian CPF, 11 digits, two mod-11 check digits)
+  - `br_cnpj` (Brazilian CNPJ, 14 digits, two mod-11 check digits)
+  - `ar_cuit` / `ar_cuil` (Argentinian CUIT / CUIL)
+  - `cl_rut` (Chilean RUT, with 'K' check-char support)
+  - `pe_ruc` (Peruvian RUC)
+  - `au_abn` (Australian ABN, ISO/IEC 7064 MOD 89; verify only)
+  - `mx_rfc` (Mexican RFC, person + company forms)
+- **Check digits — 110+ year warning** extended from Swedish
+  personnummer to Danish CPR, Finnish henkilötunnus, Norwegian
+  fødselsnummer, and Bulgarian EGN.
+- **`--decode-all <IMAGE>`** — scan an image for every barcode
+  (not just the first). One line per detection. Script binding:
+  `encode::decode_all(blob)` → array of `#{ text, format }`.
+- **`--hrt` / `--no-hrt`** — human-readable text row under 1D
+  barcodes. Default on for EAN-13 / UPC-A, off for Code128 / Code39.
+  Implemented for ASCII and SVG output; PNG HRT deferred
+  (see OUT-OF-SCOPE.md).
+- **MQTT mTLS** — `--client-cert` / `--client-key` / `--cert-type`
+  / `--key-type` / `--pass` now plumb through `rumqttc`'s
+  rustls ClientConfig. Works with `mqtts://` URLs.
+- **`--interface` name resolution** — `--interface eth0` / `en0`
+  now works via `libc::getifaddrs` on Linux / macOS. IP-literal
+  form still works. Windows keeps literal-only with a clear error
+  (GetAdapterAddresses is a separate follow-up).
+- **`recon --version` feature tokens**: `decode-all`,
+  `interface-name-resolution`, `latam-tax-ids`, `mqtt-mtls`.
+
+### Changed
+
+- `OUT-OF-SCOPE.md` Waiting section trimmed to remove items shipped
+  in this release. PNG HRT added as a deferred follow-up.
+
 ## [0.60.0] - 2026-04-24
 
 ### Added

@@ -114,6 +114,24 @@ pub fn register(engine: &mut Engine) {
         },
     );
 
+    // decode_all(blob) → array of #{ text, format } — scan an image
+    // for every barcode it contains, not just the first.
+    let _ = module.set_native_fn(
+        "decode_all",
+        |img: Blob| -> Result<Array, Box<EvalAltResult>> {
+            let all =
+                crate::decode::decode_all_bytes(&img).map_err(|e| err(e.to_string()))?;
+            let mut out = Array::new();
+            for d in all {
+                let mut m = rhai::Map::new();
+                m.insert("text".into(), d.text.into());
+                m.insert("format".into(), d.format.to_string().into());
+                out.push(Dynamic::from(m));
+            }
+            Ok(out)
+        },
+    );
+
     engine.register_static_module("encode", module.into());
 }
 

@@ -104,6 +104,43 @@ pub fn decode_file(path: &str, hints: &[BarcodeFormat]) -> Result<Decoded> {
     })
 }
 
+/// Decode ALL barcodes from an image (not just the first). Returns
+/// one `Decoded` per scanned code. Uses rxing's
+/// `detect_multiple_in_file`.
+pub fn decode_all_file(path: &str) -> Result<Vec<Decoded>> {
+    let results = rxing::helpers::detect_multiple_in_file(path)
+        .map_err(|e| anyhow!("decode_all error: {e:?}"))?;
+    if results.is_empty() {
+        bail!("no barcodes detected in '{path}'");
+    }
+    Ok(results
+        .into_iter()
+        .map(|r| Decoded {
+            text: r.getText().to_string(),
+            format: format_name(r.getBarcodeFormat()),
+        })
+        .collect())
+}
+
+/// Same as `decode_all_file` but for an in-memory image blob. Writes
+/// to a tempfile first (rxing wants a filesystem path to do its own
+/// PNG/JPEG parsing).
+pub fn decode_all_bytes(bytes: &[u8]) -> Result<Vec<Decoded>> {
+    use std::io::Write;
+    let mut tmp = tempfile::Builder::new()
+        .prefix("recon-decode-all-")
+        .suffix(".img")
+        .tempfile()
+        .context("decode_all: create tempfile")?;
+    tmp.write_all(bytes).context("decode_all: write tempfile")?;
+    tmp.flush().ok();
+    let path = tmp
+        .path()
+        .to_str()
+        .ok_or_else(|| anyhow!("decode_all: tempfile path is not UTF-8"))?;
+    decode_all_file(path)
+}
+
 /// Decode from an in-memory image blob. Writes to a tempfile and calls
 /// `decode_file` — rxing expects filesystem paths for format detection
 /// (its `detect_in_luma` requires pre-parsed pixel data and bypasses
@@ -122,6 +159,29 @@ pub fn decode_bytes(bytes: &[u8], hints: &[BarcodeFormat]) -> Result<Decoded> {
         .to_str()
         .ok_or_else(|| anyhow!("decode: tempfile path is not UTF-8"))?;
     decode_file(path, hints)
+}
+
+/// CLI entry point for `--decode-all`. Scans every barcode in the
+/// image and prints one line per detection: `<FORMAT>\t<TEXT>`.
+pub fn run_all(args: &Args) -> Result<()> {
+    let src = args
+        .decode_all
+        .as_ref()
+        .context("--decode-all requires an image path (or `-` for stdin)")?;
+
+    let results = if src == "-" {
+        let mut buf = Vec::new();
+        std::io::Read::read_to_end(&mut std::io::stdin(), &mut buf)
+            .context("--decode-all: read stdin")?;
+        decode_all_bytes(&buf)?
+    } else {
+        decode_all_file(src)?
+    };
+
+    for d in &results {
+        println!("{}\t{}", d.format, d.text);
+    }
+    Ok(())
 }
 
 /// CLI entry point. Reads the image from the flag value (path or `-`

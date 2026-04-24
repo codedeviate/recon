@@ -52,6 +52,24 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 62. Waiting-arc kickoff — recon-own items (0.61.0)
+
+Release 1 of the 6-release arc that implements everything in OUT-OF-SCOPE.md's "Waiting" bucket. User's priority was "recon's own flags first", so this release clears every pre-existing recon wishlist item before the arc moves on to the curl / wget catalogues.
+
+**Check digits — Latin-American tax IDs.** New `src/checkdigit/tax_id.rs` module with 8 algorithms: Brazilian CPF + CNPJ (two mod-11 check digits on weighted sums; all-identical-digit inputs rejected by convention), Argentinian CUIT / CUIL (same algorithm, different labels), Chilean RUT (with 'K' check-char, weights cycle 2-7 from the right), Peruvian RUC (mod-11 with 10/11 fallback), Australian ABN (ISO/IEC 7064 MOD 89; create() refuses because no single-digit inverse exists), Mexican RFC (13-char person / 12-char company, alphabet map with Ñ=24). Each ~30 LOC. CNPJ needed a custom '/' stripper since the general `sanitize()` doesn't remove it.
+
+**Check digits — 110+ year warnings** extended from Swedish personnummer to Danish CPR (`mod11.rs`), Finnish henkilötunnus (`mod31.rs`), Norwegian fødselsnummer (`mod11.rs`), and Bulgarian EGN (`vat/bg.rs`). The Norwegian case needed fresh century-decoding logic — FNR encodes the century in the NNN digits rather than via a separator char, with four branches (000-499 → 1900s, 500-749 + YY 54-99 → 1800s, 500-999 + YY 00-39 → 2000s, 900-999 + YY 40-99 → 1900s). `current_year()` in `country_id.rs` promoted to `pub(crate)` so sibling modules can reach it.
+
+**`--decode-all`.** Uses rxing's `helpers::detect_multiple_in_file` — already in the rxing dep (0.55.0). Thin wrapper: file path for filesystem inputs, tempfile for stdin/Blob script callers. Output is tab-separated `<FORMAT>\t<TEXT>`, one line per detection. Exits non-zero when the image contains no detectable codes.
+
+**HRT under 1D barcodes.** Scope decision during implementation: full ab_glyph-based PNG text rendering would need a bundled TTF font (~50-100 KB compiled) and pixel-level positioning work. Shipped SVG + ASCII HRT in 0.61.0 (both trivial — ASCII centers the text in an extra line below, SVG emits a `<text>` element with `font-family="monospace, sans-serif"`). PNG HRT is explicitly deferred in OUT-OF-SCOPE.md. Default-on for EAN-13 / UPC-A, off for Code128 / Code39 (where the text is often arbitrary enough to be noisier than useful). `--hrt` / `--no-hrt` flags override.
+
+**MQTT mTLS.** rumqttc 0.24 takes a rustls 0.22 `ClientConfig`. recon's `--client-cert` is typed against reqwest, so a new `build_client_auth_material()` in `src/mqtt.rs` parses the PEM bundle directly into rumqttc's rustls-0.22 `CertificateDer` + `PrivateKeyDer` types (using the existing `pem` crate). `build_rustls_config()` gained a `client_auth: Option<(chain, key)>` parameter. Supports PEM / PKCS#8 / PKCS#1 / SEC1 keys; encrypted keys and DER formats error with the same `openssl` recipes as the HTTPS path (0.54.0).
+
+**`--interface` name resolution.** New `src/iface.rs` module. `resolve_interface(spec)` tries an IP-literal parse first; on failure falls back to `libc::getifaddrs()` + `CStr::from_ptr()` to walk the interface list. Prefers non-loopback addresses; falls back to loopback when no routable address exists (`lo` / `lo0`). Windows gets a clear error pointing at the IP-literal form. ~120 LOC including three `unsafe` blocks, all scoped to FFI boundaries.
+
+**Test budget: +15.** Check-digit module gained 12 new tests (8 tax IDs + round-trip helpers + edge cases). iface module gained 3 (IP literal, lo/lo0 resolution, unknown-name error). 1155 → 1170 passing.
+
 ### 61. Cover pages + chapter page breaks in PDF output (0.59.0)
 
 Follow-up to 0.58.0's doc conversions. User asked whether recon's md→PDF flow could produce a proper book-style cover page plus page breaks between major chapters. Both doable via existing Chrome printToPDF primitives; wired through two new flags + a TOC placement marker.

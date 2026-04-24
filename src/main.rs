@@ -25,6 +25,7 @@ mod agent_browser;
 mod archive;
 mod hash;
 mod help;
+mod iface;
 mod hsts;
 mod init;
 mod pager;
@@ -270,6 +271,13 @@ fn main() {
     // ── Decode a barcode image (no HTTP request needed) ─────────────────────
     if args.decode.is_some() {
         if let Err(e) = decode::run(&args) {
+            eprintln!("error: {e}");
+            std::process::exit(1);
+        }
+        return;
+    }
+    if args.decode_all.is_some() {
+        if let Err(e) = decode::run_all(&args) {
             eprintln!("error: {e}");
             std::process::exit(1);
         }

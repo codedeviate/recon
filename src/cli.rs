@@ -21,7 +21,7 @@ pub struct Args {
     // ── Positional (renders under Arguments; no help_heading) ────────────────
 
     /// URL to request (or use --url)
-    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni", "jwt_view", "jwt_sign", "jwt_validate", "netstatus", "editor_cleanup", "sample", "sample_list", "hash", "hash_list", "compress", "decompress", "compress_list", "encode", "encode_list", "encrypt", "decrypt", "encrypt_keygen", "checkdigit", "checkdigit_create", "checkdigit_list", "script", "init", "browser_screenshot", "archive", "extract", "iconv", "list_charsets", "compare", "decode", "md_to_html", "md_to_pdf", "html_to_pdf"])]
+    #[arg(required_unless_present_any = ["url_flag", "cookies", "cookie_delete", "cookie_set", "spf", "dmarc", "dkim", "mta_sts", "bimi", "tls_rpt", "serve", "serve_tls", "serve_sni", "jwt_view", "jwt_sign", "jwt_validate", "netstatus", "editor_cleanup", "sample", "sample_list", "hash", "hash_list", "compress", "decompress", "compress_list", "encode", "encode_list", "encrypt", "decrypt", "encrypt_keygen", "checkdigit", "checkdigit_create", "checkdigit_list", "script", "init", "browser_screenshot", "archive", "extract", "iconv", "list_charsets", "compare", "decode", "decode_all", "md_to_html", "md_to_pdf", "html_to_pdf"])]
     pub url: Option<String>,
 
     // ── HTTP Request ─────────────────────────────────────────────────────────
@@ -606,6 +606,18 @@ pub struct Args {
     #[arg(long = "qr-level", value_name = "L|M|Q|H", default_value = "M", help_heading = "Encoding")]
     pub qr_level: String,
 
+    /// Show human-readable text (HRT) under 1D barcodes. Default on for
+    /// EAN-13 / UPC-A; off for Code128 / Code39 (where the text is often
+    /// arbitrary and ugly in the HRT row). Implemented for ASCII and
+    /// SVG output — PNG HRT is deferred pending font bundling.
+    #[arg(long = "hrt", help_heading = "Encoding")]
+    pub hrt: bool,
+
+    /// Explicitly disable HRT. Overrides the default-on behaviour for
+    /// EAN / UPC codes.
+    #[arg(long = "no-hrt", help_heading = "Encoding")]
+    pub no_hrt: bool,
+
     /// Decode a barcode / QR / DataMatrix / Aztec / PDF417 / MaxiCode
     /// from an image file. Accepts PNG / JPEG / WebP / GIF / BMP. Use
     /// `-` to read the image from stdin. Output: `<FORMAT>\t<TEXT>`
@@ -619,6 +631,12 @@ pub struct Args {
     /// code93, codabar, ean13, ean8, itf, upca, upce, rss14.
     #[arg(long = "decode-hints", value_name = "LIST", help_heading = "Encoding")]
     pub decode_hints: Option<String>,
+
+    /// Scan an image for ALL barcodes (not just the first). One line
+    /// per detection: `<FORMAT>\t<TEXT>`. Accepts a path or `-` for
+    /// stdin. Exits non-zero when no barcodes are detected.
+    #[arg(long = "decode-all", value_name = "IMAGE", help_heading = "Encoding")]
+    pub decode_all: Option<String>,
 
     // ── Encryption ───────────────────────────────────────────────────────────
 

@@ -748,6 +748,17 @@ static TOPIC_ENCODE: Topic = Topic {
             description: "Standalone action: list all supported formats with their input\n\
                           requirements. Does not require a URL.",
         },
+        FlagHelp {
+            flags: "--hrt / --no-hrt",
+            description: "Show human-readable text under 1D barcodes. Default on for\n\
+                          EAN-13 / UPC-A, off for Code128 / Code39. Implemented for\n\
+                          ASCII and SVG output; PNG HRT is deferred pending font bundling.",
+        },
+        FlagHelp {
+            flags: "--decode-all <IMAGE>",
+            description: "Scan an image for every barcode (not just the first).\n\
+                          One line per detection: <FORMAT>\\t<TEXT>.",
+        },
     ],
     related: &["-o / --output", "--from-file"],
     examples: &[
@@ -755,11 +766,12 @@ static TOPIC_ENCODE: Topic = Topic {
         ExampleHelp { description: "QR code to SVG (inferred from extension)", command: "recon --encode qr \"https://example.com\" -o qr.svg" },
         ExampleHelp { description: "QR code to PNG", command: "recon --encode qr \"Contact: +46-70-123\" -o contact.png" },
         ExampleHelp { description: "DataMatrix (Swedish personal number)", command: "recon --encode datamatrix \"199001011234\" -o id.png" },
-        ExampleHelp { description: "EAN-13 retail barcode", command: "recon --encode ean13 \"590123412345\" -o retail.png" },
-        ExampleHelp { description: "Code 128 alphanumeric", command: "recon --encode code128 \"RECON-TEST-001\"" },
+        ExampleHelp { description: "EAN-13 retail barcode with HRT (default)", command: "recon --encode ean13 \"4006381333931\" -o retail.svg" },
+        ExampleHelp { description: "Code 128 alphanumeric with explicit HRT", command: "recon --encode code128 --hrt \"RECON-TEST-001\" -o c128.svg" },
         ExampleHelp { description: "Encode from stdin", command: "echo \"https://example.com\" | recon --encode qr" },
         ExampleHelp { description: "Encode from file", command: "recon --encode qr --from-file long-url.txt -o link.png" },
         ExampleHelp { description: "List supported formats", command: "recon --encode-list" },
+        ExampleHelp { description: "Scan every barcode in an image", command: "recon --decode-all sheet.png" },
     ],
 };
 

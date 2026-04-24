@@ -3,7 +3,7 @@
 use super::brand::Brand;
 use super::{
     aba, base58check, bech32_mod, brand, country_id, eip55, luhn, mod10_ean, mod11, mod31, mod97,
-    mrz, vat, vin, Spec, Verdict,
+    mrz, tax_id, vat, vin, Spec, Verdict,
 };
 use anyhow::Result;
 
@@ -743,6 +743,70 @@ static SPEC_ME_VAT: Spec = Spec {
     create_fn: vat::create_me_vat,
 };
 
+static SPEC_BR_CPF: Spec = Spec {
+    canonical: "br_cpf",
+    aliases: &["cpf"],
+    description: "Brazilian CPF (11 digits, two mod-11 check digits)",
+    verify_fn: tax_id::verify_br_cpf,
+    create_fn: tax_id::create_br_cpf,
+};
+
+static SPEC_BR_CNPJ: Spec = Spec {
+    canonical: "br_cnpj",
+    aliases: &["cnpj"],
+    description: "Brazilian CNPJ (14 digits, two mod-11 check digits)",
+    verify_fn: tax_id::verify_br_cnpj,
+    create_fn: tax_id::create_br_cnpj,
+};
+
+static SPEC_AR_CUIT: Spec = Spec {
+    canonical: "ar_cuit",
+    aliases: &["cuit"],
+    description: "Argentinian CUIT (11 digits, mod-11 check)",
+    verify_fn: tax_id::verify_ar_cuit,
+    create_fn: tax_id::create_ar_cuit,
+};
+
+static SPEC_AR_CUIL: Spec = Spec {
+    canonical: "ar_cuil",
+    aliases: &["cuil"],
+    description: "Argentinian CUIL (same algorithm as CUIT; labour-workforce variant)",
+    verify_fn: tax_id::verify_ar_cuil,
+    create_fn: tax_id::create_ar_cuil,
+};
+
+static SPEC_CL_RUT: Spec = Spec {
+    canonical: "cl_rut",
+    aliases: &["rut"],
+    description: "Chilean RUT (1-9 digits + K/digit check, mod-11 with cycling weights)",
+    verify_fn: tax_id::verify_cl_rut,
+    create_fn: tax_id::create_cl_rut,
+};
+
+static SPEC_PE_RUC: Spec = Spec {
+    canonical: "pe_ruc",
+    aliases: &["ruc"],
+    description: "Peruvian RUC (11 digits, mod-11 check)",
+    verify_fn: tax_id::verify_pe_ruc,
+    create_fn: tax_id::create_pe_ruc,
+};
+
+static SPEC_AU_ABN: Spec = Spec {
+    canonical: "au_abn",
+    aliases: &["abn"],
+    description: "Australian ABN (11 digits, ISO/IEC 7064 mod-89; verify only)",
+    verify_fn: tax_id::verify_au_abn,
+    create_fn: tax_id::create_au_abn,
+};
+
+static SPEC_MX_RFC: Spec = Spec {
+    canonical: "mx_rfc",
+    aliases: &["rfc"],
+    description: "Mexican RFC (12 company / 13 person chars, mod-11 with alphabet map)",
+    verify_fn: tax_id::verify_mx_rfc,
+    create_fn: tax_id::create_mx_rfc,
+};
+
 pub static SPECS: &[&Spec] = &[
     &SPEC_LUHN,
     &SPEC_CREDITCARD,
@@ -834,6 +898,14 @@ pub static SPECS: &[&Spec] = &[
     &SPEC_BY_VAT,
     &SPEC_MK_VAT,
     &SPEC_ME_VAT,
+    &SPEC_BR_CPF,
+    &SPEC_BR_CNPJ,
+    &SPEC_AR_CUIT,
+    &SPEC_AR_CUIL,
+    &SPEC_CL_RUT,
+    &SPEC_PE_RUC,
+    &SPEC_AU_ABN,
+    &SPEC_MX_RFC,
 ];
 
 /// Resolve a CLI keyword (canonical or alias, case-insensitive).
