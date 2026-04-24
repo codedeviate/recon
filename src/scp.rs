@@ -22,11 +22,21 @@ pub fn download(raw_url: &str, args: &Args) -> Result<()> {
 
     let mut sess = Session::new().context("Failed to create SSH session")?;
     sess.set_tcp_stream(tcp);
+    if args.compressed_ssh {
+        sess.set_compress(true);
+    }
     sess.handshake()
         .with_context(|| format!("SSH handshake failed with {}", target.host))?;
     sess.set_timeout((args.timeout * 1000) as u32);
 
-    crate::ssh_auth::verify_host_key(&sess, &target.host, target.port, args.insecure)?;
+    crate::ssh_auth::verify_host_key_with_pins(
+        &sess,
+        &target.host,
+        target.port,
+        args.insecure,
+        args.hostpubsha256.as_deref(),
+        args.hostpubmd5.as_deref(),
+    )?;
     crate::ssh_auth::authenticate(&sess, &user, args, password.as_deref())?;
     download_file(&sess, &target.path, args)?;
 

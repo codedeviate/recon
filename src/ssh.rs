@@ -22,11 +22,21 @@ pub fn connect(raw_url: &str, args: &Args) -> Result<()> {
 
     let mut sess = Session::new().context("Failed to create SSH session")?;
     sess.set_tcp_stream(tcp);
+    if args.compressed_ssh {
+        sess.set_compress(true);
+    }
     sess.handshake()
         .with_context(|| format!("SSH handshake failed with {}", host))?;
     sess.set_timeout(args.timeout.saturating_mul(1000).min(u64::from(u32::MAX)) as u32);
 
-    ssh_auth::verify_host_key(&sess, &host, port, args.insecure)?;
+    ssh_auth::verify_host_key_with_pins(
+        &sess,
+        &host,
+        port,
+        args.insecure,
+        args.hostpubsha256.as_deref(),
+        args.hostpubmd5.as_deref(),
+    )?;
     ssh_auth::authenticate(&sess, &user, args, password.as_deref())?;
 
     // Open a channel and request a PTY + shell

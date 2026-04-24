@@ -58,6 +58,8 @@ const FEATURES: &[&str] = &[
     "proto-filter",
     "input-file",
     "resume",
+    "ssh-pinning",
+    "ssh-compress",
     "DKIM-signing",
     "email-dns",
     "encode",

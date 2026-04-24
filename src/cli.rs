@@ -164,6 +164,118 @@ pub struct Args {
     #[arg(short = 'C', long = "continue-at", value_name = "OFFSET", help_heading = "HTTP Request")]
     pub continue_at: Option<String>,
 
+    // ── FTP-specific ─────────────────────────────────────────────────────────
+
+    /// Inhibit EPSV; force PASV on FTP connections. suppaftp defaults
+    /// to PASV; this flag makes the intent explicit.
+    #[arg(long = "disable-epsv", help_heading = "File Transfer")]
+    pub disable_epsv: bool,
+
+    /// Inhibit EPRT / LPRT (the IPv6-capable active-mode commands).
+    /// Accepted for curl parity; suppaftp uses passive by default.
+    #[arg(long = "disable-eprt", help_heading = "File Transfer")]
+    pub disable_eprt: bool,
+
+    /// Force PASV mode (the current default). Accepted for curl parity.
+    #[arg(long = "ftp-pasv", help_heading = "File Transfer")]
+    pub ftp_pasv: bool,
+
+    /// FTP CWD strategy: `multicwd` (one CWD per path component),
+    /// `nocwd` (send full path each time), `singlecwd` (one CWD to
+    /// the final dir). Accepted for curl parity; suppaftp uses
+    /// `multicwd` semantics today.
+    #[arg(long = "ftp-method", value_name = "MODE", help_heading = "File Transfer")]
+    pub ftp_method: Option<String>,
+
+    /// Create missing remote directories during FTP upload. Accepted
+    /// for curl parity; FTP upload itself is a separate feature
+    /// (defer pending suppaftp upload support).
+    #[arg(long = "ftp-create-dirs", help_heading = "File Transfer")]
+    pub ftp_create_dirs: bool,
+
+    /// Send a raw FTP command before each transfer. Repeatable.
+    /// Accepted for curl parity; wired through to suppaftp's
+    /// `custom_command` in a follow-up.
+    #[arg(short = 'Q', long = "quote", value_name = "CMD", action = clap::ArgAction::Append, help_heading = "File Transfer")]
+    pub quote: Vec<String>,
+
+    /// Ignore the address returned by PASV; reuse the control
+    /// connection's IP. Defence against NAT-borked responses.
+    /// Accepted for curl parity.
+    #[arg(long = "ftp-skip-pasv-ip", help_heading = "File Transfer")]
+    pub ftp_skip_pasv_ip: bool,
+
+    /// List only (NLST). Returns names without the full directory
+    /// listing. Applies to FTP URLs.
+    #[arg(short = 'l', long = "list-only", help_heading = "File Transfer")]
+    pub list_only: bool,
+
+    /// TFTP: skip option-negotiation extensions. Accepted; tftp
+    /// module already defaults to vanilla RFC 1350.
+    #[arg(long = "tftp-no-options", help_heading = "File Transfer")]
+    pub tftp_no_options: bool,
+
+    // ── SMTP-specific ────────────────────────────────────────────────────────
+
+    /// SMTP AUTH address in `MAIL FROM` (distinct from the sender).
+    /// Matches curl's `--mail-auth`.
+    #[arg(long = "mail-auth", value_name = "ADDR", help_heading = "SMTP")]
+    pub mail_auth: Option<String>,
+
+    /// Allow RCPT TO to fail for some recipients without aborting
+    /// the whole send. Accepted for curl parity; lettre's SMTP
+    /// transport treats any RCPT failure as fatal today.
+    #[arg(long = "mail-rcpt-allowfails", help_heading = "SMTP")]
+    pub mail_rcpt_allowfails: bool,
+
+    /// SASL initial response: send the AUTH payload on the same
+    /// line as the AUTH verb. Accepted for curl parity; lettre
+    /// handles this internally.
+    #[arg(long = "sasl-ir", help_heading = "SMTP")]
+    pub sasl_ir: bool,
+
+    // ── IMAP / POP3 specific ─────────────────────────────────────────────────
+
+    /// SASL `AUTHZID` (authorization identity; lets one account
+    /// auth as another). Accepted; imap/pop3 wiring deferred.
+    #[arg(long = "sasl-authzid", value_name = "ID", help_heading = "Mail Retrieval")]
+    pub sasl_authzid: Option<String>,
+
+    /// Login options string appended to the AUTH exchange. Matches
+    /// curl's `--login-options`. Accepted; wiring deferred.
+    #[arg(long = "login-options", value_name = "STR", help_heading = "Mail Retrieval")]
+    pub login_options: Option<String>,
+
+    // ── Telnet ───────────────────────────────────────────────────────────────
+
+    /// Set a telnet option (OPT=VAL). Repeatable. Accepted for
+    /// curl parity; recon's telnet probe is minimal, so the flag is
+    /// declarative today.
+    #[arg(long = "telnet-option", value_name = "OPT=VAL", action = clap::ArgAction::Append, help_heading = "Network Tests")]
+    pub telnet_option: Vec<String>,
+
+    // ── SSH pinning + compression ────────────────────────────────────────────
+
+    /// Accept only SSH hosts whose public-key SHA-256 matches. Pass
+    /// the raw hex digest (64 chars) or base64. Pairs with ssh://,
+    /// scp://, sftp:// URLs.
+    #[arg(long = "hostpubsha256", value_name = "SHA", help_heading = "Auth & TLS")]
+    pub hostpubsha256: Option<String>,
+
+    /// Accept only SSH hosts whose public-key MD5 matches. Legacy
+    /// form — prefer --hostpubsha256.
+    #[arg(long = "hostpubmd5", value_name = "HEX", help_heading = "Auth & TLS")]
+    pub hostpubmd5: Option<String>,
+
+    /// Client SSH public-key file (paired with --privkey). Matches
+    /// curl's `--pubkey`.
+    #[arg(long = "pubkey", value_name = "PATH", help_heading = "Auth & TLS")]
+    pub pubkey: Option<PathBuf>,
+
+    /// Enable SSH transport compression (ssh2 zlib).
+    #[arg(long = "compressed-ssh", help_heading = "Auth & TLS")]
+    pub compressed_ssh: bool,
+
     /// Follow redirects
     #[arg(short = 'L', long = "location", help_heading = "HTTP Request")]
     pub follow_redirects: bool,

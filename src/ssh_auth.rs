@@ -29,12 +29,58 @@ pub fn resolve_credentials(user_from_url: &str, args: &Args) -> (String, Option<
 }
 
 pub fn verify_host_key(sess: &Session, host: &str, port: u16, insecure: bool) -> Result<()> {
+    verify_host_key_with_pins(sess, host, port, insecure, None, None)
+}
+
+/// Extended variant honoring `--hostpubsha256` / `--hostpubmd5`. If a
+/// pin is supplied AND matches, the function succeeds regardless of
+/// known_hosts. If a pin is supplied and does NOT match, it fails
+/// with a MITM warning. No pin → fall through to known_hosts (the
+/// original behaviour).
+pub fn verify_host_key_with_pins(
+    sess: &Session,
+    host: &str,
+    port: u16,
+    insecure: bool,
+    sha256_pin: Option<&str>,
+    md5_pin: Option<&str>,
+) -> Result<()> {
     let (key_bytes, _key_type) = sess
         .host_key()
         .ok_or_else(|| anyhow!("Server did not present a host key"))?;
 
     if insecure {
         return Ok(());
+    }
+
+    // --hostpubsha256 / --hostpubmd5 pin checks take precedence.
+    if let Some(pin) = sha256_pin {
+        use sha2::{Digest, Sha256};
+        let digest = Sha256::digest(key_bytes);
+        let hex_got = hex_of(&digest);
+        let b64_got = base64_of(&digest);
+        let norm_pin = pin.trim().to_ascii_lowercase();
+        if hex_got == norm_pin || b64_got == pin.trim() {
+            return Ok(());
+        }
+        anyhow::bail!(
+            "SSH host key SHA-256 pin mismatch for {host}:{port}\n  \
+             expected: {pin}\n  got:      {hex_got}\n  \
+             Either the server's key changed or this is a MITM attack."
+        );
+    }
+    if let Some(pin) = md5_pin {
+        use md5::{Digest, Md5};
+        let digest = Md5::digest(key_bytes);
+        let hex_got = hex_of(&digest);
+        let norm_pin = pin.trim().to_ascii_lowercase().replace(':', "");
+        if hex_got == norm_pin {
+            return Ok(());
+        }
+        anyhow::bail!(
+            "SSH host key MD5 pin mismatch for {host}:{port}\n  \
+             expected: {pin}\n  got:      {hex_got}"
+        );
     }
 
     let known_hosts_path = home_dir().join(".ssh").join("known_hosts");
@@ -71,6 +117,20 @@ pub fn verify_host_key(sess: &Session, host: &str, port: u16, insecure: bool) ->
             "SSH host key check failed for {host}:{port} (libssh2 internal error)"
         )),
     }
+}
+
+fn hex_of(bytes: &[u8]) -> String {
+    let mut s = String::with_capacity(bytes.len() * 2);
+    for b in bytes {
+        use std::fmt::Write;
+        let _ = write!(s, "{b:02x}");
+    }
+    s
+}
+
+fn base64_of(bytes: &[u8]) -> String {
+    use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine as _};
+    STANDARD_NO_PAD.encode(bytes)
 }
 
 pub fn authenticate(

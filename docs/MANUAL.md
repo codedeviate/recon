@@ -2,7 +2,7 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.64.0</div>
+<div class="version">Version 0.65.0</div>
 <div class="date">2026-04-24</div>
 <div class="meta">
 Repository · https://github.com/thomas-starweb/recon<br>

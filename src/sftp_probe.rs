@@ -50,11 +50,21 @@ pub fn probe(url: &str, args: &Args) -> Result<SftpProbeOk> {
 
     let mut sess = Session::new().context("sftp: session init")?;
     sess.set_tcp_stream(tcp);
+    if args.compressed_ssh {
+        sess.set_compress(true);
+    }
     sess.handshake()
         .with_context(|| format!("sftp: handshake with {}", target.host))?;
     sess.set_timeout((args.timeout * 1000) as u32);
 
-    crate::ssh_auth::verify_host_key(&sess, &target.host, target.port, args.insecure)?;
+    crate::ssh_auth::verify_host_key_with_pins(
+        &sess,
+        &target.host,
+        target.port,
+        args.insecure,
+        args.hostpubsha256.as_deref(),
+        args.hostpubmd5.as_deref(),
+    )?;
     crate::ssh_auth::authenticate(&sess, &user, args, password.as_deref())
         .map_err(|e| {
             anyhow!("sftp: auth: {e}").context(ProtocolExitCode::LoginDenied)

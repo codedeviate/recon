@@ -8,6 +8,56 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.65.0] - 2026-04-24
+
+### Added
+
+Release 5 of the Waiting-arc. Per-protocol knobs covering FTP,
+SMTP, IMAP / POP3, Telnet, and SSH. 21 new flags.
+
+**SSH host-key pinning + compression** (fully implemented):
+- `--hostpubsha256 <SHA>` — accept only matching SHA-256 (hex or
+  base64). Takes precedence over known_hosts.
+- `--hostpubmd5 <HEX>` — legacy MD5 form.
+- `--compressed-ssh` — ssh2 transport compression.
+- Applied to ssh://, scp://, sftp://.
+- `--pubkey <PATH>` accepted for curl parity; ssh2 authentication
+  path already reads public keys alongside `--privkey`.
+
+**FTP** (flag surface; deeper plumbing in a follow-up):
+- `--disable-epsv`, `--disable-eprt`, `--ftp-pasv` — PASV-mode
+  explicit forms; suppaftp already defaults to PASV.
+- `--ftp-method <MODE>` — accepted (multicwd / nocwd / singlecwd).
+- `--ftp-create-dirs` — accepted (FTP upload itself is still
+  server-dependent).
+- `-Q, --quote <CMD>` — accepted, repeatable.
+- `--ftp-skip-pasv-ip` — accepted.
+- `-l, --list-only` — accepted.
+- `--tftp-no-options` — accepted.
+
+**SMTP / IMAP / POP3** (flag surface):
+- `--mail-auth <ADDR>` — AUTH address distinct from MAIL FROM.
+- `--mail-rcpt-allowfails` — accepted.
+- `--sasl-ir`, `--sasl-authzid <ID>`, `--login-options <STR>`
+  — accepted for curl parity.
+
+**Telnet:**
+- `--telnet-option <OPT=VAL>` — accepted, repeatable.
+
+### Scope note
+
+SSH pinning + `--compressed-ssh` are fully implemented (the ssh2
+crate exposes both cleanly). The remaining per-protocol flags are
+accepted at the CLI level but not yet plumbed into the underlying
+protocol modules — suppaftp, lettre, imap, pop3. Each needs a
+small targeted patch. They're documented as "accepted for curl
+parity" in --help so users can use them in scripts today and
+pick up the implementation transparently later.
+
+### Features tokens
+
+`ssh-compress`, `ssh-pinning`.
+
 ## [0.64.0] - 2026-04-24
 
 ### Added

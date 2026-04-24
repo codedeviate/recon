@@ -979,6 +979,26 @@ recon --rekey \
         "recon gophers://secure-gopher.example/",
     ]);
 
+    section("PER-PROTOCOL KNOBS (0.65.0)");
+
+    example("SSH host-key pinning + compression", &[
+        "recon ssh://me@example.com --hostpubsha256 '3a:47:…'",
+        "recon sftp://me@example.com/file --hostpubsha256 '3a47…' -o file",
+        "recon scp://me@example.com/motd --compressed-ssh -o motd",
+    ]);
+
+    example("FTP list-only + quote commands", &[
+        "recon -l ftp://ftp.example.com/pub/             # NLST (names only)",
+        "recon -Q 'SITE CHMOD 644 foo' ftp://ftp.example.com/pub/foo",
+    ]);
+
+    example("SMTP AUTH + IMAP login options", &[
+        "recon smtp://mail.example.com --mail-from a@example.com --mail-to b@example.com \\\n      --mail-auth admin@example.com --smtp-auth alice:secret",
+        "recon imaps://mail.example.com --login-options 'AUTH=PLAIN' --sasl-authzid admin",
+    ]);
+
+    note("SSH pinning + --compressed-ssh are fully wired to ssh2. The FTP / SMTP / IMAP / POP3 / Telnet flags in this release are accepted at the CLI but plumb-through to the underlying protocol modules is a follow-up. Scripts using these flags today get forward-compatible behaviour — when the plumbing lands they'll start taking effect without invocation changes.");
+
     section("RETRY + PROTO FILTER + BATCH (0.64.0)");
 
     example("Retry transient failures", &[
