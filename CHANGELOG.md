@@ -8,6 +8,22 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.59.1] - 2026-04-24
+
+### Changed
+
+- `OUT-OF-SCOPE.md` retitled "Out of Scope & Wishlist" to match how
+  it's actually being used (the "Waiting" section = wishlist items).
+- Added a "wget features (things curl — and therefore recon —
+  doesn't have)" subsection under **Waiting**. Pros / cons for 16
+  wget-unique features, grouped into "standalone wins" (input-file,
+  timestamping, spider, continue, http1.0) and the "recursive /
+  mirror cluster" (recursive + level + mirror + page-requisites +
+  convert-links + accept/reject + domain filters + no-parent +
+  quota + wait + tries + background). Includes an assessment
+  paragraph on phasing if wget-parity ever becomes a goal.
+- No code changes.
+
 ## [0.59.0] - 2026-04-24
 
 ### Added

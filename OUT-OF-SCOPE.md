@@ -1,6 +1,10 @@
-# Out of Scope
+# Out of Scope & Wishlist
 
-A living list of items raised during design or implementation that were explicitly deferred, decided against, or noted as "maybe later". Kept here so ideas don't disappear into the black hole of spec files after each release.
+A living list of items raised during design, implementation, or feature sweeps
+that are either explicitly deferred, decided against, or noted as "maybe
+later". Also doubles as a wishlist — items under "Waiting" are things worth
+building once someone explicitly asks. Kept here so ideas don't disappear
+into the black hole of spec files after each release.
 
 Organized into four buckets by reason for non-inclusion. When an item ships, remove it from this file and note the shipping version in the CHANGELOG entry rather than leaving a crossed-out line here.
 
@@ -41,6 +45,159 @@ Organized into four buckets by reason for non-inclusion. When an item ships, rem
 ### MQTT
 
 - **Client-certificate auth (mTLS)** — now that recon ships `--client-cert` / `--client-key` (0.54.0), plumbing the same opts through to `rumqttc` is straightforward. Just not asked for yet.
+
+### wget features (things curl — and therefore recon — doesn't have)
+
+Catalog of wget-unique capabilities that could land in recon if asked. Most
+cluster around recursive mirroring; a few are independently useful
+standalone wins. Not prioritised against each other — just documented.
+
+**Standalone wins** (each could ship on its own without the others):
+
+- **`-i, --input-file <PATH>`** — batch-fetch URLs from a file (one per
+  line; `#` comments; `-` reads from stdin).
+  - Pro: trivial to implement on top of the existing request pipeline
+    (loop over the list, reuse `client::execute` per URL); pairs
+    naturally with `--compare` for mass diffing and with
+    `--md-to-pdf` for converting a batch of URLs. ~100 LOC.
+  - Con: none meaningful. Honest answer: should probably be in the next
+    minor release regardless of wget parity.
+
+- **`-N, --timestamping`** — send `If-Modified-Since` based on local
+  file's mtime; skip download if the server returns 304.
+  - Pro: saves bandwidth on reruns; makes a scripted mirror-refresh
+    idempotent. Handy for CI-style "re-pull if changed" workflows.
+  - Con: requires consistent local-file resolution (pair with `-O`
+    or `--output-path`); FTP case needs its own code path (FTP MDTM
+    command). HTTP-only version would ship first, FTP as a follow-up.
+
+- **`--spider`** — check that URLs resolve / respond 2xx without
+  downloading bodies. Pair with `-i` for a bulk link checker.
+  - Pro: natural fit for a diagnostic tool; easy implementation on
+    top of HEAD + status-code check; the batch case becomes a drop-in
+    replacement for `linkchecker` / `lychee` minus their sugar.
+  - Con: edge cases around servers that reject HEAD with 405 (need
+    to fall back to GET + early disconnect); exit-code conventions
+    need thought (exit on first failure? summary at end? per-line
+    status lines?).
+
+- **`-c, --continue`** — resume a partial download.
+  - Pro: curl's `-C -` does the same but requires users to know about
+    the dash. wget's form ("continue from where we left off") is more
+    discoverable.
+  - Con: largely curl-parity territory; recon can already do it via
+    `-C -`. Adding `--continue` would be a pure alias. Low effort,
+    low signal.
+
+- **`--http1.0`** — force HTTP/1.0 (vs 1.1).
+  - Pro: occasionally useful against old embedded HTTP servers that
+    misbehave on 1.1.
+  - Con: reqwest's connection API doesn't expose 1.0 directly (it
+    defaults to 1.1); pinning 1.0 would need a custom hyper connector.
+    More work than the feature warrants unless someone hits a concrete
+    interop case.
+
+**Recursive / mirror cluster** (largely all-or-nothing; most wget
+features assume recursion is on the table). The whole cluster is one
+feature area; shipping a subset leaves the behaviour feeling half-done.
+
+- **`-r, --recursive`** + **`-l, --level <N>`** — recursive fetch
+  following links in HTML (or FTP listings).
+  - Pro: big user-visible capability; enables `-m`, `-p`, `--convert-
+    links`, etc. Positions recon as a viable wget-alternative for
+    archival work.
+  - Con: substantial scope. Needs an HTML link extractor (`scraper` +
+    `html5ever`), URL canonicalisation + loop detection + depth
+    limits, robots.txt handling, per-host rate limiting, a download
+    queue, and a sane default filesystem layout. Rough estimate:
+    800–1200 LOC + associated tests. Whole arc across 2–3 releases.
+
+- **`-m, --mirror`** — convenience alias for `-r -N -l inf
+  --no-remove-listing`. Depends on recursive.
+  - Pro: one-flag mirror command is what most users actually want.
+  - Con: depends on the whole recursive cluster landing first.
+
+- **`-p, --page-requisites`** — fetch everything a single page needs
+  to render (images, CSS, JS, icons).
+  - Pro: smaller scope than full recursion; produces a reproducible
+    offline snapshot of a single page, which is what most folks
+    actually want when they reach for `wget -r`.
+  - Con: still needs HTML parsing for `<img>`, `<link>`, `<script>`,
+    `<source>`, `<video>`. Without `--convert-links` the output isn't
+    locally browsable — the feature feels incomplete without its
+    partner flag.
+
+- **`-k, --convert-links`** — rewrite absolute links in downloaded
+  HTML to local relative paths after mirror/page-requisites finishes.
+  - Pro: turns `-p` / `-r` output into something you can open in a
+    browser offline. Completes the mirror story.
+  - Con: only meaningful paired with recursive or page-requisites.
+    HTML rewriting has edge cases (links inside `<script>`, CSS
+    `url(…)`, inline styles, data URIs).
+
+- **Accept/reject filters** (`-A <LIST>`, `-R <LIST>`,
+  `--accept-regex`, `--reject-regex`) — filter by file extension or
+  regex during recursion.
+  - Pro: practical scope control for a mirror (skip PDFs, skip
+    images).
+  - Con: recursion-dependent. Regex variants add pcre-style depen-
+    dency considerations.
+
+- **`-D <DOMAINS>`, `-H, --span-hosts`, `--exclude-domains`** —
+  restrict or expand the host set during recursion.
+  - Pro: critical safety rail for mirrors (don't accidentally recurse
+    into Twitter / CDN domains).
+  - Con: recursion-dependent.
+
+- **`-np, --no-parent`** — during recursion, don't ascend above the
+  starting directory.
+  - Pro: common safety rail.
+  - Con: recursion-dependent.
+
+- **`--cut-dirs <N>`, `-nd`, `-nH`** — flatten the local filesystem
+  layout (drop the host dir, drop N leading path components).
+  - Pro: makes the downloaded tree readable.
+  - Con: recursion-dependent cosmetics.
+
+- **`-Q, --quota <BYTES>`** — cap total download size in recursion.
+  - Pro: safety fuse; avoids runaway mirrors.
+  - Con: recursion-dependent.
+
+- **`-w, --wait <SECS>`, `--random-wait`** — politeness delay between
+  recursive requests.
+  - Pro: avoids triggering rate-limits; lets a long mirror run
+    without getting 429'd. `--wait` is clearly benign.
+  - Con: `--random-wait` has anti-bot-detection connotations that
+    lightly conflict with recon's stance in OUT-OF-SCOPE's "Security
+    boundary" section ("not a detection-evasion tool"). `--wait` on
+    its own is fine; `--random-wait` probably isn't.
+
+- **`-t, --tries <N>`, `--retry-connrefused`** — retry config for
+  transient failures during recursion.
+  - Pro: keeps mirrors resilient on flaky networks.
+  - Con: recon already has `--retry` / `--retry-max-time` from curl
+    parity. Wget's knobs largely duplicate these; add only the truly
+    distinct ones (e.g. `--retry-connrefused` for the specific-error
+    case).
+
+- **`-b, --background`** — detach and log to a file.
+  - Pro: long-running mirrors without tying up a terminal.
+  - Con: easy to get from the shell (`nohup`, `&`, systemd-run);
+    adding first-class support just means reinventing what every
+    shell already provides. Defer unless asked.
+
+**Assessment.** If "wget parity" ever becomes a goal, the natural
+phasing is:
+1. Land the standalone wins independently (`-i`, `-N`, `--spider`, `-c`).
+2. Decide whether the recursive cluster is worth building or whether
+   `wget` / `httrack` / `lychee` already own that workflow well enough.
+3. If recursive lands, ship it as its own 3-release arc (primitives →
+   filters → mirror convenience flags + link rewriting).
+
+Realistically `-i`, `-N`, and `--spider` are the highest-value items
+per LOC and would noticeably improve recon's batch-diagnostic story.
+The recursive cluster is a big enough project that it probably
+deserves its own spec + plan when someone actually needs it.
 
 ---
 
