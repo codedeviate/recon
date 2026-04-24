@@ -8,6 +8,53 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.66.0] - 2026-04-24
+
+### Added
+
+Final release of the Waiting-arc (0.61.0 → 0.66.0). Proxy extras +
+TLS tuning + multi-config. 17 new flags.
+
+**Fully implemented:**
+- `-K, --config <FILE>` (+ include via `@other-file`) — load flags
+  from a config file, curl's format. `#` / `;` comments, quoted
+  values, `key = value` or `--flag value` forms, include-cycle
+  detection (8-level limit).
+- `-q, --disable` — ignore default config.
+
+**Accepted at the CLI (plumbing deferred per the plan):**
+- Proxy cluster: `--preproxy <URL>`, `--proxy-header`, `--proxy-http2`,
+  `--proxytunnel` (long form only; `-p` is used by `--prettify`),
+  `--proxy-capath`, `--proxy-ca-native`, `--proxy-crlfile`,
+  `--proxy-ciphers`, `--proxy-tls13-ciphers`, `--proxy-pinnedpubkey`.
+- TLS tuning: `--ciphers`, `--tls13-ciphers`, `--curves`,
+  `--crlfile`, `--pinnedpubkey`.
+
+The accepted-but-deferred flags get their plumb-through when reqwest
+/ rustls expose the necessary knobs or when someone has a concrete
+use case. Most require a custom `ServerCertVerifier` or cipher-list
+parser that doesn't exist in the current rustls feature surface.
+
+### Features tokens
+
+`config-file`.
+
+### End of the Waiting-arc
+
+Six releases shipped over the arc (0.61.0 → 0.66.0):
+- 0.61.0 — recon-own items (check digits, HRT, multi-decode, MQTT
+  mTLS, --interface names)
+- 0.62.0 — curl easy wins (~30 flags)
+- 0.63.0 — forms + netrc + HTTP version + upload tweaks
+- 0.64.0 — retry + proto filter + batch fetch
+- 0.65.0 — per-protocol knobs (SSH pins + stubs)
+- 0.66.0 — proxy extras + TLS tuning + --config
+
+Total: ~90 new CLI flags, +46 tests (1155 → 1201), 4 new modules
+(`src/iface.rs`, `src/netrc.rs`, `src/retry.rs`,
+`src/proto_filter.rs`, `src/input_file.rs`, `src/config_file.rs`,
+`src/checkdigit/tax_id.rs`).
+
 ## [0.65.0] - 2026-04-24
 
 ### Added

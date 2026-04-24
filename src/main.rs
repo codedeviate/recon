@@ -9,6 +9,7 @@ mod docs;
 mod docs_pdf;
 mod flaglist;
 mod config;
+mod config_file;
 mod cookiejar;
 mod dict_probe;
 mod dns;
@@ -152,7 +153,18 @@ fn main() {
     // Pre-split argv on `--script PATH` so trailing positional args after
     // the script path become `script_args` instead of being assigned to the
     // positional `url` by clap. Non-script invocations are unaffected.
-    let mut args = match Args::parse_with_script_split(std::env::args()) {
+    // Pre-expand -K/--config files into argv before clap parses. The
+    // expanded tokens are spliced in at the -K position.
+    let raw_argv: Vec<String> = std::env::args().collect();
+    let expanded_argv = match config_file::expand_config_in_argv(raw_argv) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("error: {e:#}");
+            std::process::exit(2);
+        }
+    };
+
+    let mut args = match Args::parse_with_script_split(expanded_argv.into_iter()) {
         Ok(a) => a,
         Err(e) => {
             e.exit();

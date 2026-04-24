@@ -60,6 +60,7 @@ const FEATURES: &[&str] = &[
     "resume",
     "ssh-pinning",
     "ssh-compress",
+    "config-file",
     "DKIM-signing",
     "email-dns",
     "encode",

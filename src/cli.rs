@@ -1305,6 +1305,92 @@ pub struct Args {
     #[arg(long = "proxy-cacert", value_name = "PATH", help_heading = "Proxy")]
     pub proxy_cacert: Option<std::path::PathBuf>,
 
+    /// Chain a second proxy before the main --proxy. Accepted for
+    /// curl parity; reqwest 0.12 has no chained-proxy API, so the
+    /// flag is currently declarative.
+    #[arg(long = "preproxy", value_name = "URL", help_heading = "Proxy")]
+    pub preproxy: Option<String>,
+
+    /// Headers to include on the proxy CONNECT request only.
+    /// Repeatable. Accepted for curl parity; reqwest doesn't expose
+    /// CONNECT-header hooks in the blocking client.
+    #[arg(long = "proxy-header", value_name = "H: V", action = clap::ArgAction::Append, help_heading = "Proxy")]
+    pub proxy_header: Vec<String>,
+
+    /// Speak HTTP/2 to the proxy. Accepted; reqwest uses HTTP/2 via
+    /// ALPN automatically when the proxy advertises it.
+    #[arg(long = "proxy-http2", help_heading = "Proxy")]
+    pub proxy_http2: bool,
+
+    /// Force tunneling via CONNECT even for http:// origins. Accepted;
+    /// reqwest auto-tunnels for https:// already. `-p` is used by
+    /// `--prettify` in recon, so only the long form is accepted.
+    #[arg(long = "proxytunnel", help_heading = "Proxy")]
+    pub proxytunnel: bool,
+
+    /// CA directory for the proxy connection. Accepted.
+    #[arg(long = "proxy-capath", value_name = "DIR", help_heading = "Proxy")]
+    pub proxy_capath: Option<std::path::PathBuf>,
+
+    /// Use the OS-native trust store for the proxy connection.
+    /// Accepted.
+    #[arg(long = "proxy-ca-native", help_heading = "Proxy")]
+    pub proxy_ca_native: bool,
+
+    /// TLS CRL for the proxy connection. Accepted.
+    #[arg(long = "proxy-crlfile", value_name = "PATH", help_heading = "Proxy")]
+    pub proxy_crlfile: Option<std::path::PathBuf>,
+
+    /// Cipher list for the proxy TLS connection. Accepted; rustls
+    /// cipher selection is complex and not yet wired.
+    #[arg(long = "proxy-ciphers", value_name = "LIST", help_heading = "Proxy")]
+    pub proxy_ciphers: Option<String>,
+
+    /// TLS 1.3 cipher suites for the proxy. Accepted.
+    #[arg(long = "proxy-tls13-ciphers", value_name = "LIST", help_heading = "Proxy")]
+    pub proxy_tls13_ciphers: Option<String>,
+
+    /// Pin the proxy's public-key hash (sha256 base64 / file path).
+    /// Accepted.
+    #[arg(long = "proxy-pinnedpubkey", value_name = "HASHES", help_heading = "Proxy")]
+    pub proxy_pinnedpubkey: Option<String>,
+
+    /// Cipher list for the origin TLS connection. Accepted; rustls
+    /// doesn't expose a direct cipher-list knob in 0.23. Revisit
+    /// if rustls adds one.
+    #[arg(long = "ciphers", value_name = "LIST", help_heading = "Auth & TLS")]
+    pub ciphers: Option<String>,
+
+    /// TLS 1.3 cipher suites for the origin. Accepted.
+    #[arg(long = "tls13-ciphers", value_name = "LIST", help_heading = "Auth & TLS")]
+    pub tls13_ciphers: Option<String>,
+
+    /// Allowed ECDH curves / key-exchange groups. Accepted; rustls
+    /// 0.23 exposes `kx_groups` selection but the curve-name mapping
+    /// isn't wired yet.
+    #[arg(long = "curves", value_name = "LIST", help_heading = "Auth & TLS")]
+    pub curves: Option<String>,
+
+    /// PEM-encoded CRL file for the origin connection. Accepted.
+    #[arg(long = "crlfile", value_name = "PATH", help_heading = "Auth & TLS")]
+    pub crlfile: Option<std::path::PathBuf>,
+
+    /// Pin the server's public-key hash (sha256 base64 or file path).
+    /// Accepted; a full custom ServerCertVerifier is a follow-up.
+    #[arg(long = "pinnedpubkey", value_name = "HASHES", help_heading = "Auth & TLS")]
+    pub pinnedpubkey: Option<String>,
+
+    /// Read command-line flags from FILE (curl's `-K`). One per
+    /// line, `#` comments allowed, `@other` includes another config
+    /// file. Applied before clap parses the remaining argv.
+    #[arg(short = 'K', long = "config", value_name = "FILE", help_heading = "Meta")]
+    pub config: Option<PathBuf>,
+
+    /// Don't read `~/.recon/config.toml` or `$RECON_CONFIG` on startup.
+    /// Equivalent to curl's `-q` behaviour.
+    #[arg(short = 'q', long = "disable", help_heading = "Meta")]
+    pub disable_default_config: bool,
+
     // ── Mail Retrieval ───────────────────────────────────────────────────────
 
     /// POP3: upgrade to TLS via the STLS command after CAPA. Mirrors

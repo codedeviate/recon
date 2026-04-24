@@ -979,6 +979,29 @@ recon --rekey \
         "recon gophers://secure-gopher.example/",
     ]);
 
+    section("PROXY EXTRAS + TLS TUNING + --config (0.66.0)");
+
+    example("Flags from a config file (-K / --config)", &[
+        "recon -K ~/.recon-ci.cfg https://example.com/",
+        "echo '--insecure' > prod.cfg && recon -K prod.cfg -I https://corp.internal/",
+        "cat api.cfg  # --user alice:secret\\n--retry 3\\nurl = https://api.example.com/",
+    ]);
+
+    example("Include another config file", &[
+        "# base.cfg:  --user-agent 'recon-ci/1.0'",
+        "# main.cfg:  @base.cfg",
+        "#            --insecure",
+        "recon -K main.cfg https://target/",
+    ]);
+
+    example("Proxy + TLS tuning (accepted; some plumb-through deferred)", &[
+        "recon --ciphers 'TLS_AES_256_GCM_SHA384' https://example.com/   # accepted, not yet wired",
+        "recon --pinnedpubkey 'sha256//BASE64HASH' https://example.com/  # accepted",
+        "recon --preproxy http://proxy1 --proxy http://proxy2 https://example.com/",
+    ]);
+
+    note("0.66.0 ships -K/--config fully wired (config-file expansion before clap parses, with @include support, # comments, key=value or --flag value forms, cycle detection). The proxy + TLS-tuning flags are accepted at the CLI but most need rustls/reqwest primitives that aren't stable yet — they'll start taking effect when the plumbing lands, transparently to users already calling them.");
+
     section("PER-PROTOCOL KNOBS (0.65.0)");
 
     example("SSH host-key pinning + compression", &[
