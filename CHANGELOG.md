@@ -8,6 +8,45 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.63.0] - 2026-04-24
+
+### Added
+
+Release 3 of the Waiting-arc. Forms + netrc + HTTP version pinning +
+upload tweaks.
+
+**Multipart forms:**
+- `-F, --form <NAME=VALUE>` — curl-compatible grammar:
+  `name=literal` / `name=@file` / `name=@file;type=MIME` /
+  `name=@file;filename=NAME` / `name=<file` / `name=<-` (stdin).
+  Repeatable; each `-F` adds a new part.
+- `--form-string <NAME=VALUE>` — literal value; `@` / `<` NOT interpreted.
+- `--form-escape` — backslash-escape special chars in field names
+  and filenames.
+
+**.netrc support** (new `src/netrc.rs`):
+- `-n, --netrc` — require `~/.netrc` (or `$NETRC`) for credentials.
+- `--netrc-file <FILE>` — override path.
+- `--netrc-optional` — use if present, silent otherwise.
+- Host-exact match → `default` block fallback. Parses `machine`,
+  `default`, `login`, `password`, `account`, `macdef` (body skipped).
+
+**HTTP version pinning:**
+- `--http1.1` — reqwest `.http1_only()`.
+- `--http2` — no-op (ALPN already prefers HTTP/2 for https://).
+  Accepted for curl parity.
+- `--http2-prior-knowledge` — reqwest `.http2_prior_knowledge()`.
+
+**Upload tweaks:**
+- `-T -` — upload body from stdin (curl convention).
+- `--crlf` — LF → CRLF in the request body / upload.
+- `-a, --append` — flag accepted; wires into FTP/SFTP append mode
+  in a future per-protocol release (0.65.0). No-op for HTTP.
+
+### Features tokens
+
+`http-version-pinning`, `multipart`, `netrc`.
+
 ## [0.62.0] - 2026-04-24
 
 ### Added

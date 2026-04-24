@@ -146,6 +146,15 @@ pub fn execute(args: &Args) -> Result<(Response, RequestMetrics)> {
         builder = builder.max_tls_version(v);
     }
 
+    // --http1.1 / --http2-prior-knowledge (HTTP version pinning).
+    // --http2 alone is default reqwest behaviour for https://; accept
+    // but don't toggle anything.
+    if args.http11 {
+        builder = builder.http1_only();
+    } else if args.http2_prior_knowledge {
+        builder = builder.http2_prior_knowledge();
+    }
+
     // --tcp-nodelay, --no-keepalive, --keepalive-time.
     if args.tcp_nodelay {
         builder = builder.tcp_nodelay(true);
@@ -538,10 +547,27 @@ fn send_request(
         }
     }
 
-    // Body source priority: -T > --json > --data-raw > --data-binary > --data-urlencode > -d (unless -G).
-    if let Some(path) = &args.upload_file {
-        let body = fs::read(path)
-            .with_context(|| format!("Failed to read upload file: {}", path.display()))?;
+    // Body source priority: -F (multipart) wins over anything else.
+    // Then: -T > --json > --data-raw > --data-binary > --data-urlencode > -d (unless -G).
+    if !args.form.is_empty() || !args.form_string.is_empty() {
+        request = apply_multipart_form(request, args)?;
+    } else if let Some(path) = &args.upload_file {
+        // curl-compatible: -T - reads from stdin.
+        let body = if path.as_os_str() == "-" {
+            let mut buf = Vec::new();
+            std::io::Read::read_to_end(&mut std::io::stdin(), &mut buf)
+                .context("Failed to read upload body from stdin")?;
+            buf
+        } else {
+            fs::read(path)
+                .with_context(|| format!("Failed to read upload file: {}", path.display()))?
+        };
+        // --crlf: convert bare LFs to CRLFs before sending.
+        let body = if args.crlf {
+            crlf_convert(&body)
+        } else {
+            body
+        };
         request = apply_request_body(request, body, args)?;
     } else if let Some(json_data) = &args.json {
         request = apply_request_body(request, load_body_from_string(json_data)?, args)?;
@@ -590,6 +616,25 @@ fn send_request(
             .map(|(u, p)| (u, Some(p)))
             .unwrap_or((user_pass.as_str(), None));
         request = request.basic_auth(user, pass);
+    } else if let Some(path) = crate::netrc::resolve_netrc_path(args) {
+        // --netrc / --netrc-file / --netrc-optional: inject Basic auth
+        // from ~/.netrc (or override file) when -u isn't set.
+        let url = reqwest::Url::parse(url).ok();
+        if let Some(host) = url.as_ref().and_then(|u| u.host_str()) {
+            match crate::netrc::lookup(&path, host, args.netrc_optional) {
+                Ok(Some(entry)) => {
+                    if let Some(login) = entry.login {
+                        request = request.basic_auth(login, entry.password);
+                    }
+                }
+                Ok(None) => {}
+                Err(e) => {
+                    if !args.netrc_optional {
+                        return Err(e);
+                    }
+                }
+            }
+        }
     }
 
     if args.verbose >= 1 {
@@ -779,6 +824,132 @@ fn resolve_redirect(base: &str, location: &str) -> Result<String> {
             .with_context(|| format!("Invalid redirect location: {location}"))?
             .to_string())
     }
+}
+
+/// Build and attach a `multipart::Form` from --form + --form-string args.
+///
+/// Grammar (curl-compatible):
+/// - `name=value`             — literal value
+/// - `name=@file`             — file contents; MIME inferred from extension
+/// - `name=@file;type=MIME`   — explicit MIME type
+/// - `name=@file;filename=X`  — override the reported filename
+/// - `name=<file`             — file contents, filename NOT attached
+/// - `name=<-`                — content from stdin
+fn apply_multipart_form(
+    mut request: reqwest::blocking::RequestBuilder,
+    args: &Args,
+) -> Result<reqwest::blocking::RequestBuilder> {
+    use reqwest::blocking::multipart::{Form, Part};
+
+    let mut form = Form::new();
+
+    // --form-string: always literal (no @ / < interpretation).
+    for spec in &args.form_string {
+        let (name, value) = spec
+            .split_once('=')
+            .ok_or_else(|| anyhow!("--form-string: expected NAME=VALUE, got '{spec}'"))?;
+        let escaped_name = maybe_escape(name, args.form_escape);
+        form = form.part(escaped_name.clone(), Part::text(value.to_string()));
+    }
+
+    // --form: full curl grammar.
+    for spec in &args.form {
+        let (name, value) = spec
+            .split_once('=')
+            .ok_or_else(|| anyhow!("--form: expected NAME=VALUE, got '{spec}'"))?;
+        let escaped_name = maybe_escape(name, args.form_escape);
+        let part = build_form_part(value, args.form_escape)
+            .with_context(|| format!("--form '{spec}'"))?;
+        form = form.part(escaped_name, part);
+    }
+
+    request = request.multipart(form);
+    Ok(request)
+}
+
+fn build_form_part(value: &str, escape: bool) -> Result<reqwest::blocking::multipart::Part> {
+    use reqwest::blocking::multipart::Part;
+
+    // `<-`: content from stdin, no filename.
+    if value == "<-" {
+        let mut buf = Vec::new();
+        std::io::Read::read_to_end(&mut std::io::stdin(), &mut buf)
+            .context("--form: read stdin")?;
+        return Ok(Part::bytes(buf));
+    }
+
+    // `<file`: content from file, no filename attached.
+    if let Some(path) = value.strip_prefix('<') {
+        let bytes =
+            fs::read(path).with_context(|| format!("--form: read {path}"))?;
+        return Ok(Part::bytes(bytes));
+    }
+
+    // `@file[;type=MIME][;filename=NAME]`: content from file, attach filename.
+    if let Some(rest) = value.strip_prefix('@') {
+        // Split off optional ;type= / ;filename= modifiers.
+        let mut path = rest.to_string();
+        let mut mime: Option<String> = None;
+        let mut filename_override: Option<String> = None;
+
+        while let Some(pos) = path.rfind(';') {
+            let (head, tail) = path.split_at(pos);
+            let tail = &tail[1..]; // drop `;`
+            let (k, v) = tail
+                .split_once('=')
+                .ok_or_else(|| anyhow!("--form modifier expects key=value, got '{tail}'"))?;
+            match k.trim().to_ascii_lowercase().as_str() {
+                "type" => mime = Some(v.trim().to_string()),
+                "filename" => filename_override = Some(v.trim().to_string()),
+                other => return Err(anyhow!("--form: unknown modifier '{other}'")),
+            }
+            path = head.to_string();
+        }
+
+        let bytes =
+            fs::read(&path).with_context(|| format!("--form: read {path}"))?;
+        let default_name = std::path::Path::new(&path)
+            .file_name()
+            .map(|o| o.to_string_lossy().into_owned())
+            .unwrap_or_else(|| path.clone());
+        let filename = filename_override.unwrap_or(default_name);
+        let filename = maybe_escape(&filename, escape);
+
+        let mut part = Part::bytes(bytes).file_name(filename);
+        if let Some(m) = mime {
+            part = part
+                .mime_str(&m)
+                .with_context(|| format!("--form: invalid MIME '{m}'"))?;
+        }
+        return Ok(part);
+    }
+
+    // Literal value.
+    Ok(Part::text(value.to_string()))
+}
+
+/// LF → CRLF conversion for `--crlf`. Leaves existing CRLFs alone.
+fn crlf_convert(input: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(input.len() + input.len() / 32);
+    let mut prev = 0u8;
+    for &b in input {
+        if b == b'\n' && prev != b'\r' {
+            out.push(b'\r');
+        }
+        out.push(b);
+        prev = b;
+    }
+    out
+}
+
+fn maybe_escape(s: &str, on: bool) -> String {
+    if !on {
+        return s.to_string();
+    }
+    s.replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\r', "\\r")
+        .replace('\n', "\\n")
 }
 
 fn resolve_method(args: &Args) -> Result<Method> {

@@ -61,10 +61,41 @@ pub struct Args {
     #[arg(long = "data-urlencode", value_name = "DATA", action = clap::ArgAction::Append, help_heading = "HTTP Request")]
     pub data_urlencode: Vec<String>,
 
+    /// Multipart form field. curl-compatible grammar:
+    /// `name=value` (literal), `name=@file` (file contents), `name=@file;type=mime;filename=basename`,
+    /// `name=<file` (content from file, keep original name), `name=<-` (content from stdin).
+    /// Repeatable; each -F adds a new part. Sets Content-Type: multipart/form-data.
+    #[arg(short = 'F', long = "form", value_name = "NAME=VALUE", action = clap::ArgAction::Append, help_heading = "HTTP Request")]
+    pub form: Vec<String>,
+
+    /// Like -F but treats VALUE strictly as a literal string (`@` and
+    /// `<` are NOT interpreted). Use when the literal content starts
+    /// with those characters.
+    #[arg(long = "form-string", value_name = "NAME=VALUE", action = clap::ArgAction::Append, help_heading = "HTTP Request")]
+    pub form_string: Vec<String>,
+
+    /// Backslash-escape special characters (", \, \r, \n) in form field
+    /// names + filenames. Matches curl's --form-escape. Off by default.
+    #[arg(long = "form-escape", help_heading = "HTTP Request")]
+    pub form_escape: bool,
+
     /// Upload the given local file as the request body. Defaults method to
-    /// PUT unless -X is set explicitly. Mutually exclusive with -d/--data.
+    /// PUT unless -X is set explicitly. Pass `-` to read from stdin.
+    /// Mutually exclusive with -d/--data.
     #[arg(short = 'T', long = "upload-file", value_name = "PATH", help_heading = "HTTP Request")]
     pub upload_file: Option<std::path::PathBuf>,
+
+    /// Append mode for FTP / SFTP uploads. Maps to FTP's APPE command
+    /// and SFTP's O_APPEND. Has no effect on HTTP uploads (that's a
+    /// server-side concept).
+    #[arg(short = 'a', long = "append", help_heading = "HTTP Request")]
+    pub append: bool,
+
+    /// Convert bare LF bytes to CRLF before sending the request body
+    /// (or upload). Useful for line-oriented protocols that reject
+    /// unix-style newlines.
+    #[arg(long = "crlf", help_heading = "HTTP Request")]
+    pub crlf: bool,
 
     /// Follow redirects
     #[arg(short = 'L', long = "location", help_heading = "HTTP Request")]
@@ -185,6 +216,39 @@ pub struct Args {
     /// probe servers that claim 1.3 support but misbehave under 1.3.
     #[arg(long = "tls-max", value_name = "VERSION", help_heading = "Auth & TLS")]
     pub tls_max: Option<String>,
+
+    /// Force HTTP/1.1 only (disable HTTP/2 upgrade). Useful when a
+    /// server's /2 path misbehaves. reqwest's http1_only builder.
+    #[arg(long = "http1.1", help_heading = "HTTP Request")]
+    pub http11: bool,
+
+    /// Prefer HTTP/2 when negotiated via ALPN. Default reqwest
+    /// behaviour for https:// — this flag exists for curl parity
+    /// and is effectively a no-op. Does NOT force HTTP/2 over
+    /// http:// (use --http2-prior-knowledge for that).
+    #[arg(long = "http2", help_heading = "HTTP Request")]
+    pub http2: bool,
+
+    /// Issue HTTP/2 without the HTTP/1.1 Upgrade handshake. Useful
+    /// against h2c (HTTP/2 over cleartext) endpoints or https://
+    /// servers that skip ALPN negotiation.
+    #[arg(long = "http2-prior-knowledge", help_heading = "HTTP Request")]
+    pub http2_prior_knowledge: bool,
+
+    /// Require the file `~/.netrc` (or $NETRC) for credentials. Fail
+    /// if missing. Looks up the URL's host to inject Basic auth when
+    /// -u / --user isn't set.
+    #[arg(short = 'n', long = "netrc", help_heading = "Auth & TLS")]
+    pub netrc: bool,
+
+    /// Read credentials from FILE instead of the default ~/.netrc.
+    #[arg(long = "netrc-file", value_name = "FILE", help_heading = "Auth & TLS")]
+    pub netrc_file: Option<PathBuf>,
+
+    /// Use ~/.netrc if it exists; silently continue if it doesn't.
+    /// Curl's `--netrc-optional`.
+    #[arg(long = "netrc-optional", help_heading = "Auth & TLS")]
+    pub netrc_optional: bool,
 
     /// TCP_NODELAY on outgoing sockets (disable Nagle's algorithm).
     /// Useful for interactive protocols but hurts bulk-transfer

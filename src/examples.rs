@@ -979,6 +979,32 @@ recon --rekey \
         "recon gophers://secure-gopher.example/",
     ]);
 
+    section("FORMS + NETRC + HTTP VERSION (0.63.0)");
+
+    example("Multipart form uploads (-F / --form)", &[
+        "recon -F 'name=alice' -F 'bio=@bio.txt' https://api.example.com/profile -X POST",
+        "recon -F 'avatar=@me.png;type=image/png;filename=user.png' https://api.example.com/upload -X POST",
+        "recon -F 'data=<payload.json' https://api.example.com/submit -X POST     # file content, no filename",
+        "cat secret | recon -F 'body=<-' https://api.example.com/post -X POST",
+        "recon --form-string 'literal=@not-a-path' https://api.example.com/ -X POST",
+    ]);
+
+    example(".netrc-backed credentials", &[
+        "recon -n https://private.example.com/api              # ~/.netrc machine entry",
+        "recon --netrc-file ~/creds.netrc https://a.example.com",
+        "recon --netrc-optional https://a.example.com          # silent fallback",
+    ]);
+
+    example("HTTP version pinning", &[
+        "recon --http1.1 https://broken-h2.example.com/         # disable HTTP/2 upgrade",
+        "recon --http2-prior-knowledge http://h2c.local:8080/   # h2c (cleartext HTTP/2)",
+    ]);
+
+    example("Upload variants", &[
+        "cat body.json | recon -T - https://upload.example.com/    # stdin upload",
+        "recon --crlf -T linefile.txt https://upload.example.com/   # LF→CRLF before send",
+    ]);
+
     section("CURL EASY WINS (0.62.0)");
 
     example("Byte-range requests + size cap", &[

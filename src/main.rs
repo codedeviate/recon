@@ -36,6 +36,7 @@ mod lorem;
 mod memcached_probe;
 mod metrics;
 mod mqtt;
+mod netrc;
 mod netstatus;
 mod ntp_probe;
 mod output;
