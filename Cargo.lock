@@ -3888,7 +3888,7 @@ dependencies = [
 
 [[package]]
 name = "recon"
-version = "0.61.0"
+version = "0.62.0"
 dependencies = [
  "age",
  "anyhow",
@@ -3962,6 +3962,7 @@ dependencies = [
  "webpki-roots 1.0.7",
  "wiremock",
  "x509-parser 0.16.0",
+ "xattr",
  "xz2",
  "zip",
  "zstd",

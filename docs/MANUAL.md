@@ -2,7 +2,7 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.61.0</div>
+<div class="version">Version 0.62.0</div>
 <div class="date">2026-04-24</div>
 <div class="meta">
 Repository · https://github.com/thomas-starweb/recon<br>
@@ -220,6 +220,16 @@ stand-alone.
 
 The default mode. A positional URL (or `--url <URL>`) triggers an HTTP request
 through the reqwest + rustls stack.
+
+> **0.62.0 curl-parity additions** — see the curl easy-wins section
+> of `recon --examples` and the relevant flags table rows below.
+> Quick summary: `-r/--range`, `-z/--time-cond`, `--etag-compare`,
+> `--etag-save`, `--timestamping`, `--max-filesize`, `--url-query`,
+> `--disallow-username-in-url`, `--remove-on-error`, `--no-clobber`,
+> `--create-file-mode`, `-N/--no-buffer`, `-D/--dump-header`,
+> `--stderr`, `--no-progress-meter`, `--tcp-nodelay`, `--no-keepalive`,
+> `--keepalive-time`, `--capath`, `--ca-native`, `--tls-max`,
+> `--connect-to`, `--oauth2-bearer`, `--xattr`, `--spider`.
 
 ### Core flags
 

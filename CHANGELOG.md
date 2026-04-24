@@ -8,6 +8,75 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.62.0] - 2026-04-24
+
+### Added
+
+Release 2 of the Waiting-implementation arc: curl's "easy wins"
+cluster. ~30 new CLI flags, mostly thin wrappers around reqwest
+builder calls or single-header injections.
+
+**Request shape:**
+- `-r, --range <RANGE>` — sets the Range header (bytes=RANGE form).
+- `--url-query <DATA>` — appends URL-encoded query params
+  (same grammar as --data-urlencode).
+- `--request-target <PATH>` — accepted but errors cleanly
+  (reqwest 0.12 has no hook for the request-line target).
+- `--disallow-username-in-url` — reject URLs with a userinfo
+  component (security hardening).
+- `--max-filesize <BYTES>` — abort before streaming body when
+  Content-Length exceeds the limit. K/M/G suffixes.
+
+**Conditional requests:**
+- `-z, --time-cond <TIME|FILE>` — If-Modified-Since from date
+  string OR local file mtime. Prefix `-` inverts to
+  If-Unmodified-Since.
+- `--etag-compare <FILE>` — read an ETag from FILE, send
+  If-None-Match.
+- `--etag-save <FILE>` — write the response's ETag to FILE.
+- `--timestamping` — wget-style shortcut for `-z <OUTPUT_FILE>`.
+
+**Output control:**
+- `--remove-on-error` — unlink the -o target on any error.
+- `--no-clobber` — refuse to overwrite existing -o target.
+- `--create-file-mode <MODE>` — chmod (Unix only) after creation.
+- `-N, --no-buffer` — declared (documented as no-op for now;
+  Rust stdout is line-buffered when TTY, unbuffered otherwise).
+- `-D, --dump-header <FILE>` — save response headers to FILE.
+- `--stderr <FILE>` — dup2 stderr onto FILE early in main().
+- `--styled-output` / `--no-styled-output` — force / disable
+  color output (currently advisory; recon auto-detects).
+- `--no-progress-meter` — hide the progress bar even during
+  file downloads.
+- `--show-error` — accepted for curl compat (recon always shows
+  errors; this is a no-op documented as such).
+
+**Connection / TLS tuning:**
+- `--capath <DIR>` — add every *.pem / *.crt / *.cer in DIR
+  as a trusted root.
+- `--ca-native` — disable bundled roots (pairs with --cacert /
+  --capath).
+- `--tls-max <VERSION>` — cap at 1.2 or 1.3.
+- `--tcp-nodelay` — disable Nagle.
+- `--no-keepalive` / `--keepalive-time <SECS>` — TCP keepalive.
+- `--connect-to <H1:P1:H2:P2>` — per-host resolver override.
+
+**Auth, metadata, wget standalone:**
+- `--oauth2-bearer <TOKEN>` — Authorization: Bearer shortcut.
+- `--xattr` — write URL + MIME type as extended attributes
+  on the -o target (macOS / Linux).
+- `--spider` — HEAD-only link check. Prints `<STATUS> <URL>`,
+  exits non-zero if not 2xx.
+
+**`--version` feature tokens**: `range`, `conditional-get`,
+`spider`, `xattr`.
+
+### Changed
+
+- New `.cargo/config.toml` bumps `RUST_MIN_STACK` to 16 MiB so
+  unit tests can allocate the (now-larger) `Args` struct without
+  overflowing the default 2 MB test thread stack.
+
 ## [0.61.0] - 2026-04-24
 
 ### Added

@@ -103,6 +103,26 @@ impl<'a, A: Write> Write for TeeWriter<'a, A> {
     }
 }
 
+/// Parse a byte size with optional K/M/G suffix (1K = 1024). Case
+/// insensitive. Accepts plain `4096` / `4K` / `2.5M` / `1g`.
+pub fn parse_size_with_suffix(s: &str) -> anyhow::Result<u64> {
+    let t = s.trim();
+    if t.is_empty() {
+        anyhow::bail!("empty size");
+    }
+    let (num_part, mul): (&str, u64) = match t.chars().last().unwrap() {
+        'K' | 'k' => (&t[..t.len() - 1], 1024),
+        'M' | 'm' => (&t[..t.len() - 1], 1024 * 1024),
+        'G' | 'g' => (&t[..t.len() - 1], 1024 * 1024 * 1024),
+        _ => (t, 1),
+    };
+    let n: f64 = num_part.parse().map_err(|_| anyhow::anyhow!("bad number: {num_part}"))?;
+    if n < 0.0 {
+        anyhow::bail!("size must be non-negative");
+    }
+    Ok((n * mul as f64) as u64)
+}
+
 pub fn write_response(response: Response, args: &Args, metrics: &mut RequestMetrics) -> Result<()> {
     let mut sink = StdoutSink::Stdout;
     write_response_to(response, args, &mut sink, metrics)
@@ -115,6 +135,71 @@ pub fn write_response_to(
     sink: &mut StdoutSink,
     metrics: &mut RequestMetrics,
 ) -> Result<()> {
+    // Snapshot values needed after the body is consumed (for --xattr).
+    let response_url_str = response.url().to_string();
+    let response_content_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
+    // --max-filesize: abort before streaming body when the server
+    // announced a Content-Length over the user's limit.
+    if let Some(raw) = args.max_filesize.as_deref() {
+        let limit = parse_size_with_suffix(raw)
+            .map_err(|e| anyhow::anyhow!("--max-filesize: {e}"))?;
+        if let Some(v) = response.headers().get(reqwest::header::CONTENT_LENGTH) {
+            if let Ok(len) = v.to_str().unwrap_or("0").parse::<u64>() {
+                if len > limit {
+                    anyhow::bail!(
+                        "--max-filesize: server announced {len} bytes > limit {limit}"
+                    );
+                }
+            }
+        }
+    }
+
+    // --dump-header: write response headers to FILE. Happens before
+    // the body so the file is complete even if the body stream errors.
+    if let Some(path) = args.dump_header.as_ref() {
+        use std::io::Write;
+        let mut f = std::fs::File::create(path)
+            .with_context(|| format!("--dump-header: create {}", path.display()))?;
+        writeln!(
+            f,
+            "HTTP/{:?} {}",
+            response.version(),
+            response.status()
+        )?;
+        for (k, v) in response.headers() {
+            writeln!(f, "{}: {}", k, v.to_str().unwrap_or(""))?;
+        }
+    }
+
+    // --etag-save: persist the response ETag for a future
+    // --etag-compare round-trip.
+    if let Some(path) = args.etag_save.as_ref() {
+        if let Some(etag) = response
+            .headers()
+            .get(reqwest::header::ETAG)
+            .and_then(|v| v.to_str().ok())
+        {
+            std::fs::write(path, etag)
+                .with_context(|| format!("--etag-save: write {}", path.display()))?;
+        }
+    }
+
+    // --no-clobber: refuse to overwrite the -o target.
+    if args.no_clobber {
+        if let Some(p) = args.output.as_ref() {
+            if p.exists() {
+                anyhow::bail!(
+                    "--no-clobber: refusing to overwrite existing file {}",
+                    p.display()
+                );
+            }
+        }
+    }
+
     let status = response.status();
 
     if args.status_only {
@@ -313,7 +398,7 @@ pub fn write_response_to(
                 let file = File::create(path)?;
                 let wrapped = wrap_with_rate_control(Box::new(file), args)?;
                 let mut cw = CountingWriter { inner: wrapped, count: &mut metrics.size_download };
-                if args.progress {
+                if args.progress && !args.no_progress_meter {
                     let pb = make_progress_bar(content_length);
                     copy_with_progress(&mut response, &mut cw, &pb)?;
                     pb.finish_and_clear();
@@ -335,12 +420,58 @@ pub fn write_response_to(
 
     // All exit paths below represent "body/headers done": stamp response_end once.
     metrics.response_end = Some(std::time::Instant::now());
+
+    // --remove-on-error: unlink the -o target if the body stream errored.
+    if body_io_result.is_err() && args.remove_on_error {
+        if let Some(path) = &final_path {
+            let _ = std::fs::remove_file(path);
+            if !args.silent {
+                eprintln!("--remove-on-error: deleted partial output {}", path.display());
+            }
+        }
+    }
     body_io_result?;
+
+    // --create-file-mode: chmod the saved file (Unix only).
+    if let Some(raw) = args.create_file_mode.as_deref() {
+        if let Some(path) = &final_path {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let mode = u32::from_str_radix(raw, 8).with_context(|| {
+                    format!("--create-file-mode: '{raw}' is not octal (e.g. 600)")
+                })?;
+                std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))
+                    .with_context(|| {
+                        format!("--create-file-mode: chmod {}", path.display())
+                    })?;
+            }
+            #[cfg(not(unix))]
+            {
+                let _ = (raw, path);
+                if !args.silent {
+                    eprintln!("--create-file-mode: ignored on non-Unix platforms");
+                }
+            }
+        }
+    }
 
     // --remote-time: apply Last-Modified to the saved file
     if let (Some(path), Some(mtime)) = (&final_path, last_modified_ts) {
         let ft = filetime::FileTime::from_unix_time(mtime, 0);
         let _ = filetime::set_file_mtime(path, ft); // silent no-op on failure
+    }
+
+    // --xattr: write URL + MIME type into extended attributes.
+    // Matches curl's user.xdg.origin.url / user.mime_type keys.
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    if args.xattr {
+        if let Some(path) = &final_path {
+            let _ = xattr::set(path, "user.xdg.origin.url", response_url_str.as_bytes());
+            if let Some(ct) = response_content_type.as_deref() {
+                let _ = xattr::set(path, "user.mime_type", ct.as_bytes());
+            }
+        }
     }
 
     // --fail-with-body: body written above, NOW return error so process exits non-zero

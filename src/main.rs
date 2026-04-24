@@ -155,6 +155,26 @@ fn main() {
         }
     };
 
+    // ── --stderr redirect (early so all subsequent error output routes through it) ──
+    if let Some(path) = args.stderr_file.clone() {
+        use std::os::unix::io::AsRawFd;
+        match std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+        {
+            Ok(f) => {
+                #[cfg(unix)]
+                unsafe {
+                    libc::dup2(f.as_raw_fd(), libc::STDERR_FILENO);
+                }
+                // Intentionally leak the File — stderr now owns the fd.
+                std::mem::forget(f);
+            }
+            Err(e) => eprintln!("warning: --stderr: {e}"),
+        }
+    }
+
     // ── ipfs:// / ipns:// URL rewrite ─────────────────────────────────────────
     // Rewrite before any protocol dispatch so the URL flows through the
     // existing HTTP path. Gateway defaults to https://ipfs.io; override
@@ -866,6 +886,18 @@ fn main() {
         client::execute(&args).and_then(|(response, mut metrics)| -> anyhow::Result<()> {
             if args.verbose >= 2 {
                 eprintln!("* Elapsed: {:.3}s", t0.elapsed().as_secs_f64());
+            }
+            // --spider: print "<status> <url>" and exit. No body.
+            if args.spider {
+                let status = response.status().as_u16();
+                let url = response.url().to_string();
+                println!("{status} {url}");
+                metrics.response_end = Some(std::time::Instant::now());
+                metrics.size_download = 0;
+                if !response.status().is_success() {
+                    anyhow::bail!("--spider: {status} for {url}");
+                }
+                return Ok(());
             }
             let result = if args.editor.is_some() {
                 run_with_editor(response, &args, &mut metrics)

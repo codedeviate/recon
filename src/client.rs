@@ -43,6 +43,31 @@ fn snapshot_response(metrics: &mut RequestMetrics, args: &Args, response: &Respo
 }
 
 pub fn execute(args: &Args) -> Result<(Response, RequestMetrics)> {
+    // --request-target: reqwest's blocking client doesn't expose the
+    // request-target directly. Accepted at parse time but errors here
+    // until we bypass reqwest for a direct hyper path.
+    if args.request_target.is_some() {
+        anyhow::bail!(
+            "--request-target: not yet supported (reqwest 0.12 has no hook for \
+             the request-line target; would require direct hyper). Use --url \
+             with the desired path for now."
+        );
+    }
+
+    // --disallow-username-in-url: security hardening. Reject URLs
+    // that carry userinfo in command-line args.
+    if args.disallow_username_in_url {
+        let url_str = args.target_url();
+        if let Ok(url) = reqwest::Url::parse(url_str) {
+            if !url.username().is_empty() || url.password().is_some() {
+                anyhow::bail!(
+                    "--disallow-username-in-url: URL contains a user/pass component — \
+                     pass credentials via `-u user:pass` instead"
+                );
+            }
+        }
+    }
+
     let mut builder = Client::builder()
         .use_rustls_tls()
         .danger_accept_invalid_certs(args.insecure)
@@ -63,6 +88,91 @@ pub fn execute(args: &Args) -> Result<(Response, RequestMetrics)> {
         let cert = reqwest::Certificate::from_pem(&pem)
             .with_context(|| format!("--cacert: parse PEM from {}", path.display()))?;
         builder = builder.add_root_certificate(cert);
+    }
+
+    // --capath: trust every *.pem / *.crt in the directory.
+    if let Some(dir) = &args.capath {
+        let entries = std::fs::read_dir(dir)
+            .with_context(|| format!("--capath: read dir {}", dir.display()))?;
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if !p.is_file() {
+                continue;
+            }
+            let ext_ok = p
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|s| {
+                    let lo = s.to_ascii_lowercase();
+                    lo == "pem" || lo == "crt" || lo == "cer"
+                })
+                .unwrap_or(false);
+            if !ext_ok {
+                continue;
+            }
+            let pem = std::fs::read(&p)
+                .with_context(|| format!("--capath: read {}", p.display()))?;
+            let cert = reqwest::Certificate::from_pem(&pem)
+                .with_context(|| format!("--capath: parse PEM from {}", p.display()))?;
+            builder = builder.add_root_certificate(cert);
+        }
+    }
+
+    // --ca-native: switch to OS-native trust roots.
+    if args.ca_native {
+        builder = builder.tls_built_in_root_certs(false);
+        // reqwest's "use_native_tls_roots" pairs with rustls-native-certs
+        // under feature "rustls-tls-native-roots"; here we're using the
+        // plain rustls feature, so we fall through to zero roots unless
+        // the user also supplied --cacert / --capath. That's the honest
+        // behaviour — document it and log a warning.
+        if args.cacert.is_none() && args.capath.is_none() && !args.insecure {
+            eprintln!(
+                "warning: --ca-native on a rustls build without \
+                 rustls-tls-native-roots does nothing useful unless paired \
+                 with --cacert or --capath; request will likely fail cert \
+                 verification"
+            );
+        }
+    }
+
+    // --tls-max: upper bound on negotiated TLS version.
+    if let Some(raw) = &args.tls_max {
+        let v = match raw.as_str() {
+            "1.2" => reqwest::tls::Version::TLS_1_2,
+            "1.3" => reqwest::tls::Version::TLS_1_3,
+            other => anyhow::bail!("--tls-max: unknown version '{other}' (expected 1.2 or 1.3)"),
+        };
+        builder = builder.max_tls_version(v);
+    }
+
+    // --tcp-nodelay, --no-keepalive, --keepalive-time.
+    if args.tcp_nodelay {
+        builder = builder.tcp_nodelay(true);
+    }
+    if args.no_keepalive {
+        builder = builder.tcp_keepalive(None);
+    } else if let Some(secs) = args.keepalive_time {
+        builder = builder.tcp_keepalive(Duration::from_secs(secs));
+    }
+
+    // --connect-to: HOST1:PORT1:HOST2:PORT2 overrides.
+    for spec in &args.connect_to {
+        let parts: Vec<&str> = spec.splitn(4, ':').collect();
+        if parts.len() != 4 {
+            anyhow::bail!(
+                "--connect-to: expected HOST1:PORT1:HOST2:PORT2, got '{spec}'"
+            );
+        }
+        let port1: u16 = parts[1]
+            .parse()
+            .with_context(|| format!("--connect-to: port1 parse '{}'", parts[1]))?;
+        let resolve_addr = format!("{}:{}", parts[2], parts[3])
+            .to_socket_addrs()
+            .with_context(|| format!("--connect-to: resolve '{}:{}'", parts[2], parts[3]))?
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("--connect-to: no address for '{}:{}'", parts[2], parts[3]))?;
+        builder = builder.resolve(parts[0], std::net::SocketAddr::new(resolve_addr.ip(), port1));
     }
 
     // --interface: bind to a specific local IP. Accepts IP literals OR
@@ -184,18 +294,126 @@ fn update_hsts_from_response(args: &Args, response: &reqwest::blocking::Response
 }
 
 /// Returns the effective request URL. When -G / --get is active, appends -d data as a query string.
+/// Resolve `--time-cond` / `--timestamping` into (header_name, value).
+/// Returns `Ok(None)` when no conditional is requested. Header name
+/// is `If-Modified-Since` by default; prefix the `-z` value with `-`
+/// to switch to `If-Unmodified-Since`.
+fn resolve_time_cond(args: &Args) -> Result<Option<(&'static str, String)>> {
+    let raw = if let Some(s) = args.time_cond.as_deref() {
+        s.to_string()
+    } else if args.timestamping {
+        // --timestamping uses the -o target's mtime.
+        let target = args.output.as_ref().ok_or_else(|| {
+            anyhow::anyhow!("--timestamping requires -o <PATH> to know which file's mtime to use")
+        })?;
+        if !target.exists() {
+            // No local file → don't send a conditional; the server will
+            // return the full body. Same as curl's behaviour.
+            return Ok(None);
+        }
+        return mtime_to_header("If-Modified-Since", target).map(Some);
+    } else {
+        return Ok(None);
+    };
+    let (invert, rest) = if let Some(r) = raw.strip_prefix('-') {
+        (true, r.to_string())
+    } else {
+        (false, raw)
+    };
+    let header_name: &'static str = if invert {
+        "If-Unmodified-Since"
+    } else {
+        "If-Modified-Since"
+    };
+    // Try path first; fall back to date-parsing.
+    let as_path = std::path::Path::new(&rest);
+    if as_path.exists() {
+        mtime_to_header(header_name, as_path).map(Some)
+    } else {
+        // Assume RFC 2616 / RFC 2822 date string. Re-format via httpdate.
+        let ts = httpdate::parse_http_date(&rest)
+            .or_else(|_| {
+                httpdate::parse_http_date(&rest.replace(' ', ", "))
+            })
+            .map_err(|_| {
+                anyhow::anyhow!(
+                    "--time-cond: '{rest}' is neither a valid HTTP-date nor a readable file path"
+                )
+            })?;
+        Ok(Some((header_name, httpdate::fmt_http_date(ts))))
+    }
+}
+
+fn mtime_to_header(name: &'static str, path: &std::path::Path) -> Result<(&'static str, String)> {
+    let meta = std::fs::metadata(path)
+        .with_context(|| format!("read mtime of {}", path.display()))?;
+    let mtime = meta
+        .modified()
+        .with_context(|| format!("mtime of {} not available", path.display()))?;
+    Ok((name, httpdate::fmt_http_date(mtime)))
+}
+
 fn effective_url(args: &Args) -> String {
-    if args.get_data {
-        if let Some(data) = &args.data {
-            let base = args.target_url();
-            return if base.contains('?') {
-                format!("{base}&{data}")
-            } else {
-                format!("{base}?{data}")
-            };
+    let mut base = args.target_url().to_string();
+
+    // --url-query: append URL-encoded data to the query string.
+    // Same sub-form grammar as --data-urlencode.
+    for raw in &args.url_query {
+        if let Ok(encoded) = encode_url_query_part(raw) {
+            base = join_query(&base, &encoded);
         }
     }
-    args.target_url().to_string()
+
+    if args.get_data {
+        if let Some(data) = &args.data {
+            base = join_query(&base, data);
+        }
+    }
+    base
+}
+
+fn join_query(base: &str, encoded: &str) -> String {
+    if base.contains('?') {
+        format!("{base}&{encoded}")
+    } else {
+        format!("{base}?{encoded}")
+    }
+}
+
+/// Encode a --url-query / --data-urlencode sub-form into a query
+/// fragment. Sub-forms:
+/// - `content`        →  URL-encode the whole value
+/// - `=content`       →  same (leading `=` stripped)
+/// - `name=content`   →  name (literal) + "=" + URL-encoded content
+/// - `@file`          →  read file, URL-encode the contents
+/// - `name@file`      →  name (literal) + "=" + URL-encoded file contents
+fn encode_url_query_part(raw: &str) -> Result<String> {
+    use reqwest::Url;
+    let percent = |s: &str| -> String {
+        // reqwest's internal form-encoder is reqwest::Url-agnostic, so
+        // drive percent-encoding via urlencoding-compatible path.
+        Url::parse_with_params("http://x/", &[("k", s)])
+            .ok()
+            .and_then(|u| u.query().map(|q| q.trim_start_matches("k=").to_string()))
+            .unwrap_or_default()
+    };
+    if let Some(path) = raw.strip_prefix('@') {
+        let bytes = std::fs::read_to_string(path)
+            .with_context(|| format!("--url-query @{path}: read"))?;
+        return Ok(percent(bytes.trim_end_matches('\n')));
+    }
+    if let Some((name, rest)) = raw.split_once('=') {
+        if name.is_empty() {
+            return Ok(percent(rest));
+        }
+        return Ok(format!("{name}={}", percent(rest)));
+    }
+    if let Some((name, path)) = raw.split_once('@') {
+        let bytes = std::fs::read_to_string(path)
+            .with_context(|| format!("--url-query {name}@{path}: read"))?;
+        return Ok(format!("{name}={}", percent(bytes.trim_end_matches('\n'))));
+    }
+    Ok(percent(raw))
 }
 
 fn execute_lhead(
@@ -285,6 +503,39 @@ fn send_request(
     // --compressed: advertise supported encodings unless user set their own
     if args.compressed && !user_has_header(&args.header, "Accept-Encoding") {
         request = request.header("Accept-Encoding", "gzip, deflate, br, zstd");
+    }
+
+    // -r, --range: set Range header unless user already did.
+    if let Some(range) = &args.range {
+        if !user_has_header(&args.header, "Range") {
+            request = request.header("Range", format!("bytes={range}"));
+        }
+    }
+
+    // -z, --time-cond / --timestamping: If-Modified-Since or
+    // If-Unmodified-Since from date string or local file mtime.
+    if let Some(resolved) = resolve_time_cond(args)? {
+        let (name, value) = resolved;
+        if !user_has_header(&args.header, name) {
+            request = request.header(name, value);
+        }
+    }
+
+    // --oauth2-bearer: Authorization header sugar.
+    if let Some(token) = &args.oauth2_bearer {
+        if !user_has_header(&args.header, "Authorization") {
+            request = request.header("Authorization", format!("Bearer {token}"));
+        }
+    }
+
+    // --etag-compare: If-None-Match from an ETag file.
+    if let Some(path) = &args.etag_compare {
+        let etag = std::fs::read_to_string(path)
+            .with_context(|| format!("--etag-compare: read {}", path.display()))?;
+        let trimmed = etag.trim();
+        if !trimmed.is_empty() && !user_has_header(&args.header, "If-None-Match") {
+            request = request.header("If-None-Match", trimmed);
+        }
     }
 
     // Body source priority: -T > --json > --data-raw > --data-binary > --data-urlencode > -d (unless -G).
@@ -531,6 +782,10 @@ fn resolve_redirect(base: &str, location: &str) -> Result<String> {
 }
 
 fn resolve_method(args: &Args) -> Result<Method> {
+    // --spider overrides the method; always HEAD regardless of -X / -d.
+    if args.spider {
+        return Ok(Method::HEAD);
+    }
     let method_str = args.effective_method();
     Method::from_str(method_str.as_str())
         .map_err(|_| anyhow!("Invalid HTTP method: {}", method_str))

@@ -70,6 +70,56 @@ pub struct Args {
     #[arg(short = 'L', long = "location", help_heading = "HTTP Request")]
     pub follow_redirects: bool,
 
+    /// Request a byte range via the Range header. Accepts curl's
+    /// syntax: `0-1023` (first 1 KiB), `2048-` (offset to EOF),
+    /// `-512` (last 512 bytes). Multiple ranges comma-separated.
+    #[arg(short = 'r', long = "range", value_name = "RANGE", help_heading = "HTTP Request")]
+    pub range: Option<String>,
+
+    /// Cap download size (bytes). Aborts when Content-Length exceeds
+    /// the limit, or when downloaded bytes cross it. Suffixes K/M/G
+    /// accepted (1K=1024, 1M=1024*1024, 1G=1024*1024*1024).
+    #[arg(long = "max-filesize", value_name = "BYTES", help_heading = "HTTP Request")]
+    pub max_filesize: Option<String>,
+
+    /// Append URL-encoded query parameters to the target URL. Same
+    /// sub-forms as --data-urlencode: `name=value`, `content`,
+    /// `=content`, `@file`, `name@file`. Repeatable.
+    #[arg(long = "url-query", value_name = "DATA", action = clap::ArgAction::Append, help_heading = "HTTP Request")]
+    pub url_query: Vec<String>,
+
+    /// Override the request-target in the first request line (the
+    /// `PATH HTTP/1.1` part). Rarely needed; useful for OPTIONS `*`
+    /// or custom gateways.
+    #[arg(long = "request-target", value_name = "PATH", help_heading = "HTTP Request")]
+    pub request_target: Option<String>,
+
+    /// Reject URLs with a `user:pass@` prefix. Security hardening —
+    /// stops accidental credential leaks in command-line history.
+    #[arg(long = "disallow-username-in-url", help_heading = "HTTP Request")]
+    pub disallow_username_in_url: bool,
+
+    /// Conditional request — `If-Modified-Since` from a date string
+    /// (RFC 2822 / RFC 850 / asctime) OR from a local file's mtime.
+    /// Prefix with `-` to invert into `If-Unmodified-Since`.
+    #[arg(short = 'z', long = "time-cond", value_name = "TIME|FILE", help_heading = "HTTP Request")]
+    pub time_cond: Option<String>,
+
+    /// Read an ETag from FILE and send it as `If-None-Match`.
+    #[arg(long = "etag-compare", value_name = "FILE", help_heading = "HTTP Request")]
+    pub etag_compare: Option<PathBuf>,
+
+    /// Save the response's `ETag` header to FILE for a future
+    /// --etag-compare round-trip.
+    #[arg(long = "etag-save", value_name = "FILE", help_heading = "HTTP Request")]
+    pub etag_save: Option<PathBuf>,
+
+    /// wget-style shortcut: use the mtime of the -o target as
+    /// `If-Modified-Since`. Equivalent to `-z <OUTPUT_FILE>`. Requires
+    /// `-o PATH` or `-O`.
+    #[arg(long = "timestamping", help_heading = "HTTP Request")]
+    pub timestamping: bool,
+
     /// Send a Referer header. Accepts --referrer as an alias for the common
     /// misspelling. An explicit -H "Referer: …" overrides this.
     #[arg(short = 'e', long = "referer", alias = "referrer", value_name = "URL", help_heading = "HTTP Request")]
@@ -120,6 +170,57 @@ pub struct Args {
     /// system roots. Use for self-signed corporate roots without -k.
     #[arg(long = "cacert", value_name = "PATH", help_heading = "Auth & TLS")]
     pub cacert: Option<PathBuf>,
+
+    /// Add every `*.pem` / `*.crt` file in DIR as a trusted root.
+    #[arg(long = "capath", value_name = "DIR", help_heading = "Auth & TLS")]
+    pub capath: Option<PathBuf>,
+
+    /// Use the OS-native trust store (WebPKI / Apple / Windows SChannel
+    /// roots) rather than the bundled Mozilla roots. Pairs with
+    /// --cacert if extra corporate roots are also needed.
+    #[arg(long = "ca-native", help_heading = "Auth & TLS")]
+    pub ca_native: bool,
+
+    /// Cap the maximum TLS version. Accepts `1.2` or `1.3`. Use to
+    /// probe servers that claim 1.3 support but misbehave under 1.3.
+    #[arg(long = "tls-max", value_name = "VERSION", help_heading = "Auth & TLS")]
+    pub tls_max: Option<String>,
+
+    /// TCP_NODELAY on outgoing sockets (disable Nagle's algorithm).
+    /// Useful for interactive protocols but hurts bulk-transfer
+    /// throughput in some cases.
+    #[arg(long = "tcp-nodelay", help_heading = "Auth & TLS")]
+    pub tcp_nodelay: bool,
+
+    /// Disable TCP keepalive probes on the connection.
+    #[arg(long = "no-keepalive", help_heading = "Auth & TLS")]
+    pub no_keepalive: bool,
+
+    /// Interval (seconds) for TCP keepalive probes. Default reqwest
+    /// behaviour when the flag is absent.
+    #[arg(long = "keepalive-time", value_name = "SECS", help_heading = "Auth & TLS")]
+    pub keepalive_time: Option<u64>,
+
+    /// Route connections to HOST:PORT to TARGET:PORT instead. Bypasses
+    /// DNS for the specified host+port pair. Repeatable: `--connect-to
+    /// api.example.com:443:127.0.0.1:8443`.
+    #[arg(long = "connect-to", value_name = "H1:P1:H2:P2", action = clap::ArgAction::Append, help_heading = "Auth & TLS")]
+    pub connect_to: Vec<String>,
+
+    /// Shortcut for `-H "Authorization: Bearer TOKEN"`. OAuth 2.0.
+    #[arg(long = "oauth2-bearer", value_name = "TOKEN", help_heading = "Auth & TLS")]
+    pub oauth2_bearer: Option<String>,
+
+    /// Write the URL (and MIME type) into extended attributes of the
+    /// -o output file. macOS + Linux only. Matches curl's `--xattr`.
+    #[arg(long = "xattr", help_heading = "Output")]
+    pub xattr: bool,
+
+    /// HEAD-only link check (wget-style). Issues a HEAD for the URL
+    /// and prints `<STATUS> <URL>`. Exits non-zero if the response is
+    /// not 2xx. Skips body transfer entirely.
+    #[arg(long = "spider", help_heading = "HTTP Request")]
+    pub spider: bool,
 
     /// Client certificate for mTLS. Path to a PEM file. May include
     /// the private key inline (combined PEM with both CERTIFICATE and
@@ -278,6 +379,55 @@ pub struct Args {
     /// Apply response Last-Modified as mtime on saved output file.
     #[arg(long = "remote-time", help_heading = "Output")]
     pub remote_time: bool,
+
+    /// Delete the -o target file on any error (keeps partial output
+    /// from lingering on disk after a failed transfer).
+    #[arg(long = "remove-on-error", help_heading = "Output")]
+    pub remove_on_error: bool,
+
+    /// Refuse to overwrite an existing -o target; exit with a clear
+    /// error if the file is already there.
+    #[arg(long = "no-clobber", help_heading = "Output")]
+    pub no_clobber: bool,
+
+    /// Mode (octal, e.g. 600) applied to files created via -o / -O.
+    /// Unix-only; Windows ignores the flag with a warning.
+    #[arg(long = "create-file-mode", value_name = "MODE", help_heading = "Output")]
+    pub create_file_mode: Option<String>,
+
+    /// Disable stdout buffering (each write flushes). Useful when
+    /// piping into another tool that expects bytes as they arrive.
+    #[arg(short = 'N', long = "no-buffer", help_heading = "Output")]
+    pub no_buffer: bool,
+
+    /// Write the response headers to FILE (one header per line).
+    /// Does not affect the body destination.
+    #[arg(short = 'D', long = "dump-header", value_name = "FILE", help_heading = "Output")]
+    pub dump_header: Option<PathBuf>,
+
+    /// Redirect stderr to FILE. Useful when recon's diagnostic output
+    /// would interfere with a script pipeline.
+    #[arg(long = "stderr", value_name = "FILE", help_heading = "Output")]
+    pub stderr_file: Option<PathBuf>,
+
+    /// Force styled (colored) output on response headers even when
+    /// stdout isn't a TTY.
+    #[arg(long = "styled-output", help_heading = "Output")]
+    pub styled_output: bool,
+
+    /// Disable all styling (overrides --styled-output + auto-detect).
+    #[arg(long = "no-styled-output", help_heading = "Output")]
+    pub no_styled_output: bool,
+
+    /// Suppress the progress meter. Complements -s/--silent which
+    /// suppresses all diagnostic output.
+    #[arg(long = "no-progress-meter", help_heading = "Output")]
+    pub no_progress_meter: bool,
+
+    /// Show error messages even when -s/--silent is set. Matches
+    /// curl's convention of surfacing errors but not diagnostics.
+    #[arg(long = "show-error", help_heading = "Output")]
+    pub show_error: bool,
 
     /// Silent mode: suppress progress and informational output
     #[arg(short = 's', long = "silent", help_heading = "Output")]

@@ -979,6 +979,53 @@ recon --rekey \
         "recon gophers://secure-gopher.example/",
     ]);
 
+    section("CURL EASY WINS (0.62.0)");
+
+    example("Byte-range requests + size cap", &[
+        "recon -r 0-1023 https://example.com/big.bin -o first-1kb.bin",
+        "recon -r -512 https://example.com/big.bin -o last-512.bin",
+        "recon --max-filesize 10M https://example.com/download.iso -o small.iso",
+    ]);
+
+    example("Conditional requests (If-Modified-Since, ETag)", &[
+        "recon -z 'Wed, 21 Oct 2024 07:28:00 GMT' https://example.com/doc",
+        "recon -z baseline.html https://example.com/page -o page.html",
+        "recon --timestamping https://example.com/doc.txt -o doc.txt",
+        "recon --etag-compare etag.txt --etag-save etag.txt https://api.example.com/v1/",
+    ]);
+
+    example("URL surface + security hardening", &[
+        "recon --url-query 'q=rust' --url-query 'page=2' https://api.example.com/search",
+        "recon --disallow-username-in-url https://user:pass@example.com/   # rejected",
+    ]);
+
+    example("Output extras", &[
+        "recon https://example.com/ -o out.html --no-clobber",
+        "recon https://example.com/big.bin -o big.bin --remove-on-error",
+        "recon https://example.com/secret -o secret --create-file-mode 600",
+        "recon -I -D headers.txt https://example.com/",
+        "recon https://example.com/ --stderr /tmp/recon.log",
+        "recon https://example.com/big.bin -o big.bin --no-progress-meter",
+    ]);
+
+    example("Conditional connection + TLS tuning", &[
+        "recon --tcp-nodelay https://chat.example.com/long-poll",
+        "recon --no-keepalive https://api.example.com/",
+        "recon --tls-max 1.2 https://picky.example.com/                  # cap at TLS 1.2",
+        "recon --ca-native --cacert corp-root.pem https://internal.corp/",
+        "recon --capath /etc/corp/cas https://internal.corp/",
+        "recon --connect-to api.example.com:443:127.0.0.1:8443 https://api.example.com/",
+    ]);
+
+    example("OAuth2, xattr, spider", &[
+        "recon --oauth2-bearer $TOKEN https://api.example.com/me",
+        "recon --xattr https://example.com/doc.pdf -o doc.pdf  # writes URL + MIME into xattrs",
+        "recon --spider https://example.com/           # HEAD-based liveness check",
+        "recon --spider -f https://api.example.com/health  # fail-fast CI check",
+    ]);
+
+    note("--spider issues a HEAD and prints `<STATUS> <URL>`; non-2xx → non-zero exit. --max-filesize checks Content-Length (streaming cap during-download requires a future release). --request-target is accepted at parse time but errors at execute — reqwest 0.12 has no hook for the request-line target.");
+
     section("RECON-OWN WAITING ITEMS (0.61.0)");
 
     example("Latin-American + Australian + Mexican tax IDs", &[

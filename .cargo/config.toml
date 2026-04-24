@@ -1,0 +1,10 @@
+# cargo test runs unit tests on threads with a relatively small default
+# stack. recon's `Args` struct has grown past 64 KB due to the curl-parity
+# flag sweep, so Args::try_parse_from() (called by many unit tests)
+# overflows the default 2 MB test thread stack on debug builds.
+#
+# RUST_MIN_STACK = 16 MiB is plenty and has no effect on release binaries
+# or actual runtime behaviour — only on the stack allocated to per-test
+# threads.
+[env]
+RUST_MIN_STACK = "16777216"
