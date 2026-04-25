@@ -2,7 +2,7 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.68.1</div>
+<div class="version">Version 0.68.2</div>
 <div class="date">2026-04-25</div>
 <div class="meta">
 Repository · https://github.com/thomas-starweb/recon<br>
@@ -1353,12 +1353,17 @@ converted: `"n=" + 42` → `"n=42"`.
 **Null-coalescing**
 
 `value ?? default` evaluates to `default` when `value` is `()`, otherwise
-`value`. Useful for optional map lookups and environment variables:
+`value`. Useful for optional map lookups — accessing a missing key returns
+`()`:
 
 ```rhai
-let port = opts["port"] ?? 80;
-let home = env("HOME") ?? "/tmp";
+let port    = opts["port"] ?? 80;
+let charset = response["content-type"] ?? "application/octet-stream";
 ```
+
+Note: `env()` always returns a `String` (empty string when unset), never
+`()`, so `??` does not apply to it. Use the two-argument form for env
+defaults: `env("HOME", "/tmp")`.
 
 **Ranges**
 
@@ -1375,7 +1380,7 @@ print(x ** y);           // 49
 print(x % y);            // 1
 print(x > 5 && y < 10); // true
 print((x | y) == 7);     // true (0b111 | 0b010 = 0b111)
-let label = env("LABEL") ?? "default";
+let label = env("LABEL", "default");   // env() never returns () — use 2-arg form
 print(`label is ${label}`);
 let sum = (1..=10).reduce(|acc, n| acc + n, 0);
 print(sum);              // 55

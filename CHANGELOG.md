@@ -8,6 +8,17 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.68.2] - 2026-04-25
+
+### Fixed
+
+- **Manual: incorrect `??` examples using `env()`** (`docs/MANUAL.md`):
+  `env()` always returns a `String` (empty string when unset), never `()`,
+  so `env("X") ?? "default"` never fires the fallback. Fixed two wrong
+  examples in the Operators section — the `??` description now uses map
+  lookups (which genuinely return `()` for missing keys) and adds a note
+  directing users to the two-argument `env("X", "default")` form.
+
 ## [0.68.1] - 2026-04-25
 
 ### Fixed
