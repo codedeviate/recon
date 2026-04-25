@@ -2,7 +2,7 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.67.0</div>
+<div class="version">Version 0.68.0</div>
 <div class="date">2026-04-25</div>
 <div class="meta">
 Repository · https://github.com/thomas-starweb/recon<br>
@@ -1778,6 +1778,66 @@ let letters = ["a", "b", "c", "d", "e"];
 let mid = letters[1..4];   // ["b", "c", "d"]
 print(mid);
 ```
+
+---
+
+## Shebang — executable scripts
+
+A `.rhai` file can be made directly executable by adding a shebang as the
+first line:
+
+```
+#!/usr/bin/env -S recon --script
+```
+
+The `-S` flag instructs `/usr/bin/env` to split its argument on whitespace,
+so `recon` receives `--script` as a separate flag. This works on macOS and
+all major Linux distributions.
+
+**Full example**
+
+```bash
+cat > ~/bin/health <<'EOF'
+#!/usr/bin/env -S recon --script
+let host = args[1] ?? "example.com";
+let r = https(`https://${host}`);
+print(`${r.status} ${host} (${r.duration_ms}ms)`);
+return if r.status == 200 { 0 } else { 1 };
+EOF
+chmod +x ~/bin/health
+
+./health example.com          # run directly
+./health api.example.com      # host from args[1]
+```
+
+**How it works**
+
+When the kernel executes a shebang file, it calls the interpreter with the
+script path as an argument — equivalent to `recon --script ./health`. Recon
+detects a leading `#!` in the source and replaces it with `//` (a Rhai line
+comment) before compilation. This preserves line numbers in error messages
+while making the file valid Rhai.
+
+**Arguments and flags**
+
+Trailing arguments after the script name land in `args[1..]` exactly as with
+`--script`. CLI flags (`-k`, `-v`, `--connect-timeout`, etc.) set before or
+after the script name in the invocation are reflected in the `flags` map
+inside the script.
+
+```bash
+./health api.example.com         # args[1] = "api.example.com"
+recon -k ./health api.example.com  # flags.insecure = true inside script
+```
+
+**Notes**
+
+- On older systems where `/usr/bin/env -S` is not available, use the full
+  path: `#!/usr/local/bin/recon --script` (hard-coded path, no `-S` needed).
+- The shebang is only stripped when it appears on the **first line**. A `#!`
+  appearing anywhere else in the file remains a parse error (Rhai does not
+  treat `#` as a comment character).
+- `recon --help shebang` summarises the shebang feature.
 
 ---
 

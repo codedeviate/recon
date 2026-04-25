@@ -8,6 +8,19 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.68.0] - 2026-04-25
+
+### Added
+
+- **Shebang support for executable `.rhai` scripts.** Add
+  `#!/usr/bin/env -S recon --script` as the first line of any script,
+  `chmod +x` the file, and run it directly without typing
+  `recon --script`. The `#!` line is converted to a `//` Rhai comment
+  before compilation, preserving line numbers in error messages.
+  - `recon --help shebang` documents the feature.
+  - New example in `recon --examples` under "SCRIPTING (--script)".
+  - Manual section: "Shebang — executable scripts" (Part III).
+
 ## [0.67.1] - 2026-04-25
 
 ### Changed
