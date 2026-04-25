@@ -8,6 +8,23 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.68.4] - 2026-04-25
+
+### Changed
+
+- **Stop incremental build cache from accumulating on disk.** Added two
+  dev-profile settings to `Cargo.toml`:
+  - `[profile.dev] incremental = false` — disables the incremental
+    compilation cache (`target/debug/incremental/`) which had grown to
+    19 GB. Going forward no new cache entries are written. Existing stale
+    artifacts can be reclaimed with:
+    `rm -rf target/debug/incremental`
+  - `[profile.dev.package."*"] debug = false` — strips full DWARF debug
+    info from all 80+ compiled dependency crates, significantly reducing
+    the size of new `target/debug/deps/` builds. The recon crate itself
+    retains full debug info (no change to debuggability of recon source).
+  No functionality change; all 1216 tests pass.
+
 ## [0.68.3] - 2026-04-25
 
 ### Changed
