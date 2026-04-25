@@ -2,8 +2,8 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.66.2</div>
-<div class="date">2026-04-24</div>
+<div class="version">Version 0.67.0</div>
+<div class="date">2026-04-25</div>
 <div class="meta">
 Repository · https://github.com/thomas-starweb/recon<br>
 License · MIT
@@ -286,6 +286,47 @@ recon --max-time 10 https://slow.example.com/
 recon --connect-timeout 3 --max-time 8 https://flaky.example.com/
 recon --limit-rate 500K https://download.example.com/big.bin -o big.bin
 recon --speed-limit 10000 --speed-time 30 https://stalling.example.com/big.bin -O
+```
+
+## Wget-style batch fetching
+
+Long-form wget-compatible flags for batch URL handling. Short forms
+(`-A`, `-R`, `-w`, `-t`, `-r`, `-l`, `-m`, `-p`, `-k`, `-D`, `-H`,
+`-np`) are intentionally not provided — recon reserves single-letter
+flags for curl compatibility. The recursive/mirror cluster (`-r`,
+`-l`, `-m`, `-p`, `-k`, etc.) is deferred and tracked in
+`OUT-OF-SCOPE.md`.
+
+| Flag | Description |
+|------|-------------|
+| `--input-file <FILE>` | Batch-fetch URLs listed in FILE (one per line, `#` comments, blank lines ignored, `-` reads from stdin). Each URL processed independently. |
+| `--wait <SECS>` | (0.67.0) Fixed-seconds delay between URLs in batch mode. Skipped before the first URL. Overrides `--rate` when both are set. |
+| `--tries <N>` | (0.67.0) Total attempts per URL (wget semantics: `tries = retries + 1`). Overrides `--retry`. `--tries 1` disables retries; `--tries 0` is rejected. |
+| `--accept <LIST>` | (0.67.0) Comma-separated filename-suffix accept list (case-insensitive). e.g. `--accept jpg,png` keeps only URLs whose final path segment ends in `.jpg` or `.png`. URLs with empty final segments fail. |
+| `--reject <LIST>` | (0.67.0) Comma-separated filename-suffix reject list. Combines with `--accept` (URL must pass both). URLs with empty final segments pass. |
+| `--continue` | Resume an interrupted download (wget-style auto-detect from local file size). Equivalent to `--continue-at -`. |
+| `--continue-at <OFFSET>` | Resume from BYTE offset (curl-compatible). `-` auto-detects. |
+| `--spider` | HEAD-only check; print `<status> <url>` per URL and exit non-zero on any 4xx/5xx. Pairs with `--input-file`. |
+| `--timestamping` | Skip download when local file's mtime ≥ server's `Last-Modified`. Sets `If-Modified-Since`. |
+| `--rate <N/s\|N/m\|N/h>` | Request rate cap. Engages with `--input-file`: at most N requests per second/minute/hour. Overridden by `--wait`. |
+
+### Examples
+
+```sh
+# Polite batch fetch with a 2-second gap between URLs
+recon --input-file urls.txt --wait 2
+
+# Filter to image URLs, drop thumbnails
+recon --input-file urls.txt --accept jpg,png --reject thumb
+
+# Wget-style retries (5 total attempts)
+recon https://api.example.com/ --tries 5
+
+# Spider check filtered by extension
+recon --input-file urls.txt --spider --accept html,htm
+
+# Resume an interrupted download
+recon https://example.com/big.iso -o big.iso --continue
 ```
 
 ## Output control
@@ -1236,6 +1277,510 @@ let evens = (0..20).filter(|n| n % 2 == 0).map(|n| n * 10);
 if !file_exists("/etc/passwd") { return 1; }
 ```
 
+### Types and literals
+
+Rhai's type system is fixed (no user-defined types at runtime). Recon scripts
+use the following built-in types:
+
+| Type | Rust equivalent | Example literals |
+|------|----------------|-----------------|
+| `i64` | 64-bit signed integer | `42`, `-7`, `0xFF`, `0b1010`, `0o77` |
+| `f64` | 64-bit float | `3.14`, `-1.0e-5`, `1_000.5` |
+| `bool` | Boolean | `true`, `false` |
+| `()` | Unit / null | `()` |
+| `char` | Unicode scalar | `'a'`, `'\n'` |
+| `String` | UTF-8 string | `"hello"`, `` `hi ${name}` `` |
+| Array | Heterogeneous dynamic array | `[1, "two", 3.0]` |
+| Map | String-keyed object | `#{ x: 1, y: "ok" }` |
+| Blob | Byte array (`Vec<u8>`) | `Blob()`, `"hello".to_blob()` |
+
+```rhai
+let n    = 255;               // i64 — integer literal
+let f    = 3.14;              // f64
+let flag = true;              // bool
+let nil  = ();                // unit — Rhai's null
+let ch   = 'A';              // char
+let s    = "hello";           // string
+let tmpl = `n is ${n}`;      // interpolated string (backtick)
+let arr  = [1, "two", false]; // heterogeneous array
+let obj  = #{ host: "localhost", port: 8080 };  // map
+let raw  = "hello".to_blob(); // Blob of UTF-8 bytes
+```
+
+Integer literals accept `_` separators (`1_000_000`) and radix prefixes `0x`
+(hex), `0b` (binary), `0o` (octal). Type annotations (`let x: i64 = 0;`) are
+optional — Rhai infers the type.
+
+---
+
+### Operators
+
+**Arithmetic**
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `+` | Addition; string concatenation | `1 + 2`, `"a" + "b"` |
+| `-` | Subtraction | `10 - 3` |
+| `*` | Multiplication | `4 * 5` |
+| `/` | Division (integer truncates) | `7 / 2` → `3`; `7.0 / 2.0` → `3.5` |
+| `%` | Remainder | `10 % 3` → `1` |
+| `**` | Power | `2 ** 10` → `1024` |
+| `-x` | Unary negation | `-x` |
+
+**Comparison** (all return `bool`)
+
+`==`, `!=`, `<`, `<=`, `>`, `>=` — work on all numeric types and strings
+(lexicographic for strings).
+
+**Logical**
+
+| Operator | Description |
+|----------|-------------|
+| `&&` | Short-circuit AND |
+| `\|\|` | Short-circuit OR |
+| `!` | Logical NOT |
+
+**Bitwise** (integers only)
+
+`&` (AND), `|` (OR), `^` (XOR), `~` (bitwise NOT), `<<` (left shift),
+`>>` (right shift).
+
+**String concatenation**
+
+`"hello " + "world"` — either operand may be a non-string and is automatically
+converted: `"n=" + 42` → `"n=42"`.
+
+**Null-coalescing**
+
+`value ?? default` evaluates to `default` when `value` is `()`, otherwise
+`value`. Useful for optional map lookups and environment variables:
+
+```rhai
+let port = opts["port"] ?? 80;
+let home = env("HOME") ?? "/tmp";
+```
+
+**Ranges**
+
+`1..5` (exclusive — does not include 5), `1..=5` (inclusive — includes 5).
+Ranges are iterable and support `.filter()`, `.map()`, `.reduce()`.
+
+**Combined example**
+
+```rhai
+let x = 7;
+let y = 2;
+print(x + y);            // 9
+print(x ** y);           // 49
+print(x % y);            // 1
+print(x > 5 && y < 10); // true
+print((x | y) == 7);     // true (0b111 | 0b010 = 0b111)
+let label = env("LABEL") ?? "default";
+print(`label is ${label}`);
+let sum = (1..=10).reduce(|acc, n| acc + n, 0);
+print(sum);              // 55
+```
+
+---
+
+### Control flow
+
+**if / else if / else**
+
+```rhai
+if x > 10 {
+    print("big");
+} else if x > 0 {
+    print("small");
+} else {
+    print("non-positive");
+}
+```
+
+If blocks are expressions and return the last evaluated value:
+
+```rhai
+let label = if x > 0 { "positive" } else { "non-positive" };
+```
+
+**Ternary operator**
+
+```rhai
+let sign = x > 0 ? "+" : "-";
+```
+
+**while**
+
+```rhai
+let i = 0;
+while i < 5 {
+    print(i);
+    i += 1;
+}
+```
+
+**loop**
+
+`loop { ... }` runs until `break`:
+
+```rhai
+let attempts = 0;
+loop {
+    attempts += 1;
+    if attempts >= 3 { break; }
+}
+```
+
+**for — range**
+
+```rhai
+for i in 0..5  { print(i); }  // 0 1 2 3 4 (exclusive)
+for i in 1..=5 { print(i); }  // 1 2 3 4 5 (inclusive)
+```
+
+**for — array**
+
+```rhai
+let hosts = ["a.com", "b.com", "c.com"];
+for host in hosts {
+    print(host);
+}
+```
+
+**for — map**
+
+```rhai
+let cfg = #{ host: "a.com", port: 443 };
+for (key, val) in cfg {
+    print(`${key} = ${val}`);
+}
+```
+
+**break / continue**
+
+```rhai
+for i in 0..10 {
+    if i == 3 { continue; }  // skip 3
+    if i == 7 { break; }     // stop before 7
+    print(i);
+}
+```
+
+**return**
+
+`return` exits the current function (or the script when used at top level):
+
+```rhai
+fn first_positive(arr) {
+    for n in arr {
+        if n > 0 { return n; }
+    }
+    ()  // not found — implicit unit return
+}
+```
+
+---
+
+### Functions and closures
+
+**Named functions**
+
+```rhai
+fn add(a, b) { a + b }        // last expression is implicit return value
+
+fn factorial(n) {
+    if n <= 1 { return 1; }
+    n * factorial(n - 1)      // recursion works
+}
+
+print(add(3, 4));      // 7
+print(factorial(5));   // 120
+```
+
+Rhai hoists function definitions, so a function can be called before it
+appears in the file.
+
+**Closures**
+
+```rhai
+let double = |x| x * 2;
+let greet  = |name| `Hello, ${name}!`;
+
+print(double(5));       // 10
+print(greet("world"));  // Hello, world!
+
+let nums   = [1, 2, 3, 4, 5];
+let evens  = nums.filter(|n| n % 2 == 0);  // [2, 4]
+let square = evens.map(|n| n * n);          // [4, 16]
+print(square);
+```
+
+Closures capture outer variables by value at creation time.
+
+**Function pointers**
+
+```rhai
+fn triple(n) { n * 3 }
+
+let fp = Fn("triple");    // function pointer by name
+print(call(fp, 7));       // 21
+```
+
+---
+
+### Error handling
+
+**try / catch**
+
+In Rhai 1.x, `e` in a `catch` block is the error message as a string:
+
+```rhai
+try {
+    let r = http("https://httpbin.org/status/500");
+    if r.status != 200 {
+        throw `HTTP error: ${r.status}`;
+    }
+    print(r.body);
+} catch(e) {
+    eprint(`Error: ${e}`);
+}
+```
+
+**throw**
+
+`throw "message"` raises an error that propagates to the nearest `catch` block
+or terminates the script with a non-zero exit code:
+
+```rhai
+fn parse_port(s) {
+    let n = s.to_int();
+    if n < 1 || n > 65535 { throw `invalid port: ${s}`; }
+    n
+}
+```
+
+**assert**
+
+`assert(cond, msg)` is a recon helper that calls `throw msg` when `cond` is
+`false`. Prefer it over manual if/throw when validating invariants:
+
+```rhai
+let r = http("https://httpbin.org/get");
+assert(r.status == 200, `Expected 200, got ${r.status}`);
+```
+
+---
+
+### Standard built-in functions
+
+The following are available in every recon script without any import. They come
+from Rhai's standard packages, augmented by recon's own helpers.
+
+#### Type inspection and conversion
+
+| Expression | Description | Example result |
+|------------|-------------|---------------|
+| `type_of(v)` | Runtime type name | `"i64"`, `"f64"`, `"string"`, `"array"`, `"map"`, `"bool"`, `"()"`, `"blob"` |
+| `v.to_int()` | Convert to `i64` | `"42".to_int()` → `42` |
+| `v.to_float()` | Convert to `f64` | `3.to_float()` → `3.0` |
+| `v.to_string()` | Convert to `String` | `true.to_string()` → `"true"` |
+| `parse_int(s)` | Parse decimal string → `i64` | `parse_int("255")` → `255` |
+| `parse_float(s)` | Parse string → `f64` | `parse_float("3.14")` → `3.14` |
+
+```rhai
+let v = "123".to_int();
+print(type_of(v));            // "i64"
+print(type_of(3.14));         // "f64"
+print(type_of([1, 2]));       // "array"
+print(type_of(()));           // "()"
+print(42.to_float() + 0.5);  // 42.5
+print(parse_int("0xFF"));     // 255
+```
+
+#### String methods
+
+Strings in Rhai are immutable. Methods that appear to "modify" a string return
+a new one.
+
+| Method | Description |
+|--------|-------------|
+| `.len()` | Character (code-point) count |
+| `.is_empty()` | `true` if `""` |
+| `.to_upper()` | Uppercase copy |
+| `.to_lower()` | Lowercase copy |
+| `.trim()` | Strip leading and trailing whitespace |
+| `.trim_start()` / `.trim_end()` | Strip one side only |
+| `.contains(sub)` | Substring check; returns `bool` |
+| `.starts_with(s)` / `.ends_with(s)` | Prefix / suffix check |
+| `.replace(old, new)` | Replace all occurrences |
+| `.split(sep)` | Split on separator; returns array |
+| `.chars()` | Array of single-character strings |
+| `.sub_string(start)` | Slice from index to end |
+| `.sub_string(start, len)` | Slice of given length |
+| `.pad(len, ch)` | Right-pad to `len` with char `ch` |
+| `.index_of(sub)` | First match index or `-1` |
+| `.to_blob()` | Encode as UTF-8 `Blob` |
+| `.to_int()` | Parse as decimal integer |
+| `.to_float()` | Parse as float |
+
+```rhai
+let raw = "  https://Example.COM/Path  ";
+let url = raw.trim().to_lower();          // "https://example.com/path"
+print(url.contains("example"));          // true
+print(url.starts_with("https"));         // true
+print(url.replace("example.com", "cdn.example.com"));
+
+let parts = "a,b,c,d".split(",");        // ["a", "b", "c", "d"]
+print(parts.len());                       // 4
+print(parts.join(" | "));                // "a | b | c | d"
+
+let host = "api.example.com";
+print(host.sub_string(4, 7));            // "example"
+print(host.index_of("."));              // 3
+```
+
+#### Array methods
+
+| Method | Description |
+|--------|-------------|
+| `.len()` | Number of elements |
+| `.is_empty()` | `true` if array is empty |
+| `.push(v)` | Append element (in-place) |
+| `.pop()` | Remove and return last element |
+| `.shift()` | Remove and return first element |
+| `.unshift(v)` | Prepend element (in-place) |
+| `.insert(i, v)` | Insert at index `i` (in-place) |
+| `.remove(i)` | Remove element at index `i` and return it |
+| `.reverse()` | Reverse in-place |
+| `.contains(v)` | Membership test |
+| `.index_of(v)` | First index of `v`, or `-1` |
+| `.join(sep)` | Concatenate elements as strings with separator |
+| `.map(fn)` | Apply function; returns new array |
+| `.filter(fn)` | Keep elements where predicate is `true`; returns new array |
+| `.reduce(fn, init)` | Fold to single value |
+| `.sort()` | In-place ascending sort |
+| `.sort(fn)` | In-place sort with comparator `fn(a, b) -> i64` |
+| `.dedup()` | Remove consecutive duplicate elements (in-place) |
+| `.drain(range)` | Remove and return elements in index range |
+
+```rhai
+let nums = [5, 3, 8, 1, 9, 2];
+nums.sort();                                   // [1, 2, 3, 5, 8, 9]
+
+let big  = nums.filter(|n| n > 4);            // [5, 8, 9]
+let dbl  = big.map(|n| n * 2);                // [10, 16, 18]
+let sum  = dbl.reduce(|acc, n| acc + n, 0);   // 44
+
+nums.push(42);
+nums.unshift(0);
+print(nums.len());           // 8
+print(nums.contains(42));    // true
+print(nums.index_of(3));     // 2 (after sort)
+
+// Negative indices index from the end
+print(nums[-1]);             // last element
+```
+
+#### Map methods
+
+Maps use string keys. Literal syntax is `#{ key: value }`. Keys with
+special characters or spaces must be quoted: `#{ "content-type": "json" }`.
+
+| Method / accessor | Description |
+|-------------------|-------------|
+| `.len()` | Number of key-value pairs |
+| `.is_empty()` | `true` if no entries |
+| `.keys()` | Array of all key strings |
+| `.values()` | Array of all values |
+| `.contains_key(k)` | Key existence check |
+| `.remove(k)` | Delete key and return its value |
+| `m.key` / `m["key"]` | Read a value |
+| `m.key = v` / `m["key"] = v` | Write a value |
+
+```rhai
+let hdr = #{
+    "content-type": "application/json",
+    accept: "application/json",
+};
+print(hdr.len());                        // 2
+print(hdr.keys());                       // ["content-type", "accept"]
+print(hdr.contains_key("accept"));       // true
+
+hdr["x-request-id"] = "abc-123";
+
+for (k, v) in hdr {
+    print(`${k}: ${v}`);
+}
+
+let ct = hdr.remove("content-type");
+print(ct);                               // "application/json"
+print(hdr.len());                        // 2
+```
+
+#### Math functions
+
+| Function | Description |
+|----------|-------------|
+| `abs(n)` | Absolute value |
+| `sqrt(n)` | Square root (returns `f64`) |
+| `pow(base, exp)` | Power — equivalent to `base ** exp` |
+| `min(a, b)` / `max(a, b)` | Minimum / maximum |
+| `round(n)` | Round to nearest integer |
+| `floor(n)` / `ceil(n)` | Floor / ceiling |
+| `sin(n)` / `cos(n)` / `tan(n)` | Trig functions (radians) |
+| `asin(n)` / `acos(n)` / `atan(n)` | Inverse trig (radians) |
+| `ln(n)` | Natural logarithm (base e) |
+| `log(n)` | Base-10 logarithm |
+| `exp(n)` | eⁿ |
+| `PI` | π ≈ 3.14159265358979 |
+| `E` | Euler's number ≈ 2.71828182845905 |
+
+```rhai
+print(abs(-7));            // 7
+print(sqrt(144.0));        // 12.0
+print(pow(2, 10));         // 1024
+print(round(3.7));         // 4
+print(floor(3.7));         // 3
+print(ceil(3.1));          // 4
+print(min(5, 3));          // 3
+print(max(5, 3));          // 5
+
+let angle = PI / 4.0;
+print(sin(angle));         // ≈ 0.7071 (sin 45°)
+print(exp(1.0));           // ≈ 2.7183 (same as E)
+```
+
+#### Ranges
+
+Ranges are lazy integer sequences.
+
+| Expression | Meaning |
+|-----------|---------|
+| `a..b` | Exclusive: integers `a`, `a+1`, …, `b-1` |
+| `a..=b` | Inclusive: integers `a`, `a+1`, …, `b` |
+
+Ranges support `.filter()`, `.map()`, `.reduce()`, `.for_each()`. A range can
+also be used as an array slice index: `arr[start..end]`.
+
+```rhai
+// Sum 1 to 100
+let total = (1..=100).reduce(|acc, n| acc + n, 0);
+print(total);   // 5050
+
+// Collect even squares
+let evens = (1..=10)
+    .filter(|n| n % 2 == 0)
+    .map(|n| n * n);
+print(evens);   // [4, 16, 36, 64, 100]
+
+// Array slice with range
+let letters = ["a", "b", "c", "d", "e"];
+let mid = letters[1..4];   // ["b", "c", "d"]
+print(mid);
+```
+
+---
+
 ## CLI inheritance
 
 When a script runs, two read-only constants land at the top of its
@@ -1500,6 +2045,10 @@ Every key is optional.
 | `client_key` | string | PEM client key. |
 | `cert_type` / `key_type` | string | PEM \| DER \| ENG (see CLI docs). |
 | `pass` | string | PKCS#8 passphrase (reserved). |
+| `wait` | int | (0.67.0) Seconds between URLs in batch mode (CLI-only effect). |
+| `tries` | int | (0.67.0) Total attempts; overrides `retry`. `tries = retries + 1`. |
+| `accept` | string | (0.67.0) Comma-separated filename-suffix accept list. |
+| `reject` | string | (0.67.0) Comma-separated filename-suffix reject list. |
 
 ### Examples
 

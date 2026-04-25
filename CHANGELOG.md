@@ -8,6 +8,73 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.67.1] - 2026-04-25
+
+### Changed
+
+- **`docs/MANUAL.md`** — expanded Part III "Script language (Rhai)" with a
+  comprehensive in-line language reference inserted before the "CLI
+  inheritance" subsection. New subsections:
+  - **Types and literals** — full type table (i64, f64, bool, (), char,
+    String, Array, Map, Blob) with literal forms and examples.
+  - **Operators** — arithmetic, comparison, logical, bitwise, string
+    concatenation, null-coalescing (`??`), and ranges.
+  - **Control flow** — if/else/ternary, while, loop, for (range / array /
+    map), break/continue, return.
+  - **Functions and closures** — named functions, closures, function
+    pointers; hoisting rule documented.
+  - **Error handling** — try/catch, throw, assert.
+  - **Standard built-in functions** — type inspection/conversion, string
+    methods (15+), array methods (17+), map methods, math functions
+    (abs/sqrt/pow/trig/log/PI/E), and range iteration; each sub-section
+    includes a reference table and a worked code example.
+  - PDF regenerated.
+
+## [0.67.0] - 2026-04-25
+
+### Added
+
+- **Wget-style batch flags** picked from `OUT-OF-SCOPE.md` low-hanging
+  list. All long-form only — recon reserves single-letter flags for
+  curl compatibility.
+  - **`--wait <SECS>`** — fixed-seconds delay between URLs in a
+    multi-URL invocation (e.g. with `--input-file`). Skipped before
+    the first URL. Overrides `--rate` when both are set.
+  - **`--tries <N>`** — total attempts per URL (wget semantics:
+    `tries = retries + 1`). Overrides `--retry` when both are set.
+    `--tries 1` disables retries; `--tries 0` is rejected at parse
+    time. No infinite-retries support — use `--retry-max-time` as a
+    ceiling.
+  - **`--accept <LIST>`** — comma-separated filename-suffix accept
+    list (case-insensitive). e.g. `--accept jpg,png` keeps only URLs
+    whose final path segment ends in those suffixes. Suffixes match
+    with or without a leading dot. URLs with empty final segments
+    fail (matches wget).
+  - **`--reject <LIST>`** — comma-separated filename-suffix reject
+    list. Combines with `--accept` (URL must pass both filters).
+    URLs with empty final segments pass.
+- **Script-engine opts** mirroring the new CLI flags
+  (`src/script/bindings/http.rs`):
+  - `wait` (u64), `tries` (u32), `accept` (string), `reject` (string).
+- **Help topic** `recon --help wget` covering the four new flags
+  alongside the previously-shipped wget-compat set (`--input-file`,
+  `--continue`, `--continue-at`, `--spider`, `--timestamping`).
+  Topic aliases: `wait`, `tries`, `accept`, `reject`, `input-file`,
+  `spider`, `timestamping`, `batch`.
+- **Examples section** "WGET-STYLE BATCH FETCHING (0.67.0)" in
+  `recon --examples` covering the four flags + the precedence rules.
+- **Demo script** `script/wget-batch.rhai` exercising the new opts
+  keys; indexed in `script/README.md`.
+- **`src/wget_filter.rs`** — small helper module (`parse_suffix_list`,
+  `should_keep`) with unit tests for the accept/reject matching.
+
+### Changed
+
+- **`OUT-OF-SCOPE.md`** — `-A` / `-R` removed from the standalone
+  "wget standalone wins — leftover" line; the wget recursive cluster
+  bucket now notes that `--accept` / `--reject` shipped in 0.67.0 as
+  flat-list filters (the recursive variant remains deferred).
+
 ## [0.66.2] - 2026-04-25
 
 ### Changed
