@@ -7,12 +7,20 @@ use std::path::Path;
 
 /// Execute a script file. Returns the process exit code.
 pub fn run_file(path: &Path, args: &Args) -> i32 {
-    let source = match std::fs::read_to_string(path) {
+    let raw = match std::fs::read_to_string(path) {
         Ok(s) => s,
         Err(e) => {
             eprintln!("error: could not read script '{}': {e}", path.display());
             return 1;
         }
+    };
+    // Allow shebang: #!/usr/bin/env -S recon --script
+    // Rhai doesn't treat `#` as a comment, so we turn `#!` into `//`
+    // which preserves line numbers in error messages.
+    let source = if raw.starts_with("#!") {
+        format!("//{}", &raw[2..])
+    } else {
+        raw
     };
 
     clear_protocol_exit_code();
@@ -189,6 +197,28 @@ return 42;
         let f = write_script("return 3;");
         let code = run_file(f.path(), &dummy_args());
         assert_eq!(code, 3);
+    }
+
+    #[test]
+    fn shebang_line_is_stripped_and_script_runs() {
+        let f = write_script("#!/usr/bin/env -S recon --script\nreturn 7;");
+        let code = run_file(f.path(), &dummy_args());
+        assert_eq!(code, 7);
+    }
+
+    #[test]
+    fn shebang_only_file_returns_zero() {
+        let f = write_script("#!/usr/bin/env -S recon --script");
+        let code = run_file(f.path(), &dummy_args());
+        assert_eq!(code, 0);
+    }
+
+    #[test]
+    fn non_shebang_hash_is_still_a_parse_error() {
+        // A bare `#` mid-file is not valid Rhai and should still fail.
+        let f = write_script("let x = 1;\n# not a comment\nreturn x;");
+        let code = run_file(f.path(), &dummy_args());
+        assert_ne!(code, 0);
     }
 
     #[test]
