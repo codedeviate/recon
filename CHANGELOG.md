@@ -8,6 +8,61 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.66.2] - 2026-04-25
+
+### Changed
+
+- **`CLAUDE.md` exposure policy hardened** to prevent the kind of
+  gap that the Waiting-arc opened (90 CLI flags shipped without
+  matching script-engine opts-map keys, fixed retroactively in
+  0.66.1).
+  - Six surfaces now numbered explicitly: --help, --examples,
+    --flags, script engine, docs trio, manual + PDF.
+  - Script-engine section gained a hard rule ("every new flag that
+    affects request shape, output, transport, retry, auth, or
+    protocol behaviour gets a matching opts-map key in
+    `src/script/bindings/http.rs::build_args`, same release, same
+    commit"), plus an explicit exclusion list of mode-selecting /
+    pre-clap / process-level flags that are exempt.
+  - Verification one-liner included so the developer can grep
+    `cli.rs` field names against `http.rs` opts keys.
+- **Pre-commit checklist** at the bottom of CLAUDE.md replaces the
+  prose "mentally walk the surfaces" guidance with explicit
+  checkbox items per change type (new flag, new binding function,
+  new binding module, HISTORY-worthy change).
+- Manual section collapsed into Surface 6 of the unified policy
+  rather than living as a separate top-level section.
+
+- **`OUT-OF-SCOPE.md` swept against the actual shipped flag set**.
+  The "Additional curl flags (`curl --help all` sweep)" subsection
+  added in 0.59.1 was wildly stale — most items shipped during the
+  0.61.0–0.66.0 arc and were never removed from Waiting. This sweep:
+  - Removes ~50 items from Waiting that shipped in 0.61.0–0.66.0
+    (forms, netrc, range, time-cond, etag, retry, proto filter,
+    input-file, continue, oauth2, xattr, spider, connect-to,
+    tcp-nodelay, no-keepalive, capath, ca-native, tls-max,
+    no-clobber, remove-on-error, create-file-mode, dump-header,
+    stderr, no-progress-meter, styled-output, http1.1, http2,
+    http2-prior-knowledge, append, crlf, hostpubsha256,
+    hostpubmd5, pubkey, compressed-ssh, --config / -K, --disable
+    / -q, all proxy-cluster + TLS-tuning stubs, all per-protocol
+    stubs).
+  - Reorganises the leftovers into clear themed sub-sections:
+    "curl flags — leftover after the Waiting-arc",
+    "Per-protocol plumb-through (0.65.0 stubs → real)",
+    "Per-flag plumb-through (0.66.0 stubs → real)".
+  - Moves architecturally-blocked flags from Waiting to
+    Not-Yet-Supported (`--digest`, `--http1.0`, etc.).
+  - Adds an audit-cadence note at the bottom: walk this file
+    against `recon --flags` at the end of every multi-release arc
+    so the divergence doesn't compound again.
+
+### Note
+
+This release contains no code changes — purely policy + working-notes
+updates. Release date bumped to 2026-04-25 per the version-bumping
+rule.
+
 ## [0.66.1] - 2026-04-24
 
 ### Added
