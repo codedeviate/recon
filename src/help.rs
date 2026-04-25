@@ -2005,6 +2005,37 @@ static TOPIC_AGENT_BROWSER: Topic = Topic {
     ],
 };
 
+static TOPIC_WGET: Topic = Topic {
+    title: "wget-compat batch fetching",
+    description: "Flags ported from wget for batch URL handling. Originally shipped\n\
+                  in 0.64.0 (--input-file, --continue, --spider, --timestamping)\n\
+                  with --wait, --tries, --accept, --reject added in 0.67.0. recon\n\
+                  uses curl-style short flags throughout, so wget options are\n\
+                  long-form only — no -A/-R/-t/-w. The recursive/mirror cluster\n\
+                  (-r/-l/-m/-p/-k) is deferred and tracked in OUT-OF-SCOPE.md.",
+    flags: &[
+        FlagHelp { flags: "--input-file <FILE>", description: "Batch-fetch URLs listed in FILE (one per line, # comments,\nblank lines ignored, `-` reads from stdin). Each URL is\nprocessed independently; per-URL errors don't abort the batch." },
+        FlagHelp { flags: "--wait <SECS>", description: "Fixed delay (seconds) between URLs in batch mode. Skipped\nbefore the first URL. Overrides --rate when both are set.\nUse --rate for `N/s` request-rate caps." },
+        FlagHelp { flags: "--tries <N>", description: "Total attempts per URL (wget semantics: tries = retries + 1).\nOverrides --retry. `--tries 1` disables retries; `--tries 5`\nallows 4 retries. 0 is rejected at parse time." },
+        FlagHelp { flags: "--accept <LIST>", description: "Comma-separated filename-suffix accept list. e.g.\n`--accept jpg,png` keeps only URLs whose final path segment\nends in `.jpg` or `.png`. Case-insensitive. Suffixes match\nwith or without a leading dot (`jpg`, `.jpg`, `JPG` all\ncollapse to `.jpg`). URLs with empty final segment fail." },
+        FlagHelp { flags: "--reject <LIST>", description: "Comma-separated filename-suffix reject list. e.g.\n`--reject thumb,bak` drops URLs ending in those suffixes.\nCombines with --accept (URL must pass both). URLs with empty\nfinal segment pass. Case-insensitive." },
+        FlagHelp { flags: "--continue", description: "Resume an interrupted download (wget alias).\nReads the current size of the -o target (or basename derived\nfrom the URL) and sets `Range: bytes=<size>-`." },
+        FlagHelp { flags: "--continue-at <OFFSET>", description: "Resume from BYTE offset (curl-compatible). Pass `-` to\nauto-detect from the local file size (same as --continue)." },
+        FlagHelp { flags: "--spider", description: "HEAD-only check; print `<status> <url>` per URL and exit\nnon-zero on any 4xx/5xx. Pairs with --input-file." },
+        FlagHelp { flags: "--timestamping", description: "Skip download when the local file's mtime is ≥ the server's\nLast-Modified. Sets If-Modified-Since on the request." },
+        FlagHelp { flags: "--retry <N>", description: "Retry N times on transient failures (5xx, DNS, connect reset,\ntimeouts). Default 0. Overridden by --tries when both are set." },
+        FlagHelp { flags: "--rate <N/s|N/m|N/h>", description: "Request rate cap. Format: `N/s` / `N/m` / `N/h`. Engages with\n--input-file: at most N requests per second/minute/hour.\nOverridden by --wait when both are set." },
+    ],
+    related: &["--retry-all-errors", "--retry-connrefused", "--retry-delay", "--retry-max-time"],
+    examples: &[
+        ExampleHelp { description: "Batch-fetch with a polite 2s gap", command: "recon --input-file urls.txt --wait 2" },
+        ExampleHelp { description: "Filter to image URLs, drop thumbnails", command: "recon --input-file urls.txt --accept jpg,png --reject thumb" },
+        ExampleHelp { description: "Wget-style retries (5 total attempts)", command: "recon https://example.com/api --tries 5" },
+        ExampleHelp { description: "Spider check filtered by extension", command: "recon --input-file urls.txt --spider --accept html,htm" },
+        ExampleHelp { description: "Resume a download (wget habit)", command: "recon https://example.com/big.iso -o big.iso --continue" },
+    ],
+};
+
 static TOPIC_PROTOCOLS: Topic = Topic {
     title: "Protocol URL Schemes (probes and aliases)",
     description: "In addition to http(s):// and mqtt(s)://, recon dispatches a family\n\
@@ -2141,6 +2172,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "client-cert" | "mtls" | "client-certificate" => Some(&TOPIC_CLIENT_CERT),
         "archive" | "zip" | "tar" | "extract" => Some(&TOPIC_ARCHIVE),
         "flags" | "flag-list" | "list-flags" => Some(&TOPIC_FLAGS),
+        "wget" | "wait" | "tries" | "accept" | "reject" | "input-file" | "spider" | "timestamping" | "batch" => Some(&TOPIC_WGET),
         _ => None,
     }
 }
@@ -2233,6 +2265,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "script-server",
         "docs",
         "flags",
+        "wget",
     ]
 }
 

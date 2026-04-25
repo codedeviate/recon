@@ -499,6 +499,20 @@ pub(crate) fn build_args(
         if let Some(s) = opts_get_str(o, "pinnedpubkey") {
             args.pinnedpubkey = Some(s);
         }
+
+        // ── 0.67.0 — wget-style batch flags ───────────────────────────
+        if let Some(n) = opts_get_u64(o, "wait") {
+            args.wait = Some(n);
+        }
+        if let Some(n) = opts_get_u64(o, "tries") {
+            args.tries = Some(n as u32);
+        }
+        if let Some(s) = opts_get_str(o, "accept") {
+            args.accept = Some(s);
+        }
+        if let Some(s) = opts_get_str(o, "reject") {
+            args.reject = Some(s);
+        }
     }
     Ok(args)
 }

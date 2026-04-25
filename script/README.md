@@ -74,7 +74,7 @@ surprise failures.
 | `hsts.rhai` | HSTS cache populate + http:// upgrade |
 | `client-cert.rhai` | mTLS — present a client cert during the TLS handshake |
 
-### HTTP opts (0.61.0-0.66.0)
+### HTTP opts (0.61.0-0.67.0)
 
 | Script | What it does |
 |---|---|
@@ -83,6 +83,7 @@ surprise failures.
 | `netrc.rhai` | .netrc-backed Basic auth via `netrc` / `netrc_file` / `netrc_optional` |
 | `time-cond.rhai` | conditional GETs: `time_cond`, `etag_compare`, `etag_save`, `timestamping` |
 | `batch-spider.rhai` | bulk link check combining spider + retry + rate limiting |
+| `wget-batch.rhai` | wget-style `tries` / `wait` / `accept` / `reject` opts (0.67.0) |
 | `oauth2.rhai` | OAuth 2 Bearer token via `oauth2_bearer` |
 | `range.rhai` | byte-range + max-filesize |
 

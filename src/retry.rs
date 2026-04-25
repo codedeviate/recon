@@ -20,14 +20,22 @@ use crate::metrics::RequestMetrics;
 /// `client::execute` on the first try; re-invokes it per policy on
 /// retryable failures.
 pub fn execute_with_retry(args: &Args) -> Result<(reqwest::blocking::Response, RequestMetrics)> {
-    if args.retry == 0 {
+    // wget-style --tries N means N total attempts (so retries = N-1).
+    // When set, it overrides --retry. --tries 0 is rejected at parse
+    // time; the saturating_sub here is defensive.
+    let effective_retries = args
+        .tries
+        .map(|t| t.saturating_sub(1))
+        .unwrap_or(args.retry);
+
+    if effective_retries == 0 {
         return crate::client::execute(args);
     }
 
     let start = Instant::now();
     let budget = args.retry_max_time.map(Duration::from_secs);
     let mut attempt: u32 = 0;
-    let max_attempts = args.retry.saturating_add(1);
+    let max_attempts = effective_retries.saturating_add(1);
 
     loop {
         attempt += 1;
@@ -185,5 +193,35 @@ mod tests {
         assert!(!is_retryable_error(&err, &a));
         let a = args_with(&["--retry", "3", "--retry-connrefused"]);
         assert!(is_retryable_error(&err, &a));
+    }
+
+    fn effective(args: &Args) -> u32 {
+        args.tries
+            .map(|t| t.saturating_sub(1))
+            .unwrap_or(args.retry)
+    }
+
+    #[test]
+    fn tries_overrides_retry_when_set() {
+        let a = args_with(&["--retry", "1", "--tries", "5"]);
+        assert_eq!(effective(&a), 4);
+    }
+
+    #[test]
+    fn tries_alone_sets_retries() {
+        let a = args_with(&["--tries", "3"]);
+        assert_eq!(effective(&a), 2);
+    }
+
+    #[test]
+    fn retry_used_when_tries_unset() {
+        let a = args_with(&["--retry", "7"]);
+        assert_eq!(effective(&a), 7);
+    }
+
+    #[test]
+    fn tries_one_disables_retries() {
+        let a = args_with(&["--tries", "1"]);
+        assert_eq!(effective(&a), 0);
     }
 }

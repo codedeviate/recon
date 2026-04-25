@@ -153,6 +153,30 @@ pub struct Args {
     #[arg(long = "input-file", value_name = "FILE", help_heading = "HTTP Request")]
     pub input_file: Option<String>,
 
+    /// Wait SECS between URLs in batch mode.
+    /// wget-compat. Overrides --rate when both are set; skipped
+    /// before the first URL. Use --rate for `N/s` request-rate caps.
+    #[arg(long = "wait", value_name = "SECS", help_heading = "HTTP Request")]
+    pub wait: Option<u64>,
+
+    /// Total attempts per URL (wget-style).
+    /// Overrides --retry. `--tries 1` disables retries; `--tries 5`
+    /// allows 4 retries. 0 is rejected; use --retry-max-time as a cap.
+    #[arg(long = "tries", value_name = "N", help_heading = "HTTP Request")]
+    pub tries: Option<u32>,
+
+    /// Filename-suffix accept list (wget-compat).
+    /// Comma-separated, e.g. `--accept jpg,png` keeps only URLs whose
+    /// final path segment ends in those suffixes. Case-insensitive.
+    #[arg(long = "accept", value_name = "LIST", help_heading = "HTTP Request")]
+    pub accept: Option<String>,
+
+    /// Filename-suffix reject list (wget-compat).
+    /// Comma-separated, e.g. `--reject thumb,bak` drops URLs ending
+    /// in those suffixes. Combines with --accept; case-insensitive.
+    #[arg(long = "reject", value_name = "LIST", help_heading = "HTTP Request")]
+    pub reject: Option<String>,
+
     /// Resume an interrupted download. wget-compatible: reads the
     /// current size of the -o target (or basename from the URL) and
     /// sets `Range: bytes=<size>-`. Equivalent to `--continue-at -`.

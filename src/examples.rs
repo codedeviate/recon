@@ -979,6 +979,27 @@ recon --rekey \
         "recon gophers://secure-gopher.example/",
     ]);
 
+    section("WGET-STYLE BATCH FETCHING (0.67.0)");
+
+    example("Polite delay between URLs in a batch", &[
+        "recon --input-file urls.txt --wait 2",
+        "recon --input-file urls.txt --wait 5 --spider",
+    ]);
+
+    example("Filename-suffix accept/reject filters", &[
+        "recon --input-file urls.txt --accept jpg,png",
+        "recon --input-file urls.txt --reject thumb,bak",
+        "recon --input-file urls.txt --accept html,htm --reject draft",
+    ]);
+
+    example("Wget-style retry count (--tries overrides --retry)", &[
+        "recon https://api.example.com/ --tries 5",
+        "recon --input-file urls.txt --tries 3 --retry-delay 2",
+        "recon --input-file urls.txt --retry 1 --tries 10  # --tries wins",
+    ]);
+
+    note("--wait is a fixed-seconds delay between URLs and overrides --rate when both are set. --tries means total attempts (wget semantics: tries = retries + 1) and overrides --retry. --accept/--reject match the URL's final path segment (case-insensitive); URLs with empty final segments fail --accept and pass --reject — same behaviour as wget. Short forms (-A/-R/-t/-w) are not provided because recon reserves single-letter flags for curl compatibility; the wget recursive cluster (-r/-l/-m/-p/-k) remains deferred (see OUT-OF-SCOPE.md).");
+
     section("PROXY EXTRAS + TLS TUNING + --config (0.66.0)");
 
     example("Flags from a config file (-K / --config)", &[

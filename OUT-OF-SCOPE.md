@@ -74,10 +74,12 @@ path:
 ### wget standalone wins — leftover
 
 The 0.64.0 release shipped `--input-file`, `--continue` /
-`--continue-at`, `--spider`, `--timestamping`. Leftover:
-
-- **`-A` / `-R` accept/reject** — only meaningful with the recursive
-  cluster (see Deferred).
+`--continue-at`, `--spider`, `--timestamping`. The 0.67.0 release
+added `--wait`, `--tries`, `--accept`, `--reject` as flat (non-
+recursive) filters / pacing knobs. Nothing standalone-feasible
+remains in this bucket — short forms (`-A`, `-R`, `-w`, `-t`) are
+intentionally not provided because recon reserves single-letter flags
+for curl compatibility.
 
 ### Per-protocol plumb-through (0.65.0 stubs → real)
 
@@ -212,19 +214,23 @@ reference.
 
 The whole cluster is one feature area; shipping a subset leaves the
 behaviour feeling half-done. ~800–1200 LOC + HTML parser + robots +
-canonicalisation. Own spec + plan when someone asks.
+canonicalisation. Own spec + plan when someone asks. The 0.67.0
+release picked up the standalone-feasible bits as long-form flags
+(`--wait` for politeness, `--tries` for retry-count override, and
+`--accept` / `--reject` as flat filename-suffix filters); the
+recursive-engine pieces below remain deferred.
 
 - `-r, --recursive` + `-l, --level <N>` — recursive fetch.
 - `-m, --mirror` — `-r -N -l inf --no-remove-listing` alias.
 - `-p, --page-requisites` — single-page offline snapshot.
 - `-k, --convert-links` — rewrite absolute links for local viewing.
-- `-A` / `-R` accept/reject filters.
 - `-D` / `-H` / `--exclude-domains` host filters.
 - `-np, --no-parent`, `--cut-dirs`, `-Q, --quota`.
-- `-w, --wait` — politeness delay (clearly benign).
-- `-t, --tries` — retry config (largely overlapping with `--retry`
-  shipped in 0.64.0).
 - `-b, --background` — shell already provides this.
+
+`--accept` / `--reject` already ship as flat filters (0.67.0); the
+recursive variant (filters applied to discovered links during a
+crawl) is the part that's still deferred.
 
 ### UX niggles
 

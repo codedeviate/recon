@@ -76,6 +76,7 @@ mod udp_probe;
 mod unix_socket;
 mod util;
 mod version;
+mod wget_filter;
 mod whois;
 mod ws_probe;
 
@@ -171,22 +172,52 @@ fn main() {
         }
     };
 
+    // ── --tries validation ──
+    if matches!(args.tries, Some(0)) {
+        eprintln!("error: --tries: N must be ≥ 1 (use --retry-max-time as a ceiling for many retries)");
+        std::process::exit(2);
+    }
+
     // ── --input-file: batch URL fetch ──
     if let Some(path) = args.input_file.clone() {
         match input_file::load_urls(&path) {
             Ok(urls) => {
-                let rate_delay = args
-                    .rate
-                    .as_deref()
-                    .map(input_file::parse_rate)
-                    .transpose()
-                    .unwrap_or_else(|e| {
-                        eprintln!("error: {e}");
-                        std::process::exit(2);
-                    });
-                let mut any_err = false;
-                for (i, url) in urls.iter().enumerate() {
-                    if let Some(d) = rate_delay {
+                // --wait wins over --rate when both are set.
+                let inter_url_delay: Option<std::time::Duration> = if let Some(secs) = args.wait {
+                    Some(std::time::Duration::from_secs(secs))
+                } else {
+                    args.rate
+                        .as_deref()
+                        .map(input_file::parse_rate)
+                        .transpose()
+                        .unwrap_or_else(|e| {
+                            eprintln!("error: {e}");
+                            std::process::exit(2);
+                        })
+                };
+
+                // --accept / --reject suffix filter (wget-compat).
+                let accept = args.accept.as_deref();
+                let reject = args.reject.as_deref();
+                let mut rejected = 0usize;
+                let kept: Vec<String> = urls
+                    .into_iter()
+                    .filter(|u| {
+                        if wget_filter::should_keep(u, accept, reject) {
+                            true
+                        } else {
+                            if !args.silent {
+                                eprintln!("# skip (filter): {u}");
+                            }
+                            rejected += 1;
+                            false
+                        }
+                    })
+                    .collect();
+
+                let mut any_err = rejected > 0;
+                for (i, url) in kept.iter().enumerate() {
+                    if let Some(d) = inter_url_delay {
                         if i > 0 {
                             std::thread::sleep(d);
                         }
@@ -196,7 +227,7 @@ fn main() {
                     per.url = Some(url.clone());
                     per.url_flag = None;
                     if !args.silent {
-                        eprintln!("# {} ({}/{})", url, i + 1, urls.len());
+                        eprintln!("# {} ({}/{})", url, i + 1, kept.len());
                     }
                     match retry::execute_with_retry(&per) {
                         Ok((response, mut metrics)) => {
@@ -257,6 +288,17 @@ fn main() {
                 eprintln!("error: --proto: {e}");
                 std::process::exit(1);
             }
+        }
+    }
+
+    // ── --accept / --reject: single-URL suffix filter (wget-compat) ──
+    if args.accept.is_some() || args.reject.is_some() {
+        let url = args.target_url();
+        if !url.is_empty()
+            && !wget_filter::should_keep(url, args.accept.as_deref(), args.reject.as_deref())
+        {
+            eprintln!("error: URL rejected by --accept/--reject filter: {url}");
+            std::process::exit(1);
         }
     }
 
