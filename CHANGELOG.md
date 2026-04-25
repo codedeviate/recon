@@ -8,6 +8,19 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.68.3] - 2026-04-25
+
+### Changed
+
+- **Release binary size reduced from 31.6 MB to 23.1 MB** (~27%) by adding
+  a `[profile.release]` section to `Cargo.toml`:
+  - `lto = "thin"` — cross-crate dead code elimination via thin LTO
+  - `codegen-units = 1` — single codegen unit for better inlining and
+    dead code removal (amplifies LTO)
+  - `strip = "symbols"` — strips symbol table from the binary (66 K
+    symbols → 434 remaining)
+  No functionality or runtime performance change; debug builds are unaffected.
+
 ## [0.68.2] - 2026-04-25
 
 ### Fixed
