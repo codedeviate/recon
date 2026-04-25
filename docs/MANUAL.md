@@ -2,7 +2,7 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.68.0</div>
+<div class="version">Version 0.68.1</div>
 <div class="date">2026-04-25</div>
 <div class="meta">
 Repository · https://github.com/thomas-starweb/recon<br>
@@ -1799,7 +1799,7 @@ all major Linux distributions.
 ```bash
 cat > ~/bin/health <<'EOF'
 #!/usr/bin/env -S recon --script
-let host = args[1] ?? "example.com";
+let host = if args.len() > 1 { args[1] } else { "example.com" };
 let r = https(`https://${host}`);
 print(`${r.status} ${host} (${r.duration_ms}ms)`);
 return if r.status == 200 { 0 } else { 1 };

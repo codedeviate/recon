@@ -11,7 +11,7 @@
 //   chmod +x script/shebang.rhai
 //   ./script/shebang.rhai example.com
 
-let host = args[1] ?? "example.com";
+let host = if args.len() > 1 { args[1] } else { "example.com" };
 let url  = `https://${host}`;
 
 let r = http(url);

@@ -8,6 +8,15 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.68.1] - 2026-04-25
+
+### Fixed
+
+- **Shebang script arg fallback** (`script/shebang.rhai`, examples, manual):
+  `args[1] ?? "example.com"` threw an out-of-bounds exception when no
+  argument was supplied because Rhai evaluates `args[1]` eagerly before `??`
+  can act. Fixed to `if args.len() > 1 { args[1] } else { "example.com" }`.
+
 ## [0.68.0] - 2026-04-25
 
 ### Added

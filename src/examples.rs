@@ -1730,7 +1730,7 @@ recon -v --script /tmp/check.rhai example.com    # flags.verbose = 1"#,
     example("Executable shebang script (0.68.0)", &[
         r#"cat > ~/bin/health <<'EOF'
 #!/usr/bin/env -S recon --script
-let host = args[1] ?? "example.com";
+let host = if args.len() > 1 { args[1] } else { "example.com" };
 let r = https(`https://${host}`);
 print(`${r.status} ${host} (${r.duration_ms}ms)`);
 return if r.status == 200 { 0 } else { 1 };
