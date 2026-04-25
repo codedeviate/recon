@@ -1123,9 +1123,14 @@ static TOPIC_SCRIPT: Topic = Topic {
                   \n\
                   Positional arguments after the script path are exposed as\n\
                   `args[1..]` (args[0] is the script name as typed). CLI flag\n\
-                  values are exposed as the `flags` map.",
+                  values are exposed as the `flags` map.\n\
+                  \n\
+                  Shebang: add #!/usr/bin/env -S recon --script as the first\n\
+                  line, chmod +x, and run the file directly. The shebang is\n\
+                  silently treated as a comment by the Rhai engine.",
     flags: &[
         FlagHelp { flags: "--script <PATH>", description: "Load and run a .rhai file. Falls back to\n~/.recon/script/<PATH> when the path doesn't exist as given\n(with auto-.rhai extension when PATH has none).\nExample: recon --script checks.rhai\n         recon --script health     # -> ~/.recon/script/health.rhai" },
+        FlagHelp { flags: "shebang (executable scripts)", description: "Add #!/usr/bin/env -S recon --script as the first line,\nthen chmod +x the file. The kernel passes the script path to\nrecon, which strips the shebang before Rhai sees it.\nExample first line: #!/usr/bin/env -S recon --script\nTrailing args: ./check.rhai prod 8080 -> args == [\"check.rhai\",\"prod\",\"8080\"]" },
 
         FlagHelp { flags: "args (global)", description: "Array of positional arguments. args[0] is the script name\nas typed (e.g. \"health\", not the resolved path). args[1..]\nare trailing positional args: `recon --script foo a b -v` -> \n[\"foo\", \"a\", \"b\", \"-v\"]. Read-only inside the script." },
         FlagHelp { flags: "flags (global)", description: "Map of CLI flags in effect. Keys: headers (array), insecure,\nconnect_timeout, max_time, follow_redirects, max_redirs,\nuser_agent, referer, user, method, data, output, verbose,\nwait_time, ping_count, max_hops. Unset optionals are `()`.\nRead-only inside the script." },
@@ -2149,7 +2154,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "serve-tls" | "serve-https" | "https-server" => Some(&TOPIC_SERVE_TLS),
         "checkdigit" | "check-digit" | "checksum" => Some(&TOPIC_CHECKDIGIT),
         "write-out" | "writeout" | "write_out" => Some(&TOPIC_WRITE_OUT),
-        "script" | "scripting" | "rhai" => Some(&TOPIC_SCRIPT),
+        "script" | "scripting" | "rhai" | "shebang" => Some(&TOPIC_SCRIPT),
         "agent-browser" | "agentbrowser" => Some(&TOPIC_AGENT_BROWSER),
         "browser" | "session" | "browser-session" => Some(&TOPIC_BROWSER),
         "charset" | "encoding-text" | "text-encoding" | "iconv" | "text" => Some(&TOPIC_TEXT_ENCODING),

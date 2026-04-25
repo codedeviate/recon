@@ -1727,6 +1727,20 @@ recon -v --script /tmp/check.rhai example.com    # flags.verbose = 1"#,
     ]);
     note("args[0] is the script name as typed (bare name with global-dir fallback, or literal path). args[1..] are positional args after the script path. `flags` mirrors the ScriptDefaults set (insecure, connect_timeout, headers, user_agent, ...) plus data + output; unset optionals are `()`.");
 
+    example("Executable shebang script (0.68.0)", &[
+        r#"cat > ~/bin/health <<'EOF'
+#!/usr/bin/env -S recon --script
+let host = args[1] ?? "example.com";
+let r = https(`https://${host}`);
+print(`${r.status} ${host} (${r.duration_ms}ms)`);
+return if r.status == 200 { 0 } else { 1 };
+EOF
+chmod +x ~/bin/health
+health example.com          # run directly — no `recon --script` needed
+health api.example.com -k   # extra args land in args[2], flags.insecure etc."#,
+    ]);
+    note("Shebang line: #!/usr/bin/env -S recon --script  (-S splits arguments; required on macOS and modern Linux). The #! is silently converted to a // Rhai comment before compilation, preserving line numbers in error messages. Trailing arguments after the script name land in args[1..] exactly as with --script.");
+
     example("SQLite: query the cookie jar", &[
         r#"cat > /tmp/jar.rhai <<'EOF'
 let db = sqlite("cookiejar");          // ~/.recon/jars/default.db
