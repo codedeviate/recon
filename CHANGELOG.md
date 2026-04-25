@@ -8,6 +8,17 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.68.6] - 2026-04-25
+
+### Fixed
+
+- **PDF comments now visually distinct when wrapping** (`src/docs.rs`): injected
+  a small JavaScript post-processor into rendered HTML that wraps `# …` comment
+  lines (and inline ` # …` tails) in `<span class="c">` elements styled
+  `color: #6a737d`. This ensures that when a long comment wraps to the next
+  line the continuation is still gray — indistinguishable-from-code wrapping
+  was confusing in the PDF manual. `docs/MANUAL.pdf` regenerated.
+
 ## [0.68.5] - 2026-04-25
 
 ### Fixed

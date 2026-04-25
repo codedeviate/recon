@@ -41,6 +41,7 @@ pre {
 }
 code { background: #f5f5f5; padding: 1px 4px; border-radius: 3px; }
 pre code { background: transparent; padding: 0; }
+pre code .c { color: #6a737d; }
 blockquote {
     border-left: 3px solid #ccc;
     margin: 0.8em 0;
@@ -357,6 +358,22 @@ fn wrap_document(title: &str, opts: &DocOptions, top_toc_html: &str, body_html: 
 <main>\n\
 {toc}{body}\n\
 </main>\n\
+<script>\n\
+(function(){{\n\
+  function esc(s){{return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}}\n\
+  document.querySelectorAll('pre code').forEach(function(block){{\n\
+    var lines=block.textContent.split('\\n');\n\
+    var html=lines.map(function(line){{\n\
+      var m=line.match(/^(\\s*)(#(?!\\{{).*)$/);\n\
+      if(m) return esc(m[1])+'<span class=\"c\">'+esc(m[2])+'</span>';\n\
+      var ci=line.indexOf(' # ');\n\
+      if(ci!==-1) return esc(line.slice(0,ci))+'<span class=\"c\">'+esc(line.slice(ci))+'</span>';\n\
+      return esc(line);\n\
+    }}).join('\\n');\n\
+    block.innerHTML=html;\n\
+  }});\n\
+}})();\n\
+</script>\n\
 </body>\n\
 </html>\n",
         title = html_escape(title),
