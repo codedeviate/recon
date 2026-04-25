@@ -8,6 +8,16 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.68.5] - 2026-04-25
+
+### Fixed
+
+- **PDF code blocks no longer clip long lines** (`src/docs.rs`): the default
+  `pre` CSS used `overflow-x: auto` which creates a scrollbar in browsers
+  but silently clips content in PDFs (no scrolling exists). Added
+  `white-space: pre-wrap` and `overflow-wrap: break-word` so long lines
+  wrap within the page instead. `docs/MANUAL.pdf` regenerated.
+
 ## [0.68.4] - 2026-04-25
 
 ### Changed

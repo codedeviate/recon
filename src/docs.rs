@@ -35,6 +35,8 @@ pre {
     padding: 10px 12px;
     border-radius: 4px;
     overflow-x: auto;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
     page-break-inside: avoid;
 }
 code { background: #f5f5f5; padding: 1px 4px; border-radius: 3px; }
