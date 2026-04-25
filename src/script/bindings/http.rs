@@ -26,7 +26,8 @@
 use crate::cli::Args;
 use crate::client;
 use crate::script::convert::{
-    anyhow_to_rhai, err, opts_clone_map, opts_get_bool, opts_get_str, opts_get_u64, to_string,
+    anyhow_to_rhai, err, opts_clone_array, opts_clone_map, opts_get_bool, opts_get_str,
+    opts_get_u64, to_string,
 };
 use crate::script::defaults::ScriptDefaults;
 use rhai::{Dynamic, Engine, EvalAltResult, Map};
@@ -263,6 +264,240 @@ pub(crate) fn build_args(
         }
         if let Some(s) = opts_get_str(o, "pass") {
             args.cert_pass = Some(s);
+        }
+
+        // ── 0.62.0 — curl easy wins ──────────────────────────────────
+        if let Some(s) = opts_get_str(o, "range") {
+            args.range = Some(s);
+        }
+        if let Some(s) = opts_get_str(o, "max_filesize") {
+            args.max_filesize = Some(s);
+        }
+        if let Some(arr) = opts_clone_array(o, "url_query") {
+            for v in arr {
+                args.url_query.push(to_string(&v));
+            }
+        } else if let Some(s) = opts_get_str(o, "url_query") {
+            args.url_query.push(s);
+        }
+        if let Some(s) = opts_get_str(o, "request_target") {
+            args.request_target = Some(s);
+        }
+        if let Some(b) = opts_get_bool(o, "disallow_username_in_url") {
+            args.disallow_username_in_url = b;
+        }
+        if let Some(s) = opts_get_str(o, "time_cond") {
+            args.time_cond = Some(s);
+        }
+        if let Some(s) = opts_get_str(o, "etag_compare") {
+            args.etag_compare = Some(std::path::PathBuf::from(s));
+        }
+        if let Some(s) = opts_get_str(o, "etag_save") {
+            args.etag_save = Some(std::path::PathBuf::from(s));
+        }
+        if let Some(b) = opts_get_bool(o, "timestamping") {
+            args.timestamping = b;
+        }
+        if let Some(s) = opts_get_str(o, "output_dir") {
+            args.output_dir = Some(std::path::PathBuf::from(s));
+        }
+        if let Some(b) = opts_get_bool(o, "remove_on_error") {
+            args.remove_on_error = b;
+        }
+        if let Some(b) = opts_get_bool(o, "no_clobber") {
+            args.no_clobber = b;
+        }
+        if let Some(s) = opts_get_str(o, "create_file_mode") {
+            args.create_file_mode = Some(s);
+        }
+        if let Some(b) = opts_get_bool(o, "no_buffer") {
+            args.no_buffer = b;
+        }
+        if let Some(s) = opts_get_str(o, "dump_header") {
+            args.dump_header = Some(std::path::PathBuf::from(s));
+        }
+        if let Some(s) = opts_get_str(o, "stderr") {
+            args.stderr_file = Some(std::path::PathBuf::from(s));
+        }
+        if let Some(b) = opts_get_bool(o, "styled_output") {
+            args.styled_output = b;
+        }
+        if let Some(b) = opts_get_bool(o, "no_progress_meter") {
+            args.no_progress_meter = b;
+        }
+        if let Some(b) = opts_get_bool(o, "show_error") {
+            args.show_error = b;
+        }
+        if let Some(s) = opts_get_str(o, "capath") {
+            args.capath = Some(std::path::PathBuf::from(s));
+        }
+        if let Some(b) = opts_get_bool(o, "ca_native") {
+            args.ca_native = b;
+        }
+        if let Some(s) = opts_get_str(o, "tls_max") {
+            args.tls_max = Some(s);
+        }
+        if let Some(b) = opts_get_bool(o, "tcp_nodelay") {
+            args.tcp_nodelay = b;
+        }
+        if let Some(b) = opts_get_bool(o, "no_keepalive") {
+            args.no_keepalive = b;
+        }
+        if let Some(n) = opts_get_u64(o, "keepalive_time") {
+            args.keepalive_time = Some(n);
+        }
+        if let Some(arr) = opts_clone_array(o, "connect_to") {
+            for v in arr {
+                args.connect_to.push(to_string(&v));
+            }
+        } else if let Some(s) = opts_get_str(o, "connect_to") {
+            args.connect_to.push(s);
+        }
+        if let Some(s) = opts_get_str(o, "oauth2_bearer") {
+            args.oauth2_bearer = Some(s);
+        }
+        if let Some(b) = opts_get_bool(o, "xattr") {
+            args.xattr = b;
+        }
+        if let Some(b) = opts_get_bool(o, "spider") {
+            args.spider = b;
+        }
+
+        // ── 0.63.0 — forms, netrc, HTTP version, upload ───────────────
+        if let Some(arr) = opts_clone_array(o, "form") {
+            for v in arr {
+                args.form.push(to_string(&v));
+            }
+        }
+        if let Some(arr) = opts_clone_array(o, "form_string") {
+            for v in arr {
+                args.form_string.push(to_string(&v));
+            }
+        }
+        if let Some(b) = opts_get_bool(o, "form_escape") {
+            args.form_escape = b;
+        }
+        if let Some(b) = opts_get_bool(o, "netrc") {
+            args.netrc = b;
+        }
+        if let Some(s) = opts_get_str(o, "netrc_file") {
+            args.netrc_file = Some(std::path::PathBuf::from(s));
+        }
+        if let Some(b) = opts_get_bool(o, "netrc_optional") {
+            args.netrc_optional = b;
+        }
+        if let Some(b) = opts_get_bool(o, "http1_1") {
+            args.http11 = b;
+        }
+        if let Some(b) = opts_get_bool(o, "http2") {
+            args.http2 = b;
+        }
+        if let Some(b) = opts_get_bool(o, "http2_prior_knowledge") {
+            args.http2_prior_knowledge = b;
+        }
+        if let Some(b) = opts_get_bool(o, "append") {
+            args.append = b;
+        }
+        if let Some(b) = opts_get_bool(o, "crlf") {
+            args.crlf = b;
+        }
+
+        // ── 0.64.0 — retry + proto + continue ─────────────────────────
+        if let Some(n) = opts_get_u64(o, "retry") {
+            args.retry = n as u32;
+        }
+        if let Some(b) = opts_get_bool(o, "retry_all_errors") {
+            args.retry_all_errors = b;
+        }
+        if let Some(b) = opts_get_bool(o, "retry_connrefused") {
+            args.retry_connrefused = b;
+        }
+        if let Some(n) = opts_get_u64(o, "retry_delay") {
+            args.retry_delay = Some(n);
+        }
+        if let Some(n) = opts_get_u64(o, "retry_max_time") {
+            args.retry_max_time = Some(n);
+        }
+        if let Some(s) = opts_get_str(o, "rate") {
+            args.rate = Some(s);
+        }
+        if let Some(s) = opts_get_str(o, "proto") {
+            args.proto = Some(s);
+        }
+        if let Some(s) = opts_get_str(o, "proto_default") {
+            args.proto_default = Some(s);
+        }
+        if let Some(s) = opts_get_str(o, "proto_redir") {
+            args.proto_redir = Some(s);
+        }
+        if let Some(b) = opts_get_bool(o, "continue_auto") {
+            args.continue_auto = b;
+        }
+        if let Some(s) = opts_get_str(o, "continue_at") {
+            args.continue_at = Some(s);
+        }
+
+        // ── 0.65.0 — SSH pinning ──────────────────────────────────────
+        if let Some(s) = opts_get_str(o, "hostpubsha256") {
+            args.hostpubsha256 = Some(s);
+        }
+        if let Some(s) = opts_get_str(o, "hostpubmd5") {
+            args.hostpubmd5 = Some(s);
+        }
+        if let Some(s) = opts_get_str(o, "pubkey") {
+            args.pubkey = Some(std::path::PathBuf::from(s));
+        }
+        if let Some(b) = opts_get_bool(o, "compressed_ssh") {
+            args.compressed_ssh = b;
+        }
+
+        // ── 0.66.0 — proxy extras + TLS tuning ────────────────────────
+        if let Some(s) = opts_get_str(o, "preproxy") {
+            args.preproxy = Some(s);
+        }
+        if let Some(arr) = opts_clone_array(o, "proxy_header") {
+            for v in arr {
+                args.proxy_header.push(to_string(&v));
+            }
+        }
+        if let Some(b) = opts_get_bool(o, "proxy_http2") {
+            args.proxy_http2 = b;
+        }
+        if let Some(b) = opts_get_bool(o, "proxytunnel") {
+            args.proxytunnel = b;
+        }
+        if let Some(s) = opts_get_str(o, "proxy_capath") {
+            args.proxy_capath = Some(std::path::PathBuf::from(s));
+        }
+        if let Some(b) = opts_get_bool(o, "proxy_ca_native") {
+            args.proxy_ca_native = b;
+        }
+        if let Some(s) = opts_get_str(o, "proxy_crlfile") {
+            args.proxy_crlfile = Some(std::path::PathBuf::from(s));
+        }
+        if let Some(s) = opts_get_str(o, "proxy_ciphers") {
+            args.proxy_ciphers = Some(s);
+        }
+        if let Some(s) = opts_get_str(o, "proxy_tls13_ciphers") {
+            args.proxy_tls13_ciphers = Some(s);
+        }
+        if let Some(s) = opts_get_str(o, "proxy_pinnedpubkey") {
+            args.proxy_pinnedpubkey = Some(s);
+        }
+        if let Some(s) = opts_get_str(o, "ciphers") {
+            args.ciphers = Some(s);
+        }
+        if let Some(s) = opts_get_str(o, "tls13_ciphers") {
+            args.tls13_ciphers = Some(s);
+        }
+        if let Some(s) = opts_get_str(o, "curves") {
+            args.curves = Some(s);
+        }
+        if let Some(s) = opts_get_str(o, "crlfile") {
+            args.crlfile = Some(std::path::PathBuf::from(s));
+        }
+        if let Some(s) = opts_get_str(o, "pinnedpubkey") {
+            args.pinnedpubkey = Some(s);
         }
     }
     Ok(args)

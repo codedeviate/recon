@@ -8,6 +8,62 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.66.1] - 2026-04-24
+
+### Added
+
+Fills the script-engine gap that the Waiting-arc (0.61.0→0.66.0) left
+open: every flag added in that arc now has a matching opts-map key in
+`http(url, opts)`, and the most important ones get demo scripts.
+
+**Script opts-map keys added** (for every CLI flag 0.61.0→0.66.0):
+
+- 0.62.0: `range`, `max_filesize`, `url_query` (string or array),
+  `request_target`, `disallow_username_in_url`, `time_cond`,
+  `etag_compare`, `etag_save`, `timestamping`, `output_dir`,
+  `remove_on_error`, `create_file_mode`, `no_clobber`, `no_buffer`,
+  `dump_header`, `stderr`, `styled_output`, `no_progress_meter`,
+  `show_error`, `capath`, `ca_native`, `tls_max`, `tcp_nodelay`,
+  `no_keepalive`, `keepalive_time`, `connect_to` (string or array),
+  `oauth2_bearer`, `xattr`, `spider`.
+- 0.63.0: `form` (array), `form_string` (array), `form_escape`,
+  `netrc`, `netrc_file`, `netrc_optional`, `http1_1`, `http2`,
+  `http2_prior_knowledge`, `append`, `crlf`.
+- 0.64.0: `retry`, `retry_all_errors`, `retry_connrefused`,
+  `retry_delay`, `retry_max_time`, `rate`, `proto`, `proto_default`,
+  `proto_redir`, `continue_auto`, `continue_at`.
+- 0.65.0: `hostpubsha256`, `hostpubmd5`, `pubkey`, `compressed_ssh`.
+- 0.66.0: `preproxy`, `proxy_header` (array), `proxy_http2`,
+  `proxytunnel`, `proxy_capath`, `proxy_ca_native`, `proxy_crlfile`,
+  `proxy_ciphers`, `proxy_tls13_ciphers`, `proxy_pinnedpubkey`,
+  `ciphers`, `tls13_ciphers`, `curves`, `crlfile`, `pinnedpubkey`.
+
+Total: ~60 new opts keys, all routed through `http()`'s existing
+`build_args` helper.
+
+**Demo scripts** for the headline new features:
+- `script/retry.rhai` — retry cluster (transient, all-errors,
+  connrefused, delay, max-time).
+- `script/form.rhai` — multipart uploads with curl grammar.
+- `script/netrc.rhai` — .netrc-backed Basic auth.
+- `script/time-cond.rhai` — conditional GETs via
+  If-Modified-Since + ETag.
+- `script/batch-spider.rhai` — bulk link check (spider + retry
+  + rate limiting via script-side loop).
+- `script/oauth2.rhai` — Bearer token auth + 401 refresh pattern.
+- `script/range.rhai` — byte-range fetches with max-filesize cap.
+
+All demos are picked up by `tests/script_examples_it.rs` which
+verifies every shipped `.rhai` parses cleanly.
+
+### Note on deferrals
+
+Opts keys for flags that are themselves CLI-only (`--config`,
+`--input-file`, `--stderr`) or that don't make sense at the
+per-call opts level (`--no-buffer`) are still included at the
+opts-map level for completeness; they're plumbed through to the
+per-call `Args` copy but have no effect beyond that.
+
 ## [0.66.0] - 2026-04-24
 
 ### Added
