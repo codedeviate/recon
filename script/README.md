@@ -74,7 +74,13 @@ surprise failures.
 | `hsts.rhai` | HSTS cache populate + http:// upgrade |
 | `client-cert.rhai` | mTLS — present a client cert during the TLS handshake |
 
-### HTTP opts (0.61.0-0.67.0)
+### Shebang (0.68.0)
+
+| Script | What it does |
+|---|---|
+| `shebang.rhai` | `#!/usr/bin/env -S recon --script` — run directly after `chmod +x` |
+
+### HTTP opts (0.61.0-0.68.0)
 
 | Script | What it does |
 |---|---|
