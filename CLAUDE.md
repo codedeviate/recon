@@ -1,5 +1,12 @@
 # recon — Claude Code Instructions
 
+## Committing
+
+After each logical sub-job within a larger task — e.g. after adding a module,
+after wiring up CLI flags, after updating docs — create a git commit. Small,
+focused commits make it easy to revert a specific step without losing unrelated
+work. Don't batch everything into one commit at the end.
+
 ## Version Bumping
 
 After every change, update the version in `Cargo.toml` according to these rules:
