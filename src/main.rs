@@ -178,6 +178,17 @@ fn main() {
         std::process::exit(2);
     }
 
+    // ── --prettify-as implies -p; validate format name early ──
+    if args.prettify_as.is_some() {
+        args.prettify = true;
+    }
+    if let Some(s) = &args.prettify_as {
+        if let Err(e) = prettify::parse_format(s) {
+            eprintln!("error: {e}");
+            std::process::exit(2);
+        }
+    }
+
     // ── --input-file: batch URL fetch ──
     if let Some(path) = args.input_file.clone() {
         match input_file::load_urls(&path) {
