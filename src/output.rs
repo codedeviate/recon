@@ -629,17 +629,17 @@ pub fn write_processed_body(
             }
         }
         BodySink::Editor => {
+            // Mirror body to stdout first when -vv is active, so any error
+            // spawning the editor doesn't lose the user's view of the body.
+            if args.verbose >= 2 {
+                let mut stdout = std::io::stdout();
+                stdout.write_all(&processed_bytes)?;
+            }
             let ext = pick_editor_extension(args, content_type);
             let path = crate::editor::create_temp_file(ext, &processed_bytes)
                 .context("failed to write editor temp file")?;
             let flag_value = args.editor.as_deref().unwrap_or("");
-            let (cfg_default, user_aliases) = match crate::config::load() {
-                Ok(cfg) => match cfg.editor {
-                    Some(e) => (e.default, e.aliases),
-                    None => (None, std::collections::HashMap::new()),
-                },
-                Err(_) => (None, std::collections::HashMap::new()),
-            };
+            let (cfg_default, user_aliases) = crate::editor::load_editor_config();
             let resolved = crate::editor::resolve_editor(
                 flag_value,
                 cfg_default.as_deref(),
@@ -650,8 +650,8 @@ pub fn write_processed_body(
             ))?;
             crate::editor::spawn_editor(&resolved, &path)
                 .with_context(|| format!("failed to launch editor for {}", path.display()))?;
-            if !args.silent {
-                eprintln!("Opened in editor: {}", path.display());
+            if args.verbose >= 1 {
+                eprintln!("* editor temp file: {}", path.display());
             }
         }
         BodySink::Clipboard => {

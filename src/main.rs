@@ -1433,17 +1433,6 @@ fn extract_path(msg: &str) -> &str {
 }
 
 
-fn load_editor_config() -> (Option<String>, std::collections::HashMap<String, String>) {
-    match config::load() {
-        Ok(cfg) => match cfg.editor {
-            Some(e) => (e.default, e.aliases),
-            None => (None, std::collections::HashMap::new()),
-        },
-        // Missing or malformed config is not fatal for --editor: the flag can
-        // still resolve built-in aliases and raw commands without it.
-        Err(_) => (None, std::collections::HashMap::new()),
-    }
-}
 
 /// Load `[sampledata.*]` from ~/.recon/config.toml. Returns an empty map
 /// when the config file simply doesn't exist (fine — built-ins always
@@ -1512,7 +1501,7 @@ fn run_sample_local(resolved: &sampledata::ResolvedSample, args: &Args) -> anyho
     }
 
     if args.editor.is_some() {
-        let (cfg_default, user_aliases) = load_editor_config();
+        let (cfg_default, user_aliases) = editor::load_editor_config();
         let flag_value = args.editor.as_deref().unwrap_or("");
         let ed = editor::resolve_editor(flag_value, cfg_default.as_deref(), &user_aliases)
             .map_err(|_| anyhow::anyhow!(
@@ -1591,7 +1580,7 @@ fn run_sample_bulk(resolved: &sampledata::ResolvedSample, args: &Args) -> anyhow
 
     // --editor path: buffer bytes, extension from sample format (not Content-Type).
     if args.editor.is_some() {
-        let (cfg_default, user_aliases) = load_editor_config();
+        let (cfg_default, user_aliases) = editor::load_editor_config();
         let flag_value = args.editor.as_deref().unwrap_or("");
         let ed = editor::resolve_editor(flag_value, cfg_default.as_deref(), &user_aliases)
             .map_err(|_| anyhow::anyhow!(
@@ -1675,7 +1664,7 @@ fn run_sample_per_item(
         match (count, &args.sample_file) {
             (1, None) => {
                 if args.editor.is_some() {
-                    let (cfg_default, user_aliases) = load_editor_config();
+                    let (cfg_default, user_aliases) = editor::load_editor_config();
                     let flag_value = args.editor.as_deref().unwrap_or("");
                     let ed = editor::resolve_editor(
                         flag_value,

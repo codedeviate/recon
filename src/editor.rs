@@ -172,6 +172,21 @@ pub fn spawn_editor(resolved: &ResolvedEditor, path: &std::path::Path) -> std::i
     Ok(())
 }
 
+/// Load `[editor]` defaults and aliases from `~/.recon/config.toml`.
+///
+/// Returns `(default, aliases)`. A missing or malformed config is not fatal
+/// for `--editor`: the flag can still resolve built-in aliases and raw
+/// commands without it.
+pub fn load_editor_config() -> (Option<String>, HashMap<String, String>) {
+    match crate::config::load() {
+        Ok(cfg) => match cfg.editor {
+            Some(e) => (e.default, e.aliases),
+            None => (None, HashMap::new()),
+        },
+        Err(_) => (None, HashMap::new()),
+    }
+}
+
 /// Single-quote a path for safe inclusion in a POSIX `sh -c` string. Embedded
 /// single quotes are escaped by breaking and re-opening the quoted run.
 fn shell_quote(path: &std::path::Path) -> String {
