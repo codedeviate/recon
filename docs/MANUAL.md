@@ -2,8 +2,8 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.68.6</div>
-<div class="date">2026-04-25</div>
+<div class="version">Version 0.69.0</div>
+<div class="date">2026-04-30</div>
 <div class="meta">
 Repository · https://github.com/thomas-starweb/recon<br>
 License · MIT
@@ -343,6 +343,8 @@ recon https://example.com/big.iso -o big.iso --continue
 | `--show-error` | Re-enable error output even when `-s` is set. |
 | `-v, --verbose` | Verbose. Repeatable: `-v`, `-vv`, `-vvv`. |
 | `-p, --prettify` | Pretty-print JSON / XML / YAML bodies. |
+| `--prettify-as <FORMAT>` | Force prettify format (json/xml/html/yaml/csv/tsv/auto). Implies `-p`. Use when auto-detect picks the wrong format or there is no Content-Type. |
+| `--stdin` | Read body from stdin instead of making an HTTP request. Runs the post-fetch pipeline (prettify, `--output-charset`, `-o`, `--editor`) over the piped input. Mutually exclusive with a URL. |
 | `--no-prettify` | Disable auto-pretty (even when content-type suggests it). |
 | `-w, --write-out <FORMAT>` | Print a curl-compatible summary after the body. See [Write-out format](#write-out-format). |
 | `--editor` | Open response body in `$EDITOR` after the request. |
@@ -365,6 +367,15 @@ recon -i -I https://example.com/                               # forced HEAD wit
 recon https://api.example.com/large.json -p
 recon https://api.example.com/feed.xml -p                      # XML also supported
 curl -s https://api.example.com/blob.yaml | recon -p -         # stdin source
+
+# --stdin: prettify a payload without making any HTTP request
+pbpaste | recon --stdin -p                        # auto-detect format from body
+pbpaste | recon --stdin --prettify-as json        # force JSON
+recon --stdin -p --prettify-as xml -o pretty.xml < raw.xml   # write to file
+
+# --prettify-as: force the format on a real HTTP response
+recon https://api.example.com/data --prettify-as json   # implies -p
+recon https://example.com/feed --prettify-as xml        # for servers that lie about Content-Type
 
 # Verbose progression
 recon -v https://api.example.com/          # connection + TLS + headers
@@ -2114,6 +2125,8 @@ Every key is optional.
 | `tries` | int | (0.67.0) Total attempts; overrides `retry`. `tries = retries + 1`. |
 | `accept` | string | (0.67.0) Comma-separated filename-suffix accept list. |
 | `reject` | string | (0.67.0) Comma-separated filename-suffix reject list. |
+| `prettify` | bool | Pretty-print response body (auto-detect format). |
+| `prettify_as` | string | Force prettify format (json/xml/html/yaml/csv/tsv/auto). Implies `prettify: true`. |
 
 ### Examples
 
@@ -2178,6 +2191,10 @@ let r = http("http://localhost/v1.40/version", #{
     unix_socket: "/var/run/docker.sock",
 });
 print(json_stringify(json_parse(r.body), 2));
+
+// Pretty-print response body (force JSON format)
+let r = http("https://api.example.com/data", #{ prettify_as: "json" });
+print(r.body);
 ```
 
 ## Browser (sticky-session) binding
