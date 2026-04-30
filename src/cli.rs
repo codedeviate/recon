@@ -89,6 +89,10 @@ pub struct Args {
     #[arg(long = "stdin", help_heading = "HTTP Request")]
     pub stdin: bool,
 
+    /// Read body from clipboard (no HTTP request)
+    #[arg(long = "from-clipboard", help_heading = "HTTP Request")]
+    pub from_clipboard: bool,
+
     /// Append mode for FTP / SFTP uploads. Maps to FTP's APPE command
     /// and SFTP's O_APPEND. Has no effect on HTTP uploads (that's a
     /// server-side concept).
@@ -625,6 +629,16 @@ pub struct Args {
     pub ssh_pass: Option<String>,
 
     // ── Output ───────────────────────────────────────────────────────────────
+
+    /// Write output to clipboard (mutex with -o)
+    #[arg(long = "to-clipboard", help_heading = "Output")]
+    pub to_clipboard: bool,
+
+    /// Use clipboard for I/O (DIR=in|out|both, default auto)
+    #[arg(long = "clipboard", value_name = "DIR",
+          num_args = 0..=1, default_missing_value = "auto",
+          help_heading = "Output")]
+    pub clipboard: Option<String>,
 
     /// Write output to file instead of stdout
     #[arg(short = 'o', long = "output", help_heading = "Output")]
