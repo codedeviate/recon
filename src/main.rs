@@ -84,6 +84,33 @@ mod ws_probe;
 use clap::CommandFactory;
 use cli::Args;
 
+#[derive(Debug, PartialEq, Eq)]
+enum ClipboardDir {
+    In,
+    Out,
+    Both,
+}
+
+fn resolve_clipboard(args: &cli::Args) -> Option<ClipboardDir> {
+    let raw = args.clipboard.as_deref()?;
+    match raw {
+        "in" => Some(ClipboardDir::In),
+        "out" => Some(ClipboardDir::Out),
+        "both" => Some(ClipboardDir::Both),
+        "auto" => {
+            let has_input = args.url.is_some()
+                || args.url_flag.is_some()
+                || args.stdin
+                || args.from_clipboard;
+            Some(if has_input { ClipboardDir::Out } else { ClipboardDir::In })
+        }
+        other => {
+            eprintln!("error: --clipboard expects in|out|both, got '{other}'");
+            std::process::exit(2);
+        }
+    }
+}
+
 fn main() {
     // ── --help [topic] interception (before clap parses) ─────────────────────
     {
@@ -188,6 +215,17 @@ fn main() {
             eprintln!("error: {e}");
             std::process::exit(2);
         }
+    }
+
+    // --clipboard <DIR> resolution: populate the underlying flags.
+    match resolve_clipboard(&args) {
+        Some(ClipboardDir::In) => args.from_clipboard = true,
+        Some(ClipboardDir::Out) => args.to_clipboard = true,
+        Some(ClipboardDir::Both) => {
+            args.from_clipboard = true;
+            args.to_clipboard = true;
+        }
+        None => {}
     }
 
     // ── --input-file: batch URL fetch ──
@@ -498,13 +536,17 @@ fn main() {
         std::process::exit(code);
     }
 
-    // ── Stdin mode (no HTTP request needed) ──────────────────────────────────
-    if args.stdin {
-        if args.url.is_some() || args.url_flag.is_some() {
-            eprintln!("error: --stdin and a URL are mutually exclusive");
+    // ── Payload mode (stdin OR clipboard, no HTTP request needed) ────────────
+    if args.stdin || args.from_clipboard {
+        if args.stdin && args.from_clipboard {
+            eprintln!("error: --stdin and --from-clipboard are mutually exclusive");
             std::process::exit(2);
         }
-        let code = run_stdin_mode(&args);
+        if args.url.is_some() || args.url_flag.is_some() {
+            eprintln!("error: --stdin/--from-clipboard and a URL are mutually exclusive");
+            std::process::exit(2);
+        }
+        let code = run_payload_mode(&args);
         std::process::exit(code);
     }
 
@@ -1194,14 +1236,29 @@ fn protocol_exit_code(e: &anyhow::Error) -> Option<crate::mqtt::ProtocolExitCode
     None
 }
 
-fn run_stdin_mode(args: &cli::Args) -> i32 {
+fn run_payload_mode(args: &cli::Args) -> i32 {
     use std::io::Read;
 
-    let mut buf = Vec::new();
-    if let Err(e) = std::io::stdin().lock().read_to_end(&mut buf) {
-        eprintln!("error: failed to read stdin: {e}");
-        return 1;
-    }
+    let buf: Vec<u8> = if args.from_clipboard {
+        match clipboard::read_text() {
+            Ok(s) => s.into_bytes(),
+            Err(e) => {
+                if args.full_errors {
+                    eprintln!("error: {e:#}");
+                } else {
+                    eprintln!("error: {}", friendly_message(&e));
+                }
+                return 1;
+            }
+        }
+    } else {
+        let mut buf = Vec::new();
+        if let Err(e) = std::io::stdin().lock().read_to_end(&mut buf) {
+            eprintln!("error: failed to read stdin: {e}");
+            return 1;
+        }
+        buf
+    };
 
     let output_charset_label: Option<String> = if let Some(c) = &args.output_charset {
         Some(c.clone())
