@@ -327,63 +327,16 @@ pub fn write_response_to(
             // prettification (which needs a String anyway) or explicit
             // charset conversion.
             let raw = response.bytes().context("Failed to read response body")?;
-            let body_bytes: Vec<u8> = if let Some(target_label) = &output_charset_label {
-                let target = crate::text_encoding::resolve(target_label)
-                    .with_context(|| format!("--output-charset: {target_label}"))?;
-                let source_label = resolve_source_charset(args, &content_type_str, &raw);
-                let source = crate::text_encoding::resolve(&source_label)
-                    .unwrap_or(encoding_rs::UTF_8);
-                if source == target {
-                    raw.to_vec()
-                } else {
-                    let r = crate::text_encoding::transcode(&raw, source, target);
-                    if r.had_unmappable && !args.silent {
-                        eprintln!(
-                            "! response body: one or more characters not representable in {} — substituted with '?'",
-                            target.name()
-                        );
-                    }
-                    r.bytes
-                }
-            } else {
-                raw.to_vec()
-            };
-
-            if args.prettify {
-                let body_str = String::from_utf8_lossy(&body_bytes).into_owned();
-                let format = crate::prettify::detect(&content_type_str, &body_str);
-                let out_text = crate::prettify::run(&body_str, format).unwrap_or(body_str);
-                if let Some(path) = &final_path {
-                    if args.create_dirs {
-                        ensure_parent_dir(path)?;
-                    }
-                    let mut file = File::create(path)?;
-                    write!(file, "{out_text}")?;
-                    if !args.silent {
-                        eprintln!("Saved to {}", path.display());
-                    }
-                } else {
-                    let mut out = sink.writer();
-                    write!(out, "{out_text}")?;
-                }
-                metrics.size_download = out_text.len() as u64;
-            } else {
-                // --output-charset without prettify: write transcoded bytes.
-                if let Some(path) = &final_path {
-                    if args.create_dirs {
-                        ensure_parent_dir(path)?;
-                    }
-                    let mut file = File::create(path)?;
-                    file.write_all(&body_bytes)?;
-                    if !args.silent {
-                        eprintln!("Saved to {}", path.display());
-                    }
-                } else {
-                    let mut out = sink.writer();
-                    out.write_all(&body_bytes)?;
-                }
-                metrics.size_download = body_bytes.len() as u64;
-            }
+            let mut out = sink.writer();
+            let bytes_written = write_processed_body(
+                args,
+                &raw,
+                &content_type_str,
+                output_charset_label.as_deref(),
+                final_path.as_deref(),
+                &mut *out,
+            )?;
+            metrics.size_download = bytes_written;
         } else {
             let content_length = response
                 .headers()
@@ -566,6 +519,97 @@ pub fn resolve_output_path(
     }
 
     Ok(None)
+}
+
+/// Process a fully-buffered body through the user's post-fetch pipeline:
+/// optional charset transcode → optional prettify → write to file (`-o`)
+/// or the supplied sink. Returns the byte count written (used for the
+/// `size_download` metric).
+///
+/// Used by both the HTTP response path (in `write_response_to`) and the
+/// `--stdin` mode dispatched from `main.rs`.
+pub fn write_processed_body(
+    args: &crate::cli::Args,
+    raw: &[u8],
+    content_type: &str,
+    output_charset_label: Option<&str>,
+    final_path: Option<&std::path::Path>,
+    sink_writer: &mut dyn Write,
+) -> anyhow::Result<u64> {
+    // 1. Optional charset transcode
+    let body_bytes: Vec<u8> = if let Some(target_label) = output_charset_label {
+        let target = crate::text_encoding::resolve(target_label)
+            .with_context(|| format!("--output-charset: {target_label}"))?;
+        let source_label = resolve_source_charset(args, content_type, raw);
+        let source = crate::text_encoding::resolve(&source_label)
+            .unwrap_or(encoding_rs::UTF_8);
+        if source == target {
+            raw.to_vec()
+        } else {
+            let r = crate::text_encoding::transcode(raw, source, target);
+            if r.had_unmappable && !args.silent {
+                eprintln!(
+                    "! response body: one or more characters not representable in {} — substituted with '?'",
+                    target.name()
+                );
+            }
+            r.bytes
+        }
+    } else {
+        raw.to_vec()
+    };
+
+    // 2. Optional prettify
+    if args.prettify {
+        let body_str = String::from_utf8_lossy(&body_bytes).into_owned();
+        let format = match args.prettify_as.as_deref() {
+            Some(s) => {
+                let parsed = crate::prettify::parse_format(s)?;
+                if parsed == crate::prettify::Format::Unknown {
+                    crate::prettify::detect(content_type, &body_str)
+                } else {
+                    parsed
+                }
+            }
+            None => crate::prettify::detect(content_type, &body_str),
+        };
+        // When the user explicitly forced a format, propagate parse errors.
+        // When auto-detect picked the format, fall back to the raw body on
+        // parse failure (legacy behaviour).
+        let out_text = if args.prettify_as.is_some() {
+            crate::prettify::run(&body_str, format)?
+        } else {
+            crate::prettify::run(&body_str, format).unwrap_or(body_str)
+        };
+        if let Some(path) = final_path {
+            if args.create_dirs {
+                ensure_parent_dir(path)?;
+            }
+            let mut file = File::create(path)?;
+            write!(file, "{out_text}")?;
+            if !args.silent {
+                eprintln!("Saved to {}", path.display());
+            }
+        } else {
+            write!(sink_writer, "{out_text}")?;
+        }
+        Ok(out_text.len() as u64)
+    } else {
+        // --output-charset without prettify: write transcoded bytes.
+        if let Some(path) = final_path {
+            if args.create_dirs {
+                ensure_parent_dir(path)?;
+            }
+            let mut file = File::create(path)?;
+            file.write_all(&body_bytes)?;
+            if !args.silent {
+                eprintln!("Saved to {}", path.display());
+            }
+        } else {
+            sink_writer.write_all(&body_bytes)?;
+        }
+        Ok(body_bytes.len() as u64)
+    }
 }
 
 /// `mkdir -p` for the parent of `path`, if it has one.
