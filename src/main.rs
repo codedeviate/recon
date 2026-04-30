@@ -91,6 +91,58 @@ enum ClipboardDir {
     Both,
 }
 
+/// True when any flag is set that runs recon without needing a URL.
+/// Mirrors what was previously in clap's `required_unless_present_any`.
+fn any_no_url_mode_flag(args: &cli::Args) -> bool {
+    args.url_flag.is_some()
+        || args.cookies
+        || args.cookie_delete.is_some()
+        || args.cookie_set.is_some()
+        || args.spf
+        || args.dmarc
+        || !args.dkim.is_empty()
+        || args.mta_sts
+        || args.bimi.is_some()
+        || args.tls_rpt
+        || args.serve.is_some()
+        || args.serve_tls.is_some()
+        || !args.serve_sni.is_empty()
+        || args.jwt_view
+        || args.jwt_sign
+        || args.jwt_validate
+        || args.netstatus
+        || args.editor_cleanup
+        || args.sample.is_some()
+        || args.sample_list
+        || args.hash.is_some()
+        || args.hash_list
+        || args.compress.is_some()
+        || args.decompress.is_some()
+        || args.compress_list
+        || args.encode.is_some()
+        || args.encode_list
+        || args.encrypt
+        || args.decrypt
+        || args.encrypt_keygen
+        || args.checkdigit.is_some()
+        || args.checkdigit_create.is_some()
+        || args.checkdigit_list
+        || args.script.is_some()
+        || args.init
+        || args.browser_screenshot.is_some()
+        || args.archive.is_some()
+        || args.extract.is_some()
+        || args.iconv.is_some()
+        || args.list_charsets
+        || args.compare.is_some()
+        || args.decode.is_some()
+        || args.decode_all.is_some()
+        || args.md_to_html.is_some()
+        || args.md_to_pdf.is_some()
+        || args.html_to_pdf.is_some()
+        || args.input_file.is_some()
+}
+
 fn resolve_clipboard(args: &cli::Args) -> Option<ClipboardDir> {
     let raw = args.clipboard.as_deref()?;
     match raw {
@@ -226,6 +278,24 @@ fn main() {
             args.to_clipboard = true;
         }
         None => {}
+    }
+
+    // Auto-detect stdin: if no input source is given and stdin is piped,
+    // treat as implicit --stdin.
+    {
+        use std::io::IsTerminal;
+        let no_input = args.url.is_none()
+            && !args.stdin
+            && !args.from_clipboard
+            && !any_no_url_mode_flag(&args);
+        if no_input {
+            if !std::io::stdin().is_terminal() {
+                args.stdin = true;
+            } else {
+                eprintln!("error: missing URL or input flag (try --help)");
+                std::process::exit(2);
+            }
+        }
     }
 
     // ── --input-file: batch URL fetch ──
