@@ -2,7 +2,7 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.69.0</div>
+<div class="version">Version 0.70.0</div>
 <div class="date">2026-04-30</div>
 <div class="meta">
 Repository · https://github.com/thomas-starweb/recon<br>
@@ -345,6 +345,9 @@ recon https://example.com/big.iso -o big.iso --continue
 | `-p, --prettify` | Pretty-print JSON / XML / YAML bodies. |
 | `--prettify-as <FORMAT>` | Force prettify format (json/xml/html/yaml/csv/tsv/auto). Implies `-p`. Use when auto-detect picks the wrong format or there is no Content-Type. |
 | `--stdin` | Read body from stdin instead of making an HTTP request. Runs the post-fetch pipeline (prettify, `--output-charset`, `-o`) over the piped input. Mutually exclusive with a URL. |
+| `--from-clipboard` | Read body from system clipboard (no HTTP request). Mutex with `--stdin` and URL. |
+| `--to-clipboard` | Write output to system clipboard. Mutex with `-o` and `--editor`. UTF-8 text only. |
+| `--clipboard [<DIR>]` | Use clipboard for I/O. `DIR` = `in` / `out` / `both`. Bare form auto-resolves direction from context. |
 | `--no-prettify` | Disable auto-pretty (even when content-type suggests it). |
 | `-w, --write-out <FORMAT>` | Print a curl-compatible summary after the body. See [Write-out format](#write-out-format). |
 | `--editor` | Open response body in `$EDITOR` after the request. |
@@ -366,12 +369,22 @@ recon -i -I https://example.com/                               # forced HEAD wit
 # Pretty-print
 recon https://api.example.com/large.json -p
 recon https://api.example.com/feed.xml -p                      # XML also supported
-curl -s https://api.example.com/blob.yaml | recon -p -         # stdin source
+curl -s https://api.example.com/blob.yaml | recon -p           # stdin auto-detected
 
 # --stdin: prettify a payload without making any HTTP request
-pbpaste | recon --stdin -p                        # auto-detect format from body
-pbpaste | recon --stdin --prettify-as json        # force JSON
+recon --stdin -p                                  # auto-detect format from body
+recon --stdin --prettify-as json                  # force JSON
 recon --stdin -p --prettify-as xml -o pretty.xml < raw.xml   # write to file
+
+# Auto-detected stdin: --stdin is optional when piping
+echo '{"a":1}' | recon -p
+cat data.json | recon --prettify-as json -o pretty.json
+
+# Clipboard I/O — native clipboard read/write without shell pipes
+recon --clipboard --prettify-as json                  # read from clipboard, auto-resolves as input
+recon --clipboard both --prettify-as json             # prettify in place (read from, write back to)
+recon https://api.example.com/data --to-clipboard     # fetch URL, copy result to clipboard
+recon --from-clipboard --editor vim                   # open clipboard body in editor
 
 # --prettify-as: force the format on a real HTTP response
 recon https://api.example.com/data --prettify-as json   # implies -p
@@ -2024,6 +2037,36 @@ file_seek(h, 0, "start");
 let head = file_read_all(h);
 print(`contents: ${head.len()} bytes`);
 file_close(h);
+```
+
+## Clipboard bindings
+
+0.70.0. The `clipboard` static module exposes the system clipboard for read/write
+access from Rhai scripts. Backed by the same `arboard` crate that powers
+the `--clipboard` family of CLI flags, so behaviour is identical across
+platforms (macOS pasteboard, Linux X11/Wayland, Windows).
+
+| Function | Returns | Description |
+|---|---|---|
+| `clipboard::get()` | string | Current clipboard text. Errors if no clipboard available or content isn't text. |
+| `clipboard::set(text)` | () | Replace clipboard contents with `text`. |
+
+### Examples
+
+```rhai
+// Read, transform, write back to clipboard.
+let original = clipboard::get();
+let upper = original.to_upper();
+clipboard::set(upper);
+print("Replaced clipboard with uppercase form");
+```
+
+```rhai
+// Fetch a URL and place the prettified JSON response on the clipboard.
+let r = http("https://api.example.com/data");
+let pretty = json_stringify(json_parse(r.body.to_string()));
+clipboard::set(pretty);
+print("Result copied to clipboard");
 ```
 
 ## Comparison bindings
