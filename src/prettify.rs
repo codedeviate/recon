@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use quick_xml::events::Event;
 use quick_xml::{Reader, Writer};
 
+#[derive(Debug, PartialEq, Eq)]
 pub enum Format {
     Json,
     Xml,
@@ -286,4 +287,64 @@ fn split_delimited(line: &str, delimiter: char) -> Vec<String> {
     }
     fields.push(current.trim().to_string());
     fields
+}
+
+// ── parse_format ──────────────────────────────────────────────────────────────
+
+/// Parse a user-supplied format string from `--prettify-as <FORMAT>`.
+///
+/// Returns `Format::Unknown` for the special value `"auto"` — callers
+/// treat that sentinel as "fall back to `detect()`".
+pub fn parse_format(s: &str) -> Result<Format> {
+    match s.to_ascii_lowercase().as_str() {
+        "json" => Ok(Format::Json),
+        "xml" => Ok(Format::Xml),
+        "html" => Ok(Format::Html),
+        "yaml" | "yml" => Ok(Format::Yaml),
+        "csv" => Ok(Format::Csv),
+        "tsv" => Ok(Format::Tsv),
+        "auto" => Ok(Format::Unknown),
+        _ => anyhow::bail!(
+            "Unknown --prettify-as format: {s} (expected one of: json, xml, html, yaml, csv, tsv, auto)"
+        ),
+    }
+}
+
+#[cfg(test)]
+mod parse_format_tests {
+    use super::*;
+
+    #[test]
+    fn parses_canonical_names() {
+        assert_eq!(parse_format("json").unwrap(), Format::Json);
+        assert_eq!(parse_format("xml").unwrap(), Format::Xml);
+        assert_eq!(parse_format("html").unwrap(), Format::Html);
+        assert_eq!(parse_format("yaml").unwrap(), Format::Yaml);
+        assert_eq!(parse_format("csv").unwrap(), Format::Csv);
+        assert_eq!(parse_format("tsv").unwrap(), Format::Tsv);
+    }
+
+    #[test]
+    fn parses_yml_alias() {
+        assert_eq!(parse_format("yml").unwrap(), Format::Yaml);
+    }
+
+    #[test]
+    fn parses_auto_as_unknown_sentinel() {
+        assert_eq!(parse_format("auto").unwrap(), Format::Unknown);
+    }
+
+    #[test]
+    fn is_case_insensitive() {
+        assert_eq!(parse_format("JSON").unwrap(), Format::Json);
+        assert_eq!(parse_format("Yaml").unwrap(), Format::Yaml);
+    }
+
+    #[test]
+    fn unknown_format_errors_with_helpful_message() {
+        let err = parse_format("bogus").unwrap_err().to_string();
+        assert!(err.contains("bogus"));
+        assert!(err.contains("json"));
+        assert!(err.contains("auto"));
+    }
 }
