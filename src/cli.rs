@@ -85,6 +85,10 @@ pub struct Args {
     #[arg(short = 'T', long = "upload-file", value_name = "PATH", help_heading = "HTTP Request")]
     pub upload_file: Option<std::path::PathBuf>,
 
+    /// Read body from stdin (no HTTP request)
+    #[arg(long = "stdin", help_heading = "HTTP Request")]
+    pub stdin: bool,
+
     /// Append mode for FTP / SFTP uploads. Maps to FTP's APPE command
     /// and SFTP's O_APPEND. Has no effect on HTTP uploads (that's a
     /// server-side concept).
@@ -735,6 +739,10 @@ pub struct Args {
     /// Prettify response body: auto-detects JSON, XML, HTML, YAML, CSV, TSV
     #[arg(short = 'p', long = "prettify", help_heading = "Output")]
     pub prettify: bool,
+
+    /// Force prettify format (overrides -p auto-detect)
+    #[arg(long = "prettify-as", value_name = "FORMAT", help_heading = "Output")]
+    pub prettify_as: Option<String>,
 
     /// Show a progress meter when saving to a file (opt-in, unlike curl)
     #[arg(long = "progress", help_heading = "Output")]
