@@ -240,16 +240,6 @@ crawl) is the part that's still deferred.
   (`--editor=value`, or `--url` first); could be fixed with a
   smarter arg parser.
 
-### stdin pipeline
-
-- **`--editor` with `--stdin`** — `--stdin` mode currently writes prettified
-  output to stdout or `-o`, but does not honour `--editor` (which would
-  open the body in `$EDITOR` after the request). The temp-file + spawn
-  primitives in `src/editor.rs` are reusable; integration with
-  `run_stdin_mode` is straightforward but was deferred from 0.69.0 to
-  keep the initial change focused on the core feature (prettify from
-  stdin / clipboard). Track for a follow-up patch release.
-
 ---
 
 ## Not yet supported — blocked on upstream / ecosystem

@@ -8,6 +8,43 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.70.0] - 2026-04-30
+
+### Added
+
+- `--from-clipboard` flag — read body from the system clipboard. Mutex
+  with `--stdin` and a URL. Backed by the cross-platform `arboard`
+  crate (macOS pasteboard, Linux X11/Wayland, Windows).
+- `--to-clipboard` flag — write output to the system clipboard. Mutex
+  with `-o` and `--editor`. UTF-8 text only.
+- `--clipboard [<DIR>]` flag — `DIR` = `in` / `out` / `both`. Bare
+  `--clipboard` (no value) auto-resolves direction from context: `out`
+  when an input source is already given, `in` otherwise.
+- `clipboard::get()` and `clipboard::set(text)` Rhai script bindings —
+  same primitive that powers the CLI flags, available to scripts.
+- New dep: `arboard` 3.x with `wayland-data-control` feature.
+
+### Changed
+
+- `--stdin` mode now honours `--editor` (closes 0.69.0 deferred gap).
+  `--editor -vv` still mirrors body to stdout as documented.
+- `src/output.rs` — replaced `(final_path, sink_writer)` parameter pair
+  in `write_processed_body` with a single `sink: BodySink` enum
+  (`Writer` / `File` / `Editor` / `Clipboard`). HTTP and stdin paths
+  share the same dispatch. Removed the duplicate `run_with_editor`
+  function in `src/main.rs`.
+- Auto-detect stdin: when no URL or input flag is given and stdin is
+  not a TTY, recon treats it as if `--stdin` was passed. Interactive
+  invocation (TTY stdin) without a URL still produces a usage error.
+- `load_editor_config` moved from `src/main.rs` to `src/editor.rs`
+  (single source of truth — used by both the HTTP path and the new
+  BodySink::Editor dispatch in output.rs).
+
+### Removed
+
+- `OUT-OF-SCOPE.md` entry deferring `--editor` with `--stdin` —
+  shipped in this release.
+
 ## [0.69.0] - 2026-04-30
 
 ### Added

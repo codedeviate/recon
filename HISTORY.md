@@ -52,6 +52,20 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 64. stdin/clipboard polish — native clipboard + auto-detect (0.70.0)
+
+Polish release after 0.69.0's `--stdin` debut. Three changes that all touch the same `--stdin`-pipeline code paths in `src/main.rs` and `src/output.rs`, so they ship together rather than as three separate releases.
+
+**`arboard` for clipboard, not shelling out.** Considered shelling to `pbpaste`/`pbcopy` (macOS), `xclip`/`wl-copy` (Linux), `Get-Clipboard`/`clip` (Windows). Three-way platform branching for what's a 30-LOC primitive. `arboard` 3.x covers all three platforms (Cocoa AppKit, X11 + Wayland, Windows OLE) with a uniform API and adds about 200 KB compressed binary size — a fair trade for one place to maintain. Opted out of the `image-data` default feature (no image-clipboard support needed; saves the `image` crate dep). Linux Wayland coverage via the `wayland-data-control` feature.
+
+**`--clipboard <DIR>` with context-aware default.** Three flags pile up in the help output (`--from-clipboard`, `--to-clipboard`, `--clipboard`), but the user-facing ergonomics win — `recon --clipboard --prettify-as json` is the killer line. Bare `--clipboard` resolves to `out` when there's already an input (URL, `--stdin`, etc.) and `in` otherwise; this was the user's design call. Kept the resolution logic in `main.rs` post-parse so the rest of the codebase only ever sees `from_clipboard` / `to_clipboard` bools.
+
+**`BodySink` enum replacing the `(final_path, sink_writer)` pair.** The 0.69.0 helper already handled file vs sink branching internally. Adding editor and clipboard sinks via more parameters would have ballooned the signature. A small `BodySink<'a>` enum (`Writer` / `File` / `Editor` / `Clipboard`) is one parameter, four variants, internal dispatch — net cleaner. `Editor` and `Clipboard` accumulate into a `Vec<u8>` because both need the full output before they act. Removing the duplicate `run_with_editor` in main.rs (~46 lines) was a side benefit. The `-vv` mirror-to-stdout behaviour for `--editor` (documented in `recon --help editor`) is preserved inside `BodySink::Editor` — was almost dropped during the refactor; caught in code review.
+
+**Auto-detect stdin via `std::io::IsTerminal`.** Stable since 1.70 — no new deps. URL was previously required via clap's `required_unless_present_any`; dropping that and validating in `main.rs` instead lets recon either auto-promote piped stdin or emit a clean usage error for TTY-no-args. The mode-flag exclusion list (which used to live in clap) now lives in a `any_no_url_mode_flag(args)` helper — single source of truth.
+
+**Test budget: +8.** New `tests/clipboard_it.rs` (7 tests, 3 gated on `RECON_CLIPBOARD_TESTS` env var). Auto-detect test in `stdin_prettify_it.rs`. 1231 → 1239 passing.
+
 ### 63. Offline payload prettify — `--stdin` + `--prettify-as` (0.69.0)
 
 A small but high-leverage feature: prettify a JSON / XML / YAML / CSV / TSV / HTML payload that's already on the local machine — clipboard, file, pipe — without making an HTTP request. Drives the `pbpaste | recon --stdin --prettify-as json` workflow.
