@@ -513,6 +513,15 @@ pub(crate) fn build_args(
         if let Some(s) = opts_get_str(o, "reject") {
             args.reject = Some(s);
         }
+
+        // ── 0.68.7 — prettify output ───────────────────────────────────
+        if let Some(p) = opts_get_bool(o, "prettify") {
+            args.prettify = p;
+        }
+        if let Some(s) = opts_get_str(o, "prettify_as") {
+            args.prettify_as = Some(s);
+            args.prettify = true; // mirror the CLI implicit-prettify behaviour
+        }
     }
     Ok(args)
 }
