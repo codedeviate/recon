@@ -298,6 +298,16 @@ fn main() {
         }
     }
 
+    // Output-sink mutex: --to-clipboard conflicts with -o and --editor.
+    if args.to_clipboard && args.output.is_some() {
+        eprintln!("error: --to-clipboard and -o/--output are mutually exclusive");
+        std::process::exit(2);
+    }
+    if args.to_clipboard && args.editor.is_some() {
+        eprintln!("error: --to-clipboard and --editor are mutually exclusive");
+        std::process::exit(2);
+    }
+
     // ── --input-file: batch URL fetch ──
     if let Some(path) = args.input_file.clone() {
         match input_file::load_urls(&path) {
