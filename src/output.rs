@@ -10,6 +10,22 @@ use crate::cli::Args;
 use crate::fail::FailMode;
 use crate::metrics::RequestMetrics;
 
+/// Where the processed response body is written.
+///
+/// `Writer` streams as it processes (default for stdout). `File` writes the
+/// processed bytes to a path. `Editor` and `Clipboard` accumulate the full
+/// output internally before dispatching, since both need the complete buffer.
+pub enum BodySink<'a> {
+    /// Write to the supplied writer (typically stdout).
+    Writer(&'a mut dyn Write),
+    /// Write to FILE.
+    File(&'a std::path::Path),
+    /// Buffer fully, write to a temp file, spawn the user's editor.
+    Editor,
+    /// Buffer fully, write to the system clipboard.
+    Clipboard,
+}
+
 /// Wrap a writer with rate-limiting and/or speed-watchdog layers when
 /// `--limit-rate` / `--speed-limit` are set. Layers compose:
 /// `SpeedWatchWriter<RateLimitedWriter<Box<dyn Write + 'a>>>`. When
@@ -322,19 +338,31 @@ pub fn write_response_to(
             .unwrap_or("")
             .to_string();
 
-        if args.prettify || output_charset_label.is_some() {
+        if args.prettify || output_charset_label.is_some()
+            || args.editor.is_some() || args.to_clipboard {
             // Buffer + transcode path. Used when the user asked for
-            // prettification (which needs a String anyway) or explicit
-            // charset conversion.
+            // prettification (which needs a String anyway), explicit charset
+            // conversion, editor dispatch, or clipboard output.
             let raw = response.bytes().context("Failed to read response body")?;
-            let mut out = sink.writer();
+
+            let mut writer_holder;
+            let body_sink = if args.editor.is_some() {
+                BodySink::Editor
+            } else if args.to_clipboard {
+                BodySink::Clipboard
+            } else if let Some(p) = final_path.as_deref() {
+                BodySink::File(p)
+            } else {
+                writer_holder = sink.writer();
+                BodySink::Writer(&mut *writer_holder)
+            };
+
             let bytes_written = write_processed_body(
                 args,
                 &raw,
                 &content_type_str,
                 output_charset_label.as_deref(),
-                final_path.as_deref(),
-                &mut *out,
+                body_sink,
             )?;
             metrics.size_download = bytes_written;
         } else {
@@ -522,9 +550,8 @@ pub fn resolve_output_path(
 }
 
 /// Process a fully-buffered body through the user's post-fetch pipeline:
-/// optional charset transcode → optional prettify → write to file (`-o`)
-/// or the supplied sink. Returns the byte count written (used for the
-/// `size_download` metric).
+/// optional charset transcode → optional prettify → dispatch to `sink`.
+/// Returns the byte count written (used for the `size_download` metric).
 ///
 /// Used by both the HTTP response path (in `write_response_to`) and the
 /// `--stdin` mode dispatched from `main.rs`.
@@ -533,8 +560,7 @@ pub fn write_processed_body(
     raw: &[u8],
     content_type: &str,
     output_charset_label: Option<&str>,
-    final_path: Option<&std::path::Path>,
-    sink_writer: &mut dyn Write,
+    sink: BodySink<'_>,
 ) -> anyhow::Result<u64> {
     // 1. Optional charset transcode
     let body_bytes: Vec<u8> = if let Some(target_label) = output_charset_label {
@@ -559,8 +585,8 @@ pub fn write_processed_body(
         raw.to_vec()
     };
 
-    // 2. Optional prettify
-    if args.prettify {
+    // 2. Optional prettify → produce processed_bytes
+    let processed_bytes: Vec<u8> = if args.prettify {
         let body_str = String::from_utf8_lossy(&body_bytes).into_owned();
         let format = match args.prettify_as.as_deref() {
             Some(s) => {
@@ -581,35 +607,80 @@ pub fn write_processed_body(
         } else {
             crate::prettify::run(&body_str, format).unwrap_or(body_str)
         };
-        if let Some(path) = final_path {
-            if args.create_dirs {
-                ensure_parent_dir(path)?;
-            }
-            let mut file = File::create(path)?;
-            write!(file, "{out_text}")?;
-            if !args.silent {
-                eprintln!("Saved to {}", path.display());
-            }
-        } else {
-            write!(sink_writer, "{out_text}")?;
-        }
-        Ok(out_text.len() as u64)
+        out_text.into_bytes()
     } else {
-        // --output-charset without prettify: write transcoded bytes.
-        if let Some(path) = final_path {
+        body_bytes
+    };
+
+    // 3. Dispatch to sink
+    let byte_count = processed_bytes.len() as u64;
+    match sink {
+        BodySink::Writer(w) => {
+            w.write_all(&processed_bytes)?;
+        }
+        BodySink::File(path) => {
             if args.create_dirs {
                 ensure_parent_dir(path)?;
             }
             let mut file = File::create(path)?;
-            file.write_all(&body_bytes)?;
+            file.write_all(&processed_bytes)?;
             if !args.silent {
                 eprintln!("Saved to {}", path.display());
             }
-        } else {
-            sink_writer.write_all(&body_bytes)?;
         }
-        Ok(body_bytes.len() as u64)
+        BodySink::Editor => {
+            let ext = pick_editor_extension(args, content_type);
+            let path = crate::editor::create_temp_file(ext, &processed_bytes)
+                .context("failed to write editor temp file")?;
+            let flag_value = args.editor.as_deref().unwrap_or("");
+            let (cfg_default, user_aliases) = match crate::config::load() {
+                Ok(cfg) => match cfg.editor {
+                    Some(e) => (e.default, e.aliases),
+                    None => (None, std::collections::HashMap::new()),
+                },
+                Err(_) => (None, std::collections::HashMap::new()),
+            };
+            let resolved = crate::editor::resolve_editor(
+                flag_value,
+                cfg_default.as_deref(),
+                &user_aliases,
+            )
+            .map_err(|_| anyhow::anyhow!(
+                "--editor: no value given and no [editor] default in ~/.recon/config.toml"
+            ))?;
+            crate::editor::spawn_editor(&resolved, &path)
+                .with_context(|| format!("failed to launch editor for {}", path.display()))?;
+            if !args.silent {
+                eprintln!("Opened in editor: {}", path.display());
+            }
+        }
+        BodySink::Clipboard => {
+            let text = std::str::from_utf8(&processed_bytes)
+                .context("clipboard write requires UTF-8 text")?;
+            crate::clipboard::write_text(text)?;
+            if !args.silent {
+                eprintln!("Copied to clipboard ({} bytes)", processed_bytes.len());
+            }
+        }
     }
+    Ok(byte_count)
+}
+
+/// Pick a temp-file extension for `--editor` based on the prettify format
+/// (when known) or content-type sniffing.
+fn pick_editor_extension(args: &crate::cli::Args, content_type: &str) -> &'static str {
+    if let Some(s) = args.prettify_as.as_deref() {
+        match s.to_ascii_lowercase().as_str() {
+            "json" => return "json",
+            "xml" => return "xml",
+            "html" => return "html",
+            "yaml" | "yml" => return "yaml",
+            "csv" => return "csv",
+            "tsv" => return "tsv",
+            _ => {}
+        }
+    }
+    crate::editor::extension_for_content_type(content_type)
 }
 
 /// `mkdir -p` for the parent of `path`, if it has one.

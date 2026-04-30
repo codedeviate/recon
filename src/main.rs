@@ -1068,11 +1068,7 @@ fn main() {
                 }
                 return Ok(());
             }
-            let result = if args.editor.is_some() {
-                run_with_editor(response, &args, &mut metrics)
-            } else {
-                output::write_response(response, &args, &mut metrics)
-            };
+            let result = output::write_response(response, &args, &mut metrics);
             // -w / --write-out: render after the response has been handled so
             // metrics.response_end and size_download are final.
             if let Some(fmt_arg) = &args.write_out {
@@ -1215,16 +1211,24 @@ fn run_stdin_mode(args: &cli::Args) -> i32 {
         None
     };
 
-    let stdout = std::io::stdout();
-    let mut stdout_lock = stdout.lock();
+    let mut stdout_lock_holder;
+    let body_sink = if args.editor.is_some() {
+        output::BodySink::Editor
+    } else if args.to_clipboard {
+        output::BodySink::Clipboard
+    } else if let Some(p) = args.output.as_deref() {
+        output::BodySink::File(p)
+    } else {
+        stdout_lock_holder = std::io::stdout().lock();
+        output::BodySink::Writer(&mut stdout_lock_holder)
+    };
 
     match output::write_processed_body(
         args,
         &buf,
         "", // no Content-Type — body sniffing kicks in
         output_charset_label.as_deref(),
-        args.output.as_deref(),
-        &mut stdout_lock,
+        body_sink,
     ) {
         Ok(_) => 0,
         Err(e) => {
@@ -1428,53 +1432,6 @@ fn extract_path(msg: &str) -> &str {
     "unknown path"
 }
 
-fn run_with_editor(
-    response: reqwest::blocking::Response,
-    args: &Args,
-    metrics: &mut metrics::RequestMetrics,
-) -> anyhow::Result<()> {
-    use anyhow::Context;
-
-    // Resolve the editor spec up front so we fail fast if misconfigured.
-    let flag_value = args.editor.as_deref().unwrap_or("");
-    let (cfg_default, user_aliases) = load_editor_config();
-
-    let resolved = editor::resolve_editor(flag_value, cfg_default.as_deref(), &user_aliases)
-        .map_err(|_| anyhow::anyhow!(
-            "--editor: no value given and no [editor] default in ~/.recon/config.toml"
-        ))?;
-
-    // Capture the extension from Content-Type BEFORE consuming the response.
-    let extension = response
-        .headers()
-        .get(reqwest::header::CONTENT_TYPE)
-        .and_then(|v| v.to_str().ok())
-        .map(editor::extension_for_content_type)
-        .unwrap_or("txt")
-        .to_string();
-
-    // Pick sink: buffer only by default, tee to stdout at -vv+.
-    let mut sink = if args.verbose >= 2 {
-        output::StdoutSink::Tee(Vec::new())
-    } else {
-        output::StdoutSink::Buffer(Vec::new())
-    };
-
-    output::write_response_to(response, args, &mut sink, metrics)?;
-    let bytes = sink.into_bytes().unwrap_or_default();
-
-    let path = editor::create_temp_file(&extension, &bytes)
-        .context("failed to write editor temp file")?;
-
-    if args.verbose >= 1 {
-        eprintln!("* editor temp file: {}", path.display());
-    }
-
-    editor::spawn_editor(&resolved, &path)
-        .with_context(|| format!("failed to launch editor for {}", path.display()))?;
-
-    Ok(())
-}
 
 fn load_editor_config() -> (Option<String>, std::collections::HashMap<String, String>) {
     match config::load() {
