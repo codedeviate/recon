@@ -5,7 +5,7 @@
 //! `print_short` prints just `recon <version>` for scripts that only want
 //! the number.
 
-const RELEASE_DATE: &str = "2026-04-26";
+const RELEASE_DATE: &str = "2026-04-30";
 
 // Update these when the corresponding Cargo.toml entries change majors/minors.
 // Patch-version drift is not reflected — the banner reports the API surface.
