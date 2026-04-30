@@ -497,6 +497,16 @@ fn main() {
         std::process::exit(code);
     }
 
+    // ── Stdin mode (no HTTP request needed) ──────────────────────────────────
+    if args.stdin {
+        if args.url.is_some() || args.url_flag.is_some() {
+            eprintln!("error: --stdin and a URL are mutually exclusive");
+            std::process::exit(2);
+        }
+        let code = run_stdin_mode(&args);
+        std::process::exit(code);
+    }
+
     // ── Init: bootstrap ~/.recon/ layout (no HTTP request needed) ────────────
     if args.init {
         if let Err(e) = init::run() {
@@ -1185,6 +1195,46 @@ fn protocol_exit_code(e: &anyhow::Error) -> Option<crate::mqtt::ProtocolExitCode
         }
     }
     None
+}
+
+fn run_stdin_mode(args: &cli::Args) -> i32 {
+    use std::io::Read;
+
+    let mut buf = Vec::new();
+    if let Err(e) = std::io::stdin().lock().read_to_end(&mut buf) {
+        eprintln!("error: failed to read stdin: {e}");
+        return 1;
+    }
+
+    let output_charset_label: Option<String> = if let Some(c) = &args.output_charset {
+        Some(c.clone())
+    } else if args.to_utf8 {
+        Some("utf-8".to_string())
+    } else {
+        None
+    };
+
+    let stdout = std::io::stdout();
+    let mut stdout_lock = stdout.lock();
+
+    match output::write_processed_body(
+        args,
+        &buf,
+        "", // no Content-Type — body sniffing kicks in
+        output_charset_label.as_deref(),
+        args.output.as_deref(),
+        &mut stdout_lock,
+    ) {
+        Ok(_) => 0,
+        Err(e) => {
+            if args.full_errors {
+                eprintln!("error: {e:#}");
+            } else {
+                eprintln!("error: {}", friendly_message(&e));
+            }
+            1
+        }
+    }
 }
 
 fn friendly_message(err: &anyhow::Error) -> String {
