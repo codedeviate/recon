@@ -80,7 +80,7 @@ surprise failures.
 |---|---|
 | `shebang.rhai` | `#!/usr/bin/env -S recon --script` — run directly after `chmod +x` |
 
-### HTTP opts (0.61.0-0.68.7)
+### HTTP opts (0.61.0-0.69.0)
 
 | Script | What it does |
 |---|---|
@@ -92,7 +92,7 @@ surprise failures.
 | `wget-batch.rhai` | wget-style `tries` / `wait` / `accept` / `reject` opts (0.67.0) |
 | `oauth2.rhai` | OAuth 2 Bearer token via `oauth2_bearer` |
 | `range.rhai` | byte-range + max-filesize |
-| `prettify.rhai` | force-format response body via `prettify_as` opt (0.68.7) |
+| `prettify.rhai` | force-format response body via `prettify_as` opt (0.69.0) |
 
 ### Sessions (scriptable `browser()`)
 

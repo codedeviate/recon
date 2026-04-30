@@ -177,7 +177,7 @@ pub fn print() {
         "pbpaste | recon --stdin --prettify-as json",
         "recon --stdin -p --prettify-as json -o pretty.json < raw.json",
     ]);
-    note("--stdin reads the body from stdin and runs the same post-fetch pipeline (prettify, --output-charset, -o, --editor) without making an HTTP request. Pairs with --prettify-as to force the format when the input has no Content-Type to hint from.");
+    note("--stdin reads the body from stdin and runs the same post-fetch pipeline (prettify, --output-charset, -o) without making an HTTP request. Pairs with --prettify-as to force the format when the input has no Content-Type to hint from.");
 
     example("Force prettify format with --prettify-as", &[
         "recon https://example.com/api -p --prettify-as json",

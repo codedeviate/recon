@@ -344,7 +344,7 @@ recon https://example.com/big.iso -o big.iso --continue
 | `-v, --verbose` | Verbose. Repeatable: `-v`, `-vv`, `-vvv`. |
 | `-p, --prettify` | Pretty-print JSON / XML / YAML bodies. |
 | `--prettify-as <FORMAT>` | Force prettify format (json/xml/html/yaml/csv/tsv/auto). Implies `-p`. Use when auto-detect picks the wrong format or there is no Content-Type. |
-| `--stdin` | Read body from stdin instead of making an HTTP request. Runs the post-fetch pipeline (prettify, `--output-charset`, `-o`, `--editor`) over the piped input. Mutually exclusive with a URL. |
+| `--stdin` | Read body from stdin instead of making an HTTP request. Runs the post-fetch pipeline (prettify, `--output-charset`, `-o`) over the piped input. Mutually exclusive with a URL. |
 | `--no-prettify` | Disable auto-pretty (even when content-type suggests it). |
 | `-w, --write-out <FORMAT>` | Print a curl-compatible summary after the body. See [Write-out format](#write-out-format). |
 | `--editor` | Open response body in `$EDITOR` after the request. |

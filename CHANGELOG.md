@@ -13,7 +13,7 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 ### Added
 
 - `--stdin` flag — run the post-fetch pipeline (prettify, `--output-charset`,
-  `-o`, `--editor`) over a body read from stdin, with no HTTP request.
+  `-o`) over a body read from stdin, with no HTTP request.
   Enables `pbpaste | recon --stdin --prettify-as json` for prettifying
   payloads from the clipboard or any pipe. Mutually exclusive with a URL.
 - `--prettify-as <FORMAT>` flag — force the prettify format
