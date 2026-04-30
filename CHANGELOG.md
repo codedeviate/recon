@@ -8,6 +8,29 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.69.0] - 2026-04-30
+
+### Added
+
+- `--stdin` flag — run the post-fetch pipeline (prettify, `--output-charset`,
+  `-o`, `--editor`) over a body read from stdin, with no HTTP request.
+  Enables `pbpaste | recon --stdin --prettify-as json` for prettifying
+  payloads from the clipboard or any pipe. Mutually exclusive with a URL.
+- `--prettify-as <FORMAT>` flag — force the prettify format
+  (`json` | `xml` | `html` | `yaml` | `csv` | `tsv` | `auto`). Implies
+  `-p`. Useful when servers return the wrong `Content-Type` or when
+  body sniffing guesses wrong. When forced, parse errors propagate as
+  exit 1; auto-detect mode keeps the legacy lenient fallback.
+- Script binding parity: `prettify` and `prettify_as` opts-map keys on
+  `http(url, opts)`. Setting `prettify_as` implies `prettify: true`.
+
+### Changed
+
+- `src/output.rs` — extracted the buffered-output pipeline (charset
+  transcode + prettify + write) into `pub fn write_processed_body`,
+  shared between the HTTP response path and the new `--stdin` mode.
+  Pure refactor for the existing HTTP path; no behaviour change there.
+
 ## [0.68.7] - 2026-04-26
 
 ### Added

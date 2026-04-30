@@ -52,6 +52,20 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 63. Offline payload prettify — `--stdin` + `--prettify-as` (0.69.0)
+
+A small but high-leverage feature: prettify a JSON / XML / YAML / CSV / TSV / HTML payload that's already on the local machine — clipboard, file, pipe — without making an HTTP request. Drives the `pbpaste | recon --stdin --prettify-as json` workflow.
+
+**Two flags rather than one with optional value.** The natural-feeling syntax (`recon --prettify json`) was rejected after weighing clap's optional-value parsing against the cost of ambiguity with positional URLs (`recon -p https://example.com` would risk eating the URL as the prettify value). A separate `--prettify-as <FORMAT>` flag is fully backwards-compatible — `-p / --prettify` keeps its existing boolean semantics — and zero-ambiguity by construction. The implicit-prettify shim (`--prettify-as` sets `args.prettify = true` if not already) means users only need one flag in practice.
+
+**Helper extraction in `src/output.rs`.** The existing prettify + output-charset path lived inline inside `write_response_to`. Pulled it into `pub fn write_processed_body(args, raw, content_type, output_charset_label, final_path, sink_writer)` so both the HTTP response path and the `--stdin` mode share one implementation. The helper takes the body as `&[u8]` and a content-type string separately so the caller can synthesise an empty content-type (forcing body sniffing) when running over stdin. Signature uses `&mut dyn Write` rather than a generic `W: Write` because `sink.writer()` returns a borrowed `Box<dyn Write + '_>` that doesn't satisfy a `'static` generic bound.
+
+**Strict vs lenient prettify.** When `--prettify-as` is set, parse errors propagate (`prettify::run(...)?`) so the user sees them — they explicitly picked a format. When format is auto-detected, the legacy lenient `unwrap_or(body_str)` fallback is kept so a server returning `text/plain` for what looks like JSON but isn't doesn't bork an otherwise-fine request.
+
+**`--stdin` joins the early-mode dispatch family.** Lives alongside `--iconv`, `--init`, `--encode`, `--hash`, `--editor-cleanup`, `--sample-list` in `src/main.rs` — all single-purpose flag-triggered modes that exit before HTTP setup. Required adding `"stdin"` to clap's `required_unless_present_any` list so the URL positional becomes optional, mirroring every other no-URL mode.
+
+**Test budget: +9.** New `tests/stdin_prettify_it.rs` covers auto-detect, forced format, implicit-prettify, strict mode, unknown format → exit 2, mutex with URL → exit 2, empty stdin, XML, raw passthrough. 1221 → 1230 passing.
+
 ### 62. Waiting-arc kickoff — recon-own items (0.61.0)
 
 Release 1 of the 6-release arc that implements everything in OUT-OF-SCOPE.md's "Waiting" bucket. User's priority was "recon's own flags first", so this release clears every pre-existing recon wishlist item before the arc moves on to the curl / wget catalogues.
