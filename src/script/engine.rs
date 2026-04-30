@@ -79,6 +79,7 @@ pub fn build_engine(defaults: &ScriptDefaults) -> rhai::Engine {
     super::bindings::archive::register(&mut engine);
     super::bindings::browser::register(&mut engine, defaults.clone());
     super::bindings::checkdigit::register(&mut engine);
+    super::bindings::clipboard::register(&mut engine);
     super::bindings::compare::register(&mut engine);
     super::bindings::compression::register(&mut engine);
     super::bindings::email::register(&mut engine);
