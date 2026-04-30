@@ -2,6 +2,7 @@ mod cert;
 mod cli;
 mod client;
 mod client_cert;
+mod clipboard;
 mod compare;
 mod compression;
 mod decode;
