@@ -153,6 +153,12 @@ surprise failures.
 | `email.rhai` | SPF / DMARC / MTA-STS / TLS-RPT / BIMI aggregate |
 | `netstatus.rhai` | Connectivity probe set |
 
+### Clipboard (0.70.0)
+
+| Script | What it does |
+|---|---|
+| `clipboard.rhai` | read+transform+write to system clipboard via arboard (0.70.0) |
+
 ### Browser automation (external `agent-browser` CLI)
 
 | Script | What it does |

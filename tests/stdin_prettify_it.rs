@@ -122,3 +122,14 @@ fn stdin_passthrough_without_prettify() {
     assert_eq!(code, 0);
     assert!(stdout.contains("raw text"), "stdout was: {stdout}");
 }
+
+#[test]
+fn stdin_auto_detect_when_piped_without_explicit_flag() {
+    // No --stdin flag passed. Stdin is piped (Stdio::piped). Should auto-detect.
+    let (code, stdout, stderr) = run_with_stdin(
+        &["-p"],
+        r#"{"auto":true}"#,
+    );
+    assert_eq!(code, 0, "stderr: {stderr}");
+    assert!(stdout.contains("\"auto\": true"), "stdout was: {stdout}");
+}
