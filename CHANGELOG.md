@@ -8,6 +8,20 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.68.7] - 2026-04-26
+
+### Added
+
+- **Top-level `Makefile`** providing a small task runner over `cargo`. Targets
+  cover the common dev loop (`build`, `release`, `all`, `check`, `test`,
+  `fmt`, `fmt-check`, `clippy`, `lint`, `ci`), running and installing
+  (`run`, `install`, `uninstall`), docs (`doc`, `pdf` — wraps the manual-PDF
+  regeneration command from CLAUDE.md), introspection helpers (`flags`,
+  `examples`, `bump-check`, `size`), and disk reclamation (`clean`,
+  `clean-all`, `distclean`). `make` with no argument prints a colourised
+  help listing. Recipes shell out to `cargo` and the release binary —
+  no new build dependency.
+
 ## [0.68.6] - 2026-04-25
 
 ### Fixed
