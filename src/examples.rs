@@ -172,6 +172,19 @@ pub fn print() {
         "recon https://api.example.com/report.csv -p",
         "recon https://httpbin.org/get -i -p",
     ]);
+    example("Prettify a payload from stdin / clipboard (--stdin)", &[
+        "pbpaste | recon --stdin -p",
+        "pbpaste | recon --stdin --prettify-as json",
+        "recon --stdin -p --prettify-as json -o pretty.json < raw.json",
+    ]);
+    note("--stdin reads the body from stdin and runs the same post-fetch pipeline (prettify, --output-charset, -o, --editor) without making an HTTP request. Pairs with --prettify-as to force the format when the input has no Content-Type to hint from.");
+
+    example("Force prettify format with --prettify-as", &[
+        "recon https://example.com/api -p --prettify-as json",
+        "recon https://example.com/feed -p --prettify-as xml",
+    ]);
+    note("--prettify-as overrides auto-detection. Useful when the server returns the wrong Content-Type (e.g. text/plain for JSON) or when -p's body sniff guesses wrong. Implies -p so you can drop the explicit -p when using it.");
+
     example("Save response body to a file (-o / --output)", &[
         "recon https://example.com/image.png -o image.png",
         "recon https://api.example.com/export.csv -o export.csv -s",
