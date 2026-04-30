@@ -185,6 +185,22 @@ pub fn print() {
     ]);
     note("--prettify-as overrides auto-detection. Useful when the server returns the wrong Content-Type (e.g. text/plain for JSON) or when -p's body sniff guesses wrong. Implies -p so you can drop the explicit -p when using it.");
 
+    example("Clipboard input/output (--clipboard, --from-clipboard, --to-clipboard)", &[
+        "recon --clipboard --prettify-as json",
+        "recon --clipboard both --prettify-as json",
+        "recon --from-clipboard -p",
+        "recon https://api.example.com/data --to-clipboard",
+        "cat data.json | recon --to-clipboard",
+    ]);
+    note("--clipboard alone auto-resolves direction: 'out' when there's already an input source (URL, --stdin, --from-clipboard), 'in' otherwise. The 'both' value is the explicit in-place form. Native cross-platform via the arboard crate — no need to pipe through pbpaste/pbcopy/xclip.");
+
+    example("Auto-detected stdin (drop --stdin when piped)", &[
+        "echo '{\"a\":1}' | recon -p",
+        "cat raw.json | recon --prettify-as json",
+        "curl -s https://api.example.com/data | recon -p --to-clipboard",
+    ]);
+    note("When stdin is piped (not a TTY) and no URL or input flag is given, recon implicitly enters --stdin mode. Interactive invocation (TTY stdin) without a URL still produces a usage error — the auto-detect only fires for actual pipes.");
+
     example("Save response body to a file (-o / --output)", &[
         "recon https://example.com/image.png -o image.png",
         "recon https://api.example.com/export.csv -o export.csv -s",
