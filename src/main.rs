@@ -1117,6 +1117,13 @@ fn main() {
             implicit_tls: args.ftps_implicit,
             insecure: args.insecure,
             timeout_secs: args.timeout,
+            list_only: args.list_only,
+            quote: args.quote.clone(),
+            ftp_skip_pasv_ip: args.ftp_skip_pasv_ip,
+            disable_epsv: args.disable_epsv,
+            disable_eprt: args.disable_eprt,
+            ftp_pasv: args.ftp_pasv,
+            verbose: args.verbose,
         };
         ftp_probe::run(args.target_url(), &fargs, args.output.as_deref())
     } else if args.target_url().starts_with("sftp://") {

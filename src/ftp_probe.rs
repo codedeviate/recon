@@ -17,9 +17,36 @@ use anyhow::{anyhow, bail, Context, Result};
 use std::io::Write;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use suppaftp::{FtpStream, Mode, RustlsConnector, RustlsFtpStream};
+use suppaftp::{FtpStream, Mode, RustlsConnector, RustlsFtpStream, Status};
 
 const DEFAULT_PORT: u16 = 21;
+
+/// All 2xx FTP response codes accepted as success by `-Q / --quote`.
+/// suppaftp's `custom_command` requires an explicit list of expected codes;
+/// we accept every standard 2xx code so ad-hoc commands (PWD, FEAT, NOOP …)
+/// don't need the caller to predict the exact reply code.
+const QUOTE_ACCEPT: &[Status] = &[
+    Status::CommandOk,           // 200
+    Status::CommandNotImplemented, // 202 (NOOP on some servers)
+    Status::System,              // 211
+    Status::Directory,           // 212
+    Status::File,                // 213
+    Status::Help,                // 214
+    Status::Name,                // 215
+    Status::Ready,               // 220
+    Status::Closing,             // 221
+    Status::DataConnectionOpen,  // 225
+    Status::ClosingDataConnection, // 226
+    Status::PassiveMode,         // 227
+    Status::LongPassiveMode,     // 228
+    Status::ExtendedPassiveMode, // 229
+    Status::LoggedIn,            // 230
+    Status::LoggedOut,           // 231
+    Status::LogoutAck,           // 232
+    Status::AuthOk,              // 234
+    Status::RequestedFileActionOk, // 250
+    Status::PathCreated,         // 257
+];
 
 pub enum FtpMode {
     List(Vec<String>),
@@ -44,6 +71,13 @@ pub struct FtpArgs<'a> {
     pub implicit_tls: bool,
     pub insecure: bool,
     pub timeout_secs: u64,
+    pub list_only: bool,
+    pub quote: Vec<String>,
+    pub ftp_skip_pasv_ip: bool,
+    pub disable_epsv: bool,
+    pub disable_eprt: bool,
+    pub ftp_pasv: bool,
+    pub verbose: u8,
 }
 
 pub fn probe(url: &str, fargs: &FtpArgs<'_>) -> Result<FtpProbeOk> {
@@ -79,8 +113,20 @@ pub fn probe(url: &str, fargs: &FtpArgs<'_>) -> Result<FtpProbeOk> {
             .into_secure(connector, &host)
             .map_err(|e| anyhow!("ftps: AUTH TLS upgrade: {e}"))?;
         stream.login(&user, &pass).map_err(map_ftp_err)?;
+        // --ftp-skip-pasv-ip
+        if fargs.ftp_skip_pasv_ip {
+            stream.set_passive_nat_workaround(true);
+        }
+        // --disable-epsv / --disable-eprt / --ftp-pasv (passive-mode confirmation)
+        if (fargs.disable_epsv || fargs.disable_eprt || fargs.ftp_pasv) && fargs.verbose >= 1 {
+            eprintln!("* FTP: passive mode (suppaftp 6 default; --ftp-pasv / --disable-eprt confirmed)");
+        }
+        // -Q / --quote
+        for cmd in &fargs.quote {
+            stream.custom_command(cmd, &QUOTE_ACCEPT).with_context(|| format!("FTP --quote: {cmd} failed"))?;
+        }
         let pwd = stream.pwd().ok();
-        let mode = do_path_op_tls(&mut stream, &path)?;
+        let mode = do_path_op_tls(&mut stream, &path, fargs.list_only)?;
         let _ = stream.quit();
         Ok(FtpProbeOk {
             host, port, tls: true, user, connect_ms, welcome, pwd, mode,
@@ -91,8 +137,20 @@ pub fn probe(url: &str, fargs: &FtpArgs<'_>) -> Result<FtpProbeOk> {
         plain.set_mode(if fargs.passive { Mode::Passive } else { Mode::Active });
         let welcome = plain.get_welcome_msg().map(|s| s.to_string());
         plain.login(&user, &pass).map_err(map_ftp_err)?;
+        // --ftp-skip-pasv-ip
+        if fargs.ftp_skip_pasv_ip {
+            plain.set_passive_nat_workaround(true);
+        }
+        // --disable-epsv / --disable-eprt / --ftp-pasv (passive-mode confirmation)
+        if (fargs.disable_epsv || fargs.disable_eprt || fargs.ftp_pasv) && fargs.verbose >= 1 {
+            eprintln!("* FTP: passive mode (suppaftp 6 default; --ftp-pasv / --disable-eprt confirmed)");
+        }
+        // -Q / --quote
+        for cmd in &fargs.quote {
+            plain.custom_command(cmd, &QUOTE_ACCEPT).with_context(|| format!("FTP --quote: {cmd} failed"))?;
+        }
         let pwd = plain.pwd().ok();
-        let mode = do_path_op_plain(&mut plain, &path)?;
+        let mode = do_path_op_plain(&mut plain, &path, fargs.list_only)?;
         let _ = plain.quit();
         Ok(FtpProbeOk {
             host, port, tls: false, user, connect_ms, welcome, pwd, mode,
@@ -100,26 +158,36 @@ pub fn probe(url: &str, fargs: &FtpArgs<'_>) -> Result<FtpProbeOk> {
     }
 }
 
-fn do_path_op_plain(stream: &mut FtpStream, path: &str) -> Result<FtpMode> {
+fn do_path_op_plain(stream: &mut FtpStream, path: &str, list_only: bool) -> Result<FtpMode> {
     if path.is_empty() || path.ends_with('/') {
         let dir = path.trim_end_matches('/');
         if !dir.is_empty() {
             stream.cwd(dir).map_err(map_ftp_err)?;
         }
-        Ok(FtpMode::List(stream.list(None).map_err(map_ftp_err)?))
+        let entries = if list_only {
+            stream.nlst(None).map_err(map_ftp_err)?
+        } else {
+            stream.list(None).map_err(map_ftp_err)?
+        };
+        Ok(FtpMode::List(entries))
     } else {
         let buf = stream.retr_as_buffer(path).map_err(map_ftp_err)?;
         Ok(FtpMode::Retrieve(buf.into_inner()))
     }
 }
 
-fn do_path_op_tls(stream: &mut RustlsFtpStream, path: &str) -> Result<FtpMode> {
+fn do_path_op_tls(stream: &mut RustlsFtpStream, path: &str, list_only: bool) -> Result<FtpMode> {
     if path.is_empty() || path.ends_with('/') {
         let dir = path.trim_end_matches('/');
         if !dir.is_empty() {
             stream.cwd(dir).map_err(map_ftp_err)?;
         }
-        Ok(FtpMode::List(stream.list(None).map_err(map_ftp_err)?))
+        let entries = if list_only {
+            stream.nlst(None).map_err(map_ftp_err)?
+        } else {
+            stream.list(None).map_err(map_ftp_err)?
+        };
+        Ok(FtpMode::List(entries))
     } else {
         let buf = stream.retr_as_buffer(path).map_err(map_ftp_err)?;
         Ok(FtpMode::Retrieve(buf.into_inner()))
