@@ -8,6 +8,31 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.72.0] - 2026-05-01
+
+### Added
+
+- `--crlfile <PATH>` — load PEM-encoded X.509 CRLs and pass to
+  reqwest's `add_crls`. Server certs found in any loaded CRL are
+  rejected during the TLS handshake. Multi-CRL bundles supported.
+- `--proxy-capath <DIR>` — directory walker that adds `.pem`/`.crt`/
+  `.cer` files as root certificates for proxy TLS verification.
+  Mirrors `--capath`.
+- `--proxy-ca-native` — disables built-in webpki roots so only the
+  OS native roots are trusted. Same global toggle as `--ca-native`;
+  the separate flag exists for curl-parity.
+
+### Changed
+
+- `OUT-OF-SCOPE.md`: removed shipped items from "Per-flag plumb-through
+  (0.66.0 stubs → real)". Sharpened deferral notes on `--pinnedpubkey`
+  and `--curves` (require migrating 8 existing TLS flags onto a custom
+  `rustls::ClientConfig` via `use_preconfigured_tls` — out of scope for
+  a single-flag plumb-through release; tracked as its own future
+  effort). `--ciphers`, `--tls13-ciphers`, and proxy-side cipher /
+  pinning / CRL flags remain blocked on rustls 0.23 / reqwest 0.12
+  not exposing the necessary primitives.
+
 ## [0.71.0] - 2026-05-01
 
 ### Added

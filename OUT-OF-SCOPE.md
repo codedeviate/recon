@@ -110,22 +110,45 @@ blocked by upstream crate API gaps:
 ### Per-flag plumb-through (0.66.0 stubs → real)
 
 The proxy + TLS-tuning flags shipped at CLI but most need a custom
-rustls `ServerCertVerifier` or cipher-list parser:
+rustls `ServerCertVerifier` or cipher-list parser. `--crlfile`,
+`--proxy-capath`, and `--proxy-ca-native` shipped in 0.72.0.
+Remaining:
 
 - **Proxy**: `--preproxy`, `--proxy-header`, `--proxy-http2`,
-  `--proxytunnel`, `--proxy-capath`, `--proxy-ca-native`,
-  `--proxy-crlfile`, `--proxy-ciphers`, `--proxy-tls13-ciphers`,
-  `--proxy-pinnedpubkey`. Most blocked on reqwest 0.12 not exposing
-  proxy-side TLS knobs.
-- **TLS tuning**: `--ciphers`, `--tls13-ciphers`, `--curves`,
-  `--crlfile`, `--pinnedpubkey`. Needs a custom rustls
-  `ServerCertVerifier` for `--pinnedpubkey` + `--crlfile`; cipher
-  selection is technically possible but rustls 0.23 doesn't expose
-  a clean cipher-list API.
+  `--proxytunnel` — blocked on reqwest 0.12 not exposing chained-proxy /
+  CONNECT-header / proxy HTTP/2-force / force-tunnel API.
+- **Proxy TLS**: `--proxy-crlfile`, `--proxy-pinnedpubkey` — require
+  the same `use_preconfigured_tls` migration as the non-proxy versions,
+  plus per-proxy TLS not yet exposed by reqwest 0.12.
+- **Proxy ciphers**: `--proxy-ciphers`, `--proxy-tls13-ciphers` —
+  rustls 0.23 has no public cipher-list API; upstream-blocked.
+- **TLS tuning**: `--ciphers`, `--tls13-ciphers` — rustls 0.23 has no
+  public cipher-list API; upstream-blocked.
+- **TLS tuning (preconfigured path)**: `--pinnedpubkey`, `--curves` —
+  require migrating recon's HTTP TLS path to a custom
+  `build_rustls_client_config()` helper via `use_preconfigured_tls`.
+  See Deferred section for details.
 
 ---
 
 ## Deferred — put off, path is known
+
+### `--pinnedpubkey` and `--curves` (require use_preconfigured_tls migration)
+
+- **`--pinnedpubkey` and `--curves`** — both require migrating recon's
+  HTTP TLS plumbing from reqwest's high-level setters (`add_root_certificate`,
+  `tls_built_in_root_certs`, `min_tls_version`, `max_tls_version`,
+  `danger_accept_invalid_certs`, `identity`) onto a custom
+  `rustls::ClientConfig` passed via `use_preconfigured_tls`. The migration
+  is tractable (~80–120 LOC for a `build_rustls_client_config(args)`
+  helper) but is its own focused effort separate from a single-flag
+  plumb-through. When the migration happens, both flags ship together —
+  `--pinnedpubkey` via a custom `ServerCertVerifier` that delegates to
+  `WebPkiServerVerifier` and then checks SHA-256 of `ParsedCertificate::
+  subject_public_key_info()`; `--curves` by overriding `kx_groups` on a
+  cloned `CryptoProvider`. Note: P-521 (`secp521r1`) is unavailable under
+  the ring backend; the implementation must error gracefully on that
+  curve name when `rustls` features include only `ring`.
 
 ### SMTP envelope parameters
 

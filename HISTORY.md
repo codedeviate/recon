@@ -52,6 +52,20 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 66. TLS hardening — CRL + proxy-CA plumb-through (0.72.0)
+
+After 0.66.0 shipped a wave of TLS / proxy CLI stubs, the original 0.72.0 plan was to ship five TLS-tuning flags: `--crlfile`, `--pinnedpubkey`, `--curves`, `--proxy-capath`, `--proxy-ca-native`. A Phase-1 rustls-API audit during this release narrowed the ship list to three.
+
+**`--crlfile` shipped clean.** reqwest 0.12.28 has first-class CRL support: `ClientBuilder::add_crls(impl IntoIterator<Item = CertificateRevocationList>)` calls `WebPkiServerVerifier::builder_with_provider(...).with_crls(...).build()` internally. `reqwest::tls::CertificateRevocationList::from_pem_bundle(&[u8])` parses multi-CRL PEM blobs. Total integration: ~10 lines mirroring the existing `--cacert` block.
+
+**`--proxy-capath` and `--proxy-ca-native` shipped clean.** reqwest doesn't expose per-proxy TLS roots — the global `ClientBuilder` TLS config covers both server and proxy connections. These flags exist for curl-parity and augment the same global config. Implementation mirrors the existing `--capath` directory walker.
+
+**`--pinnedpubkey` and `--curves` punted.** Both require `use_preconfigured_tls`, which type-erases the entire rustls config and bypasses ALL of reqwest's high-level TLS setters. Switching the HTTP path to it means migrating 8 existing flags (`-k`, `--cacert`, `--capath`, `--ca-native`, `--tlsv1.2`, `--tls-max`, `--cert`/`--key`) onto a custom `build_rustls_client_config(args) -> rustls::ClientConfig` helper. That migration is tractable but is its own focused effort, not a single-flag plumb-through. Marked in OOS as "ship together when the migration happens" with a sharper note.
+
+**Audit-found nuance: `SECP521R1` not in ring.** When `--curves` does ship, P-521 will need a graceful per-curve error under the ring backend. ring stops at P-384; aws-lc-rs adds P-521. Recon currently builds with ring (Cargo.toml feature flag).
+
+**Test budget: +0.** No new tests this release — all three flags are integration surfaces best validated by smoke testing against real CRLs and proxies. 1242 passing maintained.
+
 ### 65. 0.65.0 stubs become real — per-protocol plumb-through (0.71.0)
 
 After 0.65.0 shipped a wave of curl-parity FTP / SMTP / IMAP / POP3 / Telnet flags as CLI stubs (clap accepted them but they had no effect on the underlying protocol probes), this release does the actual plumb-through — for the items where the underlying crate (suppaftp 6, lettre 0.11, imap 3-alpha, ssh2 0.9) actually exposes the necessary primitive.

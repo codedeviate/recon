@@ -254,6 +254,18 @@ pub fn print() {
         "recon --cacert /etc/ssl/internal-ca.pem https://internal.corp",
     ]);
 
+    example("Reject revoked certs via CRL (--crlfile)", &[
+        "recon https://example.com --crlfile /etc/pki/tls/crls/all.pem",
+        "recon https://api.example.com --crlfile /tmp/issuer.crl.pem -v",
+    ]);
+    note("--crlfile loads PEM-encoded CRLs (multi-CRL bundles supported). Server certs found in any loaded CRL are rejected by the TLS handshake. Convert DER CRLs to PEM via 'openssl crl -inform DER -in <path> -outform PEM'.");
+
+    example("Proxy CA configuration (--proxy-capath, --proxy-ca-native)", &[
+        "recon https://example.com --proxy http://corp-proxy:3128 --proxy-capath /etc/pki/proxy/",
+        "recon https://example.com --proxy https://proxy:8443 --proxy-ca-native",
+    ]);
+    note("reqwest 0.12 doesn't expose per-proxy TLS roots — the global ClientBuilder TLS config covers both server and proxy connections. These flags exist for curl-parity and augment the global config.");
+
     example("Bind outgoing socket to a specific local IP", &[
         "recon --interface 10.0.0.5 https://example.com",
         "recon --interface ::1 https://[::1]:8080/",

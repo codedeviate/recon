@@ -2,7 +2,7 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.71.0</div>
+<div class="version">Version 0.72.0</div>
 <div class="date">2026-05-01</div>
 <div class="meta">
 Repository · https://github.com/thomas-starweb/recon<br>
@@ -407,6 +407,9 @@ recon https://api.example.com/ -w '\n%{http_code} in %{time_total}s (%{size_down
 | `-k, --insecure` | Skip TLS cert verification. |
 | `--tlsv1.2` / `--tlsv1.3` | Force minimum TLS version. |
 | `--cacert <PATH>` | Trust an extra PEM root (on top of system roots). |
+| `--capath <DIR>` | Directory of `.pem`/`.crt`/`.cer` root certificates; each file is added as a trust root. |
+| `--ca-native` | Disable built-in webpki roots; use the OS native trust store only. |
+| `--crlfile <PATH>` | PEM file of X.509 CRLs. Server certs in any loaded CRL are rejected at handshake. Multi-CRL bundles supported. |
 | `--interface <IP\|NAME>` | Bind outgoing socket to a specific local IP **or** interface name (eth0, en0 on Linux/macOS via getifaddrs; Windows accepts IP literals only). |
 | `--limit-rate <RATE>` | Throttle download. Suffixes: K, M, G. |
 | `--speed-limit <BYTES>` | Minimum bytes-per-second (fails if rate drops). |
@@ -419,6 +422,9 @@ recon -u alice:s3cr3t https://private.example.com/
 recon -k https://self-signed.example.com/
 recon --tlsv1.3 https://example.com/                # refuse downgrade to 1.2
 recon --cacert /etc/corp-root.pem https://internal.corp/
+recon --capath /etc/pki/ca-trust/source/ https://internal.corp/
+recon --ca-native https://example.com/              # OS trust store only
+recon --crlfile /etc/pki/tls/crls/all.pem https://example.com/  # reject revoked certs
 recon --interface 10.0.0.5 https://example.com/     # use a specific source IP
 ```
 
@@ -463,6 +469,8 @@ See also: `recon --help client-cert`.
 | `--noproxy <LIST>` | Comma-separated bypass list (matches `$NO_PROXY` semantics; `*` means bypass all). |
 | `--proxy-insecure` | Skip cert verification on the TLS-to-proxy connection. |
 | `--proxy-cacert <PATH>` | Extra CA for the proxy connection. |
+| `--proxy-capath <DIR>` | Directory of `.pem`/`.crt`/`.cer` CAs for proxy TLS. Mirrors `--capath`. |
+| `--proxy-ca-native` | Disable webpki roots for proxy TLS; use OS native roots. Mirrors `--ca-native`. |
 
 ### Examples
 
@@ -471,6 +479,10 @@ recon -x http://proxy.corp:3128 https://api.example.com/
 recon -x socks5h://127.0.0.1:9050 https://example.onion/
 recon -x https://proxy.example.com:8443 -U alice:s3cr3t https://example.com/
 HTTPS_PROXY=http://proxy.corp:3128 NO_PROXY='.internal' recon https://api.example.com/
+
+# Proxy CA configuration (0.72.0)
+recon --proxy http://corp-proxy:3128 --proxy-capath /etc/pki/proxy/ https://example.com/
+recon --proxy https://proxy:8443 --proxy-ca-native https://example.com/
 
 # Script equivalent
 recon --script - <<'EOF'
