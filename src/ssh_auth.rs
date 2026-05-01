@@ -5,6 +5,14 @@ use ssh2::{CheckResult, KnownHostFileKind, Session};
 
 use crate::cli::Args;
 
+/// Resolve which pubkey path to use: prefer --ssh-pubkey, fall back to --pubkey.
+pub(crate) fn resolve_pubkey<'a>(
+    ssh_pubkey: &'a Option<std::path::PathBuf>,
+    pubkey: &'a Option<std::path::PathBuf>,
+) -> Option<&'a std::path::PathBuf> {
+    ssh_pubkey.as_ref().or(pubkey.as_ref())
+}
+
 /// Returns (ssh_user, optional_password).
 /// Priority for user:  user_from_url > -u flag > $USER / $LOGNAME
 /// Priority for pass:  --ssh-pass   > -u :pass suffix
@@ -146,10 +154,10 @@ pub fn authenticate(
 
     // 2. Explicit key from --ssh-key
     if let Some(key_path) = &args.ssh_key {
-        let pubkey = args.ssh_pubkey.as_deref();
+        let resolved_pubkey = resolve_pubkey(&args.ssh_pubkey, &args.pubkey);
         let passphrase = args.ssh_pass.as_deref();
         if sess
-            .userauth_pubkey_file(user, pubkey, key_path, passphrase)
+            .userauth_pubkey_file(user, resolved_pubkey.map(|p| p.as_path()), key_path, passphrase)
             .is_ok()
             && sess.authenticated()
         {
@@ -218,6 +226,33 @@ pub fn home_dir() -> PathBuf {
     std::env::var("HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from("/tmp"))
+}
+
+#[cfg(test)]
+mod pubkey_alias_tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn ssh_pubkey_takes_precedence_over_pubkey() {
+        let ssh = Some(PathBuf::from("/tmp/ssh.pub"));
+        let pk = Some(PathBuf::from("/tmp/p.pub"));
+        assert_eq!(resolve_pubkey(&ssh, &pk), Some(PathBuf::from("/tmp/ssh.pub")).as_ref());
+    }
+
+    #[test]
+    fn pubkey_used_when_ssh_pubkey_is_none() {
+        let ssh: Option<PathBuf> = None;
+        let pk = Some(PathBuf::from("/tmp/p.pub"));
+        assert_eq!(resolve_pubkey(&ssh, &pk), Some(PathBuf::from("/tmp/p.pub")).as_ref());
+    }
+
+    #[test]
+    fn neither_returns_none() {
+        let ssh: Option<PathBuf> = None;
+        let pk: Option<PathBuf> = None;
+        assert!(resolve_pubkey(&ssh, &pk).is_none());
+    }
 }
 
 #[cfg(test)]

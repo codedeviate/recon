@@ -8,6 +8,15 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.71.0] - 2026-04-30
+
+### Fixed
+
+- `--pubkey` was declared in CLI since 0.65.0 but never consumed. It now
+  falls back as an alias for `--ssh-pubkey` when providing an explicit
+  public key file to SSH pubkey authentication. `--ssh-pubkey` takes
+  precedence when both flags are set.
+
 ## [0.70.0] - 2026-04-30
 
 ### Added
