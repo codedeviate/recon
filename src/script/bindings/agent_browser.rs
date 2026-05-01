@@ -287,6 +287,199 @@ fn run_json(args: &[&str]) -> Result<Dynamic, Box<EvalAltResult>> {
     Ok(json_to_dynamic(parsed))
 }
 
+// ── Option translation ───────────────────────────────────────────────────────
+
+/// Bool flags: emit `--<flag>` when value is true, omit otherwise.
+const BOOL_OPTS: &[&str] = &[
+    "ignore_https_errors",
+    "allow_file_access",
+    "headed",
+    "auto_connect",
+    "annotate",
+    "no_auto_dialog",
+    "content_boundaries",
+    "confirm_interactive",
+    "verbose",
+    "quiet",
+    "debug",
+    "json",
+];
+
+/// String flags: emit `--<flag> <value>`.
+const STRING_OPTS: &[&str] = &[
+    "session",
+    "session_name",
+    "executable_path",
+    "user_agent",
+    "proxy",
+    "proxy_bypass",
+    "state",
+    "profile",
+    "provider",
+    "device",
+    "color_scheme",
+    "engine",
+    "model",
+    "config",
+    "screenshot_dir",
+    "screenshot_format",
+    "download_path",
+    "allowed_domains",
+    "action_policy",
+    "confirm_actions",
+];
+
+/// Int flags: emit `--<flag> <int>`.
+const INT_OPTS: &[&str] = &["cdp", "screenshot_quality", "max_output"];
+
+/// Repeatable flags: accept str or array-of-str. Emit `--<flag> <v>` per
+/// entry. `browser_args` is the Rhai-side rename of agent-browser's
+/// `--args` (the literal name `args` is too generic).
+const REPEATABLE_OPTS: &[(&str, &str)] = &[
+    ("extension", "extension"),
+    ("browser_args", "args"),
+];
+
+/// Translate snake_case to kebab-case for emitting CLI flag names.
+fn key_to_flag(key: &str) -> String {
+    format!("--{}", key.replace('_', "-"))
+}
+
+/// Translate a Rhai opts map into an agent-browser argv prefix.
+/// Returns Err with a helpful message on unknown keys, type mismatches,
+/// or `headers` JSON-serialization failure.
+pub(crate) fn opts_to_argv(opts: &rhai::Map) -> Result<Vec<String>, Box<EvalAltResult>> {
+    let mut argv: Vec<String> = Vec::new();
+
+    for (k, v) in opts.iter() {
+        let key = k.as_str();
+
+        if BOOL_OPTS.contains(&key) {
+            let b = v.as_bool().map_err(|got| {
+                err(format!(
+                    "agentBrowser: option '{key}' expects bool, got {got}"
+                ))
+            })?;
+            if b {
+                argv.push(key_to_flag(key));
+            }
+            continue;
+        }
+        if STRING_OPTS.contains(&key) {
+            let s = v.clone().into_string().map_err(|got| {
+                err(format!(
+                    "agentBrowser: option '{key}' expects string, got {got}"
+                ))
+            })?;
+            argv.push(key_to_flag(key));
+            argv.push(s);
+            continue;
+        }
+        if INT_OPTS.contains(&key) {
+            let n = v.as_int().map_err(|got| {
+                err(format!(
+                    "agentBrowser: option '{key}' expects int, got {got}"
+                ))
+            })?;
+            argv.push(key_to_flag(key));
+            argv.push(n.to_string());
+            continue;
+        }
+        if let Some((_, cli_name)) = REPEATABLE_OPTS.iter().find(|(rhai, _)| *rhai == key) {
+            let entries = repeatable_to_strings(key, v.clone())?;
+            for entry in entries {
+                argv.push(format!("--{cli_name}"));
+                argv.push(entry);
+            }
+            continue;
+        }
+        if key == "headers" {
+            argv.push("--headers".to_string());
+            argv.push(headers_to_json(v.clone())?);
+            continue;
+        }
+
+        return Err(err(format!(
+            "agentBrowser: unknown option '{key}' (valid: {})",
+            valid_keys_csv()
+        )));
+    }
+    Ok(argv)
+}
+
+fn repeatable_to_strings(
+    key: &str,
+    v: rhai::Dynamic,
+) -> Result<Vec<String>, Box<EvalAltResult>> {
+    if let Ok(s) = v.clone().into_string() {
+        return Ok(vec![s]);
+    }
+    if let Some(arr) = v.try_cast::<rhai::Array>() {
+        let mut out = Vec::with_capacity(arr.len());
+        for (i, item) in arr.into_iter().enumerate() {
+            let s = item.into_string().map_err(|got| {
+                err(format!(
+                    "agentBrowser: option '{key}'[{i}] expects string, got {got}"
+                ))
+            })?;
+            out.push(s);
+        }
+        return Ok(out);
+    }
+    Err(err(format!(
+        "agentBrowser: option '{key}' expects string or array of strings"
+    )))
+}
+
+fn headers_to_json(v: rhai::Dynamic) -> Result<String, Box<EvalAltResult>> {
+    if let Ok(s) = v.clone().into_string() {
+        return Ok(s);
+    }
+    if let Some(map) = v.try_cast::<rhai::Map>() {
+        let mut json_map = serde_json::Map::new();
+        for (k, vv) in map {
+            let key = k.to_string();
+            let value = rhai_to_json(vv)?;
+            json_map.insert(key, value);
+        }
+        return serde_json::to_string(&json_map)
+            .map_err(|e| err(format!("agentBrowser: headers JSON: {e}")));
+    }
+    Err(err(
+        "agentBrowser: option 'headers' expects string or map".to_string(),
+    ))
+}
+
+fn rhai_to_json(v: rhai::Dynamic) -> Result<serde_json::Value, Box<EvalAltResult>> {
+    if v.is_unit() {
+        return Ok(serde_json::Value::Null);
+    }
+    if let Ok(b) = v.as_bool() {
+        return Ok(serde_json::Value::Bool(b));
+    }
+    if let Ok(n) = v.as_int() {
+        return Ok(serde_json::Value::Number(n.into()));
+    }
+    if let Ok(s) = v.clone().into_string() {
+        return Ok(serde_json::Value::String(s));
+    }
+    Err(err(format!(
+        "agentBrowser: headers value of unsupported type: {}",
+        v.type_name()
+    )))
+}
+
+fn valid_keys_csv() -> String {
+    let mut keys: Vec<&str> = Vec::new();
+    keys.extend(BOOL_OPTS);
+    keys.extend(STRING_OPTS);
+    keys.extend(INT_OPTS);
+    keys.extend(REPEATABLE_OPTS.iter().map(|(rhai, _)| *rhai));
+    keys.push("headers");
+    keys.sort();
+    keys.join(", ")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -347,4 +540,122 @@ return 0;
 
     #[allow(dead_code)]
     fn unused_defaults_ref(_d: &ScriptDefaults) {}
+
+    // ── opts_to_argv tests ───────────────────────────────────────────────
+
+    #[test]
+    fn opts_to_argv_bool_true_emits_flag() {
+        let mut m = rhai::Map::new();
+        m.insert("ignore_https_errors".into(), true.into());
+        assert_eq!(
+            opts_to_argv(&m).unwrap(),
+            vec!["--ignore-https-errors".to_string()]
+        );
+    }
+
+    #[test]
+    fn opts_to_argv_bool_false_omits_flag() {
+        let mut m = rhai::Map::new();
+        m.insert("ignore_https_errors".into(), false.into());
+        assert!(opts_to_argv(&m).unwrap().is_empty());
+    }
+
+    #[test]
+    fn opts_to_argv_string_flag() {
+        let mut m = rhai::Map::new();
+        m.insert("user_agent".into(), "Recon/0.75".into());
+        assert_eq!(
+            opts_to_argv(&m).unwrap(),
+            vec!["--user-agent".to_string(), "Recon/0.75".to_string()]
+        );
+    }
+
+    #[test]
+    fn opts_to_argv_int_flag() {
+        let mut m = rhai::Map::new();
+        m.insert("cdp".into(), (9222_i64).into());
+        assert_eq!(
+            opts_to_argv(&m).unwrap(),
+            vec!["--cdp".to_string(), "9222".to_string()]
+        );
+    }
+
+    #[test]
+    fn opts_to_argv_repeatable_string_single() {
+        let mut m = rhai::Map::new();
+        m.insert("extension".into(), "/path/to/ext".into());
+        assert_eq!(
+            opts_to_argv(&m).unwrap(),
+            vec!["--extension".to_string(), "/path/to/ext".to_string()]
+        );
+    }
+
+    #[test]
+    fn opts_to_argv_repeatable_array() {
+        let mut m = rhai::Map::new();
+        let arr: rhai::Array = vec!["a".into(), "b".into()];
+        m.insert("extension".into(), arr.into());
+        assert_eq!(
+            opts_to_argv(&m).unwrap(),
+            vec![
+                "--extension".to_string(),
+                "a".to_string(),
+                "--extension".to_string(),
+                "b".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn opts_to_argv_browser_args_renames_to_args() {
+        let mut m = rhai::Map::new();
+        m.insert("browser_args".into(), "--no-sandbox".into());
+        assert_eq!(
+            opts_to_argv(&m).unwrap(),
+            vec!["--args".to_string(), "--no-sandbox".to_string()]
+        );
+    }
+
+    #[test]
+    fn opts_to_argv_headers_string_passthrough() {
+        let mut m = rhai::Map::new();
+        m.insert("headers".into(), r#"{"X-Foo":"bar"}"#.into());
+        assert_eq!(
+            opts_to_argv(&m).unwrap(),
+            vec![
+                "--headers".to_string(),
+                r#"{"X-Foo":"bar"}"#.to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn opts_to_argv_headers_map_serialized() {
+        let mut hdrs = rhai::Map::new();
+        hdrs.insert("X-Foo".into(), "bar".into());
+        let mut m = rhai::Map::new();
+        m.insert("headers".into(), hdrs.into());
+        let argv = opts_to_argv(&m).unwrap();
+        assert_eq!(argv[0], "--headers");
+        let parsed: serde_json::Value = serde_json::from_str(&argv[1]).unwrap();
+        assert_eq!(parsed["X-Foo"], "bar");
+    }
+
+    #[test]
+    fn opts_to_argv_unknown_key_errors_with_listing() {
+        let mut m = rhai::Map::new();
+        m.insert("does_not_exist".into(), true.into());
+        let e = opts_to_argv(&m).unwrap_err().to_string();
+        assert!(e.contains("does_not_exist"));
+        assert!(e.contains("ignore_https_errors")); // listed
+    }
+
+    #[test]
+    fn opts_to_argv_type_mismatch_errors() {
+        let mut m = rhai::Map::new();
+        m.insert("ignore_https_errors".into(), "true".into()); // wrong: string
+        let e = opts_to_argv(&m).unwrap_err().to_string();
+        assert!(e.contains("ignore_https_errors"));
+        assert!(e.contains("bool"));
+    }
 }
