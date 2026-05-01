@@ -1060,9 +1060,23 @@ recon --rekey \
         "recon scp://me@example.com/motd --compressed-ssh -o motd",
     ]);
 
-    example("FTP list-only + quote commands", &[
-        "recon -l ftp://ftp.example.com/pub/             # NLST (names only)",
-        "recon -Q 'SITE CHMOD 644 foo' ftp://ftp.example.com/pub/foo",
+    example("FTP filenames-only listing (--list-only)", &[
+        "recon ftp://test.rebex.net/ --list-only",
+        "recon ftp://example.com/dir/ --list-only -i",
+    ]);
+
+    example("FTP custom commands before listing (-Q / --quote)", &[
+        "recon ftp://test.rebex.net/ -Q PWD -Q NOOP -v",
+        "recon ftp://test.rebex.net/ --quote 'SITE HELP' --list-only",
+    ]);
+    note("--quote runs each command via suppaftp's custom_command before the listing step. FEAT can fail (multi-line 211 response not parsed by suppaftp); use single-line FTP verbs.");
+
+    example("FTP passive-mode override for NAT'd servers (--ftp-skip-pasv-ip)", &[
+        "recon ftp://nat-server.example.com/ --ftp-skip-pasv-ip",
+    ]);
+
+    example("SSH pubkey-only auth (--pubkey alias)", &[
+        "recon ssh://example.com --pubkey ~/.ssh/id_ed25519.pub",
     ]);
 
     example("SMTP AUTH + IMAP login options", &[
@@ -1070,7 +1084,7 @@ recon --rekey \
         "recon imaps://mail.example.com --login-options 'AUTH=PLAIN' --sasl-authzid admin",
     ]);
 
-    note("SSH pinning + --compressed-ssh are fully wired to ssh2. The FTP / SMTP / IMAP / POP3 / Telnet flags in this release are accepted at the CLI but plumb-through to the underlying protocol modules is a follow-up. Scripts using these flags today get forward-compatible behaviour — when the plumbing lands they'll start taking effect without invocation changes.");
+    note("SSH pinning + --compressed-ssh are fully wired to ssh2. FTP --list-only, --quote, and --ftp-skip-pasv-ip are wired in 0.71.0 (suppaftp). SMTP --mail-auth is accepted but emits a warning — lettre 0.11's high-level send API does not expose envelope parameters. IMAP / POP3 / Telnet plumb-through remains deferred.");
 
     section("RETRY + PROTO FILTER + BATCH (0.64.0)");
 

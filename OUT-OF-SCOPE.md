@@ -81,26 +81,31 @@ remains in this bucket — short forms (`-A`, `-R`, `-w`, `-t`) are
 intentionally not provided because recon reserves single-letter flags
 for curl compatibility.
 
-### Per-protocol plumb-through (0.65.0 stubs → real)
+### Per-protocol plumb-through (remaining stubs → real)
 
-0.65.0 shipped the FTP / SMTP / IMAP / POP3 / Telnet flag surface but
-without plumb-through to the underlying protocol modules. Flags
-exist at CLI; behaviour kicks in when each module gets a targeted
-patch:
+0.71.0 shipped the bulk of the 0.65.0 FTP/SSH stubs. What remains is
+blocked by upstream crate API gaps:
 
-- **FTP**: `--disable-epsv`, `--disable-eprt`, `--ftp-pasv`,
-  `--ftp-method`, `--ftp-create-dirs`, `--list-only`,
-  `-Q --quote`, `--ftp-skip-pasv-ip`, `--tftp-no-options` —
-  patches into `src/ftp_probe.rs` (suppaftp).
-- **SMTP**: `--mail-auth`, `--mail-rcpt-allowfails`, `--sasl-ir` —
-  `src/smtp_probe.rs` (lettre).
-- **IMAP / POP3**: `--login-options`, `--sasl-authzid` — `imap` /
-  `pop3` crate work.
-- **Telnet**: `--telnet-option` — `src/telnet.rs` minor wiring.
-- **SSH**: `--pubkey` paired with `--privkey`. ssh2 already accepts
-  pubkey paths; just needs to be threaded through.
+- **FTP**: `--ftp-method` — suppaftp has no CWD-strategy selector;
+  no API surface to choose between CWD+RETR vs path-in-RETR.
+- **FTP**: `--ftp-account` — suppaftp has no ACCT command support.
+- **FTP**: `--ftp-create-dirs` — needs an upload path (STOR/APPE)
+  that doesn't exist yet; blocked by the same gap as `--append`.
+- **SMTP**: `--mail-rcpt-allowfails` — lettre's send loop
+  short-circuits on RCPT failure; no partial-success API.
+- **SMTP**: `--sasl-ir` — lettre bakes SASL IR per-mechanism
+  unconditionally (PLAIN/XOAUTH2 always on, LOGIN always off);
+  no toggle to expose.
+- **IMAP / POP3**: `--login-options` — imap 3-alpha crate has no
+  parameter-passing surface on LOGIN/AUTHENTICATE.
+- **IMAP / POP3**: `--sasl-authzid` — neither the imap crate nor
+  recon's hand-rolled POP3 probe expose an authzid parameter.
+- **Telnet**: `--telnet-option` — `src/telnet.rs` is a TCP banner
+  reader with no IAC negotiation; wiring this flag requires building
+  telnet IAC infrastructure from scratch (genuine feature work, not
+  stub-plumbing).
 - **Upload**: `-a / --append` for FTP / SFTP — needs FTP STOR/APPE
-  swap + sftp open-flags.
+  swap + sftp open-flags; no upload path exists yet.
 
 ### Per-flag plumb-through (0.66.0 stubs → real)
 
@@ -121,6 +126,15 @@ rustls `ServerCertVerifier` or cipher-list parser:
 ---
 
 ## Deferred — put off, path is known
+
+### SMTP envelope parameters
+
+- **`--mail-auth`** — lettre 0.11's `SmtpTransport::send(message)` builds
+  the `MailParameter` vec internally; there is no external API to inject
+  `MailParameter::Other { keyword: "AUTH", value: addr }`. Forking
+  lettre's send path is out of scope. Revisit if lettre 0.12 exposes an
+  envelope-parameter knob, or if recon switches to a lower-level SMTP
+  client. Currently accepted at CLI but emits a runtime warning.
 
 ### Check digits
 

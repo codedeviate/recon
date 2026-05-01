@@ -8,14 +8,40 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
-## [0.71.0] - 2026-04-30
+## [0.71.0] - 2026-05-01
 
-### Fixed
+### Added
 
-- `--pubkey` was declared in CLI since 0.65.0 but never consumed. It now
-  falls back as an alias for `--ssh-pubkey` when providing an explicit
-  public key file to SSH pubkey authentication. `--ssh-pubkey` takes
-  precedence when both flags are set.
+- FTP: `--list-only` swaps `LIST` → `NLST` for filenames-only listing.
+- FTP: `-Q / --quote <CMD>` runs an arbitrary FTP verb before the
+  listing step, via `suppaftp::FtpStream::custom_command`. Repeatable.
+- FTP: `--ftp-skip-pasv-ip` calls `set_passive_nat_workaround(true)`,
+  replacing the server-advertised PASV IP with the control-channel
+  peer IP (matches curl's behaviour).
+- FTP: `--disable-epsv`, `--disable-eprt`, `--ftp-pasv` emit a
+  verbose-mode confirmation when set (suppaftp 6 is passive-only by
+  default; these are explicit-assertion aliases).
+- TFTP: `--tftp-no-options` emits a verbose-mode confirmation
+  (recon's TFTP probe is already vanilla RFC 1350; no RFC 2347
+  options have ever been sent).
+- SSH: `--pubkey <PATH>` now plumbs through as an alias for
+  `--ssh-pubkey`. When both are set, `--ssh-pubkey` wins.
+- Script bindings: `ftp(url, opts)` gained `list_only`, `quote`,
+  `ftp_skip_pasv_ip`, `disable_epsv`, `disable_eprt`, `ftp_pasv`
+  opts-map keys for parity with the new CLI flags.
+
+### Changed
+
+- SMTP `--mail-auth <ADDR>`: now emits a clear runtime warning
+  explaining that lettre 0.11's high-level `SmtpTransport::send`
+  API does not expose envelope parameters. The flag is accepted
+  but not forwarded. Moved to `OUT-OF-SCOPE.md` Deferred bucket.
+- `OUT-OF-SCOPE.md`: removed shipped items from "Per-protocol
+  plumb-through (0.65.0 stubs → real)". Sharpened deferral notes
+  on `--sasl-ir`, `--mail-rcpt-allowfails`, `--ftp-method`,
+  `--ftp-account`, `--login-options`, `--sasl-authzid`,
+  `--telnet-option`, `-a/--append`, `--ftp-create-dirs` with the
+  specific upstream-crate API gap that blocks each.
 
 ## [0.70.0] - 2026-04-30
 

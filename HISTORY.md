@@ -52,6 +52,22 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 65. 0.65.0 stubs become real — per-protocol plumb-through (0.71.0)
+
+After 0.65.0 shipped a wave of curl-parity FTP / SMTP / IMAP / POP3 / Telnet flags as CLI stubs (clap accepted them but they had no effect on the underlying protocol probes), this release does the actual plumb-through — for the items where the underlying crate (suppaftp 6, lettre 0.11, imap 3-alpha, ssh2 0.9) actually exposes the necessary primitive.
+
+**Phase-1 audit drove the ship list.** Three Explore agents combed `~/.cargo/registry/src/.../{suppaftp,lettre,imap}-*/src/` looking for each method curl assumes exists: `custom_command`, `nlst`, `set_passive_nat_workaround`, `MailParameter::Other`, AUTH-mechanism options. The audit produced a per-flag ship/defer/adapt verdict before any code was touched.
+
+**Surprising wins from the audit.** `--ftp-skip-pasv-ip` was originally pegged as upstream-blocked but `suppaftp::FtpStream::set_passive_nat_workaround(bool)` exists and matches curl's semantics exactly (replace server-advertised PASV IP with control-channel peer IP). Shipped as a one-liner.
+
+**Surprising losses.** `--mail-auth` was expected to be a moderate-effort lettre integration but the high-level `SmtpTransport::send(message)` builds the `MailParameter` vec internally with no external injection point. Forking the send path was rejected as out of scope; the flag now emits a runtime warning and was moved to `OUT-OF-SCOPE.md`. `--sasl-ir` turned out to be unconditionally on for PLAIN/XOAUTH2 and unconditionally off for LOGIN — there is no toggle to expose. `--login-options` and `--sasl-authzid` have no parameter-passing surface at all in the imap 3-alpha crate.
+
+**No pop3 crate.** Recon's POP3 probe was implemented without the `pop3` crate dep, which means the `pop3`-side flags listed in OUT-OF-SCOPE.md were never going to land via crate-API plumbing. They're now categorised as needing a from-scratch SASL implementation, not a plumb-through.
+
+**Telnet `--telnet-option` deferred.** `src/telnet.rs` is currently a probe that opens TCP and reads the banner — no IAC option negotiation. Wiring `--telnet-option` would require building telnet option negotiation infrastructure, which is genuine feature work, not stub-plumbing.
+
+**Test budget: +3.** Three new unit tests for the SSH `--pubkey` alias resolver. FTP / TFTP / SMTP changes verified via live smoke tests against `test.rebex.net` (FTP) and code reading (no test SMTP server in CI). 1239 → 1242 passing.
+
 ### 64. stdin/clipboard polish — native clipboard + auto-detect (0.70.0)
 
 Polish release after 0.69.0's `--stdin` debut. Three changes that all touch the same `--stdin`-pipeline code paths in `src/main.rs` and `src/output.rs`, so they ship together rather than as three separate releases.
