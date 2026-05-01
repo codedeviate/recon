@@ -2,7 +2,7 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.73.0</div>
+<div class="version">Version 0.74.0</div>
 <div class="date">2026-05-01</div>
 <div class="meta">
 Repository · https://github.com/thomas-starweb/recon<br>
@@ -31,6 +31,9 @@ It is regenerated every time the markdown changes — see
 recon --md-to-pdf docs/MANUAL.md \
     --toc --toc-depth 3 --gfm --unsafe-html --page-break-on-h1 \
     --doc-title 'recon User Manual' \
+    --doc-author 'Thomas Bjork' \
+    --doc-subject 'recon CLI reference and script-engine guide' \
+    --doc-keywords 'recon, curl, network, reconnaissance, scripting' \
     -o docs/MANUAL.pdf
 ```
 
@@ -882,6 +885,9 @@ recon --compare a.json b.json --compare-context 5
 | `--toc-depth <N>` | Include headings up to H`N` (default 3). |
 | `--toc-title <STR>` | TOC heading (default "Contents"). |
 | `--doc-title <STR>` | `<title>` + PDF metadata title. |
+| `--doc-author <STR>` | Author field in PDF document properties. |
+| `--doc-subject <STR>` | Subject field in PDF document properties. |
+| `--doc-keywords <STR>` | Keywords field in PDF document properties (comma-separated). |
 | `--doc-css <PATH>` | Inline a custom stylesheet. |
 | `--no-default-css` | Skip bundled default CSS. |
 | `--gfm` | Enable GitHub-flavored extensions (tables, task lists, strikethrough, autolinks, footnotes, tagfilter). |
@@ -901,6 +907,15 @@ recon --md-to-pdf notes.md --no-default-css --doc-css corp.css -o notes.pdf
 # Book-style: cover page + chapter breaks
 recon --md-to-pdf book.md --toc --gfm --unsafe-html --page-break-on-h1 \
       --doc-title 'My Book' -o book.pdf
+
+# Full PDF metadata — verifiable via pdfinfo
+recon --md-to-pdf report.md \
+      --doc-title 'Q1 Results' \
+      --doc-author 'Alice Smith' \
+      --doc-subject 'Quarterly financial report' \
+      --doc-keywords 'finance, Q1, 2026' \
+      -o report.pdf
+# pdfinfo report.pdf | grep -E '(Title|Author|Subject|Keywords)'
 ```
 
 ### Cover pages

@@ -125,6 +125,9 @@ pub struct DocOptions {
     pub toc_depth: u8,
     pub toc_title: String,
     pub title: Option<String>,
+    pub author: Option<String>,
+    pub subject: Option<String>,
+    pub keywords: Option<String>,
     pub custom_css: Option<String>,
     pub no_default_css: bool,
     pub gfm: bool,
@@ -146,6 +149,9 @@ impl DocOptions {
             toc_depth: if args.toc_depth == 0 { 3 } else { args.toc_depth },
             toc_title: args.toc_title.clone(),
             title: args.doc_title.clone(),
+            author: args.doc_author.clone(),
+            subject: args.doc_subject.clone(),
+            keywords: args.doc_keywords.clone(),
             custom_css,
             no_default_css: args.no_default_css,
             gfm: args.gfm,
@@ -345,6 +351,26 @@ fn wrap_document(title: &str, opts: &DocOptions, top_toc_html: &str, body_html: 
         css.push_str(extra);
     }
 
+    let mut meta_tags = String::new();
+    if let Some(author) = opts.author.as_deref() {
+        meta_tags.push_str(&format!(
+            "  <meta name=\"author\" content=\"{}\">\n",
+            html_escape(author)
+        ));
+    }
+    if let Some(subject) = opts.subject.as_deref() {
+        meta_tags.push_str(&format!(
+            "  <meta name=\"description\" content=\"{}\">\n",
+            html_escape(subject)
+        ));
+    }
+    if let Some(keywords) = opts.keywords.as_deref() {
+        meta_tags.push_str(&format!(
+            "  <meta name=\"keywords\" content=\"{}\">\n",
+            html_escape(keywords)
+        ));
+    }
+
     format!(
         "<!doctype html>\n\
 <html lang=\"en\">\n\
@@ -352,6 +378,7 @@ fn wrap_document(title: &str, opts: &DocOptions, top_toc_html: &str, body_html: 
   <meta charset=\"utf-8\">\n\
   <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
   <title>{title}</title>\n\
+{meta_tags}\
   <style>\n{css}\n  </style>\n\
 </head>\n\
 <body>\n\
@@ -377,6 +404,7 @@ fn wrap_document(title: &str, opts: &DocOptions, top_toc_html: &str, body_html: 
 </body>\n\
 </html>\n",
         title = html_escape(title),
+        meta_tags = meta_tags,
         css = css,
         toc = top_toc_html,
         body = body_html,
@@ -406,9 +434,14 @@ pub fn run_md_to_pdf(args: &Args) -> Result<()> {
         .as_ref()
         .context("--md-to-pdf requires -o <PATH>")?;
     let opts = DocOptions::from_args(args)?;
+    let meta = crate::docs_pdf::PdfMeta {
+        author: args.doc_author.clone(),
+        subject: args.doc_subject.clone(),
+        keywords: args.doc_keywords.clone(),
+    };
     let bytes = load_source(args, src)?;
     let html = markdown_to_html(&bytes, &opts)?;
-    crate::docs_pdf::render_html_to_pdf(html.as_bytes(), output)
+    crate::docs_pdf::render_html_to_pdf_with_meta(html.as_bytes(), output, &meta)
 }
 
 /// CLI entry point for `--html-to-pdf`.
@@ -421,8 +454,13 @@ pub fn run_html_to_pdf(args: &Args) -> Result<()> {
         .output
         .as_ref()
         .context("--html-to-pdf requires -o <PATH>")?;
+    let meta = crate::docs_pdf::PdfMeta {
+        author: args.doc_author.clone(),
+        subject: args.doc_subject.clone(),
+        keywords: args.doc_keywords.clone(),
+    };
     let bytes = load_source(args, src)?;
-    crate::docs_pdf::render_html_to_pdf(&bytes, output)
+    crate::docs_pdf::render_html_to_pdf_with_meta(&bytes, output, &meta)
 }
 
 fn load_source(args: &Args, src: &str) -> Result<Vec<u8>> {

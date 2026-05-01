@@ -8,6 +8,27 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.74.0] - 2026-05-01
+
+### Added
+
+- `--doc-author <STR>`, `--doc-subject <STR>`, `--doc-keywords <STR>` —
+  populate PDF document metadata for `--md-to-pdf` / `--html-to-pdf`.
+  Implemented via post-generation binary patch of the PDF Info dictionary
+  (Chrome's printToPDF does not read `<meta>` tags for author/subject/keywords).
+  HTML `<meta name="author|description|keywords">` tags are also injected
+  in the generated HTML for maximum compatibility.
+  Verifiable via `pdfinfo <output>.pdf`.
+
+### Changed
+
+- The recon manual PDF (`docs/MANUAL.pdf`) is now regenerated with all
+  four `--doc-*` metadata fields populated, dogfooding the new flags.
+- `OUT-OF-SCOPE.md`: removed "PDF metadata beyond title" from the
+  Document conversions Waiting list. Other-markup → PDF (reST, AsciiDoc,
+  Org) remains deferred — no production-ready pure-Rust parsers for those
+  formats as of mid-2025.
+
 ## [0.73.0] - 2026-05-01
 
 ### Added

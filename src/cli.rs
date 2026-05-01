@@ -1551,6 +1551,18 @@ pub struct Args {
     #[arg(long = "doc-title", value_name = "STR", help_heading = "Docs")]
     pub doc_title: Option<String>,
 
+    /// Author for PDF metadata (--md-to-pdf / --html-to-pdf).
+    #[arg(long = "doc-author", value_name = "STR", help_heading = "Docs")]
+    pub doc_author: Option<String>,
+
+    /// Subject for PDF metadata (--md-to-pdf / --html-to-pdf).
+    #[arg(long = "doc-subject", value_name = "STR", help_heading = "Docs")]
+    pub doc_subject: Option<String>,
+
+    /// Keywords for PDF metadata (comma-separated).
+    #[arg(long = "doc-keywords", value_name = "STR", help_heading = "Docs")]
+    pub doc_keywords: Option<String>,
+
     /// Override the bundled print-friendly CSS with a user stylesheet
     /// (inlined into the generated HTML). Pair with --no-default-css
     /// to replace rather than append.

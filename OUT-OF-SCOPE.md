@@ -41,8 +41,10 @@ entry rather than leaving a crossed-out line here.
 ### Document conversions
 
 - **Other markup → PDF** — reStructuredText, AsciiDoc, Org. Each would
-  need its own parser crate. Revisit per concrete ask.
-- **PDF metadata beyond title** — author, subject, keywords.
+  need its own parser crate. No production-ready pure-Rust parsers for
+  any of these formats as of mid-2025. Deferred until a concrete
+  user need arises and a viable crate exists.
+  (PDF metadata beyond title — author, subject, keywords — shipped in 0.74.0.)
 
 ### curl flags — leftover after the 0.61.0–0.66.0 Waiting-arc
 

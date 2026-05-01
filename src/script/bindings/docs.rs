@@ -35,6 +35,21 @@ fn opts_from_map(m: &Map) -> Result<DocOptions, Box<EvalAltResult>> {
             opts.title = Some(s);
         }
     }
+    if let Some(v) = m.get("author") {
+        if let Ok(s) = v.clone().into_string() {
+            opts.author = Some(s);
+        }
+    }
+    if let Some(v) = m.get("subject") {
+        if let Ok(s) = v.clone().into_string() {
+            opts.subject = Some(s);
+        }
+    }
+    if let Some(v) = m.get("keywords") {
+        if let Ok(s) = v.clone().into_string() {
+            opts.keywords = Some(s);
+        }
+    }
     if let Some(v) = m.get("css") {
         if let Ok(s) = v.clone().into_string() {
             opts.custom_css = Some(s);

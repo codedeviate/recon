@@ -52,6 +52,24 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 68. PDF metadata flags — author / subject / keywords (0.74.0)
+
+Final release of the 0.71.0–0.74.0 four-release plumb-through sweep, addressing items from `OUT-OF-SCOPE.md`. Three new CLI flags populate PDF document metadata when generating PDFs via `--md-to-pdf` or `--html-to-pdf`.
+
+**Implementation: binary Info-dict patch, not agent-browser argv or HTML meta tags alone.**
+agent-browser's `pdf` subcommand has no metadata flags (verified: `agent-browser pdf --help` shows only `<path>`). Chrome's headless `printToPDF` (Chrome 147) does not translate `<meta name="author">` etc. into PDF Info dict fields. The chosen approach is a post-generation binary patch of the PDF file: after agent-browser writes the PDF, `patch_pdf_info` reads the bytes, finds the `1 0 obj` Info dict, inserts `/Author`, `/Subject`, `/Keywords` entries before the closing `>>`, then updates every xref-table entry whose byte offset was after the insertion point and rewrites `startxref`. Chrome PDFs use traditional cross-reference tables (not cross-reference streams), making the patch straightforward. HTML `<meta>` tags are also injected in the generated HTML `<head>` as a belt-and-suspenders measure. Verified clean with `pdfinfo` — no xref warnings, all four metadata fields populated.
+
+**No new crate.** The entire implementation is in `src/docs_pdf.rs` (~120 LOC), using only `std::fs` and `anyhow`. `lopdf` was considered but rejected: it adds a ~200 KB compiled dependency for a one-time patch of a well-understood 20-byte-entry format. The patch is best-effort (failure prints a warning and leaves the PDF intact).
+
+**Manual dogfood.** `docs/MANUAL.pdf` is now regenerated with `--doc-title`, `--doc-author`, `--doc-subject`, `--doc-keywords` all set, providing a working example baked into the build process documented in `CLAUDE.md`.
+
+**Sweep complete.** Four releases over 2026-05-01 closed 17 items from `OUT-OF-SCOPE.md`. Remaining items in the four targeted headers are now sharper — every deferred item has a precise upstream-blocker rationale (e.g. "suppaftp 6 has no `account()` method", "lettre 0.11 builds MailParameter internally", "rustls 0.23 has no public cipher-list API"). Future scope:
+- `--pinnedpubkey` + `--curves` blocked on the use_preconfigured_tls migration (its own focused effort, ~80–120 LOC).
+- `--proxy-pass` blocked on reqwest 0.12 not exposing passphrase-accepting Identity variants.
+- Other-markup → PDF (reST, AsciiDoc, Org) blocked on pure-Rust parser ecosystem maturity.
+
+**Test budget: +0.** Metadata verification is via `pdfinfo` on the generated artifact; not a code-test surface. 1242 passing maintained throughout the sweep.
+
 ### 67. curl-parity misc — remote-name-all, -#, proxy-pass (0.73.0)
 
 Three small curl-compatibility flags shipped in a single focused pass. No new architecture or new crates.

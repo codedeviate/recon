@@ -1285,6 +1285,11 @@ recon --rekey \
         "recon --md-to-pdf docs.md --toc --toc-depth 4 -o docs.pdf",
     ]);
 
+    example("PDF document metadata (author / subject / keywords)", &[
+        "recon --md-to-pdf report.md --doc-title 'Q1 Results' --doc-author 'Alice Smith' --doc-subject 'Quarterly report' --doc-keywords 'finance, Q1, 2026' -o report.pdf",
+        "# Verify: pdfinfo report.pdf | grep -E '(Title|Author|Subject|Keywords)'",
+    ]);
+
     example("HTML → PDF", &[
         "recon --html-to-pdf report.html -o report.pdf",
         "recon --html-to-pdf https://example.com/page.html -o page.pdf",
