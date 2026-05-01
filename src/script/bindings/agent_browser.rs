@@ -366,7 +366,8 @@ where
 }
 
 fn run_string(args: &[&str]) -> Result<String, Box<EvalAltResult>> {
-    agent_browser::run_cmd(args, false).map_err(|e| err(e.to_string()))
+    let opts = defaults_snapshot();
+    agent_browser::run_cmd_with_options(&opts, args, false).map_err(|e| err(e.to_string()))
 }
 
 fn run_string_owned(args: &[String]) -> Result<String, Box<EvalAltResult>> {
@@ -375,7 +376,9 @@ fn run_string_owned(args: &[String]) -> Result<String, Box<EvalAltResult>> {
 }
 
 fn run_json(args: &[&str]) -> Result<Dynamic, Box<EvalAltResult>> {
-    let raw = agent_browser::run_cmd(args, true).map_err(|e| err(e.to_string()))?;
+    let opts = defaults_snapshot();
+    let raw = agent_browser::run_cmd_with_options(&opts, args, true)
+        .map_err(|e| err(e.to_string()))?;
     let trimmed = raw.trim();
     if trimmed.is_empty() {
         return Ok(Dynamic::UNIT);
