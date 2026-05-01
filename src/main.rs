@@ -1129,6 +1129,9 @@ fn main() {
     } else if args.target_url().starts_with("sftp://") {
         sftp_probe::run(args.target_url(), &args)
     } else if args.target_url().starts_with("tftp://") {
+        if args.tftp_no_options && args.verbose >= 1 {
+            eprintln!("* TFTP: vanilla RFC 1350 mode (no RFC 2347 options) — --tftp-no-options confirmed");
+        }
         tftp_probe::run(args.target_url(), args.timeout, args.tftp_blksize)
     } else if args.target_url().starts_with("gopher://")
         || args.target_url().starts_with("gophers://")
