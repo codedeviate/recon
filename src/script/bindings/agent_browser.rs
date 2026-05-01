@@ -11,6 +11,98 @@ use crate::agent_browser;
 use crate::script::bindings::helpers::json_to_dynamic;
 use crate::script::convert::err;
 use rhai::{Array, Dynamic, Engine, EvalAltResult, Module};
+use std::sync::{Mutex, OnceLock};
+
+/// Cached default argv prefix, applied to every agent-browser invocation
+/// from the script bindings. Set/cleared via the module fns. Process-wide
+/// because agent-browser sessions are OS-level.
+fn defaults() -> &'static Mutex<Vec<String>> {
+    static CELL: OnceLock<Mutex<Vec<String>>> = OnceLock::new();
+    CELL.get_or_init(|| Mutex::new(Vec::new()))
+}
+
+/// Read a snapshot of the current defaults argv.
+fn defaults_snapshot() -> Vec<String> {
+    defaults().lock().unwrap().clone()
+}
+
+/// Replace the defaults argv. Caller is responsible for ensuring `argv`
+/// is well-formed (built via opts_to_argv).
+fn set_defaults_argv(argv: Vec<String>) {
+    let mut g = defaults().lock().unwrap();
+    *g = argv;
+}
+
+/// Best-effort inverse of opts_to_argv: rebuild a Rhai map from an argv
+/// prefix. Used by `default_options()`. Unknown flags become string keys
+/// with raw values.
+fn argv_to_opts(argv: &[String]) -> rhai::Map {
+    let mut map = rhai::Map::new();
+    let mut i = 0;
+    while i < argv.len() {
+        let arg = &argv[i];
+        if !arg.starts_with("--") {
+            i += 1;
+            continue;
+        }
+        let cli_name = &arg[2..]; // strip "--"
+        let rhai_key = cli_name.replace('-', "_");
+
+        // Special: --args → browser_args in Rhai.
+        let display_key: String = if cli_name == "args" {
+            "browser_args".to_string()
+        } else {
+            rhai_key.clone()
+        };
+
+        // Bool flag?
+        if BOOL_OPTS.contains(&rhai_key.as_str()) {
+            map.insert(display_key.into(), true.into());
+            i += 1;
+            continue;
+        }
+        // Repeatable: collect successive `--X v --X w` into an array.
+        let is_repeatable = REPEATABLE_OPTS
+            .iter()
+            .any(|(_, cli)| *cli == cli_name);
+        if is_repeatable {
+            let mut values: Vec<rhai::Dynamic> = Vec::new();
+            while i + 1 < argv.len() && argv[i] == *arg {
+                values.push(argv[i + 1].clone().into());
+                i += 2;
+            }
+            let dyn_value: rhai::Dynamic = if values.len() == 1 {
+                values.into_iter().next().unwrap()
+            } else {
+                rhai::Array::from(values).into()
+            };
+            map.insert(display_key.into(), dyn_value);
+            continue;
+        }
+        // Headers: store as string (don't try to re-parse JSON).
+        if cli_name == "headers" && i + 1 < argv.len() {
+            map.insert(display_key.into(), argv[i + 1].clone().into());
+            i += 2;
+            continue;
+        }
+        // Int?
+        if INT_OPTS.contains(&rhai_key.as_str()) && i + 1 < argv.len() {
+            if let Ok(n) = argv[i + 1].parse::<i64>() {
+                map.insert(display_key.into(), n.into());
+                i += 2;
+                continue;
+            }
+        }
+        // Default: string flag.
+        if i + 1 < argv.len() {
+            map.insert(display_key.into(), argv[i + 1].clone().into());
+            i += 2;
+        } else {
+            i += 1;
+        }
+    }
+    map
+}
 
 pub fn register(engine: &mut Engine) {
     let mut module = Module::new();
@@ -194,6 +286,33 @@ pub fn register(engine: &mut Engine) {
                 .collect();
             let refs: Vec<&str> = owned.iter().map(|s| s.as_str()).collect();
             run_string(&refs)
+        },
+    );
+
+    // set_default_options(opts) — replaces module-level defaults.
+    let _ = module.set_native_fn(
+        "set_default_options",
+        |opts: rhai::Map| -> Result<(), Box<EvalAltResult>> {
+            let argv = opts_to_argv(&opts)?;
+            set_defaults_argv(argv);
+            Ok(())
+        },
+    );
+
+    // clear_default_options() — resets defaults to empty.
+    let _ = module.set_native_fn(
+        "clear_default_options",
+        || -> Result<(), Box<EvalAltResult>> {
+            set_defaults_argv(Vec::new());
+            Ok(())
+        },
+    );
+
+    // default_options() -> Map — returns current defaults as a Rhai map.
+    let _ = module.set_native_fn(
+        "default_options",
+        || -> Result<rhai::Map, Box<EvalAltResult>> {
+            Ok(argv_to_opts(&defaults_snapshot()))
         },
     );
 
@@ -657,5 +776,54 @@ return 0;
         let e = opts_to_argv(&m).unwrap_err().to_string();
         assert!(e.contains("ignore_https_errors"));
         assert!(e.contains("bool"));
+    }
+
+    // ── defaults round-trip tests ────────────────────────────────────────
+
+    #[test]
+    fn defaults_round_trip_via_opts_to_argv_argv_to_opts() {
+        let mut m = rhai::Map::new();
+        m.insert("ignore_https_errors".into(), true.into());
+        m.insert("user_agent".into(), "X/1.0".into());
+        let argv = opts_to_argv(&m).unwrap();
+        let back = argv_to_opts(&argv);
+        assert_eq!(back.get("ignore_https_errors").and_then(|v| v.as_bool().ok()), Some(true));
+        assert_eq!(
+            back.get("user_agent").and_then(|v| v.clone().into_string().ok()),
+            Some("X/1.0".to_string())
+        );
+    }
+
+    #[test]
+    fn argv_to_opts_browser_args_round_trips() {
+        let mut m = rhai::Map::new();
+        m.insert("browser_args".into(), "--no-sandbox".into());
+        let argv = opts_to_argv(&m).unwrap();
+        let back = argv_to_opts(&argv);
+        assert_eq!(
+            back.get("browser_args").and_then(|v| v.clone().into_string().ok()),
+            Some("--no-sandbox".to_string())
+        );
+    }
+
+    #[test]
+    fn set_and_clear_defaults_via_engine() {
+        let mut e = Engine::new();
+        register(&mut e);
+        crate::script::bindings::helpers::register(&mut e);
+
+        // Clear first to isolate from any other test's defaults.
+        e.eval::<()>(r#"agentBrowser::clear_default_options()"#).unwrap();
+
+        e.eval::<()>(
+            r#"agentBrowser::set_default_options(#{ ignore_https_errors: true })"#,
+        )
+        .unwrap();
+        let m: rhai::Map = e.eval(r#"agentBrowser::default_options()"#).unwrap();
+        assert_eq!(m.get("ignore_https_errors").and_then(|v| v.as_bool().ok()), Some(true));
+
+        e.eval::<()>(r#"agentBrowser::clear_default_options()"#).unwrap();
+        let m: rhai::Map = e.eval(r#"agentBrowser::default_options()"#).unwrap();
+        assert!(m.is_empty());
     }
 }
