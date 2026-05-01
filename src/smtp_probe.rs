@@ -455,6 +455,20 @@ fn send_via_lettre(
             .authentication(vec![Mechanism::Plain, Mechanism::Login]);
     }
 
+    // --mail-auth: RFC 4954 §6 AUTH= parameter on MAIL FROM.
+    // lettre 0.11's high-level SmtpTransport::send builds MAIL FROM internally
+    // and does not expose a way to inject extra MailParameter values — the
+    // connection.rs send() helper constructs its own mail_options vec and
+    // calls Mail::new(envelope.from(), mail_options) without any extension
+    // point. Until lettre exposes an envelope-parameter API, this flag is
+    // accepted but not forwarded to the wire.
+    if args.mail_auth.is_some() {
+        eprintln!(
+            "warning: --mail-auth accepted but not yet forwarded to MAIL FROM AUTH= — \
+             lettre 0.11 high-level API does not expose envelope parameters"
+        );
+    }
+
     let transport = builder.build();
 
     let response = transport.send(&message).map_err(|e| {
