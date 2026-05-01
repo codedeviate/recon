@@ -289,6 +289,60 @@ pub fn register(engine: &mut Engine) {
         },
     );
 
+    // Per-call opts overloads on launch verbs.
+
+    // open(url, opts)
+    let _ = module.set_native_fn(
+        "open",
+        |url: &str, opts: rhai::Map| -> Result<String, Box<EvalAltResult>> {
+            run_string_with_opts(&["open", url], opts)
+        },
+    );
+
+    // screenshot(path, opts)
+    let _ = module.set_native_fn(
+        "screenshot",
+        |path: &str, opts: rhai::Map| -> Result<String, Box<EvalAltResult>> {
+            run_string_with_opts(&["screenshot", path], opts)
+        },
+    );
+
+    // snapshot(opts)
+    let _ = module.set_native_fn(
+        "snapshot",
+        |opts: rhai::Map| -> Result<Dynamic, Box<EvalAltResult>> {
+            run_json_with_opts(&["snapshot"], opts)
+        },
+    );
+
+    // snapshot(interactive, opts)
+    let _ = module.set_native_fn(
+        "snapshot",
+        |interactive: bool, opts: rhai::Map| -> Result<Dynamic, Box<EvalAltResult>> {
+            if interactive {
+                run_json_with_opts(&["snapshot", "-i"], opts)
+            } else {
+                run_json_with_opts(&["snapshot"], opts)
+            }
+        },
+    );
+
+    // pdf(path, opts)
+    let _ = module.set_native_fn(
+        "pdf",
+        |path: &str, opts: rhai::Map| -> Result<String, Box<EvalAltResult>> {
+            run_string_with_opts(&["pdf", path], opts)
+        },
+    );
+
+    // eval(js, opts)
+    let _ = module.set_native_fn(
+        "eval",
+        |js: &str, opts: rhai::Map| -> Result<Dynamic, Box<EvalAltResult>> {
+            run_json_with_opts(&["eval", js], opts)
+        },
+    );
+
     // set_default_options(opts) — replaces module-level defaults.
     let _ = module.set_native_fn(
         "set_default_options",
@@ -406,6 +460,54 @@ fn run_json(args: &[&str]) -> Result<Dynamic, Box<EvalAltResult>> {
         }
     }
     // Not an envelope — return the parsed value as-is.
+    Ok(json_to_dynamic(parsed))
+}
+
+/// Run agent-browser with the module defaults plus a per-call opts map
+/// (translated via `opts_to_argv`). Per-call opts come AFTER defaults
+/// in the argv, so per-call values win for repeated single-value flags
+/// (agent-browser uses last-wins).
+fn run_string_with_opts(
+    args: &[&str],
+    opts: rhai::Map,
+) -> Result<String, Box<EvalAltResult>> {
+    let mut combined = defaults_snapshot();
+    combined.extend(opts_to_argv(&opts)?);
+    agent_browser::run_cmd_with_options(&combined, args, false).map_err(|e| err(e.to_string()))
+}
+
+fn run_json_with_opts(
+    args: &[&str],
+    opts: rhai::Map,
+) -> Result<Dynamic, Box<EvalAltResult>> {
+    let mut combined = defaults_snapshot();
+    combined.extend(opts_to_argv(&opts)?);
+    let raw = agent_browser::run_cmd_with_options(&combined, args, true)
+        .map_err(|e| err(e.to_string()))?;
+    // Same envelope-unwrap logic as run_json:
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Ok(Dynamic::UNIT);
+    }
+    let parsed: serde_json::Value = match serde_json::from_str(trimmed) {
+        Ok(v) => v,
+        Err(_) => return Ok(Dynamic::from(raw)),
+    };
+    if let Some(obj) = parsed.as_object() {
+        if let Some(success) = obj.get("success").and_then(|v| v.as_bool()) {
+            if !success {
+                let msg = obj
+                    .get("error")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("agent-browser: command failed")
+                    .to_string();
+                return Err(err(format!("agent-browser: {msg}")));
+            }
+            if let Some(data) = obj.get("data") {
+                return Ok(json_to_dynamic(data.clone()));
+            }
+        }
+    }
     Ok(json_to_dynamic(parsed))
 }
 
@@ -828,5 +930,32 @@ return 0;
         e.eval::<()>(r#"agentBrowser::clear_default_options()"#).unwrap();
         let m: rhai::Map = e.eval(r#"agentBrowser::default_options()"#).unwrap();
         assert!(m.is_empty());
+    }
+
+    #[test]
+    fn run_with_opts_merges_defaults_then_per_call() {
+        // Set defaults.
+        set_defaults_argv(vec![
+            "--user-agent".into(),
+            "Default/1".into(),
+        ]);
+        // Build per-call argv via opts_to_argv directly.
+        let mut m = rhai::Map::new();
+        m.insert("user_agent".into(), "PerCall/2".into());
+        let mut combined = defaults_snapshot();
+        combined.extend(opts_to_argv(&m).unwrap());
+        // The per-call --user-agent comes after the default — agent-browser
+        // last-wins for repeated single-value flags, so PerCall/2 wins.
+        let user_agent_indices: Vec<usize> = combined
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| s == &"--user-agent")
+            .map(|(i, _)| i)
+            .collect();
+        assert_eq!(user_agent_indices.len(), 2);
+        assert_eq!(combined[user_agent_indices[1] + 1], "PerCall/2");
+
+        // Cleanup.
+        set_defaults_argv(Vec::new());
     }
 }
