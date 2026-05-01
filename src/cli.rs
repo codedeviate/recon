@@ -648,6 +648,10 @@ pub struct Args {
     #[arg(short = 'O', long = "remote-name", help_heading = "Output")]
     pub remote_name: bool,
 
+    /// Treat every URL as -O (remote-name) when --input-file.
+    #[arg(long = "remote-name-all", help_heading = "Output")]
+    pub remote_name_all: bool,
+
     /// Create missing parent directories for -o output path.
     #[arg(long = "create-dirs", help_heading = "Output")]
     pub create_dirs: bool,
@@ -760,6 +764,10 @@ pub struct Args {
     /// Show a progress meter when saving to a file (opt-in, unlike curl)
     #[arg(long = "progress", help_heading = "Output")]
     pub progress: bool,
+
+    /// Use # progress bar style (curl -# parity).
+    #[arg(short = '#', long = "progress-bar", help_heading = "Output")]
+    pub progress_bar: bool,
 
     /// Print full error details including internal causes
     #[arg(long = "FULL-ERRORS", help_heading = "Output")]
@@ -1399,6 +1407,10 @@ pub struct Args {
     /// Accepted.
     #[arg(long = "proxy-pinnedpubkey", value_name = "HASHES", help_heading = "Proxy")]
     pub proxy_pinnedpubkey: Option<String>,
+
+    /// Passphrase for --proxy-key (HTTPS proxy mTLS).
+    #[arg(long = "proxy-pass", value_name = "PASS", help_heading = "Proxy")]
+    pub proxy_pass: Option<String>,
 
     /// Cipher list for the origin TLS connection. Accepted; rustls
     /// doesn't expose a direct cipher-list knob in 0.23. Revisit

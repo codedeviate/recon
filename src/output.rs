@@ -379,8 +379,8 @@ pub fn write_response_to(
                 let file = File::create(path)?;
                 let wrapped = wrap_with_rate_control(Box::new(file), args)?;
                 let mut cw = CountingWriter { inner: wrapped, count: &mut metrics.size_download };
-                if args.progress && !args.no_progress_meter {
-                    let pb = make_progress_bar(content_length);
+                if (args.progress || args.progress_bar) && !args.no_progress_meter {
+                    let pb = make_progress_bar(content_length, args.progress_bar);
                     copy_with_progress(&mut response, &mut cw, &pb)?;
                     pb.finish_and_clear();
                 } else {
@@ -467,16 +467,26 @@ pub fn write_response_to(
     Ok(())
 }
 
-pub(crate) fn make_progress_bar(total: Option<u64>) -> ProgressBar {
+pub(crate) fn make_progress_bar(total: Option<u64>, hash_style: bool) -> ProgressBar {
     match total {
         Some(len) => {
             let pb = ProgressBar::new(len);
-            pb.set_style(
-                ProgressStyle::default_bar()
-                    .template("{bytes}/{total_bytes} [{bar:40}] {bytes_per_sec} eta {eta}")
-                    .unwrap()
-                    .progress_chars("=> "),
-            );
+            if hash_style {
+                // -# / --progress-bar: curl-parity hash bar
+                pb.set_style(
+                    ProgressStyle::default_bar()
+                        .template("{bytes}/{total_bytes} [{bar:40.#->}] {bytes_per_sec} eta {eta}")
+                        .unwrap()
+                        .progress_chars("##-"),
+                );
+            } else {
+                pb.set_style(
+                    ProgressStyle::default_bar()
+                        .template("{bytes}/{total_bytes} [{bar:40}] {bytes_per_sec} eta {eta}")
+                        .unwrap()
+                        .progress_chars("=> "),
+                );
+            }
             pb
         }
         None => {

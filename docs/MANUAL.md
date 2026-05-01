@@ -2,7 +2,7 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.72.0</div>
+<div class="version">Version 0.73.0</div>
 <div class="date">2026-05-01</div>
 <div class="meta">
 Repository · https://github.com/thomas-starweb/recon<br>
@@ -335,6 +335,7 @@ recon https://example.com/big.iso -o big.iso --continue
 |------|-------------|
 | `-o, --output <FILE>` | Write body to FILE (otherwise stdout). |
 | `-O, --remote-name` | Filename = URL's last path segment (percent-decoded). |
+| `--remote-name-all` | Apply `-O` to every URL in `--input-file`. Curl-parity for batch downloads. |
 | `-J, --remote-header-name` | Use Content-Disposition filename when saving. |
 | `--create-dirs` | Create parent dirs for `-o` path. |
 | `-i, --include` | Print response headers before body. |
@@ -342,6 +343,8 @@ recon https://example.com/big.iso -o big.iso --continue
 | `-s, --silent` | Suppress progress + verbose output. |
 | `--show-error` | Re-enable error output even when `-s` is set. |
 | `-v, --verbose` | Verbose. Repeatable: `-v`, `-vv`, `-vvv`. |
+| `--progress` | Show a progress meter when saving to a file (opt-in). |
+| `-#, --progress-bar` | `#`-character progress bar style (curl `-#` parity). Also activates the progress meter. |
 | `-p, --prettify` | Pretty-print JSON / XML / YAML bodies. |
 | `--prettify-as <FORMAT>` | Force prettify format (json/xml/html/yaml/csv/tsv/auto). Implies `-p`. Use when auto-detect picks the wrong format or there is no Content-Type. |
 | `--stdin` | Read body from stdin instead of making an HTTP request. Runs the post-fetch pipeline (prettify, `--output-charset`, `-o`) over the piped input. Mutually exclusive with a URL. |
@@ -360,6 +363,14 @@ recon https://example.com/big.iso -o big.iso --continue
 recon https://example.com/favicon.ico -O                       # → favicon.ico
 recon https://example.com/api/users.json -o users.json
 recon https://x.example.com/deep/path/file.txt --create-dirs -o downloads/x/file.txt
+
+# Batch download — save every URL to its own file (--remote-name-all, 0.73.0)
+recon --input-file urls.txt --remote-name-all
+recon --input-file urls.txt --remote-name-all --output-dir ./downloads/ --rate 2/s
+
+# Hash-style progress bar (curl -#, 0.73.0)
+recon https://example.com/big.zip -O -#                        # # bar instead of default
+recon --input-file urls.txt --remote-name-all -#               # combined with batch
 
 # Inspect headers
 recon -I https://example.com/                                  # HEAD
@@ -471,6 +482,7 @@ See also: `recon --help client-cert`.
 | `--proxy-cacert <PATH>` | Extra CA for the proxy connection. |
 | `--proxy-capath <DIR>` | Directory of `.pem`/`.crt`/`.cer` CAs for proxy TLS. Mirrors `--capath`. |
 | `--proxy-ca-native` | Disable webpki roots for proxy TLS; use OS native roots. Mirrors `--ca-native`. |
+| `--proxy-pass <PASS>` | Passphrase for `--proxy-key` (HTTPS proxy mTLS). Accepted for curl parity; **deferred** — reqwest 0.12 does not expose a passphrase API for proxy mTLS. Emits a runtime warning. |
 
 ### Examples
 

@@ -211,6 +211,12 @@ pub fn print() {
         "recon https://releases.example.com/app.tar.gz -o app.tar.gz --progress",
     ]);
     note("Progress is opt-in — unlike curl, it is never shown by default.");
+    example("Hash-style progress bar (-# / --progress-bar, curl parity)", &[
+        "recon https://example.com/large-file.zip -O -#",
+        "recon https://speed.hetzner.de/100MB.bin -o /tmp/test.bin -#",
+        "recon --input-file urls.txt --remote-name-all -#",
+    ]);
+    note("-# activates the progress meter and switches to a # character bar style. Equivalent to curl -# or curl --progress-bar.");
     example("Silent mode — suppress informational output (-s / --silent)", &[
         "recon https://httpbin.org/get -s",
         "recon https://api.example.com/data -s -o result.json",
@@ -1125,6 +1131,13 @@ recon --rekey \
         "cat urls.txt | recon --input-file -",
     ]);
 
+    example("Save every URL from a list to its own file (--remote-name-all)", &[
+        "recon --input-file urls.txt --remote-name-all          # -O for every URL",
+        "recon --input-file urls.txt --remote-name-all --rate 2/s  # rate-limited",
+        "recon --input-file urls.txt --remote-name-all --output-dir ./downloads/",
+    ]);
+    note("--remote-name-all implies -O for every URL in the loop; --output-dir prefixes each filename.");
+
     example("Resume a download", &[
         "recon --continue -O https://example.com/big.iso       # wget-style auto-resume",
         "recon -C - -O https://example.com/big.iso              # curl-style auto",
@@ -1488,6 +1501,11 @@ recon --rekey \
         "NO_PROXY='.internal' HTTPS_PROXY=http://proxy.corp recon https://foo.internal/",
     ]);
     note("Precedence: --proxy flag > $HTTPS_PROXY (for https://) / $HTTP_PROXY (for http://) > $ALL_PROXY. --noproxy beats $NO_PROXY. `*` in the bypass list means bypass all. SOCKS5 requires the `socks` feature baked in (on by default).");
+
+    example("Proxy mTLS passphrase (--proxy-pass, deferred)", &[
+        "recon --proxy https://corp-proxy --proxy-pass s3cr3t https://example.com/",
+    ]);
+    note("--proxy-pass is accepted for curl parity but has no effect in 0.73.0 — reqwest 0.12 does not expose a passphrase API for proxy mTLS. A runtime warning is emitted. See OUT-OF-SCOPE.md.");
 
     section("IPFS / IPNS (0.49.0)");
 

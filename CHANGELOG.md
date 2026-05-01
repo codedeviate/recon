@@ -8,6 +8,28 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.73.0] - 2026-05-01
+
+### Added
+
+- `--remote-name-all` — apply `-O` (filename from URL) to every URL
+  processed via `--input-file`. Curl-parity for multi-URL invocations.
+- `-#, --progress-bar` — alternate indicatif progress-bar style using
+  `#` characters. Curl-parity. Also activates the progress bar (no
+  separate `--progress` needed). Works with `-o` / `-O` file saves.
+- `--proxy-pass <PASS>` — passphrase for `--proxy-key` when the HTTPS
+  proxy's private key is encrypted. Accepted for curl parity; proxy
+  mTLS passphrase support is not exposed by reqwest 0.12 — the flag
+  emits a runtime warning and has no effect. Deferred.
+
+### Changed
+
+- `OUT-OF-SCOPE.md`: removed shipped items from "curl flags — leftover
+  after the 0.61.0–0.66.0 Waiting-arc". Sharpened deferral notes on
+  `--suppress-connect-headers` (architectural), `--path-as-is`
+  (reqwest::Url normalises), `--tr-encoding` (reqwest no opt-out), and
+  FTP gap flags (blocked on suppaftp 6).
+
 ## [0.72.0] - 2026-05-01
 
 ### Added

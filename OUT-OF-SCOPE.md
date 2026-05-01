@@ -46,30 +46,32 @@ entry rather than leaving a crossed-out line here.
 
 ### curl flags — leftover after the 0.61.0–0.66.0 Waiting-arc
 
-The 0.61.0→0.66.0 arc shipped ~90 curl-parity flags. The leftovers
-that nobody specifically asked for but that have a clean implementation
-path:
+The 0.61.0→0.66.0 arc shipped ~90 curl-parity flags. The 0.73.0
+release shipped three more: `--remote-name-all`, `-#/--progress-bar`,
+and `--proxy-pass` (deferred-with-warning). The remaining leftovers:
 
-- **`--remote-name-all`** — apply `-O` filename derivation across all
-  URLs in a multi-URL invocation. Pairs naturally with `--input-file`
-  (0.64.0). ~10 LOC; just hasn't been wired into the
-  `--input-file` loop yet.
-- **`-#, --progress-bar`** — alternate bar-style progress UI. recon's
-  `indicatif` integration already supports both styles; flag would
-  toggle.
 - **`--suppress-connect-headers`** — hide proxy CONNECT request /
-  response from `-v` output. Mostly cosmetic.
+  response from `-v` output. Architectural: recon doesn't render
+  the raw proxy CONNECT exchange in verbose mode; no hook point
+  exists without a significant low-level rewrite.
 - **`--path-as-is`** — preserve `..` / `.` segments in URL paths.
-  `reqwest::Url` normalises by default; needs a non-normalising path.
+  `reqwest::Url` normalises paths unconditionally; bypassing this
+  requires switching to a raw request path, which conflicts with
+  the `url::Url` plumbing throughout the codebase. Cost > value.
 - **FTP gaps** — `--ftp-account`, `--ftp-alternative-to-user`,
   `-P --ftp-port`, `--ftp-pret`, `--ftp-ssl-ccc`, `--ftp-ssl-ccc-mode`,
-  `--ftp-ssl-control`. The 0.65.0 release shipped the high-frequency
-  FTP knobs as CLI stubs; these are the long-tail FTP flags.
-- **`--proxy-pass`** (passphrase for HTTPS proxy private key).
+  `--ftp-ssl-control`. Blocked on suppaftp 6 API gaps.
+- **`--proxy-pass`** — shipped as deferred-with-warning in 0.73.0.
+  reqwest 0.12's `Identity::from_pem` has no passphrase variant;
+  the PKCS#12 path (`from_pkcs12_der`) accepts a password but is a
+  different format. Will ship properly when proxy mTLS cert flags
+  (`--proxy-cert` / `--proxy-key`) land and the passphrase path is
+  clear.
 - **`--ssl`, `--ssl-reqd`** — soft / hard TLS-required for FTP / SMTP.
   Only meaningful once the `--ftp-ssl-control` family also lands.
-- **`--tr-encoding`** — request Transfer-Encoding compression
-  (orthogonal to `--compressed`).
+- **`--tr-encoding`** — request Transfer-Encoding compression.
+  reqwest has no opt-out from its own TE header handling; no API
+  surface to toggle this flag's behaviour.
 
 ### wget standalone wins — leftover
 

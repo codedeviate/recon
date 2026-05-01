@@ -356,6 +356,9 @@ fn main() {
                     per.input_file = None;
                     per.url = Some(url.clone());
                     per.url_flag = None;
+                    if per.remote_name_all {
+                        per.remote_name = true;
+                    }
                     if !args.silent {
                         eprintln!("# {} ({}/{})", url, i + 1, kept.len());
                     }

@@ -522,6 +522,17 @@ pub(crate) fn build_args(
             args.prettify_as = Some(s);
             args.prettify = true; // mirror the CLI implicit-prettify behaviour
         }
+
+        // ── 0.73.0 — curl-parity misc ──────────────────────────────────
+        if let Some(b) = opts_get_bool(o, "remote_name_all") {
+            args.remote_name_all = b;
+        }
+        if let Some(b) = opts_get_bool(o, "progress_bar") {
+            args.progress_bar = b;
+        }
+        if let Some(s) = opts_get_str(o, "proxy_pass") {
+            args.proxy_pass = Some(s);
+        }
     }
     Ok(args)
 }

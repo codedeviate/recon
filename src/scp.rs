@@ -101,8 +101,8 @@ fn download_file(sess: &Session, remote_path: &Path, args: &Args) -> Result<()> 
         std::fs::File::create(&out_path)
             .with_context(|| format!("Cannot create output file: {}", out_path.display()))?;
 
-    if args.progress && file_size > 0 {
-        let pb = crate::output::make_progress_bar(Some(file_size));
+    if (args.progress || args.progress_bar) && file_size > 0 {
+        let pb = crate::output::make_progress_bar(Some(file_size), args.progress_bar);
         crate::output::copy_with_progress(&mut channel, &mut file, &pb)?;
         pb.finish_and_clear();
     } else {

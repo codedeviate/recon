@@ -52,6 +52,18 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 67. curl-parity misc — remote-name-all, -#, proxy-pass (0.73.0)
+
+Three small curl-compatibility flags shipped in a single focused pass. No new architecture or new crates.
+
+**`--remote-name-all` shipped clean.** The `--input-file` loop clones `args` per URL; inserting `if per.remote_name_all { per.remote_name = true; }` before the `execute_with_retry` call was the entire implementation. The flag is opt-in and composes with `--output-dir` and `-#`.
+
+**`-#, --progress-bar` shipped clean.** `make_progress_bar` in `output.rs` grew a `hash_style: bool` parameter; the two call sites (`output.rs` file-save path and `scp.rs`) were updated together. The hash bar uses indicatif's `progress_chars("##-")` with a `[{bar:40.#->}]` template to render `#` fill and `-` empty space. Progress is also activated when `-#` is set without `--progress`.
+
+**`--proxy-pass` deferred with runtime warning.** reqwest 0.12's `Identity::from_pem` has no passphrase-accepting variant — the rustls path parses unencrypted PKCS#8/RSA/EC keys only; the native-tls path exposes `from_pkcs12_der(der, password)` for PKCS#12 archives (not PEM + separate key). No `--proxy-cert` / `--proxy-key` flags exist in recon yet either. The flag is declared, triggers a clear `eprintln!` warning at runtime, and is documented as Deferred in OUT-OF-SCOPE.md. When proxy mTLS certificates land, the passphrase plumb-through will follow.
+
+**Test budget: +0.** 1242 passing maintained. The three flags are integration surfaces; unit-testing the indicatif template string and the `remote_name` force-set is not meaningful without a full HTTP server fixture.
+
 ### 66. TLS hardening — CRL + proxy-CA plumb-through (0.72.0)
 
 After 0.66.0 shipped a wave of TLS / proxy CLI stubs, the original 0.72.0 plan was to ship five TLS-tuning flags: `--crlfile`, `--pinnedpubkey`, `--curves`, `--proxy-capath`, `--proxy-ca-native`. A Phase-1 rustls-API audit during this release narrowed the ship list to three.

@@ -123,6 +123,13 @@ pub fn apply_proxy_tls(
     mut builder: reqwest::blocking::ClientBuilder,
     args: &Args,
 ) -> Result<reqwest::blocking::ClientBuilder> {
+    if args.proxy_pass.is_some() {
+        eprintln!(
+            "warning: --proxy-pass: passphrase support for proxy mTLS is not yet \
+             exposed by reqwest 0.12. The flag is accepted but has no effect. \
+             See OUT-OF-SCOPE.md (Deferred)."
+        );
+    }
     if args.proxy_insecure {
         builder = builder.danger_accept_invalid_certs(true);
     }
