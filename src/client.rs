@@ -90,6 +90,19 @@ pub fn execute(args: &Args) -> Result<(Response, RequestMetrics)> {
         builder = builder.add_root_certificate(cert);
     }
 
+    // --crlfile: reject server certs listed in a PEM-encoded CRL (or CRL bundle).
+    if let Some(path) = &args.crlfile {
+        let pem = std::fs::read(path)
+            .with_context(|| format!("--crlfile: read {}", path.display()))?;
+        let crls = reqwest::tls::CertificateRevocationList::from_pem_bundle(&pem)
+            .with_context(|| format!("--crlfile: parse PEM from {}", path.display()))?;
+        let count = crls.len();
+        builder = builder.add_crls(crls);
+        if args.verbose >= 1 {
+            eprintln!("* TLS: loaded {count} CRL(s) from {}", path.display());
+        }
+    }
+
     // --capath: trust every *.pem / *.crt in the directory.
     if let Some(dir) = &args.capath {
         let entries = std::fs::read_dir(dir)
