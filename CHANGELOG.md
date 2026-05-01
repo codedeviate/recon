@@ -8,6 +8,31 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.75.0] - 2026-05-01
+
+### Added
+
+- `agentBrowser::set_default_options(opts)` / `default_options()` /
+  `clear_default_options()` — module-level defaults state in the
+  agent-browser script bindings. All 25 of agent-browser's global
+  launch / security / session options are exposed as snake_case
+  opts-map keys (`ignore_https_errors`, `user_agent`, `proxy`,
+  `headers`, `profile`, `extension`, `browser_args`, etc.). Defaults
+  apply to every binding call automatically.
+- Per-call opts overloads on `agentBrowser::open`, `screenshot`,
+  `snapshot`, `pdf`, `eval`. Per-call opts concatenate after defaults
+  so they override at the agent-browser flag-parser level.
+- `headers` opts-map key accepts either a JSON string or a Rhai map
+  (auto-serialized via serde_json).
+- `extension` and `browser_args` accept either a single string or a
+  Rhai array of strings (each emits its own `--extension` /
+  `--args` flag).
+
+### Changed
+
+- `src/agent_browser.rs` — added `run_cmd_with_options(opts, args, json)`
+  helper. Original `run_cmd` unchanged for backwards compatibility.
+
 ## [0.74.0] - 2026-05-01
 
 ### Added

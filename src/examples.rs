@@ -1729,6 +1729,13 @@ recon --script /tmp/title.rhai"#,
         "cp script/*.rhai ~/.recon/script/       # then: recon --script agent-browser-title URL",
     ]);
 
+    example("agent-browser global options (ignore-https-errors, user-agent, headers)", &[
+        r#"agentBrowser::set_default_options(#{ ignore_https_errors: true, user_agent: "MyBot/1.0" })"#,
+        r#"agentBrowser::open("https://self-signed.example")"#,
+        r#"agentBrowser::open("https://api.example", #{ headers: #{ Authorization: "Bearer x" } })"#,
+    ]);
+    note("Defaults persist for the script's lifetime. Use agentBrowser::clear_default_options() to reset. Per-call opts override defaults for that call only. See script/agent-browser-options.rhai for the full demo.");
+
     section("SCRIPTING (--script)");
 
     example("Run a Rhai script by path or by bare name", &[

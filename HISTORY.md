@@ -52,6 +52,22 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 69. agent-browser global options in script engine (0.75.0)
+
+A user reported that a Rhai script using `agentBrowser::open(url)` against a server with a self-signed TLS certificate hit a Chrome cert-rejection wall with no escape hatch. Investigation: `src/script/bindings/agent_browser.rs` exposed ~30 action verbs (open, click, type, etc.) but ZERO of agent-browser's 25 global launch / security / session options. The shared transport `crate::agent_browser::run_cmd(args, json)` had no slot for prepending global flags.
+
+**Module-level defaults + per-call overrides.** Brainstorming weighed three patterns: (A) module-level defaults set once via `set_default_options(opts)`, (B) per-call opts on every verb, (C) hybrid — module defaults plus per-call overrides on launch verbs only. C won: a one-line setup at script start fixes the immediate workflow, and per-call opts on launch verbs (`open`, `screenshot`, `snapshot`, `pdf`, `eval`) cover the cases where a single script switches contexts mid-run.
+
+**Translation layer.** A central `opts_to_argv(map) -> Vec<String>` translates a Rhai opts-map into agent-browser argv. Bool flags emit only when true; strings and ints emit the typed value; repeatable flags (`extension`, `browser_args`) accept either a single string or an array; `headers` accepts either a JSON string or a Rhai map auto-serialized to JSON. Unknown opts-map keys error with a sorted listing of all valid keys for typo-correction. Type mismatches error with the expected type.
+
+**`browser_args` rename.** agent-browser's `--args <browser-args>` accepts arbitrary launch flags. Naming it `args` in Rhai would be too generic and clash with common script patterns. Renamed to `browser_args` in the opts map; the binding translates back to `--args` when emitting argv.
+
+**Process-wide defaults.** Defaults live in a `OnceLock<Mutex<Vec<String>>>` inside the bindings module, shared across Rhai engines. Justified because agent-browser sessions are OS-level (one Chrome process per session name) — process-wide defaults match the real session model.
+
+**Last-wins concatenation.** Per-call opts are appended after defaults. agent-browser's flag parser uses last-wins for repeated single-value flags, so a per-call `user_agent` overrides a default `user_agent` automatically.
+
+**Test budget: +16.** One `run_cmd_with_options` smoke test in `src/agent_browser.rs`. Eleven `opts_to_argv` translation tests (bool true / false, string, int, repeatable single / array, headers string / map, unknown key, type mismatch) plus three round-trip tests for the defaults state plus one merge-order test in `src/script/bindings/agent_browser.rs`. 1242 → 1258 passing. Demo script `script/agent-browser-options.rhai` parses cleanly via the existing `script_examples_it.rs` test.
+
 ### 68. PDF metadata flags — author / subject / keywords (0.74.0)
 
 Final release of the 0.71.0–0.74.0 four-release plumb-through sweep, addressing items from `OUT-OF-SCOPE.md`. Three new CLI flags populate PDF document metadata when generating PDFs via `--md-to-pdf` or `--html-to-pdf`.

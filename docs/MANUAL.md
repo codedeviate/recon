@@ -2,7 +2,7 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.74.0</div>
+<div class="version">Version 0.75.0</div>
 <div class="date">2026-05-01</div>
 <div class="meta">
 Repository · https://github.com/thomas-starweb/recon<br>
@@ -3059,6 +3059,81 @@ agentBrowser::fill("#pass", "s3cr3t");
 agentBrowser::click("button[type=submit]");
 agentBrowser::screenshot("/tmp/after-login.png");
 agentBrowser::close();
+```
+
+### Global options (0.75.0)
+
+agent-browser accepts ~25 global launch / security / session options
+(see `agent-browser --help`). All are exposed as opts-map keys via
+`agentBrowser::set_default_options(opts)` (module-level defaults that
+apply to every binding call) plus per-call overrides on launch verbs.
+
+| Rhai key | agent-browser flag | Type |
+|---|---|---|
+| `ignore_https_errors` | `--ignore-https-errors` | bool |
+| `allow_file_access` | `--allow-file-access` | bool |
+| `headed` | `--headed` | bool |
+| `auto_connect` | `--auto-connect` | bool |
+| `annotate` | `--annotate` | bool |
+| `no_auto_dialog` | `--no-auto-dialog` | bool |
+| `content_boundaries` | `--content-boundaries` | bool |
+| `confirm_interactive` | `--confirm-interactive` | bool |
+| `verbose` / `quiet` / `debug` / `json` | `--verbose` / `--quiet` / `--debug` / `--json` | bool |
+| `session` | `--session` | string |
+| `session_name` | `--session-name` | string |
+| `executable_path` | `--executable-path` | string |
+| `user_agent` | `--user-agent` | string |
+| `proxy` | `--proxy` | string |
+| `proxy_bypass` | `--proxy-bypass` | string |
+| `state` | `--state` | string |
+| `profile` | `--profile` | string |
+| `provider` | `--provider` | string |
+| `device` | `--device` | string |
+| `color_scheme` | `--color-scheme` | string |
+| `engine` | `--engine` | string |
+| `model` | `--model` | string |
+| `config` | `--config` | string |
+| `screenshot_dir` | `--screenshot-dir` | string |
+| `screenshot_format` | `--screenshot-format` | string |
+| `download_path` | `--download-path` | string |
+| `allowed_domains` | `--allowed-domains` | string |
+| `action_policy` | `--action-policy` | string |
+| `confirm_actions` | `--confirm-actions` | string |
+| `cdp` | `--cdp` | int |
+| `screenshot_quality` | `--screenshot-quality` | int |
+| `max_output` | `--max-output` | int |
+| `extension` | `--extension` (repeatable) | string or array |
+| `browser_args` | `--args` (repeatable) | string or array |
+| `headers` | `--headers <json>` | string or map |
+
+Module functions:
+
+- `agentBrowser::set_default_options(opts: Map)` — store the defaults.
+- `agentBrowser::clear_default_options()` — reset to empty.
+- `agentBrowser::default_options()` → `Map` — read current defaults.
+
+Per-call opts are accepted on `open`, `screenshot`, `snapshot`, `pdf`,
+and `eval`. They concatenate after defaults; agent-browser's flag parser
+uses last-wins for repeated single-value flags, so per-call options
+override defaults.
+
+```rhai
+agentBrowser::set_default_options(#{
+    ignore_https_errors: true,
+    user_agent: "Recon/0.75",
+    proxy: "http://proxy:3128",
+});
+
+agentBrowser::open("https://self-signed.example");
+agentBrowser::click("#login");
+
+// Per-call override:
+agentBrowser::open("https://other.example", #{ user_agent: "Other/1.0" });
+
+// Headers as a Rhai map (auto-serialized to JSON):
+agentBrowser::open("https://api.example", #{
+    headers: #{ Authorization: "Bearer x" },
+});
 ```
 
 ## SQLite binding

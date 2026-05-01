@@ -2007,7 +2007,14 @@ static TOPIC_AGENT_BROWSER: Topic = Topic {
                   `if !agentBrowser::available { ... }`.\n\
                   \n\
                   Install: `brew install agent-browser` (macOS) or\n\
-                  `npm install -g agent-browser`.",
+                  `npm install -g agent-browser`.\n\
+                  \n\
+                  Global options (0.75.0): Set agent-browser launch / security /\n\
+                  session options once via agentBrowser::set_default_options(opts)\n\
+                  at script start (ignore_https_errors, user_agent, proxy, headers,\n\
+                  profile, extension, browser_args, etc.). Per-call overrides are\n\
+                  accepted on launch verbs (open, screenshot, snapshot, pdf, eval).\n\
+                  See `recon --examples` for patterns.",
     flags: &[
         FlagHelp { flags: "--browser-screenshot <URL>", description: "One-shot: open URL, save a screenshot, close. Honours -o PATH.\nRequires agent-browser installed." },
 
@@ -2031,6 +2038,10 @@ static TOPIC_AGENT_BROWSER: Topic = Topic {
         FlagHelp { flags: "agentBrowser::keyboard_type(text) / keyboard_insert(text)", description: "Type at the focused element without a selector; insert version\nskips key events." },
         FlagHelp { flags: "agentBrowser::back() / forward() / reload()", description: "Navigation." },
         FlagHelp { flags: "agentBrowser::cmd([\"raw\", \"args\", \"here\"])", description: "Escape hatch: run arbitrary agent-browser CLI args. Returns the\nraw stdout as a String." },
+        FlagHelp { flags: "agentBrowser::set_default_options(opts)", description: "Set module-level default options applied to every verb. opts is a\nRhai map with snake_case keys (ignore_https_errors, user_agent,\nproxy, headers, profile, session, extension, browser_args, etc.)." },
+        FlagHelp { flags: "agentBrowser::clear_default_options()", description: "Reset module-level defaults to empty." },
+        FlagHelp { flags: "agentBrowser::default_options() -> Map", description: "Read the current module-level defaults as a Rhai map." },
+        FlagHelp { flags: "agentBrowser::open(url, opts) / screenshot(path, opts) / ...", description: "Per-call opts overload on launch verbs. Per-call opts concatenate\nafter defaults so per-call values override defaults (last-wins)." },
     ],
     related: &["--browser-screenshot", "--script"],
     examples: &[
