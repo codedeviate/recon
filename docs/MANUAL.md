@@ -2,8 +2,8 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.70.0</div>
-<div class="date">2026-04-30</div>
+<div class="version">Version 0.71.0</div>
+<div class="date">2026-05-01</div>
 <div class="meta">
 Repository · https://github.com/thomas-starweb/recon<br>
 License · MIT
@@ -677,6 +677,7 @@ Stand-alone SMTP client. Send mail or just probe capabilities.
 | `--dkim-key <PATH>` | DKIM-sign outbound with this PEM key. |
 | `--dkim-selector <SEL>` | DKIM selector. |
 | `--dkim-domain <DOM>` | DKIM domain (defaults to `--mail-from` domain). |
+| `--mail-auth <ADDR>` | Append `AUTH=<ADDR>` to MAIL FROM (RFC 4954). Accepted but currently emits a warning — lettre 0.11 limitation, see OUT-OF-SCOPE.md. |
 
 ### Examples
 
@@ -714,7 +715,7 @@ recon imaps://alice:s3cr3t@imap.example.com/INBOX --imap-peek
 
 ## File transfer
 
-0.47.0 shipped FTP/FTPS, SFTP, TFTP, Gopher.
+0.47.0 shipped FTP/FTPS, SFTP, TFTP, Gopher. 0.71.0 plumbed all previously-stubbed flags through to their underlying protocol modules.
 
 | Protocol | URL scheme | Notes |
 |----------|-----------|-------|
@@ -723,6 +724,21 @@ recon imaps://alice:s3cr3t@imap.example.com/INBOX --imap-peek
 | TFTP | `tftp://` | RFC 1350. `--tftp-blksize` for RFC 2348 block-size negotiation. |
 | Gopher | `gopher://`, `gophers://` | Selector fetch. |
 
+### FTP flags
+
+| Flag | Description |
+|------|-------------|
+| `--list-only` | Use `NLST` instead of `LIST` (filenames only). |
+| `-Q, --quote <CMD>` | Run an FTP command before listing (repeatable). |
+| `--ftp-skip-pasv-ip` | Use control-channel IP for PASV data, ignoring server-advertised PASV IP. |
+| `--ftp-pasv` / `--disable-epsv` / `--disable-eprt` | Confirm passive mode (suppaftp 6 default). |
+
+### TFTP flags
+
+| Flag | Description |
+|------|-------------|
+| `--tftp-no-options` | Confirm vanilla RFC 1350 mode (no RFC 2347 options). |
+
 ### Examples
 
 ```sh
@@ -730,6 +746,9 @@ recon imaps://alice:s3cr3t@imap.example.com/INBOX --imap-peek
 recon ftp://ftp.example.com/                                       # directory listing
 recon ftp://ftp.example.com/incoming/file.bin -o local.bin         # retrieve
 recon ftp://alice:s3cr3t@ftp.example.com/                          # authenticated
+recon ftp://ftp.example.com/ --list-only                           # NLST (filenames only)
+recon ftp://ftp.example.com/ -Q 'SITE CHMOD 755 pub'              # pre-transfer command
+recon ftp://ftp.example.com/ --ftp-skip-pasv-ip                    # NAT-friendly PASV
 
 # SFTP
 recon sftp://me@example.com/home/me/data.csv -o data.csv
@@ -738,6 +757,7 @@ recon sftp://me@example.com:2222/srv/ --privkey ~/.ssh/ci_rsa
 # TFTP
 recon tftp://tftp.example.com/pxelinux.cfg/default
 recon tftp://tftp.example.com/boot.img -o boot.img --tftp-blksize 8192
+recon tftp://tftp.example.com/config --tftp-no-options             # RFC 1350 vanilla mode
 
 # Gopher
 recon gopher://gopher.floodgap.com/
@@ -748,9 +768,14 @@ recon gopher://gopher.floodgap.com/0/gopher/proxy
 
 ### SSH, SCP
 
+| Flag | Description |
+|------|-------------|
+| `--pubkey <PATH>` | Path to SSH public key file (alias for `--ssh-pubkey`). |
+
 ```sh
-recon ssh://me@example.com -- uname -a          # SSH exec; prints stdout
-recon scp://me@example.com/etc/motd -o motd     # SCP fetch
+recon ssh://me@example.com -- uname -a                             # SSH exec; prints stdout
+recon scp://me@example.com/etc/motd -o motd                        # SCP fetch
+recon ssh://me@example.com --pubkey ~/.ssh/id_ed25519.pub -- whoami  # explicit public key
 ```
 
 ### Telnet
