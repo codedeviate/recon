@@ -133,6 +133,58 @@ pub fn apply_proxy_tls(
             .with_context(|| format!("--proxy-cacert: parse {}", path.display()))?;
         builder = builder.add_root_certificate(cert);
     }
+
+    // --proxy-capath: trust every *.pem / *.crt / *.cer in the directory.
+    // reqwest 0.12 has no per-proxy TLS roots; this adds to the global chain,
+    // same as --capath — the "proxy" prefix is for curl-parity convention.
+    if let Some(dir) = &args.proxy_capath {
+        let entries = std::fs::read_dir(dir)
+            .with_context(|| format!("--proxy-capath: read dir {}", dir.display()))?;
+        let mut count = 0usize;
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if !p.is_file() {
+                continue;
+            }
+            let ext_ok = p
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|s| {
+                    let lo = s.to_ascii_lowercase();
+                    lo == "pem" || lo == "crt" || lo == "cer"
+                })
+                .unwrap_or(false);
+            if !ext_ok {
+                continue;
+            }
+            let pem = std::fs::read(&p)
+                .with_context(|| format!("--proxy-capath: read {}", p.display()))?;
+            let cert = reqwest::Certificate::from_pem(&pem)
+                .with_context(|| format!("--proxy-capath: parse PEM from {}", p.display()))?;
+            builder = builder.add_root_certificate(cert);
+            count += 1;
+        }
+        if args.verbose >= 1 {
+            eprintln!(
+                "* proxy TLS: loaded {} cert(s) from --proxy-capath {}",
+                count,
+                dir.display()
+            );
+        }
+    }
+
+    // --proxy-ca-native: disable built-in webpki roots, leaving only OS native
+    // roots. reqwest 0.12 applies this globally (server + proxy). Mirrors
+    // --ca-native; both flags flip the same switch — separate for curl-parity.
+    if args.proxy_ca_native {
+        builder = builder.tls_built_in_root_certs(false);
+        if args.verbose >= 1 {
+            eprintln!(
+                "* proxy TLS: --proxy-ca-native (webpki roots disabled, native roots only)"
+            );
+        }
+    }
+
     Ok(builder)
 }
 
