@@ -169,6 +169,7 @@ surprise failures.
 | `agent-browser-snapshot.rhai` | Accessibility-tree dump |
 | `agent-browser-form-login.rhai` | Fill a two-field login form |
 | `agent-browser-guard.rhai` | Prefer browser, fall back to HTTP |
+| `agent-browser-options.rhai` | Global options: ignore_https_errors, user_agent, headers, per-call overrides (0.75.0) |
 
 Every script starts with a usage comment showing args and a one-line
 description. Scripts that take positional args support a sensible
