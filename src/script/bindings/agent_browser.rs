@@ -235,8 +235,19 @@ pub fn register(engine: &mut Engine) {
     );
 
     // eval(js) — JSON-parse the result best-effort.
+    //
+    // Rhai's parser reserves `eval` even in module-namespaced position
+    // (`agentBrowser::eval` fails to parse). We register both `eval`
+    // (callable from Rust / set_native_fn callers) and `eval_js` (the
+    // script-callable alias). Demo scripts use `eval_js`.
     let _ = module.set_native_fn(
         "eval",
+        |js: &str| -> Result<Dynamic, Box<EvalAltResult>> {
+            run_json(&["eval", js])
+        },
+    );
+    let _ = module.set_native_fn(
+        "eval_js",
         |js: &str| -> Result<Dynamic, Box<EvalAltResult>> {
             run_json(&["eval", js])
         },
@@ -335,9 +346,16 @@ pub fn register(engine: &mut Engine) {
         },
     );
 
-    // eval(js, opts)
+    // eval(js, opts) and eval_js(js, opts) — eval_js is the script-callable
+    // alias since Rhai reserves `eval` as a keyword.
     let _ = module.set_native_fn(
         "eval",
+        |js: &str, opts: rhai::Map| -> Result<Dynamic, Box<EvalAltResult>> {
+            run_json_with_opts(&["eval", js], opts)
+        },
+    );
+    let _ = module.set_native_fn(
+        "eval_js",
         |js: &str, opts: rhai::Map| -> Result<Dynamic, Box<EvalAltResult>> {
             run_json_with_opts(&["eval", js], opts)
         },

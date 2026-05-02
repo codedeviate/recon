@@ -8,6 +8,31 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.75.1] - 2026-05-02
+
+### Added
+
+- Six new agent-browser demo scripts covering the full binding surface:
+  `agent-browser-find.rhai` (semantic locators: role / text / label /
+  placeholder / alt / title / testid / first / last / nth),
+  `agent-browser-interaction.rhai` (click, dblclick, hover, focus, check,
+  uncheck, fill, type_text, press, scroll, scrollintoview, keyboard
+  primitives), `agent-browser-inspect.rhai` (snapshot, eval_js, get,
+  is_visible / is_enabled / is_checked, wait), `agent-browser-navigation.rhai`
+  (open / back / forward / reload / close / close_all),
+  `agent-browser-pdf.rhai` (PDF rendering with per-call options),
+  `agent-browser-cmd.rhai` (cmd() escape hatch for cookies / storage /
+  tabs / network / console).
+
+### Fixed
+
+- `agentBrowser::eval` was unparseable from Rhai scripts because Rhai's
+  parser reserves `eval` as a keyword even in module-namespaced position.
+  The typed binding has been kept (Rust-side callers are unaffected) and
+  a parallel `eval_js` alias is now registered for script use. Both
+  the 1-arg `eval_js(js)` and 2-arg `eval_js(js, opts)` overloads are
+  available.
+
 ## [0.75.0] - 2026-05-01
 
 ### Added

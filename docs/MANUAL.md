@@ -2,8 +2,8 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.75.0</div>
-<div class="date">2026-05-01</div>
+<div class="version">Version 0.75.1</div>
+<div class="date">2026-05-02</div>
 <div class="meta">
 Repository · https://github.com/thomas-starweb/recon<br>
 License · MIT

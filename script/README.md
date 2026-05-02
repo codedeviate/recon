@@ -170,6 +170,12 @@ surprise failures.
 | `agent-browser-form-login.rhai` | Fill a two-field login form |
 | `agent-browser-guard.rhai` | Prefer browser, fall back to HTTP |
 | `agent-browser-options.rhai` | Global options: ignore_https_errors, user_agent, headers, per-call overrides (0.75.0) |
+| `agent-browser-find.rhai` | Semantic locators (role, text, label, placeholder, alt, title, testid, first/last/nth) (0.75.1) |
+| `agent-browser-interaction.rhai` | Click/dblclick/hover/focus/check/uncheck/fill/type/press/scroll/keyboard (0.75.1) |
+| `agent-browser-inspect.rhai` | snapshot / eval / get / is_visible / is_enabled / is_checked (0.75.1) |
+| `agent-browser-navigation.rhai` | open / back / forward / reload / close / close_all (0.75.1) |
+| `agent-browser-pdf.rhai` | Render a JS-rendered page to PDF, with per-call options (0.75.1) |
+| `agent-browser-cmd.rhai` | Escape hatch: cookies / storage / tabs / network / console via cmd() (0.75.1) |
 
 Every script starts with a usage comment showing args and a one-line
 description. Scripts that take positional args support a sensible
