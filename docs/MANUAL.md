@@ -2,7 +2,7 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.75.1</div>
+<div class="version">Version 0.75.2</div>
 <div class="date">2026-05-02</div>
 <div class="meta">
 Repository · https://github.com/thomas-starweb/recon<br>
@@ -3033,20 +3033,46 @@ Exposed as a static module. Requires `agent-browser` on `$PATH`.
 |---|---|
 | `agentBrowser::available` | Bool. |
 | `agentBrowser::version` | Version string. |
-| `agentBrowser::open(url)` | Navigate to URL. |
-| `agentBrowser::close()` | End the session. |
-| `agentBrowser::click(selector)` | Click by CSS selector or `@ref`. |
-| `agentBrowser::fill(selector, text)` | Fill a form field. |
-| `agentBrowser::type(selector, text)` | Type into a field (character events). |
-| `agentBrowser::keyboard_type(text)` | Keyboard-level typing. |
-| `agentBrowser::press(key)` | Key press (e.g. `"Enter"`, `"Tab"`). |
-| `agentBrowser::screenshot(path)` | Save PNG. |
-| `agentBrowser::pdf(path)` | Save PDF. |
-| `agentBrowser::snapshot()` | Accessibility-tree dump. |
-| `agentBrowser::eval(js)` | Execute JS, return the value. |
-| `agentBrowser::get(selector)` | Read innerText / value. |
-| `agentBrowser::find(selector)` | Locate (returns ref). |
-| `agentBrowser::cmd(args_array)` | Raw passthrough to the CLI. |
+| `agentBrowser::open(url)` / `open(url, opts)` | Navigate to URL. `opts` overrides global options for this call (0.75.0). |
+| `agentBrowser::close()` / `close_all()` | End the current session / close every session. |
+| `agentBrowser::back()` / `forward()` / `reload()` | Browser history navigation. |
+| `agentBrowser::click(selector)` / `dblclick(selector)` | Click / double-click. Selector is CSS, XPath, or `@ref`. |
+| `agentBrowser::hover(selector)` / `focus(selector)` | Hover / focus an element. |
+| `agentBrowser::check(selector)` / `uncheck(selector)` | Toggle a checkbox. |
+| `agentBrowser::fill(selector, text)` | Clear and fill a form field. |
+| `agentBrowser::type_text(selector, text)` | Type into a field (per-character events). Named `type_text` because `type` is reserved in Rhai. |
+| `agentBrowser::keyboard_type(text)` / `keyboard_insert(text)` | Keyboard-level typing into the focused element. |
+| `agentBrowser::press(key)` | Key press (e.g. `"Enter"`, `"Tab"`, `"Control+a"`). |
+| `agentBrowser::scroll(dir)` / `scroll(dir, px)` | Scroll the page. |
+| `agentBrowser::scrollintoview(selector)` | Scroll an element into the viewport. |
+| `agentBrowser::wait(selector_or_ms)` | Wait for element or a millisecond duration (string or int). |
+| `agentBrowser::screenshot()` / `screenshot(path)` / `screenshot(path, opts)` | Save PNG (default path or explicit). |
+| `agentBrowser::pdf(path)` / `pdf(path, opts)` | Save PDF. |
+| `agentBrowser::snapshot()` / `snapshot(interactive_bool)` / `snapshot(opts)` / `snapshot(interactive, opts)` | Accessibility-tree dump. `interactive=true` filters to interactive elements only. |
+| `agentBrowser::eval_js(js)` / `eval_js(js, opts)` | Execute JS, return the parsed value. Named `eval_js` because `eval` is reserved in Rhai. |
+| `agentBrowser::get(what)` / `get(what, selector)` | Read page or element data. `what` ∈ `text` / `html` / `value` / `attr <name>` / `title` / `url` / `count` / `box` / `styles` / `cdp-url`. Returns a JSON object whose key matches `what`. |
+| `agentBrowser::find(locator, value, action)` / `find(locator, value, action, text)` | Semantic-locator find + act. `locator` ∈ `role` / `text` / `label` / `placeholder` / `alt` / `title` / `testid` / `first` / `last` / `nth`. `action` ∈ `click` / `dblclick` / `hover` / `focus` / `fill` / `type` / `check` / `uncheck`. The 4-arg form passes `text` for fill/type. |
+| `agentBrowser::is_visible(selector)` / `is_enabled(selector)` / `is_checked(selector)` | Predicate checks. Returns `bool`. Errors if no element matches — use `get("count", sel)` for an existence check that doesn't raise. |
+| `agentBrowser::cmd(args_array)` | Raw passthrough to the CLI. Escape hatch for any subcommand without a typed wrapper (cookies, storage, tabs, network, mouse, etc.). |
+
+### Existence check
+
+To test whether a selector matches anything without raising an error:
+
+```rhai
+fn exists(sel) {
+    agentBrowser::get("count", sel).count > 0
+}
+
+if exists("#login-form") {
+    agentBrowser::fill("#user", "alice");
+}
+```
+
+`is_visible` / `is_enabled` / `is_checked` raise a Rhai error when no
+element matches, which aborts the script unless wrapped in
+`try { ... } catch { ... }`. `get("count", sel)` always returns
+`{ count: N }`, so `count == 0` is the no-match signal.
 
 ### Examples
 
@@ -3060,6 +3086,11 @@ agentBrowser::click("button[type=submit]");
 agentBrowser::screenshot("/tmp/after-login.png");
 agentBrowser::close();
 ```
+
+See `script/agent-browser-find.rhai`, `script/agent-browser-interaction.rhai`,
+`script/agent-browser-inspect.rhai`, `script/agent-browser-navigation.rhai`,
+`script/agent-browser-pdf.rhai`, and `script/agent-browser-cmd.rhai` for
+focused demos of each part of the surface.
 
 ### Global options (0.75.0)
 

@@ -8,6 +8,37 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.75.2] - 2026-05-02
+
+### Fixed
+
+- `docs/MANUAL.md` — Part III "agent-browser bindings" function table
+  had stale signatures dating back to the binding's first cut:
+  - `find(selector)` → corrected to `find(locator, value, action)` /
+    `find(locator, value, action, text)` (semantic locators, not CSS).
+  - `get(selector)` → corrected to `get(what)` / `get(what, sel)` with
+    the full `what` enum (`text` / `html` / `value` / `attr <name>` /
+    `title` / `url` / `count` / `box` / `styles` / `cdp-url`).
+  - `type(selector, text)` → `type_text(selector, text)` (renamed
+    because `type` is reserved in Rhai).
+  - `eval(js)` → `eval_js(js)` / `eval_js(js, opts)` (the 0.75.1 alias
+    that's actually callable from script position).
+  - `snapshot()` row expanded to show all 4 overloads.
+  - Added rows for `back` / `forward` / `reload`, `dblclick`, `hover`,
+    `focus`, `check`, `uncheck`, `keyboard_insert`, `scroll`,
+    `scrollintoview`, `wait`, `is_visible` / `is_enabled` /
+    `is_checked`, and per-call `opts` on the launch verbs.
+
+### Added
+
+- New "Existence check" subsection in the manual showing the
+  `agentBrowser::get("count", sel).count > 0` pattern. The predicate
+  functions (`is_visible` etc.) raise an error when no element matches;
+  `get("count", ...)` is the no-raise existence check.
+- Cross-reference from the manual to the six demo scripts shipped in
+  0.75.1 so users land on a working example for each part of the
+  binding surface.
+
 ## [0.75.1] - 2026-05-02
 
 ### Added
