@@ -1955,6 +1955,26 @@ EOF
 recon --script /tmp/multi.rhai"#,
     ]);
 
+    example("Layered .env loading (common + per-script) (0.76.0)", &[
+        r#"cat > /tmp/dotenv.rhai <<'EOF'
+// One common .env shared by every script in a directory, plus a
+// per-script override. The second load wins, so script-specific
+// values overlay the common defaults.
+file_write_all("/tmp/recon.env", "API_HOST=api.example.com\nLOG_LEVEL=info\n");
+file_write_all("/tmp/recon.env.greet", "LOG_LEVEL=debug\nGREETING=hello\n");
+load_dotenv("/tmp/recon.env");
+load_dotenv("/tmp/recon.env.greet");
+print(`API_HOST=${env("API_HOST")}`);
+print(`LOG_LEVEL=${env("LOG_LEVEL")}`);   // debug — specific wins
+print(`GREETING=${env("GREETING")}`);
+// Pass `false` to leave any pre-existing env (e.g. shell exports)
+// in place: load_dotenv("/tmp/recon.env", false);
+return 0;
+EOF
+recon --script /tmp/dotenv.rhai"#,
+    ]);
+    note("load_dotenv(path) overrides existing values by default — that's what makes `common.env, then .env.<scriptname>` layer correctly. Pass `false` to leave pre-existing vars (shell-env wins). env_all() returns the whole environment as a Map. Aliases: loadDotEnv, envAll. std::env::set_var is technically unsound under concurrent reads, so call load_dotenv at the top of the script, before any thread_spawn.");
+
     example("Browse per-module example scripts (one .rhai per binding)", &[
         "ls script/                                   # 27 shipped examples",
         "recon --script script/http.rhai https://example.com",
@@ -1965,7 +1985,7 @@ recon --script /tmp/multi.rhai"#,
     ]);
     note("The repo's script/ directory ships one example per binding module (http, dns, tls, redis, ws, ldap, encode, encrypt, checkdigit, sample, jwt, email, netstatus, sqlite, archive, compression, hash, agent-browser, …). Each script is ~15 lines, documents its args at the top, and exits 0 on success (non-zero when an upstream precondition is missing).");
 
-    note("Available functions: http/https/request, browser(), tcp, ping, dns, tls, ntp, redis, ws/wss, dict, ldap/ldaps, whois, memcached, rtsp/rtsps, mqtt_pub/mqtt_sub, file_read. Module bindings: compression::, archive::, sqlite(), encode::, encrypt::, checkdigit::, sample::, jwt::, email::, netstatus::, text::, agentBrowser::. Hashes: md5, sha1, sha256, sha384, sha512, sha3_256, sha3_512, blake3, crc32, plus hash(algo, x [, \"hex\"|\"base64\"]). Helpers: print, sleep_ms, env, now, now_ms, assert, json_parse, json_stringify. See `recon --help script`.");
+    note("Available functions: http/https/request, browser(), tcp, ping, dns, tls, ntp, redis, ws/wss, dict, ldap/ldaps, whois, memcached, rtsp/rtsps, mqtt_pub/mqtt_sub, file_read. Module bindings: compression::, archive::, sqlite(), encode::, encrypt::, checkdigit::, sample::, jwt::, email::, netstatus::, text::, agentBrowser::. Hashes: md5, sha1, sha256, sha384, sha512, sha3_256, sha3_512, blake3, crc32, plus hash(algo, x [, \"hex\"|\"base64\"]). Helpers: print, sleep_ms, env, env_all, load_dotenv, now, now_ms, assert, json_parse, json_stringify. See `recon --help script`.");
 
     section("TEXT ENCODING (charsets)");
 

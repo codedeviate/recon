@@ -1201,6 +1201,8 @@ static TOPIC_SCRIPT: Topic = Topic {
         FlagHelp { flags: "print(x)", description: "Rhai built-in. Writes x + newline to stdout." },
         FlagHelp { flags: "sleep_ms(n)", description: "Block the current thread for n milliseconds." },
         FlagHelp { flags: "env(name) / env(name, default)", description: "Read an environment variable. Empty string (or default) when unset." },
+        FlagHelp { flags: "env_all() -> Map", description: "Snapshot of every process env var as a Rhai map. Aliased as envAll." },
+        FlagHelp { flags: "load_dotenv(path) / load_dotenv(path, override)", description: "Parse a .env file and set each KEY=VALUE in the process env. Default\noverrides existing values, so `load_dotenv(\".env\"); load_dotenv(\".env.script\")`\nlayers correctly. Pass `false` to leave pre-existing env in place. Returns the\ncount of vars set. Aliased as loadDotEnv. Call before spawning threads." },
         FlagHelp { flags: "now() / now_ms()", description: "Unix seconds or milliseconds as i64." },
         FlagHelp { flags: "assert(cond, msg)", description: "Throw a Rhai exception when cond is false." },
         FlagHelp { flags: "json_parse(s) / json_stringify(x)", description: "Round-trip JSON text ↔ Rhai values (null ↔ (), bool, int, float,\nstring, array, object ↔ map)." },
