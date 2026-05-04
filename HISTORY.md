@@ -52,6 +52,25 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 71. Script-context constants — `script_path` / `script_dir` / `script_name` (0.76.1)
+
+Follow-up on the 0.76.0 dotenv release. The shipped `load_dotenv(path)` API took the path verbatim, so the user's stated workflow — "multiple scripts in a directory sharing a `.env` plus per-script `.env.<scriptname>` overlays" — only worked if the user either hardcoded absolute paths or `cd`'d into the script directory before running recon. Neither is the workflow they described.
+
+**Three `Scope::push_constant` calls.** `src/script/engine.rs:48` already had the resolved absolute path in hand for Rhai's module resolver (`ast.set_source(...)`); just wasn't exposing it to the script. Pushed three constants alongside `args` and `flags`: `script_path` (resolved absolute), `script_dir` (its parent), and `script_name` (file stem, basename minus extension). Six lines of plumbing in `engine::run_file`. The natural overlay idiom now writes:
+
+```rhai
+load_dotenv(script_dir + "/.env");
+load_dotenv(script_dir + "/.env." + script_name);
+```
+
+**`script_name` is not redundant with `args[0]`.** The first cut of the demo used `args[0]` as the overlay name (`script_dir + "/.env." + args[0]`). End-to-end smoke produced `.env./tmp/dotenv-overlay/demo.rhai` because `args[0]` is whatever the user typed on the command line — when invoked with `recon --script /abs/path/demo.rhai`, `args[0]` is the full path, not `demo`. `script_name` always reduces to just the stem regardless of how the script was invoked. Caught the bug in the smoke test before shipping; added `script_name` and a `script_name_is_file_stem` unit test to lock the behaviour in.
+
+**`load_dotenv` itself unchanged.** The temptation was to make `load_dotenv` auto-resolve relative paths against `script_dir`. Rejected as surprising magic: relative-path semantics would differ between `load_dotenv(".env")` and any other recon function that takes a path. Users compose `script_dir + "/.env"` explicitly. Easier to reason about, no environment-variable plumbing, and absolute paths still work the way they always have.
+
+**Demo rewrite.** The 0.76.0 demo wrote tempfiles under `/tmp/recon-dotenv-demo.env` and loaded them by absolute path — exercised the API but not the workflow. Rewrote to expect sibling `.env` and `.env.<script_name>` files and degrade gracefully via `try { ... } catch { ... }` when they don't exist. Users who copy `script/dotenv.rhai` into a directory of their own scripts get the layered behaviour for free.
+
+**Test budget: +4.** Three tests for the new constants (`script_path_constant_is_resolved_path`, `script_dir_constant_is_parent_of_script_path`, `script_name_is_file_stem`) plus one end-to-end load_dotenv-via-script_dir test. 1266 → 1270 passing.
+
 ### 70. Script engine — `.env` loading + `env_all()` (0.76.0)
 
 A user reported that scripts couldn't easily layer config across a directory of related Rhai files. The pattern they wanted: one common `.env` shared by every script in a directory, plus a per-script `.env.<scriptname>` whose values override the common file. Process-environment *reads* were already exposed via `env(name)` / `env(name, default)` (helpers.rs:18-26), but `.env` parsing didn't exist anywhere in recon.

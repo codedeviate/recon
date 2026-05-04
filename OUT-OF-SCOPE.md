@@ -251,6 +251,18 @@ reference.
   macOS for non-DGRAM types). Revisit when users ask for specific
   traffic-generation or monitoring use cases.
 
+- **Auto-loading `.env` at script start** — 0.76.0 shipped explicit
+  `load_dotenv(path)` only. Auto-loading `<script_dir>/.env` (and
+  optionally `<script_dir>/.env.<script_name>`) before script
+  execution would save users a two-line preamble but introduces
+  surprising behaviour: scripts run from arbitrary directories
+  would silently inherit values from any `.env` file sitting next
+  to them, and scripts that *don't* want dotenv loading would have
+  no opt-out short of moving to a clean directory. Explicit-only is
+  the safer default; revisit if multiple users independently ask for
+  the convention. Composition is one line:
+  `load_dotenv(script_dir + "/.env");`.
+
 ### wget recursive / mirror cluster
 
 The whole cluster is one feature area; shipping a subset leaves the
@@ -383,6 +395,22 @@ hook (or when recon bypasses reqwest for a direct hyper stack).
   when the ecosystem matures. (FTP, TFTP, GOPHER, POP3, IMAP, SFTP
   and many others have shipped as protocol probes — this note tracks
   only the still-excluded remainder.)
+
+### Rust edition
+
+- **`std::env::set_var` becomes `unsafe` in edition 2024.** recon's
+  Cargo.toml currently pins `edition = "2021"`. The 0.76.0
+  `load_dotenv` binding calls `std::env::set_var` to populate the
+  process environment from parsed `.env` files. In edition 2024 this
+  function gains `unsafe` because concurrent `getenv`/`setenv` calls
+  are technically unsound on POSIX. The current code documents the
+  constraint (call `load_dotenv` at the top of the script before
+  spawning threads via `thread::spawn`) but doesn't enforce it.
+  Revisit when migrating to edition 2024: either wrap the call in
+  `unsafe { ... }` with the existing single-threaded-startup
+  invariant documented as the safety justification, or switch to a
+  thread-local env-var store that doesn't need to mutate libc's
+  global state.
 
 ---
 

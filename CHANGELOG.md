@@ -8,6 +8,24 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.76.2] - 2026-05-04
+
+### Changed
+
+- `HISTORY.md` — added entry #71 covering 0.76.1's
+  `script_path` / `script_dir` / `script_name` constants. The 0.76.1
+  release shipped without a HISTORY entry; this backfills the
+  design rationale (why `script_name` is needed alongside `args[0]`,
+  why `load_dotenv` itself wasn't changed to auto-resolve relative
+  paths against `script_dir`, the args[0]-vs-script_name bug caught
+  in smoke testing).
+- `OUT-OF-SCOPE.md` — recorded two deliberate non-goals from the
+  0.76.0 / 0.76.1 dotenv work that previously lived only in code
+  comments and CHANGELOG prose: auto-loading `.env` at script start
+  (Deferred — explicit-only by design, with rationale) and the
+  edition-2024 `std::env::set_var` migration (Not yet supported —
+  blocks on a recon edition bump from 2021 → 2024).
+
 ## [0.76.1] - 2026-05-04
 
 ### Added
