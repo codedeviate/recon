@@ -2,8 +2,8 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.75.2</div>
-<div class="date">2026-05-02</div>
+<div class="version">Version 0.76.0</div>
+<div class="date">2026-05-04</div>
 <div class="meta">
 Repository · https://github.com/thomas-starweb/recon<br>
 License · MIT
@@ -1969,6 +1969,9 @@ Exposed by `src/script/bindings/helpers.rs`. Always available.
 | `sleep(ms)` | — | Alias of sleep_ms (added in 0.56.0 for thread-side readability). |
 | `env(name)` | string | Process environment variable; `""` if unset. |
 | `env(name, default)` | string | With fallback. |
+| `env_all()` | Map | Snapshot every process env var. Aliased as `envAll`. |
+| `load_dotenv(path)` | int | Parse `.env` and set each KEY=VALUE in the process env (overrides existing). Returns count of vars set. Aliased as `loadDotEnv`. |
+| `load_dotenv(path, override)` | int | Two-arg form: `false` leaves pre-existing env vars in place. |
 | `now()` | int | Unix seconds. |
 | `now_ms()` | int | Unix milliseconds. |
 | `assert(cond, msg)` | — | Throws on false. |
@@ -2005,7 +2008,27 @@ while now() < deadline {
     sleep_ms(500);
 }
 return 1;
+
+// Layered .env loading: common defaults, per-script overrides
+load_dotenv("/etc/myapp/.env");           // common across scripts (override existing)
+load_dotenv("/etc/myapp/.env.greet");     // script-specific layer wins
+print(env("LOG_LEVEL"));
+
+// Non-override variant: shell-env wins over file values
+load_dotenv("/etc/myapp/.env", false);
+
+// env_all() — useful for filtering or logging the entire env
+let everything = env_all();
+print(`process env has ${everything.len()} variables`);
 ```
+
+`load_dotenv` overrides existing env values by default — that's what
+makes the `common.env, then .env.<scriptname>` pattern layer
+correctly. Pass `false` as a second arg to leave pre-existing values
+in place (e.g. when shell exports should take priority over file
+defaults). `std::env::set_var` is technically unsound under
+concurrent reads on some platforms, so call `load_dotenv` at the top
+of the script — before `thread_spawn` or any concurrent binding.
 
 ## Output bindings
 

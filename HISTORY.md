@@ -52,6 +52,22 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 70. Script engine — `.env` loading + `env_all()` (0.76.0)
+
+A user reported that scripts couldn't easily layer config across a directory of related Rhai files. The pattern they wanted: one common `.env` shared by every script in a directory, plus a per-script `.env.<scriptname>` whose values override the common file. Process-environment *reads* were already exposed via `env(name)` / `env(name, default)` (helpers.rs:18-26), but `.env` parsing didn't exist anywhere in recon.
+
+**`dotenvy` over `dotenv`.** The `dotenv` crate is unmaintained (last release 2020) and carries an open soundness advisory. `dotenvy` is its actively-maintained fork, same API surface, ~12 KB compiled with no transitive deps. Direct replacement, no comparison shopping needed.
+
+**`from_path_iter`, not `from_path` / `from_path_override`.** The naive pick was to dispatch on the override flag and call one of dotenvy's two convenience functions. But those functions silently set env vars themselves and return only `Result<(), Error>` — recon couldn't count what was actually set or implement the override branch consistently. `from_path_iter` returns an iterator over `Result<(String, String)>`, leaving recon in control of both the override decision and the count. The implementation became a six-line for-loop in `helpers.rs::load_dotenv_impl`.
+
+**Override semantics: default ON.** dotenvy's `from_path` defaults to non-override, but the user's stated workflow ("common.env, then .env.<scriptname>") only works if the second load wins. Non-override default would silently make the per-script file a no-op for any key the common file already set — a footgun that would surface as "why isn't my override working?" support questions. So `load_dotenv(path)` overrides existing values; `load_dotenv(path, false)` is the explicit opt-out for callers who want shell-env to take priority over file values.
+
+**camelCase aliases.** The user's request used `loadDotEnv` (camelCase), but every other recon binding is snake_case (`file_read`, `json_parse`, `sleep_ms`). Registered both: canonical name `load_dotenv` matches the codebase, alias `loadDotEnv` accepts the user's preferred spelling. Same for `env_all` / `envAll`. Cost: one extra `register_fn` per alias; benefit: zero pushback on naming.
+
+**Concurrency footnote (deliberately not enforced in code).** `std::env::set_var` is technically unsound under concurrent reads on some platforms, and recon ships threading bindings (`thread_spawn`). Adding a runtime guard ("error if any thread is alive") would be defensive overkill for a function that's almost always called once at script startup. Documented the constraint in the help text, the manual, and the inline comment, but left enforcement to the user — Rhai scripts are sequential by default, and the typical call site is the first non-comment line.
+
+**Test budget: +8.** Seven tests cover the new bindings (env_all snapshot + camelCase alias, load_dotenv basic set, override-default-true, override-explicit-false, layered common→specific, missing-file error path, camelCase alias) plus `script/dotenv.rhai` which `tests/script_examples_it.rs` validates as parseable. 1258 → 1266 passing.
+
 ### 69. agent-browser global options in script engine (0.75.0)
 
 A user reported that a Rhai script using `agentBrowser::open(url)` against a server with a self-signed TLS certificate hit a Chrome cert-rejection wall with no escape hatch. Investigation: `src/script/bindings/agent_browser.rs` exposed ~30 action verbs (open, click, type, etc.) but ZERO of agent-browser's 25 global launch / security / session options. The shared transport `crate::agent_browser::run_cmd(args, json)` had no slot for prepending global flags.

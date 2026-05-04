@@ -8,6 +8,31 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.76.0] - 2026-05-04
+
+### Added
+
+- Script engine — `.env` loading and full-environment snapshot. Three
+  new bindings in `src/script/bindings/helpers.rs`:
+  - `load_dotenv(path) -> int` parses a `.env` file and sets each
+    `KEY=VALUE` in the process environment, **overriding** existing
+    values. Returns the count of vars set. Aliased as `loadDotEnv`
+    for camelCase callers.
+  - `load_dotenv(path, override) -> int` — explicit two-arg form.
+    Pass `false` to leave pre-existing env (e.g. shell exports) in
+    place; returns 0 for any key already set.
+  - `env_all() -> Map` snapshots the entire process environment as a
+    Rhai map. Aliased as `envAll`.
+  Default-override semantics make the layered pattern work:
+  `load_dotenv(".env"); load_dotenv(".env.<scriptname>")` — the
+  second load wins, mirroring how shell scripts source common
+  defaults followed by per-script overrides.
+- New shipped example: `script/dotenv.rhai` demonstrates the layered
+  workflow end-to-end (writes two .env files, loads them, prints
+  resolved values, exercises camelCase aliases).
+- New dependency: `dotenvy = "0.15"` (maintained successor to the
+  unmaintained `dotenv` crate). Used solely for `.env` parsing.
+
 ## [0.75.2] - 2026-05-02
 
 ### Fixed
