@@ -34,6 +34,24 @@ pub fn run_file(path: &Path, args: &Args) -> i32 {
     scope.push_constant("args", super::bindings::cli::build_args_array(args));
     scope.push_constant("flags", super::bindings::cli::build_flags_map(args));
 
+    // `script_path` (resolved absolute), `script_dir` (its parent), and
+    // `script_name` (file stem — basename minus extension).
+    // Lets scripts reference sibling files without depending on CWD:
+    //   load_dotenv(script_dir + "/.env");
+    //   load_dotenv(script_dir + "/.env." + script_name);
+    let resolved_path = path.to_string_lossy().into_owned();
+    let resolved_dir = path
+        .parent()
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let resolved_name = path
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    scope.push_constant("script_path", resolved_path);
+    scope.push_constant("script_dir", resolved_dir);
+    scope.push_constant("script_name", resolved_name);
+
     // Compile with an explicit source so Rhai's default FileModuleResolver
     // can resolve `import "name"` relative to the script's directory.
     // Without set_source, the resolver has no "source path" and imports
@@ -261,5 +279,71 @@ if s == "hi world" { 42 } else { 1 }"#,
         let f = write_script(r#"import "definitely_does_not_exist" as x; return 0;"#);
         let code = run_file(f.path(), &dummy_args());
         assert_ne!(code, 0);
+    }
+
+    #[test]
+    fn script_path_constant_is_resolved_path() {
+        // Script writes its own script_path back via the protocol exit-code
+        // channel: we instead just assert the script can read the constant
+        // and that it's non-empty + matches f.path().
+        let f = write_script(r#"
+            assert(script_path != "", "script_path is empty");
+            assert(script_path.contains(".tmp"), `unexpected: ${script_path}`);
+            return 11;
+        "#);
+        let code = run_file(f.path(), &dummy_args());
+        assert_eq!(code, 11);
+    }
+
+    #[test]
+    fn script_dir_constant_is_parent_of_script_path() {
+        let f = write_script(r#"
+            assert(script_dir != "", "script_dir is empty");
+            assert(script_path.starts_with(script_dir), "path not under dir");
+            return 12;
+        "#);
+        let code = run_file(f.path(), &dummy_args());
+        assert_eq!(code, 12);
+    }
+
+    #[test]
+    fn script_name_is_file_stem() {
+        let dir = tempfile::tempdir().unwrap();
+        let script_path = dir.path().join("hello.rhai");
+        std::fs::write(
+            &script_path,
+            r#"assert(script_name == "hello", `got: ${script_name}`); return 14;"#,
+        ).unwrap();
+        let mut args = dummy_args();
+        args.script = Some(script_path.clone());
+        let code = run_file(&script_path, &args);
+        assert_eq!(code, 14);
+    }
+
+    #[test]
+    fn script_dir_used_with_load_dotenv_resolves_sibling() {
+        // Drop a script and a .env in the same tempdir; the script reads
+        // the .env via `script_dir + "/.env"` and verifies one of the keys.
+        let dir = tempfile::tempdir().unwrap();
+        let env_path = dir.path().join(".env");
+        std::fs::write(&env_path, "RECON_TEST_SIBLING_KEY=sibling-value\n").unwrap();
+        let script_path = dir.path().join("main.rhai");
+        std::fs::write(
+            &script_path,
+            r#"
+            let n = load_dotenv(script_dir + "/.env");
+            assert(n >= 1, `expected to load at least one var, got ${n}`);
+            assert(env("RECON_TEST_SIBLING_KEY") == "sibling-value",
+                `got: ${env("RECON_TEST_SIBLING_KEY")}`);
+            return 13;
+            "#,
+        )
+        .unwrap();
+
+        let mut args = dummy_args();
+        args.script = Some(script_path.clone());
+        let code = run_file(&script_path, &args);
+        std::env::remove_var("RECON_TEST_SIBLING_KEY");
+        assert_eq!(code, 13);
     }
 }

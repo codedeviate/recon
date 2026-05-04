@@ -1975,6 +1975,22 @@ recon --script /tmp/dotenv.rhai"#,
     ]);
     note("load_dotenv(path) overrides existing values by default — that's what makes `common.env, then .env.<scriptname>` layer correctly. Pass `false` to leave pre-existing vars (shell-env wins). env_all() returns the whole environment as a Map. Aliases: loadDotEnv, envAll. std::env::set_var is technically unsound under concurrent reads, so call load_dotenv at the top of the script, before any thread_spawn.");
 
+    example("Sibling .env via script_dir / script_name (resolved-path constants) (0.76.1)", &[
+        r#"cat > /tmp/myscript.rhai <<'EOF'
+// `script_dir` is the resolved absolute parent of the running script,
+// `script_name` is its file stem (e.g. "myscript"). Combine with .env
+// names to load files siblings to the script, independent of CWD.
+load_dotenv(script_dir + "/.env");                       // shared
+load_dotenv(script_dir + "/.env." + script_name);        // per-script overlay
+print(`API_HOST=${env("API_HOST", "(unset)")}`);
+return 0;
+EOF
+echo 'API_HOST=staging.example.com' > /tmp/.env
+echo 'API_HOST=myscript-prod.example.com' > /tmp/.env.myscript
+recon --script /tmp/myscript.rhai      # API_HOST = myscript-prod.example.com"#,
+    ]);
+    note("`script_path`, `script_dir`, and `script_name` are read-only String constants pushed into the script's Scope alongside `args` and `flags`. Use them when scripts need to find sibling files (.env, fixtures, helper modules) without depending on CWD.");
+
     example("Browse per-module example scripts (one .rhai per binding)", &[
         "ls script/                                   # 27 shipped examples",
         "recon --script script/http.rhai https://example.com",

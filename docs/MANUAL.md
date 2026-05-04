@@ -2,7 +2,7 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.76.0</div>
+<div class="version">Version 0.76.1</div>
 <div class="date">2026-05-04</div>
 <div class="meta">
 Repository · https://github.com/thomas-starweb/recon<br>
@@ -1972,6 +1972,9 @@ Exposed by `src/script/bindings/helpers.rs`. Always available.
 | `env_all()` | Map | Snapshot every process env var. Aliased as `envAll`. |
 | `load_dotenv(path)` | int | Parse `.env` and set each KEY=VALUE in the process env (overrides existing). Returns count of vars set. Aliased as `loadDotEnv`. |
 | `load_dotenv(path, override)` | int | Two-arg form: `false` leaves pre-existing env vars in place. |
+| `script_path` | string (constant) | Resolved absolute path of the running script. Pushed into the Scope at startup. |
+| `script_dir` | string (constant) | Parent directory of `script_path`. Use to load sibling files independent of CWD: `load_dotenv(script_dir + "/.env")`. |
+| `script_name` | string (constant) | File stem of the running script (basename minus extension). Useful with the per-script overlay convention: `load_dotenv(script_dir + "/.env." + script_name)`. |
 | `now()` | int | Unix seconds. |
 | `now_ms()` | int | Unix milliseconds. |
 | `assert(cond, msg)` | — | Throws on false. |
@@ -2009,13 +2012,15 @@ while now() < deadline {
 }
 return 1;
 
-// Layered .env loading: common defaults, per-script overrides
-load_dotenv("/etc/myapp/.env");           // common across scripts (override existing)
-load_dotenv("/etc/myapp/.env.greet");     // script-specific layer wins
+// Layered .env loading: common defaults, per-script overrides.
+// Use script_dir so the .env files don't depend on CWD — they live
+// alongside the script in the same directory.
+load_dotenv(script_dir + "/.env");                       // shared
+load_dotenv(script_dir + "/.env." + script_name);        // per-script overlay wins
 print(env("LOG_LEVEL"));
 
 // Non-override variant: shell-env wins over file values
-load_dotenv("/etc/myapp/.env", false);
+load_dotenv(script_dir + "/.env", false);
 
 // env_all() — useful for filtering or logging the entire env
 let everything = env_all();

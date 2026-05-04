@@ -8,6 +8,43 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.76.1] - 2026-05-04
+
+### Added
+
+- `script_path`, `script_dir`, and `script_name` — read-only String
+  constants pushed into every Rhai script's Scope alongside `args`
+  and `flags`. `script_path` is the resolved absolute path of the
+  running script, `script_dir` is its parent directory, and
+  `script_name` is the file stem (basename minus extension). The
+  natural overlay idiom is now:
+
+  ```rhai
+  load_dotenv(script_dir + "/.env");                       // shared
+  load_dotenv(script_dir + "/.env." + script_name);        // per-script
+  ```
+
+  Closes the gap between the 0.76.0 `load_dotenv` API and the original
+  use case (multiple scripts in a directory sharing a `.env` plus
+  per-script `.env.<scriptname>` overlays). `args[0]` is unsuitable
+  for the overlay name because it's the as-typed value (the full path
+  when the user runs `--script /tmp/x/demo.rhai`); `script_name`
+  always reduces to just `demo`.
+
+### Changed
+
+- `script/dotenv.rhai` — rewritten to demonstrate the directory-
+  overlay pattern using `script_dir`. The 0.76.0 version wrote its
+  own tempfiles under `/tmp` and loaded them by absolute path, which
+  showed the API but not the workflow. The new demo expects sibling
+  `.env` and `.env.<args[0]>` files next to the script and degrades
+  gracefully with `try { ... } catch { ... }` when they don't exist.
+- `recon --help script` and `recon --examples` updated with
+  `script_path` / `script_dir` entries and a sibling-`.env` example.
+- `docs/MANUAL.md` Part III env section gained rows for the two new
+  constants and the canonical overlay snippet now uses
+  `script_dir + "/.env"` instead of hardcoded `/etc/myapp` paths.
+
 ## [0.76.0] - 2026-05-04
 
 ### Added
