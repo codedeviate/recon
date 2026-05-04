@@ -139,6 +139,7 @@ surprise failures.
 | `compression.rhai` | Round-trip every stream-compression algo |
 | `archive.rhai` | Create + extract a zip in /tmp |
 | `sqlite.rhai` | In-memory SQLite round-trip |
+| `dotenv.rhai` | Layered `.env` loading (common + per-script) plus `env_all()` |
 
 ### Domain tools
 
