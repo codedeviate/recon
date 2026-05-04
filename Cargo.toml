@@ -1,6 +1,6 @@
 [package]
 name = "recon"
-version = "0.75.2"
+version = "0.76.0"
 edition = "2021"
 
 [[bin]]
@@ -95,6 +95,7 @@ similar = "2"
 xattr = "1"
 rxing = { version = "0.7", default-features = false, features = ["image"] }
 comrak = { version = "0.28", default-features = false }
+dotenvy = "0.15"
 
 [dev-dependencies]
 wiremock = "0.6"
