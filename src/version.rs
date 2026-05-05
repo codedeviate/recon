@@ -5,7 +5,7 @@
 //! `print_short` prints just `recon <version>` for scripts that only want
 //! the number.
 
-const RELEASE_DATE: &str = "2026-05-04";
+const RELEASE_DATE: &str = "2026-05-05";
 
 // Update these when the corresponding Cargo.toml entries change majors/minors.
 // Patch-version drift is not reflected — the banner reports the API surface.
@@ -99,6 +99,8 @@ pub fn print_full() {
     let mut protocols: Vec<&str> = PROTOCOLS.to_vec();
     protocols.sort_by_key(|s| s.to_ascii_lowercase());
     let mut features: Vec<&str> = FEATURES.to_vec();
+    #[cfg(feature = "impersonate")]
+    features.push("TLS-impersonation");
     features.sort_by_key(|s| s.to_ascii_lowercase());
 
     println!(
