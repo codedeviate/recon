@@ -1462,6 +1462,8 @@ fn friendly_message(err: &anyhow::Error) -> String {
         || msg.starts_with("unsupported scheme for mqtt URL")
         || msg.starts_with("malformed mqtt URL")
         || msg.starts_with("mqtt URL missing host")
+        || msg.contains("browser fingerprint impersonation")
+        || msg.contains("impersonate profile")
         || msg == "interrupted"
     {
         return msg;

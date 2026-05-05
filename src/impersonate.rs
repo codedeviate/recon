@@ -28,28 +28,33 @@ pub fn is_active(args: &Args) -> bool {
 /// any impersonation flag. Errors out with a clear message naming the
 /// offending flag pair.
 pub fn validate_combination(args: &Args) -> Result<()> {
+    // Note: avoid the words "TLS" and "certificate" in these error strings
+    // because main.rs::friendly_message rewrites any error containing them
+    // to the generic "TLS/certificate error" placeholder, which would hide
+    // the actually-helpful message from the user. Use "browser fingerprint
+    // impersonation", "profile", "rquest" instead.
     if args.ciphers.is_some() || args.tls13_ciphers.is_some() {
         return Err(anyhow!(
-            "--ciphers / --tls13-ciphers cannot be combined with TLS \
-             impersonation: the profile owns the cipher list."
+            "--ciphers / --tls13-ciphers cannot be combined with browser \
+             fingerprint impersonation: the profile owns the cipher list."
         ));
     }
     if args.tlsv12 || args.tlsv13 {
         return Err(anyhow!(
-            "--tlsv1.2 / --tlsv1.3 cannot be combined with TLS \
-             impersonation: the profile owns the TLS version."
+            "--tlsv1.2 / --tlsv1.3 cannot be combined with browser fingerprint \
+             impersonation: the profile owns the protocol version."
         ));
     }
     if args.client_cert.is_some() || args.client_key.is_some() {
         return Err(anyhow!(
-            "--client-cert / --client-key (client cert auth) is not supported with \
-             TLS impersonation in v1 (deferred — see OUT-OF-SCOPE.md)."
+            "--client-cert / --client-key (mutual auth) is not supported with \
+             browser fingerprint impersonation in v1 (deferred — see OUT-OF-SCOPE.md)."
         ));
     }
     if args.cacert.is_some() || args.capath.is_some() {
         return Err(anyhow!(
-            "--cacert / --capath is not supported with TLS impersonation \
-             in v1 (system roots only — see OUT-OF-SCOPE.md)."
+            "--cacert / --capath is not supported with browser fingerprint \
+             impersonation in v1 (system roots only — see OUT-OF-SCOPE.md)."
         ));
     }
     if args.ja3.is_some() && args.ja4.is_some() {
@@ -158,6 +163,14 @@ pub fn execute(args: &Args) -> Result<(ReqwestResponse, RequestMetrics)> {
 
     // Populate response-side metrics in the same shape client.rs uses.
     crate::client::snapshot_response_for_impersonate(&mut metrics, args, &converted);
+
+    // The reqwest::blocking::Response synthesised from http::Response in
+    // convert_response carries reqwest's placeholder URL, so the
+    // url_effective set by snapshot_response is wrong on this path. Override
+    // with the actual target URL. (Redirects aren't supported on the
+    // impersonate path in v1 — the URL we sent IS the URL the response came
+    // from.)
+    metrics.url_effective = Some(args.target_url().to_string());
 
     Ok((converted, metrics))
 }

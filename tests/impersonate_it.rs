@@ -63,6 +63,32 @@ fn raw_overrides_deferred_to_v0_78() {
 }
 
 #[test]
+fn validate_combination_errors_survive_friendly_message_filter() {
+    // Regression: main.rs::friendly_message rewrites any error containing
+    // "TLS" or "certificate" to a generic placeholder, which would hide the
+    // helpful "this flag combination is not supported" message. Verify the
+    // actual message reaches the user for each incompatible pair.
+    let cases = [
+        (vec!["--impersonate", "chrome_131", "--tlsv1.3"], "fingerprint impersonation"),
+        (vec!["--impersonate", "chrome_131", "--tlsv1.2"], "fingerprint impersonation"),
+        (vec!["--impersonate", "chrome_131", "--cacert", "/dev/null"], "fingerprint impersonation"),
+    ];
+    for (flags, expected_substring) in cases {
+        let mut argv = flags;
+        argv.push("https://example.com/");
+        let out = Command::new(recon_bin())
+            .args(&argv)
+            .output()
+            .expect("spawn recon");
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(
+            stderr.contains(expected_substring),
+            "args {argv:?}: expected '{expected_substring}' in stderr, got: {stderr}"
+        );
+    }
+}
+
+#[test]
 fn invalid_profile_name_errors_clearly() {
     let out = Command::new(recon_bin())
         .args(["--impersonate", "not-a-real-browser", "https://example.com/"])
