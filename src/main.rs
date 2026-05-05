@@ -2,6 +2,8 @@ mod cert;
 mod cli;
 mod client;
 mod client_cert;
+#[cfg(feature = "impersonate")]
+mod impersonate;
 mod clipboard;
 mod compare;
 mod compression;

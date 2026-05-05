@@ -43,6 +43,31 @@ fn snapshot_response(metrics: &mut RequestMetrics, args: &Args, response: &Respo
 }
 
 pub fn execute(args: &Args) -> Result<(Response, RequestMetrics)> {
+    // --impersonate / --ja3 / --ja4 / --http2-fingerprint dispatch.
+    // Behind the `impersonate` Cargo feature; without it, the flags are
+    // accepted by clap but error out with a clear rebuild hint.
+    #[cfg(feature = "impersonate")]
+    {
+        if crate::impersonate::is_active(args) {
+            return crate::impersonate::execute(args);
+        }
+    }
+    #[cfg(not(feature = "impersonate"))]
+    {
+        if args.impersonate.is_some()
+            || args.ja3.is_some()
+            || args.ja4.is_some()
+            || args.http2_fingerprint.is_some()
+        {
+            anyhow::bail!(
+                "--impersonate / --ja3 / --ja4 / --http2-fingerprint require a build \
+                 with --features impersonate. \
+                 Rebuild with `cargo build --features impersonate` or download the \
+                 `recon-impersonate` artifact from the release page."
+            );
+        }
+    }
+
     // --request-target: reqwest's blocking client doesn't expose the
     // request-target directly. Accepted at parse time but errors here
     // until we bypass reqwest for a direct hyper path.
