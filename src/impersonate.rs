@@ -8,7 +8,10 @@
 
 #![cfg(feature = "impersonate")]
 
-use anyhow::{anyhow, Result};
+use std::time::Instant;
+
+use anyhow::{anyhow, Context, Result};
+use reqwest::blocking::Response as ReqwestResponse;
 
 use crate::cli::Args;
 use crate::metrics::RequestMetrics;
@@ -58,11 +61,103 @@ pub fn validate_combination(args: &Args) -> Result<()> {
     Ok(())
 }
 
+/// Parse a user-supplied profile string ("chrome_131", "chrome-131") into
+/// rquest_util's Emulation enum. Normalizes hyphens to underscores so users
+/// can type either form on the CLI.
+fn parse_emulation(name: &str) -> Result<rquest_util::Emulation> {
+    // rquest_util's serde format is `chrome_131`, `safari_17.5`, etc.
+    // Normalize hyphens to underscores so users can type either form.
+    let normalized = name.trim().replace('-', "_").to_ascii_lowercase();
+    let value = serde_json::Value::String(normalized.clone());
+    serde_json::from_value::<rquest_util::Emulation>(value).map_err(|e| {
+        anyhow!(
+            "unknown impersonate profile '{name}' (normalized to '{normalized}'). \
+             Valid examples: chrome_131, firefox_128, safari_17.5, edge_131, \
+             chrome_android_131, safari_ios_17.4.1, okhttp_5. \
+             See `recon --help impersonate` for the full list. ({e})"
+        )
+    })
+}
+
+/// Convert an rquest::Response (async client) into a reqwest::blocking::Response
+/// so the rest of recon's output pipeline (reqwest-typed) consumes it unchanged.
+/// Buffers the body in memory; acceptable for the v1 captcha-testing use case.
+async fn convert_response(resp: rquest::Response) -> Result<ReqwestResponse> {
+    let status = resp.status();
+    let headers = resp.headers().clone();
+    let version = resp.version();
+    let bytes = resp.bytes().await.map_err(|e| anyhow!("read body: {e}"))?;
+
+    let mut builder = http::Response::builder()
+        .status(status)
+        .version(version);
+    for (k, v) in headers.iter() {
+        builder = builder.header(k, v);
+    }
+    let http_resp = builder
+        .body(bytes.to_vec())
+        .map_err(|e| anyhow!("build http::Response: {e}"))?;
+    Ok(ReqwestResponse::from(http_resp))
+}
+
 /// Public entry — mirrors `client::execute` for the impersonation path.
-pub fn execute(args: &Args) -> Result<(reqwest::blocking::Response, RequestMetrics)> {
+pub fn execute(args: &Args) -> Result<(ReqwestResponse, RequestMetrics)> {
     validate_combination(args)?;
-    Err(anyhow!(
-        "--impersonate: not yet implemented (Tasks 4–7 wire the rquest client). \
-         This stub proves dispatch works."
-    ))
+
+    // Defer raw-fingerprint flags to v0.78 (stubbed in Task 5). Fail fast
+    // if any of them is set so the user sees a clear "not yet implemented"
+    // rather than a silent no-op.
+    if args.ja3.is_some() || args.ja4.is_some() || args.http2_fingerprint.is_some() {
+        return Err(anyhow!(
+            "--ja3 / --ja4 / --http2-fingerprint are not implemented in v1 \
+             (tracked for v0.78). Use --impersonate <profile> for a named-profile \
+             fingerprint instead."
+        ));
+    }
+
+    let profile_name = args.impersonate.as_deref().ok_or_else(|| {
+        anyhow!("impersonate::execute called without --impersonate (this is a bug)")
+    })?;
+    let emulation = parse_emulation(profile_name)?;
+
+    let mut metrics = RequestMetrics::default();
+    metrics.request_start = Some(Instant::now());
+
+    // rquest 5.1.0 is async-only; spin up a current-thread tokio runtime and
+    // block on the request. recon's pipeline above us is blocking, so this
+    // is the standard sync-bridges-async pattern.
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .context("build tokio runtime for impersonate path")?;
+
+    let url = args.target_url().to_string();
+    let method_str = args.effective_method();
+    let timeout_secs = args.timeout;
+    let insecure = args.insecure;
+
+    let converted = runtime.block_on(async move {
+        let client = rquest::Client::builder()
+            .emulation(emulation)
+            .cert_verification(!insecure)
+            .connect_timeout(std::time::Duration::from_secs(timeout_secs))
+            .build()
+            .map_err(|e| anyhow!("rquest client build: {e}"))?;
+
+        let method = rquest::Method::from_bytes(method_str.as_bytes())
+            .map_err(|e| anyhow!("invalid HTTP method '{method_str}': {e}"))?;
+
+        let resp = client
+            .request(method, url)
+            .send()
+            .await
+            .map_err(|e| anyhow!("impersonate request: {e}"))?;
+
+        convert_response(resp).await
+    })?;
+
+    // Populate response-side metrics in the same shape client.rs uses.
+    crate::client::snapshot_response_for_impersonate(&mut metrics, args, &converted);
+
+    Ok((converted, metrics))
 }

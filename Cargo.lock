@@ -4253,6 +4253,7 @@ dependencies = [
  "filetime",
  "flate2",
  "hickory-resolver",
+ "http",
  "http-body-util",
  "httpdate",
  "hyper",
@@ -4276,6 +4277,7 @@ dependencies = [
  "rhai",
  "rpassword",
  "rquest",
+ "rquest-util",
  "rumqttc",
  "rusqlite",
  "rustls 0.23.38",
@@ -4511,6 +4513,17 @@ dependencies = [
  "url",
  "webpki-root-certs 0.26.11",
  "windows-registry 0.5.3",
+]
+
+[[package]]
+name = "rquest-util"
+version = "2.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3e3762f6e3e0d1674a6e74ebcbcb3b8d56c895757fc2cc2aa0d5e62ccfcb21e"
+dependencies = [
+ "rquest",
+ "serde",
+ "typed-builder",
 ]
 
 [[package]]

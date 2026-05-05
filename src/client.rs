@@ -42,6 +42,16 @@ fn snapshot_response(metrics: &mut RequestMetrics, args: &Args, response: &Respo
     }
 }
 
+/// Thin public wrapper so `impersonate::execute` can call `snapshot_response`
+/// without duplicating its body. The inner `snapshot_response` stays private.
+pub(crate) fn snapshot_response_for_impersonate(
+    metrics: &mut RequestMetrics,
+    args: &Args,
+    response: &Response,
+) {
+    snapshot_response(metrics, args, response);
+}
+
 pub fn execute(args: &Args) -> Result<(Response, RequestMetrics)> {
     // --impersonate / --ja3 / --ja4 / --http2-fingerprint dispatch.
     // Behind the `impersonate` Cargo feature; without it, the flags are
