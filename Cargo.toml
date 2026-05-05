@@ -1,6 +1,6 @@
 [package]
 name = "recon"
-version = "0.76.2"
+version = "0.77.0"
 edition = "2021"
 
 [[bin]]
@@ -35,7 +35,7 @@ rusqlite = "0.32"
 serde_json = "1"
 serde_yaml = "0.9"
 quick-xml = "0.37"
-ssh2 = "0.9"
+ssh2 = { version = "0.9", features = ["vendored-openssl"] }
 crossterm = "0.28"
 rustls = { version = "0.23", features = ["ring"] }
 base64 = "0.22"
@@ -96,6 +96,11 @@ xattr = "1"
 rxing = { version = "0.7", default-features = false, features = ["image"] }
 comrak = { version = "0.28", default-features = false }
 dotenvy = "0.15"
+rquest = { version = "=5.1.0", optional = true, features = ["json", "multipart", "gzip", "deflate", "brotli", "zstd", "socks"] }
+
+[features]
+default = []
+impersonate = ["dep:rquest"]
 
 [dev-dependencies]
 wiremock = "0.6"
