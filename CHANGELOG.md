@@ -8,6 +8,55 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.77.0] - 2026-05-05
+
+### Added
+
+- New optional Cargo feature `impersonate` (off by default) that
+  pulls in `rquest` (BoringSSL) plus `rquest-util` and enables
+  browser TLS+H2 fingerprint impersonation. Build with
+  `cargo build --features impersonate`; the default release artifact
+  remains rustls-only.
+- `--impersonate <PROFILE>` — the working v1 surface. Forwards to
+  `rquest_util::Emulation` with profile names like `chrome_131`,
+  `firefox_128`, `safari_17.5`, `edge_131`, `okhttp_5`,
+  `chrome_android_131`, `safari_ios_17.4.1`. Hyphens are accepted
+  as a convenience (`chrome-131` ≡ `chrome_131`). Roughly 50
+  profiles available; see `recon --help impersonate` for the full
+  list.
+- `--ja3 <STRING>`, `--ja4 <STRING>`, `--http2-fingerprint <STRING>`
+  — reserved in the CLI for forward-compatibility but error at
+  runtime with a "deferred to v0.78" message. Use `--impersonate`
+  for now (named profiles cover the captcha-testing use case).
+- Matching script `http()` opts keys: `impersonate`, `ja3`, `ja4`,
+  `http2_fingerprint`. Same v1 scope reduction applies to the
+  three deferred keys.
+- `recon --help impersonate` topic with aliases `ja3`, `ja4`,
+  `fingerprint`, `tls-fingerprint`, `browser-fingerprint`,
+  `http2-fingerprint`. Cross-referenced from `--help cert` and
+  `--help protocols`.
+- `--examples` — new "BROWSER FINGERPRINT IMPERSONATION" section
+  with named-profile examples for Chrome / Firefox / Safari / Edge /
+  mobile / OkHttp, fingerprint-verification against tls.peet.ws,
+  and an honest note that the raw-override flags currently error.
+- Demo script `script/impersonate.rhai` — minimal `http()` call
+  with the `impersonate` opts key.
+
+### Changed
+
+- `client::execute` dispatches to a new `impersonate::execute`
+  module at the top of the function when any of the four
+  impersonation flags is set; the default rustls path is unchanged
+  for all other invocations.
+- `ssh2` dependency now uses `features = ["vendored-openssl"]` so
+  `libssh2-sys` links its own statically-bundled OpenSSL instead of
+  the system library. Necessary because BoringSSL (pulled in by
+  rquest under `--features impersonate`) exports `libssl`/`libcrypto`
+  but omits OpenSSL 3-only symbols that `libssh2-sys` needs at link
+  time. Side-effect of the impersonation work that affects the
+  default build too: small build-time cost (~5–10 seconds), no
+  runtime difference. Documented as entry #72 in HISTORY.md.
+
 ## [0.76.2] - 2026-05-04
 
 ### Changed
