@@ -169,7 +169,10 @@ static TOPIC_CERT: Topic = Topic {
     description: "Fetch and display the server's TLS certificate without making a full HTTP\n\
                   request. Shows subject, issuer, validity dates, SANs, key type, and chain\n\
                   details. Works with expired, self-signed, or hostname-mismatched certificates\n\
-                  because verification is intentionally skipped during inspection.",
+                  because verification is intentionally skipped during inspection.\n\
+                  \n\
+                  See also: `recon --help impersonate` -- TLS+H2 browser fingerprint\n\
+                  impersonation (opt-in --features impersonate build).",
     flags: &[
         FlagHelp { flags: "--cert", description: "Connect to the target over TLS and display the certificate.\nWorks on any HTTPS URL or host:port. Verification is skipped so you\ncan inspect broken or self-signed certs." },
     ],
@@ -2094,7 +2097,10 @@ static TOPIC_PROTOCOLS: Topic = Topic {
                   dns:// / dig:// / drill://); the rest are standalone probes\n\
                   (tcp, udp, ntp, dict, redis, memcached, ws, wss, ldap, ldaps,\n\
                   rtsp, rtsps). file:// reads local files. See `recon --version`\n\
-                  for the full list compiled in.",
+                  for the full list compiled in.\n\
+                  \n\
+                  See also: `recon --help impersonate` -- TLS+H2 browser fingerprint\n\
+                  impersonation (opt-in --features impersonate build).",
     flags: &[
         FlagHelp { flags: "file:///path", description: "Read a local file and write its bytes to stdout (or -o <path>).\nAccepts file://localhost/path too. Curl-compatible." },
 
@@ -2163,6 +2169,117 @@ static TOPIC_PROTOCOLS: Topic = Topic {
     ],
 };
 
+static TOPIC_IMPERSONATE: Topic = Topic {
+    title: "TLS/H2 Browser Fingerprint Impersonation",
+    description: "Make outbound HTTPS requests with a real browser's TLS and HTTP/2\n\
+                  fingerprint instead of the default reqwest/rustls signature. When\n\
+                  a server uses JA3/JA4 fingerprinting or H2-frame analysis to detect\n\
+                  bots, this makes recon indistinguishable from the named browser.\n\
+                  \n\
+                  The impersonation stack is an opt-in Cargo feature (`--features\n\
+                  impersonate`). The default recon binary is built without it to keep\n\
+                  the binary small and avoid the BoringSSL build dependency. A\n\
+                  prebuilt `recon-impersonate` binary is available for supported\n\
+                  platforms from the project releases page.\n\
+                  \n\
+                  When the feature is absent, any of the four flags below causes an\n\
+                  immediate error with a hint to rebuild with `--features impersonate`\n\
+                  or to download the `recon-impersonate` release artifact.\n\
+                  \n\
+                  V1 SCOPE: only --impersonate is implemented in v1 (recon 0.77.x).\n\
+                  The --ja3, --ja4, and --http2-fingerprint flags are reserved in the\n\
+                  CLI for forward-compatibility but error at runtime with a message\n\
+                  indicating they are deferred to v0.78. Use --impersonate for now.\n\
+                  \n\
+                  PROFILES\n\
+                  Named profiles are forwarded to rquest_util::Emulation. The format\n\
+                  uses underscores and dots; hyphens are accepted as a convenience and\n\
+                  are normalised to underscores before dispatch.\n\
+                  \n\
+                  Common families and examples:\n\
+                    chrome_131         chrome_127        chrome_124\n\
+                    firefox_133        firefox_128\n\
+                    safari_18.2        safari_17.5\n\
+                    edge_131           edge_127\n\
+                    chrome_android_131 chrome_android_127\n\
+                    safari_ios_18.1.1  safari_ios_17.4.1\n\
+                    okhttp_5           okhttp_4.12\n\
+                  \n\
+                  Check the rquest_util crate docs for the full list of supported\n\
+                  profile identifiers. Profiles are case-sensitive.\n\
+                  \n\
+                  COMBINATION RULES\n\
+                  The impersonation profile owns the entire TLS configuration. The\n\
+                  following flags are incompatible with --impersonate in v1 and will\n\
+                  be rejected at runtime:\n\
+                    --ciphers, --tls13-ciphers   (cipher suite overrides)\n\
+                    --tlsv1.2, --tlsv1.3         (TLS version pins)\n\
+                    --client-cert, --client-key  (mTLS client certificate)\n\
+                    --cacert                     (custom trust root)\n\
+                  Combining any of these with --impersonate defeats the fingerprint\n\
+                  and is therefore blocked explicitly.",
+    flags: &[
+        FlagHelp {
+            flags: "--impersonate <PROFILE>",
+            description: "Impersonate a named browser TLS+H2 fingerprint.\n\
+                          Requires the binary to be built with `--features impersonate`.\n\
+                          Example profiles: chrome_131, firefox_128, safari_17.5,\n\
+                          edge_131, okhttp_5, chrome_android_131, safari_ios_17.4.1.\n\
+                          Hyphens are accepted (chrome-131 == chrome_131).\n\
+                          Incompatible with --ciphers, --tls13-ciphers, --tlsv1.2,\n\
+                          --tlsv1.3, --client-cert, --client-key, --cacert.",
+        },
+        FlagHelp {
+            flags: "--ja3 <STRING>",
+            description: "Provide a raw JA3 fingerprint string for TLS impersonation.\n\
+                          DEFERRED to v0.78 -- currently errors at runtime with a\n\
+                          'not yet implemented' message. Parsed and reserved in the\n\
+                          CLI for forward-compatibility only. Use --impersonate instead.",
+        },
+        FlagHelp {
+            flags: "--ja4 <STRING>",
+            description: "Provide a raw JA4 fingerprint string for TLS impersonation.\n\
+                          DEFERRED to v0.78 -- currently errors at runtime with a\n\
+                          'not yet implemented' message. Parsed and reserved in the\n\
+                          CLI for forward-compatibility only. Use --impersonate instead.",
+        },
+        FlagHelp {
+            flags: "--http2-fingerprint <STRING>",
+            description: "Provide a raw HTTP/2 SETTINGS fingerprint string.\n\
+                          DEFERRED to v0.78 -- currently errors at runtime with a\n\
+                          'not yet implemented' message. Parsed and reserved in the\n\
+                          CLI for forward-compatibility only. Use --impersonate instead.",
+        },
+    ],
+    related: &["--user-agent", "--ciphers", "--tls13-ciphers", "--tlsv1.2", "--tlsv1.3"],
+    examples: &[
+        ExampleHelp {
+            description: "Impersonate Chrome 131 TLS+H2 fingerprint",
+            command: "recon https://tls.browserleaks.com/json --impersonate chrome_131",
+        },
+        ExampleHelp {
+            description: "Impersonate Firefox 128",
+            command: "recon https://tls.browserleaks.com/json --impersonate firefox_128",
+        },
+        ExampleHelp {
+            description: "Impersonate Safari 17.5",
+            command: "recon https://tls.browserleaks.com/json --impersonate safari_17.5",
+        },
+        ExampleHelp {
+            description: "Impersonate an Android Chrome build (accepts hyphens)",
+            command: "recon https://api.example.com/data --impersonate chrome-android-131",
+        },
+        ExampleHelp {
+            description: "Impersonate OkHttp 5 (common mobile SDK fingerprint)",
+            command: "recon https://api.example.com/data --impersonate okhttp_5",
+        },
+        ExampleHelp {
+            description: "Use in a script via the impersonate opts key",
+            command: "recon --script - <<< 'let r = http(\"https://tls.browserleaks.com/json\", #{impersonate: \"chrome_131\"}); print(r.text());'",
+        },
+    ],
+};
+
 // ── Topic resolution ─────────────────────────────────────────────────────────
 
 fn resolve_topic(key: &str) -> Option<&'static Topic> {
@@ -2210,6 +2327,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "gopher" | "gophers" => Some(&TOPIC_GOPHER),
         "pop3" | "pop3s" => Some(&TOPIC_POP3),
         "imap" | "imaps" => Some(&TOPIC_IMAP),
+        "impersonate" | "ja3" | "ja4" | "fingerprint" | "tls-fingerprint" | "browser-fingerprint" | "http2-fingerprint" => Some(&TOPIC_IMPERSONATE),
         "ipfs" | "ipns" => Some(&TOPIC_IPFS),
         "proxy" | "proxies" => Some(&TOPIC_PROXY),
         "unix-socket" | "unixsocket" | "uds" => Some(&TOPIC_UNIX_SOCKET),
@@ -2316,6 +2434,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "docs",
         "flags",
         "wget",
+        "impersonate",
     ]
 }
 
