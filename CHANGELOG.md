@@ -8,6 +8,40 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.77.3] - 2026-05-05
+
+### Added
+
+- Full crates.io package metadata in `Cargo.toml`: `description`,
+  `authors = ["Thomas Björk <codedv8@gmail.com>"]`, `homepage`,
+  `repository`, `documentation`, `readme`, `keywords`, `categories`,
+  `rust-version = "1.85"`, plus an `exclude` list that keeps the
+  published tarball lean (no `dump.rdb`, `target/`, `docs/MANUAL.pdf`,
+  `homebrew/`, or `.github/`).
+- Homebrew formula files under `homebrew/Formula/` for the user's
+  tap (`codedeviate/homebrew-recon`):
+  - `recon.rb` — default rustls build.
+  - `recon-impersonate.rb` — feature-on build, `depends_on "cmake"`
+    for BoringSSL, conflicts with `recon` because both install the
+    same binary name.
+  - `homebrew/README.md` documents the tap layout, SHA256 fill-in,
+    and per-release update workflow.
+- `README.md` install section split into Homebrew, crates.io, and
+  from-source paths.
+
+### Changed
+
+- **Crate name on crates.io is `recon-cli`** (the bare `recon` name
+  has been parked since 2019). The binary stays `recon`, so
+  `cargo install recon-cli` produces an executable invoked as `recon`.
+  Documented inline in `Cargo.toml` and in the README install section.
+- Repository URL swept from `thomas-starweb/recon` to
+  `codedeviate/recon` in `README.md` and `docs/MANUAL.md`.
+- Bumped MSRV declaration to 1.85 (driven by `rquest`, `rquest-util`,
+  and `clap` — the highest `rust-version` in the dep tree). The MSRV
+  applies regardless of feature flags; the `impersonate` feature does
+  not raise it further.
+
 ## [0.77.2] - 2026-05-05
 
 ### Added

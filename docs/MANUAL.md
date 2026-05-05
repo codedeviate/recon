@@ -2,10 +2,10 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.77.2</div>
+<div class="version">Version 0.77.3</div>
 <div class="date">2026-05-05</div>
 <div class="meta">
-Repository · https://github.com/thomas-starweb/recon<br>
+Repository · https://github.com/codedeviate/recon<br>
 License · MIT
 </div>
 </div>
@@ -82,7 +82,7 @@ recon is a single-binary command-line tool. Its design goals, in rough order:
 ## From source
 
 ```sh
-git clone https://github.com/thomas-starweb/recon
+git clone https://github.com/codedeviate/recon
 cd recon
 cargo build --release
 cp target/release/recon ~/.local/bin/     # or /usr/local/bin with sudo

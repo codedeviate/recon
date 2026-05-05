@@ -1,8 +1,29 @@
 [package]
-name = "recon"
-version = "0.77.2"
+# Note: the crate is published on crates.io as `recon-cli` because the bare
+# `recon` name has been registered (and unused) since 2019. The installed
+# binary is still `recon` — `cargo install recon-cli` produces a `recon`
+# executable thanks to the [[bin]] block below.
+name = "recon-cli"
+version = "0.77.3"
 edition = "2021"
+rust-version = "1.85"
 license = "MIT"
+description = "Versatile network reconnaissance CLI: HTTP/TLS/DNS, multi-protocol probes, and a Rhai script engine"
+authors = ["Thomas Björk <codedv8@gmail.com>"]
+homepage = "https://github.com/codedeviate/recon"
+repository = "https://github.com/codedeviate/recon"
+documentation = "https://github.com/codedeviate/recon/blob/master/docs/MANUAL.md"
+readme = "README.md"
+keywords = ["http", "curl", "dns", "tls", "scripting"]
+categories = ["command-line-utilities", "network-programming"]
+exclude = [
+    "dump.rdb",
+    "target/",
+    "docs/MANUAL.pdf",
+    "homebrew/",
+    ".github/",
+    "/.gitignore",
+]
 
 [[bin]]
 name = "recon"

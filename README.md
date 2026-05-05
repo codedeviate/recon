@@ -45,8 +45,31 @@ recon --script my-flow.rhai                  # Rhai scripts with full HTTP/probe
 
 ## Install
 
+### Homebrew (macOS / Linuxbrew)
+
 ```sh
-git clone https://github.com/thomas-starweb/recon.git
+brew tap codedeviate/recon
+brew install recon                # default rustls build
+# or, with BoringSSL-based browser fingerprint impersonation:
+brew install recon-impersonate
+```
+
+The two formulas install the same `recon` binary and conflict; pick one.
+
+### crates.io
+
+The crate is published as `recon-cli` (the bare `recon` name has been
+parked since 2019). The installed binary is still `recon`:
+
+```sh
+cargo install recon-cli                                # default build
+cargo install recon-cli --features impersonate         # with impersonation
+```
+
+### From source
+
+```sh
+git clone https://github.com/codedeviate/recon.git
 cd recon
 make install                      # installs to ~/.cargo/bin
 
@@ -154,4 +177,4 @@ make ci-impersonate    # ci + a parallel build/test pass with the
 
 ## License
 
-MIT. Repository at https://github.com/thomas-starweb/recon.
+MIT. Repository at https://github.com/codedeviate/recon.
