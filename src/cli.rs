@@ -1437,6 +1437,47 @@ pub struct Args {
     #[arg(long = "pinnedpubkey", value_name = "HASHES", help_heading = "Auth & TLS")]
     pub pinnedpubkey: Option<String>,
 
+    /// Impersonate a browser TLS+H2 fingerprint.
+    ///
+    /// Accepts an `rquest` profile name such as `chrome-131`, `firefox-128`,
+    /// `safari-17_5`, `edge-131`, `chrome-android-131`, `safari-ios-17_5`,
+    /// or `okhttp-5`. Requires the `impersonate` Cargo feature to be enabled
+    /// at build time. Uses BoringSSL via `rquest`; routes through a separate
+    /// HTTP client from the default rustls path.
+    ///
+    /// Incompatible in v1 with --http3, --ciphers/--tls13-ciphers,
+    /// --tlsv1.2/--tlsv1.3, --cert/--key, and --cacert/--capath; the
+    /// impersonation profile owns the TLS configuration.
+    #[arg(long, value_name = "PROFILE", help_heading = "Auth & TLS")]
+    pub impersonate: Option<String>,
+
+    /// Override TLS ClientHello with raw JA3.
+    ///
+    /// Format: `<TLSVersion>,<Ciphers>,<Extensions>,<EllipticCurves>,<EllipticCurvePointFormats>`,
+    /// e.g. `771,4865-4866-...,0-23-65281-...,29-23-24,0`. May be combined with
+    /// --impersonate; raw value overrides the profile's TLS-layer fingerprint.
+    /// Requires the `impersonate` Cargo feature.
+    #[arg(long, value_name = "JA3_STRING", help_heading = "Auth & TLS")]
+    pub ja3: Option<String>,
+
+    /// Override TLS ClientHello with raw JA4.
+    ///
+    /// Format: `<Protocol><TLSVersion><SNI><CipherCount><ExtCount><ALPN>_<CipherHash>_<ExtHash>`,
+    /// e.g. `t13d1516h2_8daaf6152771_b1ff8ab2d16f`. May be combined with --ja3;
+    /// JA4 supersedes JA3 (a warning is emitted to stderr). Requires the
+    /// `impersonate` Cargo feature.
+    #[arg(long, value_name = "JA4_STRING", help_heading = "Auth & TLS")]
+    pub ja4: Option<String>,
+
+    /// Override HTTP/2 fingerprint (Akamai fmt).
+    ///
+    /// Akamai HTTP/2 fingerprint string of the form
+    /// `SETTINGS|WINDOW_UPDATE|PRIORITY|PSEUDO_HEADER_ORDER`,
+    /// e.g. `1:65536,3:1000,4:6291456,6:262144|15663105|0|m,a,s,p`. Independent
+    /// of the TLS-layer flags. Requires the `impersonate` Cargo feature.
+    #[arg(long = "http2-fingerprint", value_name = "AKAMAI_FP", help_heading = "Auth & TLS")]
+    pub http2_fingerprint: Option<String>,
+
     /// Read command-line flags from FILE (curl's `-K`). One per
     /// line, `#` comments allowed, `@other` includes another config
     /// file. Applied before clap parses the remaining argv.
