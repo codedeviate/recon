@@ -42,6 +42,12 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 - Demo script `script/impersonate.rhai` — minimal `http()` call
   with the `impersonate` opts key.
 
+- `Makefile` — new convenience targets for the impersonate feature:
+  `build-impersonate`, `release-impersonate`, `all-impersonate`,
+  `check-impersonate`, `test-impersonate`, `run-impersonate`,
+  `install-impersonate`, `ci-impersonate`. Existing targets accept
+  `FEATURES="--features ..."` for ad-hoc combinations.
+
 ### Changed
 
 - `client::execute` dispatches to a new `impersonate::execute`

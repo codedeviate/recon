@@ -11,11 +11,21 @@ MANUAL_PDF   := docs/MANUAL.pdf
 
 CARGO        ?= cargo
 
+# `impersonate` Cargo feature: opt-in TLS+H2 browser fingerprint impersonation
+# via rquest (BoringSSL) + rquest_util. Off by default — enable via the
+# *-impersonate targets below or by passing FEATURES="--features impersonate"
+# to any standard target.
+IMPERSONATE   := --features impersonate
+FEATURES     ?=
+
 .DEFAULT_GOAL := help
 
 .PHONY: help build release all check test test-quiet fmt fmt-check clippy lint \
         doc run install uninstall clean clean-all distclean size pdf \
-        flags examples bump-check ci
+        flags examples bump-check ci \
+        build-impersonate release-impersonate all-impersonate \
+        check-impersonate test-impersonate run-impersonate \
+        install-impersonate ci-impersonate
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make \033[36m<target>\033[0m\n\nTargets:\n"} \
@@ -24,23 +34,37 @@ help: ## Show this help
 # ---------- build ----------
 
 build: ## Debug build
-	$(CARGO) build
+	$(CARGO) build $(FEATURES)
 
 release: ## Release build (optimized)
-	$(CARGO) build --release
+	$(CARGO) build --release $(FEATURES)
 
 all: build release ## Build both debug and release (per project convention)
 
+build-impersonate: ## Debug build with TLS browser-fingerprint impersonation (BoringSSL; first build is slow)
+	$(CARGO) build $(IMPERSONATE)
+
+release-impersonate: ## Release build with TLS browser-fingerprint impersonation
+	$(CARGO) build --release $(IMPERSONATE)
+
+all-impersonate: build-impersonate release-impersonate ## Both builds with --features impersonate
+
 check: ## Fast type-check without producing a binary
-	$(CARGO) check --all-targets
+	$(CARGO) check --all-targets $(FEATURES)
+
+check-impersonate: ## Fast type-check with --features impersonate
+	$(CARGO) check --all-targets $(IMPERSONATE)
 
 # ---------- test / lint ----------
 
 test: ## Run all tests
-	$(CARGO) test
+	$(CARGO) test $(FEATURES)
+
+test-impersonate: ## Run all tests with --features impersonate
+	$(CARGO) test $(IMPERSONATE)
 
 test-quiet: ## Run tests with minimal output
-	$(CARGO) test --quiet
+	$(CARGO) test --quiet $(FEATURES)
 
 fmt: ## Format the codebase
 	$(CARGO) fmt --all
@@ -56,10 +80,16 @@ lint: fmt-check clippy ## fmt-check + clippy
 # ---------- run / install ----------
 
 run: ## Run the debug binary (use ARGS="..." to pass arguments)
-	$(CARGO) run -- $(ARGS)
+	$(CARGO) run $(FEATURES) -- $(ARGS)
+
+run-impersonate: ## Run the impersonate-feature debug binary (use ARGS="..." to pass arguments)
+	$(CARGO) run $(IMPERSONATE) -- $(ARGS)
 
 install: release ## Install the release binary into ~/.cargo/bin
-	$(CARGO) install --path . --force
+	$(CARGO) install --path . --force $(FEATURES)
+
+install-impersonate: release-impersonate ## Install recon with --features impersonate into ~/.cargo/bin
+	$(CARGO) install --path . --force $(IMPERSONATE)
 
 uninstall: ## Remove the installed binary
 	$(CARGO) uninstall $(BIN) || true
@@ -109,3 +139,5 @@ bump-check: ## Show current version + release date
 	@grep -E 'RELEASE_DATE' src/version.rs | head -1
 
 ci: fmt-check clippy test ## What CI should run: format check, lint, tests
+
+ci-impersonate: fmt-check clippy test test-impersonate ## CI plus a build+test pass with --features impersonate
