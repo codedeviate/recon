@@ -44,6 +44,25 @@ fn impersonate_accepts_hyphenated_profile_name() {
 }
 
 #[test]
+fn raw_overrides_deferred_to_v0_78() {
+    // --ja3 / --ja4 / --http2-fingerprint are accepted by clap (so --help and
+    // --flags stay stable) but error out at runtime in v1 with a message
+    // pointing at v0.78.
+    for flag in ["--ja3", "--ja4", "--http2-fingerprint"] {
+        let out = Command::new(recon_bin())
+            .args([flag, "dummy-value", "https://example.com/"])
+            .output()
+            .expect("spawn recon");
+        assert!(!out.status.success(), "{flag} unexpectedly succeeded");
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(
+            stderr.contains("not implemented in v1") && stderr.contains("v0.78"),
+            "{flag}: expected v0.78 deferral message, got: {stderr}"
+        );
+    }
+}
+
+#[test]
 fn invalid_profile_name_errors_clearly() {
     let out = Command::new(recon_bin())
         .args(["--impersonate", "not-a-real-browser", "https://example.com/"])
