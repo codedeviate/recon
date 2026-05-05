@@ -74,6 +74,12 @@ surprise failures.
 | `hsts.rhai` | HSTS cache populate + http:// upgrade |
 | `client-cert.rhai` | mTLS — present a client cert during the TLS handshake |
 
+### Browser impersonation (0.77.0, opt-in)
+
+| Script | What it does |
+|---|---|
+| `impersonate.rhai` | Browser TLS+H2 fingerprint impersonation via the `impersonate` opts key. Requires a build with `--features impersonate`. |
+
 ### Shebang (0.68.0)
 
 | Script | What it does |

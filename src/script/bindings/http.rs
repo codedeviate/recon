@@ -205,6 +205,18 @@ pub(crate) fn build_args(
         if let Some(p) = opts_get_str(o, "cacert") {
             args.cacert = Some(std::path::PathBuf::from(p));
         }
+        if let Some(s) = opts_get_str(o, "impersonate") {
+            args.impersonate = Some(s);
+        }
+        if let Some(s) = opts_get_str(o, "ja3") {
+            args.ja3 = Some(s);
+        }
+        if let Some(s) = opts_get_str(o, "ja4") {
+            args.ja4 = Some(s);
+        }
+        if let Some(s) = opts_get_str(o, "http2_fingerprint") {
+            args.http2_fingerprint = Some(s);
+        }
         if let Some(ip) = opts_get_str(o, "interface") {
             args.interface = Some(ip);
         }
