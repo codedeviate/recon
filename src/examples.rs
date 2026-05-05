@@ -284,6 +284,42 @@ pub fn print() {
     ]);
     note("--dns-servers accepts comma-separated `IP` or `IP:PORT`. --dns-ipv4-addr / --dns-ipv6-addr bind DNS queries to a specific local address. --dns-interface (named interface) is not yet plumbed; use the address form for now.");
 
+    section("BROWSER FINGERPRINT IMPERSONATION (0.77.0, opt-in)");
+
+    example("Impersonate Chrome 131 against an HTTPS endpoint", &[
+        "recon --impersonate chrome_131 https://example.com/",
+        "recon --impersonate chrome-131 https://httpbin.org/headers",
+    ]);
+    note("Requires a build with --features impersonate (BoringSSL via rquest). The default recon binary errors on these flags with a rebuild hint pointing at the recon-impersonate release artifact. Hyphens in the profile name are accepted as a convenience (chrome-131 ≡ chrome_131).");
+
+    example("Impersonate Firefox / Safari / Edge / mobile / OkHttp", &[
+        "recon --impersonate firefox_128 https://example.com/",
+        "recon --impersonate safari_17.5 https://example.com/",
+        "recon --impersonate edge_131 https://example.com/",
+        "recon --impersonate chrome_android_131 https://example.com/",
+        "recon --impersonate safari_ios_17.4.1 https://example.com/",
+        "recon --impersonate okhttp_5 https://example.com/",
+    ]);
+    note("Profile names follow rquest_util's serde rename convention (underscores + dots). See `recon --help impersonate` for the full list of supported profiles.");
+
+    example("Verify the live fingerprint against tls.peet.ws", &[
+        "recon --impersonate chrome_131 https://tls.peet.ws/api/all",
+        "recon --impersonate firefox_128 https://tls.peet.ws/api/all",
+    ]);
+    note("tls.peet.ws echoes back the JA3/JA4/H2 fingerprint observed from the server side — useful for confirming the impersonation actually changed what hits the wire.");
+
+    example("Use from a script via the http() opts map", &[
+        "recon --script script/impersonate.rhai chrome_131 https://example.com/",
+    ]);
+    note("The `impersonate` opts key on http() takes a profile name string, just like the CLI flag. Demo at script/impersonate.rhai.");
+
+    example("Raw fingerprint overrides (deferred — currently error)", &[
+        "recon --ja3 \"771,4865-...,0-23-...,29-23-24,0\" https://example.com/   # v0.78",
+        "recon --ja4 t13d1516h2_8daaf6152771_b1ff8ab2d16f https://example.com/   # v0.78",
+        "recon --http2-fingerprint \"1:65536,4:6291456|...|0|m,a,s,p\" https://example.com/   # v0.78",
+    ]);
+    note("These flags are reserved in the CLI for forward-compatibility but error at runtime in v1 — implementation is tracked for v0.78. Use --impersonate <profile> for now; named profiles cover the common captcha-testing cases.");
+
     example("Rate control and slow-transfer abort", &[
         "recon --limit-rate 500K https://example.com/big.bin -o big.bin",
         "recon --limit-rate 2M https://cdn/data -o data.bin",
