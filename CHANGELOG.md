@@ -8,6 +8,35 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.77.1] - 2026-05-05
+
+### Added
+
+- `README.md` — top-level project README with install, quick-start
+  examples, feature highlights, browser-fingerprint impersonation
+  callout, and pointers to the manual / changelog / history /
+  out-of-scope / parity-matrix / script gallery.
+
+### Changed
+
+- `docs/curl-parity-matrix.md` — refreshed for 0.77.0. Last-sweep date
+  bumped from 0.50.0 (2026-04-23) to 0.77.0 (2026-05-05). Added rows
+  for HTTPS-proxy (called out separately from the generic Proxy row),
+  HTTP3 (deferred — reqwest 0.12 H3 not yet stable), TLS-SRP (deferred
+  — neither rustls nor BoringSSL exposes SRP), ECH (deferred —
+  rustls 0.23 has unstable ECH only), IDN (deferred — url crate
+  parses but no explicit Punycode CLI), and PSL (deferred — cookie
+  jar doesn't yet consult the public-suffix list). Added a "Curl
+  flags shipped in recon" subsection covering mTLS (0.54.0),
+  CRL (0.72.0), --time-cond, --range, -C resume, --retry cluster
+  (0.64.0), --netrc (0.63.0), --xattr, -K config files, multipart
+  -F / form opts, --oauth2-bearer, --limit-rate, --interface, and
+  --write-out. Added a "Beyond curl" subsection enumerating
+  recon-only features (TLS impersonation, email-protection sweep,
+  multi-protocol probes, document conversion, codecs, barcodes,
+  JWT, Rhai script engine, sample-data, built-in serve, topic help,
+  examples, flag listing).
+
 ## [0.77.0] - 2026-05-05
 
 ### Added
