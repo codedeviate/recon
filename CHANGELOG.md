@@ -8,6 +8,18 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.77.2] - 2026-05-05
+
+### Added
+
+- `LICENSE` file at the repo root with the MIT license text (copyright
+  2026 Thomas Björk). The manual and README have referenced MIT since
+  the project's start; this commit makes the licence explicit and
+  machine-readable for crates.io / GitHub.
+- `license = "MIT"` field in `[package]` of `Cargo.toml` so
+  cargo-published metadata, GitHub, and crates.io can recognise the
+  licence without inspecting the LICENSE file.
+
 ## [0.77.1] - 2026-05-05
 
 ### Added
