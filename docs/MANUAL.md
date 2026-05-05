@@ -2,8 +2,8 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.76.2</div>
-<div class="date">2026-05-04</div>
+<div class="version">Version 0.77.0</div>
+<div class="date">2026-05-05</div>
 <div class="meta">
 Repository · https://github.com/thomas-starweb/recon<br>
 License · MIT
@@ -470,6 +470,58 @@ recon -E client.crt --client-key client.key https://mtls.example.com/
 ```
 
 See also: `recon --help client-cert`.
+
+## Browser fingerprint impersonation (0.77.0, opt-in)
+
+Shipped in 0.77.0 behind the `impersonate` Cargo feature. Routes the request
+through `rquest` (BoringSSL) + `rquest-util` to mimic a real browser's TLS
+ClientHello and HTTP/2 SETTINGS frame. Useful when a server uses JA3/JA4
+fingerprinting or H2-frame analysis to distinguish bots from real browsers.
+
+The default `recon` binary is built without this feature so the binary stays
+small and skips the BoringSSL build dependency. Build with
+`cargo build --features impersonate`, or download the `recon-impersonate`
+release artifact.
+
+| Flag | Description |
+|------|-------------|
+| `--impersonate <PROFILE>` | Forwards to `rquest_util::Emulation`. Examples: `chrome_131`, `firefox_128`, `safari_17.5`, `edge_131`, `okhttp_5`, `chrome_android_131`, `safari_ios_17.4.1`. Hyphens accepted as a convenience (`chrome-131` ≡ `chrome_131`). See `recon --help impersonate` for the full list of supported profiles. |
+| `--ja3 <STRING>` | **Deferred to v0.78.** Reserved in the CLI for forward-compatibility; errors at runtime in v1. Use `--impersonate` for now. |
+| `--ja4 <STRING>` | **Deferred to v0.78.** Same. |
+| `--http2-fingerprint <STRING>` | **Deferred to v0.78.** Same. |
+
+V1 incompatibility list — these flags cannot combine with `--impersonate`:
+`--ciphers`, `--tls13-ciphers`, `--tlsv1.2`, `--tlsv1.3`, `--client-cert`,
+`--client-key`, `--cacert`, `--capath`. Reason: the impersonation profile
+owns the TLS configuration; user-supplied overrides would defeat the
+fingerprint.
+
+### Examples
+
+```sh
+# Build with the impersonate feature
+cargo build --release --features impersonate
+
+# Impersonate Chrome 131 against an HTTPS endpoint
+recon --impersonate chrome_131 https://httpbin.org/headers
+
+# Hyphens also work
+recon --impersonate chrome-131 https://example.com/
+
+# Verify the live fingerprint against a JA3 / JA4 echo server
+recon --impersonate firefox_128 https://tls.peet.ws/api/all
+
+# Mobile and OkHttp profiles
+recon --impersonate chrome_android_131 https://example.com/
+recon --impersonate safari_ios_17.4.1 https://example.com/
+recon --impersonate okhttp_5 https://example.com/
+```
+
+The default (rustls-only) build rejects the four flags with a clear
+"rebuild with --features impersonate" hint pointing at the
+`recon-impersonate` release artifact.
+
+See also: `recon --help impersonate`.
 
 ## Proxy routing
 
@@ -2262,6 +2314,10 @@ Every key is optional.
 | `reject` | string | (0.67.0) Comma-separated filename-suffix reject list. |
 | `prettify` | bool | Pretty-print response body (auto-detect format). |
 | `prettify_as` | string | Force prettify format (json/xml/html/yaml/csv/tsv/auto). Implies `prettify: true`. |
+| `impersonate` | string | (0.77.0) Browser TLS+H2 fingerprint profile name (e.g. `"chrome_131"`, `"firefox_128"`, `"safari_17.5"`). Requires a build with `--features impersonate`; rejected with a rebuild hint otherwise. Hyphens accepted (`"chrome-131"` ≡ `"chrome_131"`). See `recon --help impersonate`. |
+| `ja3` | string | (0.77.0, **deferred to v0.78**) Reserved for raw JA3 ClientHello override. Errors at runtime in v1; use `impersonate` instead. |
+| `ja4` | string | (0.77.0, **deferred to v0.78**) Reserved for raw JA4 fingerprint override. Errors at runtime in v1. |
+| `http2_fingerprint` | string | (0.77.0, **deferred to v0.78**) Reserved for raw Akamai HTTP/2 fingerprint override. Errors at runtime in v1. |
 
 ### Examples
 
@@ -2315,6 +2371,12 @@ http("http://example.com/", #{
     proxy: "socks5h://127.0.0.1:9050",
     hsts: "/tmp/hsts.txt",
 });
+
+// Browser fingerprint impersonation (0.77.0; requires --features impersonate)
+let r = http("https://tls.peet.ws/api/all", #{
+    impersonate: "chrome_131",
+});
+print(`status: ${r.status}, body: ${r.body.len()} bytes`);
 
 // mTLS
 http("https://mtls.example.com/", #{
