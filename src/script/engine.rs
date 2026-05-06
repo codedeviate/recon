@@ -14,6 +14,29 @@ pub fn run_file(path: &Path, args: &Args) -> i32 {
             return 1;
         }
     };
+    let resolved_path = path.to_string_lossy().into_owned();
+    let resolved_dir = path
+        .parent()
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let resolved_name = path
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    run_source(raw, &resolved_path, &resolved_dir, &resolved_name, args)
+}
+
+/// Execute Rhai source text directly. Used by `run_file` after reading the
+/// file, and by `--script -` to evaluate stdin without writing to a
+/// temporary file. `source_path` / `source_dir` / `source_name` populate
+/// the corresponding `script_*` constants in the script's Scope.
+pub fn run_source(
+    raw: String,
+    source_path: &str,
+    source_dir: &str,
+    source_name: &str,
+    args: &Args,
+) -> i32 {
     // Allow shebang: #!/usr/bin/env -S recon --script
     // Rhai doesn't treat `#` as a comment, so we turn `#!` into `//`
     // which preserves line numbers in error messages.
@@ -39,18 +62,9 @@ pub fn run_file(path: &Path, args: &Args) -> i32 {
     // Lets scripts reference sibling files without depending on CWD:
     //   load_dotenv(script_dir + "/.env");
     //   load_dotenv(script_dir + "/.env." + script_name);
-    let resolved_path = path.to_string_lossy().into_owned();
-    let resolved_dir = path
-        .parent()
-        .map(|p| p.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    let resolved_name = path
-        .file_stem()
-        .map(|s| s.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    scope.push_constant("script_path", resolved_path);
-    scope.push_constant("script_dir", resolved_dir);
-    scope.push_constant("script_name", resolved_name);
+    scope.push_constant("script_path", source_path.to_string());
+    scope.push_constant("script_dir", source_dir.to_string());
+    scope.push_constant("script_name", source_name.to_string());
 
     // Compile with an explicit source so Rhai's default FileModuleResolver
     // can resolve `import "name"` relative to the script's directory.
@@ -63,7 +77,7 @@ pub fn run_file(path: &Path, args: &Args) -> i32 {
             return 1;
         }
     };
-    ast.set_source(path.to_string_lossy().into_owned());
+    ast.set_source(source_path.to_string());
 
     // Threading primitives need the compiled AST to dispatch spawned
     // FnPtr calls. Register them here (post-compile) with a Shared

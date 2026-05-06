@@ -15,6 +15,7 @@
 //! `~/.recon/script/health.rhai`.
 
 use crate::cli::Args;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 pub mod bindings;
@@ -31,6 +32,28 @@ pub fn run(args: &Args) -> i32 {
             return 1;
         }
     };
+
+    // `--script -` reads the script body from stdin (curl-style). Useful
+    // for heredocs and pipelines:
+    //
+    //   recon --script - <<'EOF'
+    //   http("https://example.com/");
+    //   EOF
+    //
+    // Note: this consumes stdin in full, so it's incompatible with
+    // body-from-stdin flags like `-d @-` in the same invocation.
+    if requested.as_os_str() == "-" {
+        let mut source = String::new();
+        if let Err(e) = std::io::stdin().read_to_string(&mut source) {
+            eprintln!("error: could not read script from stdin: {e}");
+            return 1;
+        }
+        let cwd = std::env::current_dir()
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        return engine::run_source(source, "<stdin>", &cwd, "stdin", args);
+    }
+
     let resolved = match resolve_script_path(&requested) {
         Some(p) => p,
         None => {

@@ -8,6 +8,23 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.77.6] - 2026-05-06
+
+### Fixed
+
+- `recon --script -` now reads the script body from stdin, matching the
+  heredoc example documented in `docs/MANUAL.md` (under "Proxy
+  routing" → "Script equivalent"). Previously the manual example
+  failed with `error: could not find script '-'` because the resolver
+  only treated `-` as a literal path. Implementation factors the
+  source-loading half of `engine::run_file` into a new public
+  `engine::run_source(source, source_path, source_dir, source_name,
+  args)` that the stdin code path can call directly without a
+  temporary file. `script_path` is set to `<stdin>`, `script_dir` to
+  the current working directory, and `script_name` to `stdin` so
+  scripts that reference these constants behave predictably.
+  Doc-comment on `--script` updated to mention `-`.
+
 ## [0.77.5] - 2026-05-06
 
 ### Fixed
