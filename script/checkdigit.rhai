@@ -7,7 +7,7 @@ let input = if args.len() > 2 { args[2] } else { "4111111111111111" };
 let info = checkdigit::inspect(algo, input);
 if info.valid {
     print(`${algo} ${info.formatted}: valid`);
-    if info.contains_key("comment") { print(`  ${info.comment}`); }
+    if "comment" in info { print(`  ${info.comment}`); }
     return 0;
 }
 print(`${algo} ${input}: invalid (${info.reason})`);

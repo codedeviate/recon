@@ -6,8 +6,17 @@
 // EXISTS/RECENT; append `;UID=N` to fetch a specific message.
 
 let url = if args.len() > 1 { args[1] } else { "imaps://imap.gmail.com/" };
-let host_port = url.replace("imap://", "").replace("imaps://", "").split("@").pop().split("/").shift();
-if !host_port.contains(":") {
+
+// Extract host[:port] from the URL using sub_string + index_of, since
+// String::replace and split() in Rhai are mutating and can't be chained.
+let host_port = url;
+let i = host_port.index_of("://");
+if i >= 0 { host_port = host_port.sub_string(i + 3); }
+let at = host_port.index_of("@");
+if at >= 0 { host_port = host_port.sub_string(at + 1); }
+let slash = host_port.index_of("/");
+if slash >= 0 { host_port = host_port.sub_string(0, slash); }
+if host_port.index_of(":") < 0 {
     host_port += if url.starts_with("imaps://") { ":993" } else { ":143" };
 }
 let t = tcp(`tcp://${host_port}`);
@@ -18,7 +27,13 @@ if !t.ok {
 
 let r = imap(url);
 print(`${r.host}:${r.port}${ if r.tls { " (TLS)" } else { "" } }`);
-print(`capabilities (${r.capabilities.len()}): ${r.capabilities.join(", ")}`);
+// Rhai's Array doesn't expose .join() in this build — concatenate manually.
+let caps = "";
+for c in r.capabilities {
+    if caps.len() > 0 { caps += ", "; }
+    caps += c;
+}
+print(`capabilities (${r.capabilities.len()}): ${caps}`);
 if r.mailbox != () {
     print(`mailbox: ${r.mailbox}  exists=${r.exists}  recent=${r.recent}`);
 }

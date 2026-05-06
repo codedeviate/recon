@@ -8,6 +8,12 @@
 let url = if args.len() > 3 { args[3] } else { "https://client.badssl.com/" };
 let cert = if args.len() > 1 { args[1] } else { "./badssl.com.pem" };
 
+if !file_exists(cert) {
+    print(`cert ${cert} not found — skipping. Provide a real PEM via:`);
+    print(`  recon --script client-cert /path/to/cert.pem [/path/to/key.pem]`);
+    return 2;
+}
+
 let opts = #{ client_cert: cert };
 if args.len() > 2 {
     opts.client_key = args[2];

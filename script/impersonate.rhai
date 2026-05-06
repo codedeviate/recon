@@ -14,8 +14,17 @@
 let profile = if args.len() > 1 { args[1] } else { "chrome_131" };
 let url     = if args.len() > 2 { args[2] } else { "https://tls.peet.ws/api/all" };
 
-let r = http(url, #{ impersonate: profile });
-print(`profile: ${profile}`);
-print(`status:  ${r.status}`);
-print(`url:     ${r.url}`);
-print(`body:    ${r.body.len()} bytes`);
+// Wrap the impersonate call so the demo exits cleanly (rather than
+// throwing) on the default rustls build. The error message is
+// preserved either way; we just turn it into an exit-2 skip.
+try {
+    let r = http(url, #{ impersonate: profile });
+    print(`profile: ${profile}`);
+    print(`status:  ${r.status}`);
+    print(`url:     ${r.url}`);
+    print(`body:    ${r.body.len()} bytes`);
+} catch(e) {
+    print(`impersonate not available in this build: ${e}`);
+    print(`rebuild with --features impersonate or install the recon-impersonate artifact.`);
+    return 2;
+}

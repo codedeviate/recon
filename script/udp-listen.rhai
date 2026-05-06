@@ -22,7 +22,16 @@ fn try_recv(sock) {
     try {
         return udp_recv_from(sock, 65536, 30000);
     } catch(e) {
-        if e.contains("timed out") || e.contains("timeout") { return (); }
+        // EAGAIN ("Resource temporarily unavailable", os error 35 on
+        // macOS / 11 on Linux) is the would-block path the OS returns
+        // when the socket is non-blocking and no datagram is queued.
+        // Treat it the same as a timeout.
+        if e.contains("timed out")
+            || e.contains("timeout")
+            || e.contains("Resource temporarily unavailable")
+            || e.contains("os error 35")
+            || e.contains("os error 11")
+        { return (); }
         throw e;
     }
 }

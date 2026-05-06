@@ -6,7 +6,11 @@
 let original = clipboard::get();
 print("Read from clipboard: " + original);
 
-let transformed = original.trim().to_upper();
+// Rhai's String::trim is mutating (returns ()), so it can't be chained.
+// Apply trim in-place on a local mutable copy, then convert via to_upper.
+let buf = original;
+buf.trim();
+let transformed = buf.to_upper();
 clipboard::set(transformed);
 
 print("Wrote back: " + transformed);

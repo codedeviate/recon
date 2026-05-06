@@ -8,9 +8,19 @@
 // wrap in a --max-time envelope when driving from CI).
 
 let addr = if args.len() > 1 { args[1] } else { "127.0.0.1:9000" };
-print(`echo server listening on ${addr}`);
 
-let l = tcp_listen(addr);
+// Try to bind; exit 2 cleanly if the port is already in use (so this
+// demo doesn't blow up when the user happens to run something else on
+// 9000).
+let l = ();
+try {
+    l = tcp_listen(addr);
+} catch(e) {
+    print(`could not bind ${addr}: ${e}`);
+    print(`pass a different ADDR, e.g. recon --script tcp-echo 127.0.0.1:19000`);
+    return 2;
+}
+print(`echo server listening on ${addr}`);
 
 loop {
     // 30-second accept timeout so Ctrl-C can actually land between

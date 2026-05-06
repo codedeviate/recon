@@ -8,6 +8,40 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.77.5] - 2026-05-06
+
+### Fixed
+
+- Sweep of `script/*.rhai`: every script in the gallery now runs
+  without Rhai static-shape errors. Three classes of bug were fixed
+  across 12 scripts:
+  - **`for (val, key) in <map>` destructuring iteration** (left over
+    from an older Rhai version) failed with "For loop expects iterable
+    type" in `email.rhai` and `ldap.rhai`. Rewrote to walk
+    `map.keys()` and index for the value.
+  - **Chained mutating string methods** — `String::replace` and
+    `String::trim` are non-pure in this Rhai build (they mutate in
+    place and return `()`), so chains like
+    `url.replace("ftp://", "").replace("ftps://", "").split("/").shift()`
+    blew up on the second call. Replaced the host-port extraction
+    in `ftp.rhai`, `gopher.rhai`, `imap.rhai`, `pop3.rhai`,
+    `smtp.rhai`, `sftp.rhai`, `tftp.rhai`, and `clipboard.rhai`
+    with a `sub_string` + `index_of` based extraction that doesn't
+    rely on chaining.
+  - **Map `.contains_key()` not registered** — used the `in`
+    operator instead in `email.rhai` and `checkdigit.rhai`.
+  - **Array `.join()` not registered in this Rhai build** — replaced
+    with manual string concatenation in `imap.rhai`.
+- Demo robustness: `client-cert.rhai` now exits cleanly with a hint
+  when the cert path doesn't exist instead of erroring out;
+  `time-cond.rhai` only attempts the second (etag-compare) fetch
+  when the cache file actually exists; `tcp-echo.rhai` exits 2
+  cleanly when the listen port is already in use; `udp-listen.rhai`
+  treats EAGAIN ("Resource temporarily unavailable") the same way
+  it already treats timeouts; `impersonate.rhai` wraps the
+  feature-gated call in a try/catch so the default rustls build
+  exits 2 with a rebuild hint instead of throwing.
+
 ## [0.77.4] - 2026-05-06
 
 ### Fixed

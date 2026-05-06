@@ -6,7 +6,16 @@
 // (not the TFTP port itself).
 
 let url = if args.len() > 1 { args[1] } else { "tftp://127.0.0.1/test.bin" };
-let host = url.replace("tftp://", "").split("/").shift().split(":").shift();
+
+// Extract host from the URL using sub_string + index_of, since
+// String::replace and split() in Rhai are mutating and can't be chained.
+let host = url;
+let i = host.index_of("://");
+if i >= 0 { host = host.sub_string(i + 3); }
+let slash = host.index_of("/");
+if slash >= 0 { host = host.sub_string(0, slash); }
+let colon = host.index_of(":");
+if colon >= 0 { host = host.sub_string(0, colon); }
 
 // TFTP speaks UDP; there's no TCP handshake to probe. Best-effort
 // defence: just try, and if the transfer times out, exit 2.
