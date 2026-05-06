@@ -8,6 +8,23 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.77.4] - 2026-05-06
+
+### Fixed
+
+- `script/dns.rhai` failed at runtime with two distinct errors:
+  - `Non-pure method 'split' cannot be called on constant (line 8)` —
+    `args` is pushed into Rhai's Scope as a constant (see HISTORY entry
+    71), so non-pure methods like `split` can't be called directly on
+    `args[N]`. Fixed by binding `args[2]` to a local `let raw = args[2]`
+    first, then splitting the local.
+  - `For loop expects iterable type (line 18)` — the previous
+    `for (records, typ) in r.records` destructuring iteration over a
+    Map isn't enabled in recon's Rhai build. Rewrote the loop to walk
+    `r.records.keys()` and index back into the map for the values.
+  Both fixes verified against the three documented invocations
+  (`dns example.com`, `dns example.com A,MX`, and the default).
+
 ## [0.77.3] - 2026-05-05
 
 ### Added
