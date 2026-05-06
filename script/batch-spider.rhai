@@ -18,14 +18,20 @@ if !file_exists(path) {
     return 2;
 }
 
-let urls = file_read(path).to_string().split('\n');
+// `file_read` returns a Blob; `Blob::to_string()` produces the hex-debug
+// view (not a UTF-8 decoded String), so use `text::decode` to get the
+// real text body before splitting on newlines.
+let urls = text::decode(file_read(path), "utf-8").split('\n');
 
 let ok = 0;
 let broken = [];
 let rate_delay_ms = 500;   // 2 requests per second
 
 for raw in urls {
-    let url = raw.trim();
+    // Rhai's String::trim() is mutating (returns ()), so we can't write
+    // `let url = raw.trim();`. Copy first, trim in place, then use.
+    let url = raw;
+    url.trim();
     if url.len() == 0 || url.starts_with('#') { continue; }
     sleep_ms(rate_delay_ms);
 

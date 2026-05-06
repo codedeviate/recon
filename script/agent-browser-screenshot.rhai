@@ -22,6 +22,11 @@ let out = if args.len() >= 3 {
     agentBrowser::screenshot()
 };
 
-agentBrowser::close();
-print(out.trim());
+try { agentBrowser::close(); } catch(e) { /* already closed */ }
+
+// Rhai's String::trim() is mutating (returns ()); call as a separate
+// statement, then print.
+let cleaned = out;
+cleaned.trim();
+print(cleaned);
 return 0;

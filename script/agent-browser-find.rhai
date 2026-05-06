@@ -47,7 +47,16 @@ try {
     print(`text/click: ${e}`);
 }
 
-agentBrowser::back();   // return to the original page for subsequent demos
+// Steps 1–2 may have clicked a real link and navigated (or closed
+// the target outright on some pages). Re-open the original URL so
+// the input-focused locators below run against a known-good page.
+// Bare `back()` would throw "Inspected target navigated or closed"
+// when the target is in a bad state.
+try {
+    agentBrowser::open(url);
+} catch(e) {
+    print(`re-open after click: ${e}`);
+}
 
 // 3. By label — finds an input via its <label> text.
 try {
@@ -103,5 +112,7 @@ try {
     print(`nth/click: ${e}`);
 }
 
-agentBrowser::close();
+// `close()` is best-effort — the target may already be in a closed
+// or navigation-churn state from earlier clicks.
+try { agentBrowser::close(); } catch(e) { /* already closed */ }
 return 0;

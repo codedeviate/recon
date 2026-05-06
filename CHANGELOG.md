@@ -8,6 +8,54 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.77.8] - 2026-05-06
+
+### Fixed
+
+- `script/agent-browser-find.rhai` — replaced bare
+  `agentBrowser::back()` with a resilient `open(url)` and wrapped the
+  final `close()` in try/catch, so steps that follow a navigation-
+  inducing click no longer throw "Inspected target navigated or
+  closed". Each per-locator failure is still caught individually as
+  intended.
+- `script/agent-browser-interaction.rhai` — same `back()` → `open(url)`
+  pattern, plus try/catch around `keyboard_type`, `keyboard_insert`,
+  `scroll`, `scrollintoview`, `wait`, and `close`. Heavy SPAs
+  (e.g. major news sites) trigger mid-action navigation that puts the
+  inspected target in a transient bad state; previously a single
+  bare call after the first click would abort the whole demo.
+- `script/agent-browser-pdf.rhai` — the second PDF used to come out
+  empty when the user passed any of the example invocations.
+  `agent-browser pdf <path>` only renders the *current* page, so
+  `--user-agent` and `--args` are launch-time options that belong on
+  `open()`, not on `pdf()`. Putting them on `pdf()` made agent-browser
+  start a fresh blank session with the requested args and render
+  that — hence the empty PDF. Demo now passes the launch options to
+  `open(url, opts)` and follows with a plain `pdf(path)`. Both PDFs
+  now contain real rendered content.
+- `script/agent-browser-screenshot.rhai` — `out.trim()` returned `()`
+  (Rhai's String::trim is mutating). Output became literally `()`
+  instead of the agent-browser stdout. Copy-then-trim-in-place pattern
+  applied; `close()` also wrapped in try/catch.
+- `script/batch-spider.rhai` — two bugs:
+  - `let url = raw.trim();` assigned `()` to `url` because `trim()`
+    is mutating, so `url.len()` errored with `Function not found:
+    len (())`.
+  - `file_read(path).to_string()` returned the hex-debug view of the
+    Blob (`[68747470733a...]`), not the UTF-8 decoded text. The for
+    loop iterated once, treating the entire file-as-hex as a single
+    URL and dispatching a bogus request. Switched to
+    `text::decode(file_read(path), "utf-8")` for the real text body.
+- `script/doc-convert.rhai` — same `file_read(...).to_string()`
+  Blob-debug bug. Was silently generating 354 KB of HTML containing
+  hex characters from `CHANGELOG.md`, with a 519 KB mostly-empty PDF.
+  After the fix: 271 KB of properly-rendered markdown HTML and a
+  3.3 MB PDF with real content. The bug didn't show up in the
+  earlier sweep because the script's exit code stayed 0.
+- `script/pop3.rhai` — `r.banner.trim()` had the same mutating-trim
+  problem, printing `()` instead of the banner text. Same
+  copy-then-trim-in-place pattern applied.
+
 ## [0.77.7] - 2026-05-06
 
 ### Fixed

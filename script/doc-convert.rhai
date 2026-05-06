@@ -10,8 +10,11 @@
 let src = if args.len() > 1 { args[1] } else { "CHANGELOG.md" };
 let pdf_out = if args.len() > 2 { args[2] } else { "/tmp/recon-doc.pdf" };
 
-// Load markdown via the existing file_read() binding.
-let md = file_read(src).to_string();
+// Load markdown. `file_read` returns a Blob; `Blob::to_string()` yields
+// the hex-debug view, not a UTF-8 decoded String — `md_to_html` would
+// silently render the hex bytes as a giant paragraph. Use `text::decode`
+// to get the real text body.
+let md = text::decode(file_read(src), "utf-8");
 
 // 1. Markdown → HTML with TOC + GFM.
 let html = md_to_html(md, #{ toc: true, toc_depth: 3, gfm: true, title: src });

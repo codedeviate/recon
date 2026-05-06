@@ -15,19 +15,23 @@ let out = if args.len() > 2 { args[2] } else { "/tmp/recon-page.pdf" };
 
 agentBrowser::open(url);
 
-// Simple form: render to file.
+// Simple form: render the current page to file.
 agentBrowser::pdf(out);
 print(`saved: ${out}`);
 
-// With per-call options (0.75.0). For example, force a wider viewport
-// before rendering (via browser_args), or set a custom user-agent so
-// the PDF reflects what that UA would see.
+// With per-call options (0.75.0). Note: `agent-browser pdf` itself
+// only renders the *current* page — `--user-agent` and `--args` are
+// launch-time options, so they belong on `open()`. Putting them on
+// `pdf()` would make agent-browser launch a fresh (blank) session
+// with the requested args and then render that, producing an empty
+// PDF. The right pattern is open-with-opts, then plain pdf:
 let out2 = `${out}.wide.pdf`;
-agentBrowser::pdf(out2, #{
+agentBrowser::open(url, #{
     user_agent: "Recon-pdf/1.0",
     browser_args: ["--window-size=1920,1080"],
 });
+agentBrowser::pdf(out2);
 print(`saved wide: ${out2}`);
 
-agentBrowser::close();
+try { agentBrowser::close(); } catch(e) { /* already closed */ }
 return 0;

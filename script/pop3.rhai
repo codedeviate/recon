@@ -26,7 +26,12 @@ if !t.ok {
 
 let r = pop3(url);
 print(`${r.host}:${r.port}${ if r.tls { " (TLS)" } else { "" } }  rtt=${r.connect_ms.to_int()}ms`);
-if r.banner != "" { print(r.banner.trim()); }
+// Rhai's String::trim() is mutating (returns ()); copy then trim in place.
+if r.banner != "" {
+    let banner = r.banner;
+    banner.trim();
+    print(banner);
+}
 if r.capabilities.len() > 0 {
     print(`capabilities (${r.capabilities.len()}):`);
     for c in r.capabilities { print(`  ${c}`); }
