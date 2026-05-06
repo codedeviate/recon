@@ -8,6 +8,20 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.77.7] - 2026-05-06
+
+### Fixed
+
+- `script/agent-browser-cmd.rhai` failed at the cookies-set step with
+  `agent-browser: exit 1: ✗ CDP error (Network.setCookies): Invalid
+  cookie fields`. The script was passing `"session=abc123"` as a single
+  argv element, but agent-browser's `cookies set` subcommand expects
+  name and value as two separate positional args (`set <name> <value>
+  [options]`). Split into `"session", "abc123"`. Verified end-to-end
+  against a real URL: cookies get + set, storage, tabs, network
+  capture, console, errors, mouse, snapshot diff, and close all
+  succeed; script exits 0.
+
 ## [0.77.6] - 2026-05-06
 
 ### Fixed

@@ -18,8 +18,12 @@ agentBrowser::open(url);
 let cookies = agentBrowser::cmd(["cookies", "get"]);
 print(`cookies: ${cookies}`);
 
+// agent-browser's `cookies set` takes name and value as two separate
+// positional args (`set <name> <value>`), not a single "name=value"
+// pair. Passing them joined produces a CDP "Invalid cookie fields"
+// error from Network.setCookies.
 agentBrowser::cmd([
-    "cookies", "set", "session=abc123",
+    "cookies", "set", "session", "abc123",
     "--url", url,
     "--httpOnly",
 ]);
