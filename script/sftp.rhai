@@ -16,8 +16,15 @@ if at >= 0 { host_port = host_port.sub_string(at + 1); }
 let slash = host_port.index_of("/");
 if slash >= 0 { host_port = host_port.sub_string(0, slash); }
 if host_port.index_of(":") < 0 { host_port += ":22"; }
-let t = tcp(`tcp://${host_port}`);
-if !t.ok {
+// `tcp()` raises on connect failure / timeout, so a plain `if !t.ok`
+// guard never fires — wrap in try/catch and treat any failure as
+// "host unreachable".
+let reachable = false;
+try {
+    let t = tcp(`tcp://${host_port}`, #{ timeout: 5 });
+    reachable = t.ok;
+} catch(e) { reachable = false; }
+if !reachable {
     print(`${host_port} unreachable — skipping`);
     return 2;
 }

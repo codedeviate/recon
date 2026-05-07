@@ -122,6 +122,33 @@ pub fn decode_all_file(path: &str) -> Result<Vec<Decoded>> {
         .collect())
 }
 
+/// Sniff a small set of image magic bytes and return a file extension
+/// (with leading dot) that rxing's underlying `image` crate decoder
+/// recognises. Falls back to `.png` when nothing matches — most callers
+/// generate PNGs from `encode::*`, and PNG is the safest blind guess.
+fn sniff_image_suffix(bytes: &[u8]) -> &'static str {
+    if bytes.len() >= 8 && &bytes[..8] == b"\x89PNG\r\n\x1a\n" {
+        ".png"
+    } else if bytes.len() >= 3 && &bytes[..3] == b"\xff\xd8\xff" {
+        ".jpg"
+    } else if bytes.len() >= 6
+        && (&bytes[..6] == b"GIF87a" || &bytes[..6] == b"GIF89a")
+    {
+        ".gif"
+    } else if bytes.len() >= 12
+        && &bytes[..4] == b"RIFF"
+        && &bytes[8..12] == b"WEBP"
+    {
+        ".webp"
+    } else if bytes.len() >= 2 && &bytes[..2] == b"BM" {
+        ".bmp"
+    } else if bytes.len() >= 4 && (&bytes[..4] == b"II*\0" || &bytes[..4] == b"MM\0*") {
+        ".tiff"
+    } else {
+        ".png"
+    }
+}
+
 /// Same as `decode_all_file` but for an in-memory image blob. Writes
 /// to a tempfile first (rxing wants a filesystem path to do its own
 /// PNG/JPEG parsing).
@@ -129,7 +156,7 @@ pub fn decode_all_bytes(bytes: &[u8]) -> Result<Vec<Decoded>> {
     use std::io::Write;
     let mut tmp = tempfile::Builder::new()
         .prefix("recon-decode-all-")
-        .suffix(".img")
+        .suffix(sniff_image_suffix(bytes))
         .tempfile()
         .context("decode_all: create tempfile")?;
     tmp.write_all(bytes).context("decode_all: write tempfile")?;
@@ -149,7 +176,7 @@ pub fn decode_bytes(bytes: &[u8], hints: &[BarcodeFormat]) -> Result<Decoded> {
     use std::io::Write;
     let mut tmp = tempfile::Builder::new()
         .prefix("recon-decode-")
-        .suffix(".img")
+        .suffix(sniff_image_suffix(bytes))
         .tempfile()
         .context("decode: create tempfile")?;
     tmp.write_all(bytes).context("decode: write tempfile")?;

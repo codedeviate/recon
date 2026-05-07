@@ -6,8 +6,14 @@
 let url = if args.len() > 1 { args[1] } else { "redis://127.0.0.1:6379/" };
 // Light pre-check: if 127.0.0.1:6379 isn't listening, exit 2 cleanly.
 if url == "redis://127.0.0.1:6379/" {
-    let t = tcp("tcp://127.0.0.1:6379");
-    if !t.ok {
+    // `tcp()` raises on connect failure (refused / timeout), so a plain
+    // `if !t.ok` guard never fires — wrap in try/catch.
+    let reachable = false;
+    try {
+        let t = tcp("tcp://127.0.0.1:6379", #{ timeout: 2 });
+        reachable = t.ok;
+    } catch(e) { reachable = false; }
+    if !reachable {
         print("no redis on 127.0.0.1:6379 — skipping");
         return 2;
     }

@@ -8,6 +8,52 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.77.9] - 2026-05-07
+
+### Fixed
+
+- `src/decode.rs` — `decode_bytes` / `decode_all_bytes` wrote the
+  in-memory image to a tempfile with a `.img` suffix, then handed the
+  path to rxing, whose underlying `image` crate decoder picks the
+  format from the file extension. `.img` isn't recognized, so every
+  decode failed with a misleading "file not found or cannot be
+  opened". Now we sniff PNG / JPEG / GIF / WebP / BMP / TIFF magic
+  bytes and use a real extension (defaulting to `.png` when no header
+  matches — most callers of `encode::decode` are round-tripping a
+  `encode::qr(...)` blob anyway).
+- `src/rtsp_probe.rs::parse_url` — URLs of the shape
+  `rtsp://user:pass@host:port/path` were being passed to DNS as the
+  literal string `user:pass@host:port`, because `rsplit_once(':')` on
+  the whole authority split on the userinfo's colon, not the
+  host:port colon. The parser now strips `user[:pass]@` first
+  (captured into a `userinfo` field for future RTSP auth wiring).
+  Same patch adds IPv6 bracket support: `[::1]`, `[fe80::1]:8554`,
+  `rtsps://demo:pw@[2001:db8::1]:443/` all parse cleanly. Five new
+  unit tests cover the new shapes.
+- `script/*.rhai` (ftp, gopher, imap, memcached, mqtt, pop3, redis,
+  rtsp, sftp, smtp) — `tcp(...)` raises a Rhai exception on connect
+  failure / timeout, so the long-standing `if !t.ok { skip }` guards
+  in every demo were dead code. Demos crashed with stack traces
+  whenever the public test server was down. Each guard is now wrapped
+  in try/catch with a 5-second probe timeout (2 seconds for
+  loopback-only memcached/redis), so the demo prints a clean
+  "<host> unreachable — skipping" and exits 2.
+- `script/rtsp.rhai` — header now lists five public RTSP demo
+  endpoints (Wowza, rtsp.stream pattern + movie, zephyr.rtsp.stream
+  with stream key, IPVM ONVIF) so users have somewhere to go when
+  the default Wowza endpoint is down (which it is at the time of
+  writing). Default behavior unchanged.
+- `script/netrc.rhai` — the `netrc_optional: true` demo printed
+  `optional netrc: 401` against httpbin and looked broken to anyone
+  without an `httpbin.org` entry in `~/.netrc` (the expected case).
+  Demo now annotates the 401 as expected, then synthesizes a netrc
+  in `/tmp` and exercises the success path via `netrc_file=`,
+  proving both halves of the feature in one run. Cleans the temp
+  file at the end.
+- `script/doc-convert.rhai` — second PDF was written to
+  `<out>.pdf.2`, which Finder/macOS can't double-click open
+  (no `.pdf` extension at the tail). Now writes to `<out>-2.pdf`.
+
 ## [0.77.8] - 2026-05-06
 
 ### Fixed

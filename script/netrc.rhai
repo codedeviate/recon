@@ -18,16 +18,27 @@
 
 let url = if args.len() > 1 { args[1] } else { "https://httpbin.org/basic-auth/alice/s3cr3t" };
 
-// Try optional first — works whether or not the user has a .netrc.
+// 1. `netrc_optional`: if the user happens to have a matching entry in
+//    ~/.netrc, creds are picked up; otherwise the request goes out
+//    unauthenticated. Against httpbin's basic-auth/<user>/<pass> route
+//    that means a 401 unless the user really has an `httpbin.org` entry.
 let r = http(url, #{ netrc_optional: true });
-print(`optional netrc: ${r.status}`);
+print(`optional netrc (no file required): ${r.status}` +
+      if r.status == 401 { "  ← expected when ~/.netrc has no httpbin.org entry" } else { "" });
 
-// Explicit netrc file — good for CI where the creds live alongside
-// the job.
-// let r = http(url, #{ netrc_file: "./ci.netrc" });
-// print(`ci netrc: ${r.status}`);
+// 2. Synthesize a minimal netrc in /tmp and exercise the success path
+//    via `netrc_file`. This is the CI pattern: drop creds next to the
+//    job, point the request at the file, no global state needed.
+let netrc_path = "/tmp/recon-demo.netrc";
+file_write_all(netrc_path, "machine httpbin.org\nlogin alice\npassword s3cr3t\n");
+let r2 = http(url, #{ netrc_file: netrc_path });
+print(`explicit netrc_file=${netrc_path}: ${r2.status}`);
+file_delete(netrc_path);
 
-// Require netrc — fails cleanly if missing.
-// let r = http(url, #{ netrc: true });
+// 3. `netrc: true` requires ~/.netrc to exist — fails cleanly when
+//    missing. Left commented because the failure noise distracts from
+//    the demo; uncomment to see the strict-mode error message.
+// let r3 = http(url, #{ netrc: true });
+// print(`strict netrc: ${r3.status}`);
 
 return 0;

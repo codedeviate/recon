@@ -28,10 +28,17 @@ try {
     print(`html → pdf: skipped (${e})`);
 }
 
-// 3. One-shot md → pdf with a different destination.
+// 3. One-shot md → pdf with a different destination. Insert `-2`
+// before the `.pdf` extension so the file still opens with a normal
+// PDF viewer (writing `.pdf.2` confuses macOS / Finder).
+let pdf_out2 = if pdf_out.ends_with(".pdf") {
+    pdf_out.sub_string(0, pdf_out.len - 4) + "-2.pdf"
+} else {
+    pdf_out + "-2.pdf"
+};
 try {
-    md_to_pdf(md, pdf_out + ".2", #{ toc: true, gfm: true });
-    print(`md → pdf: wrote ${pdf_out}.2`);
+    md_to_pdf(md, pdf_out2, #{ toc: true, gfm: true });
+    print(`md → pdf: wrote ${pdf_out2}`);
 } catch(e) {
     print(`md → pdf: skipped (${e})`);
 }

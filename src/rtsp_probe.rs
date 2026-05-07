@@ -22,6 +22,13 @@ pub(crate) struct RtspUrl {
     pub port: u16,
     pub path: String,
     pub tls: bool,
+    /// Raw `user[:pass]` captured from the URL, before percent-decoding.
+    /// RTSP auth (Basic/Digest) is not yet implemented; this is recorded
+    /// so we can wire it up later, and so it stops leaking into the host
+    /// component (which previously broke DNS resolution for any URL
+    /// shaped like `rtsp://demo:demo@host:port/...`).
+    #[allow(dead_code)]
+    pub userinfo: Option<String>,
 }
 
 pub(crate) fn parse_url(raw: &str) -> Result<RtspUrl> {
@@ -41,14 +48,46 @@ pub(crate) fn parse_url(raw: &str) -> Result<RtspUrl> {
         return Err(anyhow!("rtsp: URL missing host"));
     }
 
+    // Strip optional `user[:pass]@` prefix. Use rsplit_once so a `@`
+    // inside the password (rare but legal pre-encoding) doesn't confuse
+    // the split — only the LAST `@` separates userinfo from host.
+    let (userinfo, hostport) = match authority.rsplit_once('@') {
+        Some((u, hp)) => (Some(u.to_string()), hp),
+        None => (None, authority),
+    };
+    if hostport.is_empty() {
+        return Err(anyhow!("rtsp: URL missing host"));
+    }
+
     let default_port = if tls { DEFAULT_PORT_TLS } else { DEFAULT_PORT_PLAIN };
-    let (host, port) = match authority.rsplit_once(':') {
-        Some((h, p)) => (
-            h.to_string(),
+
+    // IPv6 literal: `[::1]` or `[::1]:554`. Brackets fence off the
+    // colons in the address from the host:port separator. Only the
+    // bytes after `]` may carry an explicit port.
+    let (host, port) = if let Some(after_open) = hostport.strip_prefix('[') {
+        let close = after_open
+            .find(']')
+            .ok_or_else(|| anyhow!("rtsp: unterminated IPv6 literal in '{hostport}'"))?;
+        let host = &after_open[..close];
+        let tail = &after_open[close + 1..];
+        let port = if tail.is_empty() {
+            default_port
+        } else if let Some(p) = tail.strip_prefix(':') {
             p.parse::<u16>()
-                .map_err(|_| anyhow!("rtsp: invalid port '{p}'"))?,
-        ),
-        None => (authority.to_string(), default_port),
+                .map_err(|_| anyhow!("rtsp: invalid port '{p}'"))?
+        } else {
+            return Err(anyhow!("rtsp: unexpected text after IPv6 host: '{tail}'"));
+        };
+        (host.to_string(), port)
+    } else {
+        match hostport.rsplit_once(':') {
+            Some((h, p)) => (
+                h.to_string(),
+                p.parse::<u16>()
+                    .map_err(|_| anyhow!("rtsp: invalid port '{p}'"))?,
+            ),
+            None => (hostport.to_string(), default_port),
+        }
     };
 
     Ok(RtspUrl {
@@ -56,6 +95,7 @@ pub(crate) fn parse_url(raw: &str) -> Result<RtspUrl> {
         port,
         path: path.to_string(),
         tls,
+        userinfo,
     })
 }
 
@@ -280,5 +320,46 @@ mod tests {
     #[test]
     fn rejects_bad_port() {
         assert!(parse_url("rtsp://example.com:bad/").is_err());
+    }
+
+    #[test]
+    fn strips_userinfo_user_pass() {
+        let u = parse_url("rtsp://demo:demo@host:5541/onvif-media/media.amp").unwrap();
+        assert_eq!(u.host, "host");
+        assert_eq!(u.port, 5541);
+        assert_eq!(u.userinfo.as_deref(), Some("demo:demo"));
+        assert_eq!(u.path, "/onvif-media/media.amp");
+    }
+
+    #[test]
+    fn strips_userinfo_user_only() {
+        let u = parse_url("rtsp://alice@example.com/stream").unwrap();
+        assert_eq!(u.host, "example.com");
+        assert_eq!(u.port, 554);
+        assert_eq!(u.userinfo.as_deref(), Some("alice"));
+    }
+
+    #[test]
+    fn ipv6_default_port() {
+        let u = parse_url("rtsp://[::1]/stream").unwrap();
+        assert_eq!(u.host, "::1");
+        assert_eq!(u.port, 554);
+        assert_eq!(u.path, "/stream");
+    }
+
+    #[test]
+    fn ipv6_explicit_port() {
+        let u = parse_url("rtsp://[fe80::1]:8554/cam").unwrap();
+        assert_eq!(u.host, "fe80::1");
+        assert_eq!(u.port, 8554);
+    }
+
+    #[test]
+    fn ipv6_with_userinfo() {
+        let u = parse_url("rtsps://demo:pw@[2001:db8::1]:443/").unwrap();
+        assert_eq!(u.host, "2001:db8::1");
+        assert_eq!(u.port, 443);
+        assert!(u.tls);
+        assert_eq!(u.userinfo.as_deref(), Some("demo:pw"));
     }
 }
