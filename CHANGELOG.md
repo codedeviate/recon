@@ -8,6 +8,17 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.77.10] - 2026-05-07
+
+### Changed
+
+- Untracked `dump.rdb` from the repo and added it to `.gitignore`.
+  The file was a 121-byte Redis RDB snapshot committed in 0.24.13
+  that kept getting clobbered locally whenever `redis-server` ran
+  from the project root (Redis defaults to `dir ./` +
+  `dbfilename dump.rdb`), so it surfaced in every `git status` as
+  modified-but-bytewise-identical noise. Runtime state, not source.
+
 ## [0.77.9] - 2026-05-07
 
 ### Fixed

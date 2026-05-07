@@ -4,3 +4,8 @@
 /.idea
 /.worktrees
 /BREW.md
+
+# Redis on-disk persistence — written by `redis-server` running in
+# CWD while exercising the redis script binding. Runtime state, not
+# source.
+dump.rdb
