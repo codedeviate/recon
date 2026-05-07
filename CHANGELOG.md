@@ -8,6 +8,23 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.77.11] - 2026-05-07
+
+### Changed
+
+- `script/browser-iso8859.rhai` — rewrote the demo so it actually
+  proves the outbound transcode rather than just hoping the user
+  notices it happened. Now compares UTF-8 vs Latin-1 byte counts via
+  `text::encode(body, charset).len()`, asserts the echoed
+  `Content-Length` equals the Latin-1 length (24 vs 26 — the strong
+  proof recon transcoded), checks for httpbin's `�`-mangling of
+  the Latin-1 bytes when it forced UTF-8 decoding (orthogonal proof
+  the bytes weren't UTF-8), and finishes with a server-independent
+  `text::encode → text::decode` round-trip. Added a long header
+  comment explaining the test methodology — particularly the
+  counter-intuitive bit that httpbin's mangling is itself the
+  evidence the transcode worked.
+
 ## [0.77.10] - 2026-05-07
 
 ### Changed
