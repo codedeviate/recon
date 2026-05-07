@@ -48,7 +48,7 @@ recon --script my-flow.rhai                  # Rhai scripts with full HTTP/probe
 ### Homebrew (macOS / Linuxbrew)
 
 ```sh
-brew tap codedeviate/recon
+brew tap codedeviate/cli
 brew install recon                # default rustls build
 # or, with BoringSSL-based browser fingerprint impersonation:
 brew install recon-impersonate

@@ -20,7 +20,6 @@ exclude = [
     "dump.rdb",
     "target/",
     "docs/MANUAL.pdf",
-    "homebrew/",
     ".github/",
     "/.gitignore",
     "CLAUDE.md",
