@@ -8,6 +8,22 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.77.12] - 2026-05-07
+
+### Changed
+
+- `Cargo.toml` — added an `exclude = [...]` list so `cargo publish`
+  ships a smaller, source-only crate to crates.io. Excluded:
+  `dump.rdb` (Redis runtime state, also gitignored), `target/` (build
+  output, redundant but explicit), `docs/MANUAL.pdf` (2 MB binary
+  artifact regenerable from `MANUAL.md`), `.github/` (CI config not
+  useful to consumers), `/.gitignore`, `CLAUDE.md` (development
+  instructions), `BREW.md` (homebrew tap notes, also gitignored).
+  Aligns with a new sibling repo that orchestrates homebrew + crates.io
+  release publishing for this project — keeps the published crate
+  payload focused on what `cargo install recon-cli` actually needs to
+  build.
+
 ## [0.77.11] - 2026-05-07
 
 ### Changed
