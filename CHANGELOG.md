@@ -8,6 +8,22 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.77.13] - 2026-05-08
+
+### Changed
+
+- `Cargo.toml` exclude list — final pre-publish tightening. Added
+  `.git/` and `.worktrees/` (defense-in-depth against accidental
+  inclusion if cargo's git-aware filtering is ever bypassed),
+  `.idea/` and `.claude/` (IDE / agent dirs — already gitignored,
+  belt-and-suspenders), `HISTORY.md` (172 KB internal design-rationale
+  doc, was tracked despite being gitignored, was leaking into the
+  tarball), `OUT-OF-SCOPE.md` (25 KB internal scope notes, also
+  leaking). Removed `BREW.md` (redundant — gitignored and never
+  tracked, so cargo never packaged it). Normalised `.gitignore`
+  spelling. Verified end-to-end with `cargo publish --dry-run`:
+  303 files, 706 KiB compressed, server-side validation green.
+
 ## [0.77.12] - 2026-05-07
 
 ### Changed
