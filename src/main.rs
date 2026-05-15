@@ -254,6 +254,21 @@ fn main() {
         }
     };
 
+    // ── --editor URL-grabbing rescue ──
+    // clap's num_args = 0..=1 on --editor greedily eats the next token, so
+    // `recon --editor https://example.com` lands the URL on `--editor` and
+    // leaves the positional `url` empty. If the editor value contains `://`
+    // it's a URL, not an editor command — swap it onto `url` and let
+    // `--editor` fall back to the configured default.
+    if args.url.is_none() {
+        if let Some(val) = args.editor.as_deref() {
+            if val.contains("://") {
+                args.url = Some(val.to_string());
+                args.editor = Some(String::new());
+            }
+        }
+    }
+
     // ── --tries validation ──
     if matches!(args.tries, Some(0)) {
         eprintln!("error: --tries: N must be ≥ 1 (use --retry-max-time as a ceiling for many retries)");

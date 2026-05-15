@@ -8,6 +8,20 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.77.14] - 2026-05-15
+
+### Fixed
+
+- `--editor URL` (space-separated) — clap's `num_args = 0..=1` on
+  `--editor` greedily eats the next token, so `recon --editor
+  https://example.com` was landing the URL on `--editor` and erroring
+  out for missing input. Rescue: after argv parse, if `args.editor`
+  contains `://` and no positional URL is set, swap the value onto
+  `args.url` and let `--editor` fall back to the configured default.
+  The documented workarounds (`--editor=value`, or `--url` first)
+  still work; this just removes the surprise. OUT-OF-SCOPE.md entry
+  retired.
+
 ## [0.77.13] - 2026-05-08
 
 ### Changed

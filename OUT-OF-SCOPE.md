@@ -330,14 +330,6 @@ recursive-engine pieces below remain deferred.
 recursive variant (filters applied to discovered links during a
 crawl) is the part that's still deferred.
 
-### UX niggles
-
-- **`--editor` value grabbing** — clap's `num_args = 0..=1` greedily
-  consumes the next token, so `recon --editor https://url` treats
-  the URL as the editor value. Documented workaround
-  (`--editor=value`, or `--url` first); could be fixed with a
-  smarter arg parser.
-
 ---
 
 ## Not yet supported — blocked on upstream / ecosystem

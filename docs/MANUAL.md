@@ -2,8 +2,8 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.77.13</div>
-<div class="date">2026-05-08</div>
+<div class="version">Version 0.77.14</div>
+<div class="date">2026-05-15</div>
 <div class="meta">
 Repository · https://github.com/codedeviate/recon<br>
 License · MIT
@@ -356,7 +356,7 @@ recon https://example.com/big.iso -o big.iso --continue
 | `--clipboard [<DIR>]` | Use clipboard for I/O. `DIR` = `in` / `out` / `both`. Bare form auto-resolves direction from context. |
 | `--no-prettify` | Disable auto-pretty (even when content-type suggests it). |
 | `-w, --write-out <FORMAT>` | Print a curl-compatible summary after the body. See [Write-out format](#write-out-format). |
-| `--editor` | Open response body in `$EDITOR` after the request. |
+| `--editor [<CMD>]` | Open response body in `$EDITOR` after the request. URL-shaped next token (contains `://`) is treated as the positional URL — `recon --editor https://example.com` works without the `=` form. |
 | `--json` (output-side inferred) | Combined with `-p`, forces JSON pretty-printing regardless of content-type. |
 
 ### Examples

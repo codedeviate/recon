@@ -1192,6 +1192,9 @@ pub struct Args {
     /// Built-in aliases: zed, code, cursor, subl, vim, nvim, nano, emacs.
     /// Accepts a user alias from [editor.aliases] or a raw shell command.
     /// Omit the value to use `[editor] default` from ~/.recon/config.toml.
+    /// A URL-shaped next token (anything containing `://`) is treated as the
+    /// positional URL, not as the editor command — so `recon --editor URL`
+    /// works without the `=` form.
     #[arg(long = "editor", value_name = "EDITOR", num_args = 0..=1, default_missing_value = "", help_heading = "Editor")]
     pub editor: Option<String>,
 
