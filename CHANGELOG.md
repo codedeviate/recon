@@ -8,6 +8,29 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.79.0] - 2026-05-15
+
+### Added
+
+- `ai::*` Rhai script-engine bindings — a small builder API that lets
+  scripts dispatch a prompt to one of several agent CLIs.
+  - `ai::ask(prompt)` one-liner; `ai::request()` builder with
+    `.backend`, `.model`, `.system`, `.context` (accumulating),
+    `.prompt` / `.user`, `.assistant` (multi-turn replay),
+    `.max_tokens`, `.temperature`, `.timeout`, `.send`, `.send_full`.
+  - Subprocess backends in v1: `claude` (`claude -p`), `codex`
+    (`codex exec`), `gemini` (`gemini --prompt`), and `cmd`
+    (user-defined via `[ai.backends.<name>]` in
+    `~/.recon/config.toml`).
+  - Three-layer config: per-request → env (`RECON_AI_BACKEND`,
+    `RECON_AI_MODEL`, `RECON_AI_TIMEOUT`) → `[ai]` config section.
+    No PATH fallback.
+  - All failures throw a Rhai script error prefixed `ai:` so callers
+    can `try { … } catch (e) { … }` cleanly.
+  - HTTP backends (Anthropic / OpenAI / Ollama), streaming,
+    tool-calling, and per-script token budgets are intentionally
+    deferred; the builder is forward-compatible.
+
 ## [0.78.2] - 2026-05-15
 
 ### Fixed

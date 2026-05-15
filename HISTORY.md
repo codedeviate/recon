@@ -52,6 +52,77 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 73. AI script-engine bindings — `ai::*` (0.79.0)
+
+Diagnostic recon scripts had every primitive *except* "ask the model
+a question and use its answer in the next step." The script engine
+already exposes most of recon's domain (http, dns, tls, ftp, encode,
+hash, jwt …) as Rhai bindings; an LLM that can answer a question
+about a probe's output is a natural orchestrator on top of that.
+
+**Why subprocess in v1, not an SDK.** The two natural shapes were
+(a) shell out to an already-installed agent CLI the user has
+authenticated (Claude Code, Codex, Gemini CLI) or (b) embed an SDK
+(`async-openai`, anthropic-sdk-rust) and let recon talk to the API
+directly. (a) reuses the user's existing auth, adds zero new crates,
+keeps recon's binary size flat, and matches the project's "Unix tool
+that orchestrates other Unix tools" character. (b) is more
+controllable and opens streaming / tool-calling but introduces an
+API-key story, a tokio runtime, and several megabytes of deps. For
+a single-developer diagnostic tool the trade-off lands clearly on
+(a). The builder API is shaped so (b) can drop in later behind the
+same `AiBackend` trait without changing a single script.
+
+**Why a builder, not a flat function.** The original sketch was
+`ai::complete(prompt, opts)` with an options map. That works fine
+for one-shot calls but doesn't compose well when scripts need to
+accumulate context from multiple recon outputs (the cert, the
+banner, the prior probe's result). The builder lets each producer
+call `.context(x)` independently without anyone owning a "build
+the options map" responsibility. Multi-turn replay falls out of the
+same shape: `.assistant(x).user(y)` is just two more method calls
+on the same object.
+
+**Why `.send()` does not auto-append the assistant reply.** The
+alternative (`.send()` records its own response into `turns` so the
+next call sees full history) is more ergonomic but Hidden Magic™.
+Explicit replay (`req.assistant(reply).user(next)`) keeps the
+builder's state predictable. Auto-append can be added later as
+`.send_and_remember()` if it turns out painful.
+
+**Subprocess discipline.** Every backend spawns via
+`std::process::Command` only — never `sh -c`, never argv built
+from a script-supplied string. Prompts always pipe through stdin
+(no shell-quoting, no argv length limit). The runner enforces the
+`.timeout()` kill switch via a worker thread + `recv_timeout` on
+an `mpsc` channel, so no async runtime is required.
+
+**Custom backends via config.** The `cmd` backend reads
+`[ai.backends.<name>]` from `~/.recon/config.toml`: argv is
+user-supplied, with optional `model_flag` / `system_flag` names so
+recon knows how to append `.model(...)` and `.system(...)` values.
+This is the recompile-free escape hatch for users wiring up agent
+CLIs that the built-in set doesn't cover.
+
+**Library-surface decision: a thin `src/lib.rs`.** The integration
+test in `tests/script_ai_it.rs` needs access to internal types
+(`AiBackend`, `BackendCtx`, `Registry`, `Request`, `register_with_registry`).
+recon-cli is primarily a binary crate; the existing convention in
+`tests/` is to spawn the binary as a subprocess. For this new
+script-engine surface, that pattern doesn't work — the test needs
+to inject a `MockBackend` into the engine, which only the lib API
+can do. Solution: a minimal `src/lib.rs` that exposes the `ai`
+module tree via `#[path]`, plus `config`. The doc-comment in
+`lib.rs` explains the constraint. As a side-effect, the four backend
+files use `super::super::*` relative imports so the same source
+files compile under both the binary's module tree and the lib's
+`#[path]`-pointed tree — this is load-bearing for the lib build.
+
+**Test budget.** ~40 unit tests across `request`, `flatten`,
+`runner`, `resolve`, the four backends; 7 integration tests in
+`tests/script_ai_it.rs` driven by a `MockBackend` so the suite
+doesn't depend on any real CLI being installed.
+
 ### 72. TLS+H2 browser fingerprint impersonation — `--impersonate` (0.77.0)
 
 A user building a captcha server asked for a way to make recon mimic real browser TLS / HTTP/2 fingerprints. recon's reqwest+rustls stack produces a stable, distinctive ClientHello easily detected by Cloudflare-class fingerprinters; even setting a Chrome `User-Agent` doesn't help when the server is reading JA3 / JA4 / Akamai-H2 settings.

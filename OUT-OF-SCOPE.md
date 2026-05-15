@@ -39,6 +39,34 @@ entry rather than leaving a crossed-out line here.
 
 ## Deferred — put off, path is known
 
+### AI bindings
+
+- **HTTP backends for `ai::*`** — Anthropic Messages, OpenAI Chat
+  Completions, Ollama. The 0.79.0 v1 ships subprocess-only because
+  it reuses the user's existing agent-CLI auth and adds zero new
+  crates. The builder API is already shaped to support HTTP: a
+  future `AnthropicBackend` builds a proper `messages: [{role,
+  content}, …]` array from the same `Request.turns` field. Adds
+  ~5–10 MB of deps (reqwest is already there, but
+  serde-json-streaming + a small token counter are likely needed)
+  and an API-key config story. Ships when a real use case shows up
+  that subprocess can't cover.
+- **Tool / function calling** — let the model invoke recon's other
+  Rhai-registered bindings as tools. Requires
+  schema-from-registration plumbing and a control loop that
+  multiplexes stdin/stdout JSON. Defer until subprocess v1 has
+  baked.
+- **Streaming responses** — the runner buffers stdout entirely
+  today. Streaming requires an incremental reader + a way to
+  surface partial output to the script. Defer with token-budget
+  enforcement; same architectural cost.
+- **`recon --ai PROMPT` CLI surface** — script-only in v1. Adds
+  4–5 CLI flags and corresponding exposure-policy work.
+- **Verbose logging per `.send()`** — the spec promised a `-v` log
+  line per call (`* ai: backend=... model=... duration=...`). v1
+  ships without it because the `register` fn doesn't currently
+  thread `ScriptDefaults` through. Follow-up release adds it.
+
 ### Raw fingerprint overrides for `--impersonate` (0.77.0 → v0.78)
 
 - **`--ja3 <STRING>`, `--ja4 <STRING>`, `--http2-fingerprint <STRING>`** —
