@@ -3,8 +3,8 @@
 //!
 //! Each backend lives in its own file under this module.
 
-// Stub — populated in later tasks.
 pub mod claude;
 pub mod cmd;
 pub mod codex;
+pub mod copilot;
 pub mod gemini;

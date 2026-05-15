@@ -2145,7 +2145,7 @@ recon --script /tmp/decode.rhai"#,
         "let a2 = req.send();",
     ]);
 
-    note("ai::* requires a backend (claude / codex / gemini, or a user-defined `cmd` entry in ~/.recon/config.toml under [ai.backends.<name>]). Select with .backend(), $RECON_AI_BACKEND, or [ai].default_backend. send() throws on failure — wrap in `try { ... } catch (e) { ... }` to recover.");
+    note("ai::* requires a backend (claude / codex / copilot / gemini, or a user-defined `cmd` entry in ~/.recon/config.toml under [ai.backends.<name>]). Select with .backend(), $RECON_AI_BACKEND, or [ai].default_backend. send() throws on failure — wrap in `try { ... } catch (e) { ... }` to recover.");
 
     println!();
 }

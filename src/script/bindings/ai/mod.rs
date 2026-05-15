@@ -38,6 +38,7 @@ fn build_state() -> AiState {
     let mut registry = Registry::empty();
     registry.register(Box::new(backends::claude::ClaudeBackend));
     registry.register(Box::new(backends::codex::CodexBackend));
+    registry.register(Box::new(backends::copilot::CopilotBackend));
     registry.register(Box::new(backends::gemini::GeminiBackend));
 
     AiState { config, registry }

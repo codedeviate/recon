@@ -2303,9 +2303,10 @@ static TOPIC_IMPERSONATE: Topic = Topic {
 static TOPIC_AI: Topic = Topic {
     title: "AI — script-engine bindings to agent CLIs",
     description: "The ai::* namespace lets a Rhai script ask an LLM a question via a\n\
-                  subprocess-driven backend (claude, codex, gemini, or a user-defined\n\
-                  command). Build a request with .system / .context / .prompt /\n\
-                  optionally .assistant for multi-turn replay, then call .send().",
+                  subprocess-driven backend (claude, codex, copilot, gemini, or a\n\
+                  user-defined command). Build a request with .system / .context /\n\
+                  .prompt / optionally .assistant for multi-turn replay, then call\n\
+                  .send().",
     flags: &[
         FlagHelp {
             flags: "ai::ask(prompt)",
@@ -2318,8 +2319,9 @@ static TOPIC_AI: Topic = Topic {
         },
         FlagHelp {
             flags: ".backend(name) / .model(name)",
-            description: "Backend selection (claude / codex / gemini / a config-defined\n\
-                          cmd entry). Model name is pass-through to the backend's CLI.",
+            description: "Backend selection (claude / codex / copilot / gemini / a\n\
+                          config-defined cmd entry). Model name is pass-through to\n\
+                          the backend's CLI.",
         },
         FlagHelp {
             flags: ".system(s) / .context(s) / .prompt(s) / .user(s)",
