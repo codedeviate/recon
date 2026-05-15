@@ -23,6 +23,7 @@ thread_local! {
 ///   1. A `ProtocolExitCode` tag (MQTT/RTSP/etc. use this explicitly).
 ///   2. A `reqwest::Error` whose `is_connect()` / `is_timeout()` resolves to
 ///      a curl-compatible code (7 / 28).
+///
 /// The first match is stashed in a thread-local for the engine's error path
 /// to consume as the process exit code.
 pub fn anyhow_to_rhai(e: anyhow::Error) -> Box<EvalAltResult> {

@@ -311,7 +311,7 @@ pub fn create_cl_rut(input: &str, raw: bool) -> Result<String> {
         .chars()
         .filter(|c| c.is_ascii_digit())
         .collect();
-    if clean.len() < 1 || clean.len() > 9 {
+    if clean.is_empty() || clean.len() > 9 {
         return Err(anyhow!("expected 1-9 digits (RUT body), got {}", clean.len()));
     }
     let cd = rut_check_char(&clean);

@@ -100,9 +100,10 @@ pub fn parse_format(input: &str) -> Result<Format> {
 /// QR error-correction level. Controls how much damage the code can
 /// sustain and still decode. Bigger level = more redundancy = larger
 /// matrix. Default `M` matches curl/qrcode's traditional pick.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum QrLevel {
     L,
+    #[default]
     M,
     Q,
     H,
@@ -131,11 +132,6 @@ impl QrLevel {
     }
 }
 
-impl Default for QrLevel {
-    fn default() -> Self {
-        QrLevel::M
-    }
-}
 
 /// Options that tune individual encoders. Empty/default today; extended
 /// as features land. Most callers use `EncodeOptions::default()`.
@@ -737,8 +733,8 @@ pub fn print_list(out: &mut dyn Write) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Resolve the encode input. Priority: --from-file > positional '-' or pipe
-/// > positional literal > error. Reads as bytes so DataMatrix can carry
+/// Resolve the encode input. Priority: `--from-file` > positional `'-'` or
+/// pipe > positional literal > error. Reads as bytes so DataMatrix can carry
 /// arbitrary content.
 pub fn resolve_input(
     from_file: Option<&Path>,

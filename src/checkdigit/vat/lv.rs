@@ -30,6 +30,7 @@
 //! Length 11:
 //!   - First digit 0-3 → personal code.
 //!   - First digit 4-9 → business registration number.
+//!
 //! Other length → Invalid.
 
 use super::super::{sanitize, Verdict};

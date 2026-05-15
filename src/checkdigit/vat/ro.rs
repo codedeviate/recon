@@ -31,7 +31,7 @@ pub fn verify_ro_vat(input: &str) -> Verdict {
         Err(v) => return v,
     };
     let len = clean.len();
-    if len < 2 || len > 10 {
+    if !(2..=10).contains(&len) {
         return Verdict::Invalid {
             reason: format!("expected 2-10 digits, got {}", len),
         };
@@ -59,7 +59,7 @@ pub fn create_ro_vat(input: &str, _raw: bool) -> Result<String> {
     let clean = sanitize(input, false);
     let len = clean.len();
     // Accept 1–9 digit body; full number will be 2–10 digits.
-    if len < 1 || len > 9 {
+    if !(1..=9).contains(&len) {
         return Err(anyhow!("expected 1-9 digit body (check digit will be appended), got {}", len));
     }
     if !clean.chars().all(|c| c.is_ascii_digit()) {

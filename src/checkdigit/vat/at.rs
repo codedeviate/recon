@@ -13,10 +13,10 @@ fn reduce(d: u32, w: u32) -> u32 {
 
 /// Strip optional "ATU" or "U" prefix from an already-uppercased string.
 fn strip_prefix(s: &str) -> &str {
-    if s.starts_with("ATU") {
-        &s[3..]
-    } else if s.starts_with('U') {
-        &s[1..]
+    if let Some(stripped) = s.strip_prefix("ATU") {
+        stripped
+    } else if let Some(stripped) = s.strip_prefix('U') {
+        stripped
     } else {
         s
     }

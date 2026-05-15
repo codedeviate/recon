@@ -26,7 +26,7 @@ fn decode_and_validate(addr: &str) -> Result<(u8, Vec<u8>)> {
     }
     let (payload, checksum) = decoded.split_at(decoded.len() - 4);
     let h1 = Sha256::digest(payload);
-    let h2 = Sha256::digest(&h1);
+    let h2 = Sha256::digest(h1);
     if &h2[..4] != checksum {
         return Err(anyhow!("base58check checksum mismatch"));
     }

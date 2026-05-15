@@ -95,7 +95,7 @@ pub fn create_bsn(input: &str, _raw: bool) -> Result<String> {
         partial += weights[i] * (c.to_digit(10).unwrap() as i32);
     }
     for c9 in 0..=9 {
-        let check_contribution = -1 * c9 as i32;
+        let check_contribution = -c9;
         if (partial + check_contribution).rem_euclid(11) == 0 && (partial + check_contribution) != 0 {
             return Ok(format!("{}{}", body, c9));
         }

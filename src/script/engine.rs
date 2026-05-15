@@ -40,8 +40,8 @@ pub fn run_source(
     // Allow shebang: #!/usr/bin/env -S recon --script
     // Rhai doesn't treat `#` as a comment, so we turn `#!` into `//`
     // which preserves line numbers in error messages.
-    let source = if raw.starts_with("#!") {
-        format!("//{}", &raw[2..])
+    let source = if let Some(stripped) = raw.strip_prefix("#!") {
+        format!("//{}", stripped)
     } else {
         raw
     };
