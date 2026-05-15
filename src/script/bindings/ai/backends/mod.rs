@@ -4,3 +4,4 @@
 //! Each backend lives in its own file under this module.
 
 // Stub — populated in later tasks.
+pub mod claude;
