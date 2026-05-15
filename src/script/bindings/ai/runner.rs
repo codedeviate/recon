@@ -111,8 +111,7 @@ pub fn run(argv: &[String], stdin_payload: &str, timeout: Duration) -> Result<Ru
             return Err(RunError::Timeout(timeout));
         }
         Err(mpsc::RecvTimeoutError::Disconnected) => {
-            return Err(RunError::Spawn(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            return Err(RunError::Spawn(std::io::Error::other(
                 "child wait thread disconnected",
             )));
         }
