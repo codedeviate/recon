@@ -139,9 +139,15 @@ impl Default for QrLevel {
 
 /// Options that tune individual encoders. Empty/default today; extended
 /// as features land. Most callers use `EncodeOptions::default()`.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct EncodeOptions {
     pub qr_level: QrLevel,
+    /// rxing `--encode-hints KEY=VAL` pairs (already parsed but not yet
+    /// validated against the per-format hint enum). Empty when the user
+    /// passed no hints. Currently honoured only by `encode_via_rxing`
+    /// (Aztec / PDF417); a hint set on a non-rxing format errors at the
+    /// top of `encode_with_opts`.
+    pub rxing_hints: Vec<(String, String)>,
 }
 
 /// Parse `--encode-format` into `OutputFormat`. Case-insensitive.
@@ -203,6 +209,15 @@ pub fn encode_with_opts(
     input: &[u8],
     opts: &EncodeOptions,
 ) -> Result<BitMatrix> {
+    if !opts.rxing_hints.is_empty()
+        && !matches!(format, Format::Aztec | Format::Pdf417)
+    {
+        return Err(anyhow!(
+            "--encode-hints currently applies only to aztec / pdf417 (recon's other encoders \
+             use crates without a hint API); got format {}",
+            format.canonical()
+        ));
+    }
     match format {
         Format::Qr => encode_qr(input, opts.qr_level),
         Format::DataMatrix => encode_datamatrix(input),
@@ -210,12 +225,16 @@ pub fn encode_with_opts(
         Format::Code39 => encode_1d(format, input),
         Format::Ean13 => encode_1d(format, input),
         Format::UpcA => encode_1d(format, input),
-        Format::Aztec => encode_via_rxing(format, input),
-        Format::Pdf417 => encode_via_rxing(format, input),
+        Format::Aztec => encode_via_rxing(format, input, &opts.rxing_hints),
+        Format::Pdf417 => encode_via_rxing(format, input, &opts.rxing_hints),
     }
 }
 
-fn encode_via_rxing(format: Format, input: &[u8]) -> Result<BitMatrix> {
+fn encode_via_rxing(
+    format: Format,
+    input: &[u8],
+    hint_pairs: &[(String, String)],
+) -> Result<BitMatrix> {
     use rxing::{BarcodeFormat, Writer};
 
     let bf = match format {
@@ -233,9 +252,10 @@ fn encode_via_rxing(format: Format, input: &[u8]) -> Result<BitMatrix> {
         _ => (0, 0),
     };
 
+    let hints = build_rxing_hints(format, hint_pairs)?;
     let writer = rxing::MultiFormatWriter;
     let rxing_matrix = writer
-        .encode(text, &bf, w, h)
+        .encode_with_hints(text, &bf, w, h, &hints)
         .map_err(|e| anyhow!("{} encode error: {e:?}", format.canonical()))?;
 
     let width = rxing_matrix.getWidth();
@@ -252,6 +272,79 @@ fn encode_via_rxing(format: Format, input: &[u8]) -> Result<BitMatrix> {
         bits,
         kind: format.kind(),
     })
+}
+
+/// Parse a single `--encode-hints KEY=VAL` token into `(key, value)`.
+/// Key is lowercased and trimmed; value is the raw RHS (no trimming so
+/// a hint like `charset= ` with a trailing space is still rejected by
+/// the rxing layer rather than silently scrubbed).
+pub fn parse_hint_kv(s: &str) -> Result<(String, String)> {
+    let (k, v) = s.split_once('=').ok_or_else(|| {
+        anyhow!("--encode-hints: expected KEY=VAL, got `{s}`")
+    })?;
+    let key = k.trim().to_ascii_lowercase();
+    if key.is_empty() {
+        return Err(anyhow!("--encode-hints: empty key in `{s}`"));
+    }
+    Ok((key, v.to_string()))
+}
+
+/// Translate the parsed CLI hint pairs into rxing's strongly-typed
+/// `EncodeHints` struct. Only the keys explicitly documented on
+/// `--encode-hints` are accepted; anything else errors so a typo
+/// fails loud instead of being silently dropped.
+fn build_rxing_hints(
+    format: Format,
+    pairs: &[(String, String)],
+) -> Result<rxing::EncodeHints> {
+    let mut hints = rxing::EncodeHints::default();
+    for (k, v) in pairs {
+        match k.as_str() {
+            "charset" => hints.CharacterSet = Some(v.clone()),
+            "eclevel" => hints.ErrorCorrection = Some(v.clone()),
+            "aztec-layers" => {
+                if !matches!(format, Format::Aztec) {
+                    return Err(anyhow!(
+                        "--encode-hints aztec-layers only applies to --encode aztec"
+                    ));
+                }
+                let n: i32 = v.parse().map_err(|_| {
+                    anyhow!("--encode-hints aztec-layers: expected integer (-4..-1 compact, 0 auto, 1..32 full), got `{v}`")
+                })?;
+                hints.AztecLayers = Some(n);
+            }
+            "pdf417-compact" => {
+                require_pdf417(format, k)?;
+                hints.Pdf417Compact = Some(v.clone());
+            }
+            "pdf417-compaction" => {
+                require_pdf417(format, k)?;
+                hints.Pdf417Compaction = Some(v.clone());
+            }
+            "pdf417-auto-eci" => {
+                require_pdf417(format, k)?;
+                hints.Pdf417AutoEci = Some(v.clone());
+            }
+            "margin" => hints.Margin = Some(v.clone()),
+            other => {
+                return Err(anyhow!(
+                    "--encode-hints: unknown key `{other}` (supported: charset, eclevel, \
+                     aztec-layers, pdf417-compact, pdf417-compaction, pdf417-auto-eci, margin)"
+                ));
+            }
+        }
+    }
+    Ok(hints)
+}
+
+fn require_pdf417(format: Format, key: &str) -> Result<()> {
+    if matches!(format, Format::Pdf417) {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "--encode-hints {key} only applies to --encode pdf417"
+        ))
+    }
 }
 
 fn encode_qr(input: &[u8], level: QrLevel) -> Result<BitMatrix> {
@@ -697,8 +790,14 @@ pub fn run(args: &Args) -> Result<()> {
 
     let input = resolve_input(args.from_file.as_deref(), args.target_url())?;
 
+    let rxing_hints = args
+        .encode_hints
+        .iter()
+        .map(|s| parse_hint_kv(s))
+        .collect::<Result<Vec<_>>>()?;
     let opts = EncodeOptions {
         qr_level: QrLevel::parse(&args.qr_level)?,
+        rxing_hints,
     };
     let matrix = encode_with_opts(format, &input, &opts)?;
 
@@ -1061,5 +1160,83 @@ mod tests {
         let path = std::path::PathBuf::from("/tmp/does-not-matter");
         let err = resolve_input(Some(&path), "some text").unwrap_err().to_string();
         assert!(err.contains("mutually exclusive"), "got: {err}");
+    }
+
+    #[test]
+    fn parse_hint_kv_basic() {
+        let (k, v) = parse_hint_kv("charset=UTF-8").unwrap();
+        assert_eq!(k, "charset");
+        assert_eq!(v, "UTF-8");
+    }
+
+    #[test]
+    fn parse_hint_kv_lowercases_key_preserves_value() {
+        let (k, v) = parse_hint_kv("Charset=Shift_JIS").unwrap();
+        assert_eq!(k, "charset");
+        assert_eq!(v, "Shift_JIS");
+    }
+
+    #[test]
+    fn parse_hint_kv_value_can_contain_equals() {
+        let (k, v) = parse_hint_kv("eclevel=a=b").unwrap();
+        assert_eq!(k, "eclevel");
+        assert_eq!(v, "a=b");
+    }
+
+    #[test]
+    fn parse_hint_kv_errors_without_equals() {
+        let err = parse_hint_kv("nokvhere").unwrap_err().to_string();
+        assert!(err.contains("KEY=VAL"), "got: {err}");
+    }
+
+    #[test]
+    fn parse_hint_kv_errors_on_empty_key() {
+        let err = parse_hint_kv("=value").unwrap_err().to_string();
+        assert!(err.contains("empty key"), "got: {err}");
+    }
+
+    #[test]
+    fn encode_hints_aztec_layers_changes_matrix_size() {
+        let auto = encode_with_opts(
+            Format::Aztec,
+            b"aztec test",
+            &EncodeOptions::default(),
+        ).unwrap();
+        let opts = EncodeOptions {
+            qr_level: QrLevel::default(),
+            rxing_hints: vec![("aztec-layers".into(), "-2".into())],
+        };
+        let compact = encode_with_opts(Format::Aztec, b"aztec test", &opts).unwrap();
+        assert_ne!(auto.width, compact.width, "compact aztec should differ in size from auto-layers");
+    }
+
+    #[test]
+    fn encode_hints_rejects_unknown_key() {
+        let opts = EncodeOptions {
+            qr_level: QrLevel::default(),
+            rxing_hints: vec![("bogus".into(), "v".into())],
+        };
+        let err = encode_with_opts(Format::Aztec, b"x", &opts).unwrap_err().to_string();
+        assert!(err.contains("unknown key"), "got: {err}");
+    }
+
+    #[test]
+    fn encode_hints_rejects_on_non_rxing_format() {
+        let opts = EncodeOptions {
+            qr_level: QrLevel::default(),
+            rxing_hints: vec![("charset".into(), "UTF-8".into())],
+        };
+        let err = encode_with_opts(Format::Qr, b"x", &opts).unwrap_err().to_string();
+        assert!(err.contains("aztec / pdf417"), "got: {err}");
+    }
+
+    #[test]
+    fn encode_hints_aztec_layers_rejected_on_pdf417() {
+        let opts = EncodeOptions {
+            qr_level: QrLevel::default(),
+            rxing_hints: vec![("aztec-layers".into(), "1".into())],
+        };
+        let err = encode_with_opts(Format::Pdf417, b"x", &opts).unwrap_err().to_string();
+        assert!(err.contains("aztec-layers only applies to --encode aztec"), "got: {err}");
     }
 }

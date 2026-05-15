@@ -770,6 +770,23 @@ static TOPIC_ENCODE: Topic = Topic {
                           requirements. Does not require a URL.",
         },
         FlagHelp {
+            flags: "--encode-hints <KEY=VAL>",
+            description: "Pass an rxing encoder hint. Repeatable. Applies to aztec /\n\
+                          pdf417 (the only formats recon currently routes through rxing).\n\
+                          Supported keys:\n  \
+                          \u{2022} charset=<NAME>     — Character set / ECI (e.g. UTF-8, Shift_JIS).\n  \
+                          \u{2022} eclevel=<N>        — Error correction. Aztec: minimum % of EC\n    \
+                                                  words. PDF417: 0..8 (higher = more redundancy).\n  \
+                          \u{2022} aztec-layers=<N>   — -4..-1 compact, 0 auto, 1..32 full Aztec.\n  \
+                          \u{2022} pdf417-compact=<bool>      — Use PDF417 compact mode.\n  \
+                          \u{2022} pdf417-compaction=<MODE>   — PDF417 compaction (e.g. TEXT, BYTE).\n  \
+                          \u{2022} pdf417-auto-eci=<bool>     — Auto-insert ECIs for non-Latin-1.\n  \
+                          \u{2022} margin=<PX>        — Quiet-zone margin in pixels.\n\
+                          Unknown keys error. Hints set on non-rxing formats (qr, datamatrix,\n\
+                          code128, code39, ean13, upca) also error — those encoders use crates\n\
+                          without an equivalent hint API.",
+        },
+        FlagHelp {
             flags: "--hrt / --no-hrt",
             description: "Show human-readable text under 1D barcodes. Default on for\n\
                           EAN-13 / UPC-A, off for Code128 / Code39. Implemented for\n\
@@ -791,6 +808,9 @@ static TOPIC_ENCODE: Topic = Topic {
         ExampleHelp { description: "Code 128 alphanumeric with explicit HRT", command: "recon --encode code128 --hrt \"RECON-TEST-001\" -o c128.svg" },
         ExampleHelp { description: "Encode from stdin", command: "echo \"https://example.com\" | recon --encode qr" },
         ExampleHelp { description: "Encode from file", command: "recon --encode qr --from-file long-url.txt -o link.png" },
+        ExampleHelp { description: "Compact Aztec (2-layer)", command: "recon --encode aztec --encode-hints aztec-layers=-2 \"compact aztec\"" },
+        ExampleHelp { description: "PDF417 with EC level 5", command: "recon --encode pdf417 --encode-hints eclevel=5 -o p.svg \"...\"" },
+        ExampleHelp { description: "Aztec with explicit charset (ECI)", command: "recon --encode aztec --encode-hints charset=Shift_JIS \"日本\"" },
         ExampleHelp { description: "List supported formats", command: "recon --encode-list" },
         ExampleHelp { description: "Scan every barcode in an image", command: "recon --decode-all sheet.png" },
     ],

@@ -34,9 +34,6 @@ entry rather than leaving a crossed-out line here.
   deferred pending font bundling. `ab_glyph` + a permissive TTF
   (~50–100 KB compiled) is the path; picking a font + rasterization
   positioning wasn't worth it in the original release.
-- **`--encode-hints` (rxing encode_with_hints)** — ECI options, Aztec
-  compact-vs-full, PDF417 error-correction level. The API exists;
-  user-facing flag surface isn't designed yet.
 
 ### Document conversions
 

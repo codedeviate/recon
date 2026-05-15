@@ -1052,6 +1052,13 @@ pub struct Args {
     #[arg(long = "qr-level", value_name = "L|M|Q|H", default_value = "M", help_heading = "Encoding")]
     pub qr_level: String,
 
+    /// Pass `KEY=VAL` encode hint (repeatable; rxing).
+    /// Applies to Aztec / PDF417. Keys: `charset`, `eclevel`,
+    /// `aztec-layers`, `pdf417-compact`, `pdf417-compaction`,
+    /// `pdf417-auto-eci`, `margin`. See `--help encoding`.
+    #[arg(long = "encode-hints", value_name = "KEY=VAL", action = clap::ArgAction::Append, help_heading = "Encoding")]
+    pub encode_hints: Vec<String>,
+
     /// Show human-readable text (HRT) under 1D barcodes. Default on for
     /// EAN-13 / UPC-A; off for Code128 / Code39 (where the text is often
     /// arbitrary and ugly in the HRT row). Implemented for ASCII and

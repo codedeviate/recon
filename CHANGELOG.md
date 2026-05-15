@@ -8,6 +8,20 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.78.0] - 2026-05-15
+
+### Added
+
+- `--encode-hints KEY=VAL` (repeatable) — pass per-call hints through to
+  rxing's `encode_with_hints` for the Aztec and PDF417 encoders.
+  Supported keys: `charset` (CharacterSet / ECI), `eclevel`
+  (ErrorCorrection — Aztec % EC words, PDF417 `0..8`), `aztec-layers`
+  (`-4..-1` compact, `0` auto, `1..32` full), `pdf417-compact`,
+  `pdf417-compaction`, `pdf417-auto-eci`, `margin`. Unknown keys and
+  hints on non-rxing formats (qr / datamatrix / code128 / code39 /
+  ean13 / upca) error so typos fail loud rather than silently
+  no-op. Retires the matching "Waiting" entry in OUT-OF-SCOPE.md.
+
 ## [0.77.14] - 2026-05-15
 
 ### Fixed

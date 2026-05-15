@@ -1479,6 +1479,25 @@ recon --rekey \
 
     note("Levels: L (~7%), M (~15%, default), Q (~25%), H (~30%). Higher levels recover more scratched / partly obscured codes but produce larger matrices. Only meaningful for --encode qr; ignored by other formats.");
 
+    section("ENCODE HINTS — Aztec / PDF417 tuning (0.78.0)");
+
+    example("Compact vs full Aztec via aztec-layers", &[
+        "recon --encode aztec --encode-hints aztec-layers=-2 'compact aztec'",
+        "recon --encode aztec --encode-hints aztec-layers=4  'full aztec'",
+    ]);
+
+    example("PDF417 error-correction level (0..8)", &[
+        "recon --encode pdf417 --encode-hints eclevel=2 -o p2.svg 'low EC'",
+        "recon --encode pdf417 --encode-hints eclevel=8 -o p8.svg 'max EC'",
+    ]);
+
+    example("ECI / charset override (rxing CharacterSet hint)", &[
+        "recon --encode aztec  --encode-hints charset=Shift_JIS '日本'",
+        "recon --encode pdf417 --encode-hints charset=UTF-8     'unicode payload'",
+    ]);
+
+    note("--encode-hints is repeatable. Applies only to aztec / pdf417 — recon's other encoders (qr, datamatrix, code128, code39, ean13, upca) use crates without a hint API, so passing hints with them errors. Unknown keys also error so typos fail loud. See `recon --help encoding` for the full key list.");
+
     section("HSTS (0.52.0)");
 
     example("Populate cache from an https:// response", &[

@@ -2,7 +2,7 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.77.14</div>
+<div class="version">Version 0.78.0</div>
 <div class="date">2026-05-15</div>
 <div class="meta">
 Repository · https://github.com/codedeviate/recon<br>
@@ -1032,6 +1032,7 @@ inline `<style>` with `--unsafe-html`.
 | `--from-file <PATH>` | Encode input from file (mutually exclusive with positional). |
 | `--encode-list` | List all supported formats. |
 | `--qr-level <L\|M\|Q\|H>` | QR error-correction level (default M). |
+| `--encode-hints <KEY=VAL>` | rxing encoder hint (repeatable). Applies to aztec / pdf417. Keys: `charset`, `eclevel`, `aztec-layers`, `pdf417-compact`, `pdf417-compaction`, `pdf417-auto-eci`, `margin`. |
 | `--hrt` / `--no-hrt` | Human-readable text under 1D barcodes. Default on for EAN/UPC, off for Code128/39. SVG + ASCII only (PNG HRT deferred). |
 | `--decode <IMAGE>` | Scan a PNG/JPEG/WebP for any supported format. `-` for stdin. |
 | `--decode-hints <LIST>` | Comma-separated format restriction. |
@@ -1054,6 +1055,39 @@ cat code.png | recon --decode -
 recon --decode mystery.png --decode-hints qr,datamatrix
 recon --decode bottle.jpg --decode-hints ean13
 recon --decode-all sheet.png                        # every code in the image
+```
+
+### `--encode-hints` — Aztec / PDF417 tuning
+
+`--encode-hints KEY=VAL` exposes the rxing `encode_with_hints` API for
+the two formats recon routes through rxing (Aztec and PDF417). The
+flag is repeatable; unknown keys error, as do hints applied to
+non-rxing formats (qr, datamatrix, code128, code39, ean13, upca).
+
+Supported keys:
+
+| Key | Applies to | Value |
+|-----|------------|-------|
+| `charset` | aztec, pdf417 | Character set name driving the ECI selection (e.g. `UTF-8`, `Shift_JIS`, `ISO-8859-1`). |
+| `eclevel` | aztec, pdf417 | Aztec: minimum % of EC words. PDF417: integer `0..8` (higher = more redundancy). |
+| `aztec-layers` | aztec | `-4..-1` for compact mode, `0` for auto, `1..32` for full mode. |
+| `pdf417-compact` | pdf417 | `true` / `false`. Use PDF417 compact mode. |
+| `pdf417-compaction` | pdf417 | Compaction mode name (e.g. `TEXT`, `BYTE`, `NUMERIC`). |
+| `pdf417-auto-eci` | pdf417 | `true` / `false`. Auto-insert ECIs for non-Latin-1 input. |
+| `margin` | aztec, pdf417 | Quiet-zone margin in pixels. |
+
+```sh
+# Compact Aztec (negative layer count)
+recon --encode aztec --encode-hints aztec-layers=-2 'compact transit ticket'
+
+# PDF417 with maximum EC redundancy and explicit UTF-8 ECI
+recon --encode pdf417 \
+      --encode-hints eclevel=8 \
+      --encode-hints charset=UTF-8 \
+      -o id.svg 'license payload'
+
+# Aztec with Shift_JIS ECI for a Japanese payload
+recon --encode aztec --encode-hints charset=Shift_JIS '日本'
 ```
 
 ### HRT (human-readable text under 1D barcodes)
