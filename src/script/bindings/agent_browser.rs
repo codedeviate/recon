@@ -138,9 +138,9 @@ pub fn register(engine: &mut Engine) {
     }
 
     // Two-arg: sel + text/value
-    for cmd in ["fill"] {
-        let c = cmd.to_string();
-        register_simple(&mut module, cmd, move |a| {
+    {
+        let c = "fill".to_string();
+        register_simple(&mut module, "fill", move |a| {
             vec![c.clone(), a[0].clone(), a[1].clone()]
         }, 2);
     }

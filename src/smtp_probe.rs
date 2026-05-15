@@ -101,8 +101,8 @@ pub fn probe(url: &str, args: &Args) -> Result<SmtpProbeOk> {
         .find(|c| c.to_ascii_uppercase().starts_with("AUTH "))
         .map(|auth_line| {
             auth_line
-                .splitn(2, ' ')
-                .nth(1)
+                .split_once(' ')
+                .map(|x| x.1)
                 .unwrap_or("")
                 .split_whitespace()
                 .map(str::to_string)
@@ -503,7 +503,7 @@ fn extract_queued_id(line: &str) -> Option<String> {
     if id.is_empty() {
         None
     } else {
-        Some(id.trim_end_matches(|c: char| matches!(c, '>' | '.' | ',')).to_string())
+        Some(id.trim_end_matches(['>', '.', ',']).to_string())
     }
 }
 

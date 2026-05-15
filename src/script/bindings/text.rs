@@ -113,7 +113,7 @@ pub fn register(engine: &mut Engine) {
                 ))),
             };
             // Split on any of the three line endings, then rejoin.
-            let lines: Vec<&str> = s.split_inclusive(|c| c == '\n' || c == '\r').collect();
+            let lines: Vec<&str> = s.split_inclusive(['\n', '\r']).collect();
             let mut out = String::with_capacity(s.len());
             let mut i = 0;
             while i < lines.len() {

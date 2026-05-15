@@ -120,7 +120,7 @@ fn tcp_probe(host: &str, port: u16, count: u32, emit_per_reply: bool) -> Result<
     }
 
     let received = replies.len() as u32;
-    let loss_pct = if count > 0 { 100 * failures / count } else { 0 };
+    let loss_pct = (100 * failures).checked_div(count).unwrap_or(0);
     Ok(PingResult {
         protocol: "tcp",
         host: host.to_string(),
@@ -239,11 +239,7 @@ fn icmp_probe(host: &str, count: u32, emit_per_reply: bool) -> Result<PingResult
     }
 
     let received = replies.len() as u32;
-    let loss_pct = if count > 0 {
-        100 * (count - received) / count
-    } else {
-        0
-    };
+    let loss_pct = (100 * (count - received)).checked_div(count).unwrap_or(0);
     Ok(PingResult {
         protocol: "icmp",
         host: host.to_string(),

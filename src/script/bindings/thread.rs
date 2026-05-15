@@ -20,9 +20,12 @@ use std::sync::{
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
+type ThreadResult = Result<Dynamic, String>;
+type ThreadInner = Arc<Mutex<Option<JoinHandle<ThreadResult>>>>;
+
 #[derive(Clone)]
 pub struct ThreadHandle {
-    inner: Arc<Mutex<Option<JoinHandle<Result<Dynamic, String>>>>>,
+    inner: ThreadInner,
 }
 
 #[derive(Clone)]
@@ -120,27 +123,27 @@ pub fn register(engine: &mut Engine, ast: Shared<AST>, defaults: ScriptDefaults)
     // ── channels ──────────────────────────────────────────────────
     engine.register_fn("channel", || -> Array {
         let (tx, rx) = mpsc::channel::<Dynamic>();
-        let mut out = Array::new();
-        out.push(Dynamic::from(RhaiSender {
-            kind: SenderKind::Unbounded(tx),
-        }));
-        out.push(Dynamic::from(RhaiReceiver {
-            inner: Arc::new(Mutex::new(rx)),
-        }));
-        out
+        vec![
+            Dynamic::from(RhaiSender {
+                kind: SenderKind::Unbounded(tx),
+            }),
+            Dynamic::from(RhaiReceiver {
+                inner: Arc::new(Mutex::new(rx)),
+            }),
+        ]
     });
 
     engine.register_fn("channel_bounded", |capacity: i64| -> Array {
         let cap = capacity.max(0) as usize;
         let (tx, rx) = mpsc::sync_channel::<Dynamic>(cap);
-        let mut out = Array::new();
-        out.push(Dynamic::from(RhaiSender {
-            kind: SenderKind::Bounded(tx),
-        }));
-        out.push(Dynamic::from(RhaiReceiver {
-            inner: Arc::new(Mutex::new(rx)),
-        }));
-        out
+        vec![
+            Dynamic::from(RhaiSender {
+                kind: SenderKind::Bounded(tx),
+            }),
+            Dynamic::from(RhaiReceiver {
+                inner: Arc::new(Mutex::new(rx)),
+            }),
+        ]
     });
 
     engine.register_fn(

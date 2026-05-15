@@ -445,11 +445,15 @@ fn do_request(
                 args.header.push(format!("{k}: {v}"));
             }
         }
-        if state.insecure.is_some() && !opts_has_bool(opts, "insecure") {
-            args.insecure = state.insecure.unwrap();
+        if let Some(insecure) = state.insecure {
+            if !opts_has_bool(opts, "insecure") {
+                args.insecure = insecure;
+            }
         }
-        if state.follow_redirects.is_some() && !opts_has_bool(opts, "follow_redirects") {
-            args.follow_redirects = state.follow_redirects.unwrap();
+        if let Some(follow_redirects) = state.follow_redirects {
+            if !opts_has_bool(opts, "follow_redirects") {
+                args.follow_redirects = follow_redirects;
+            }
         }
         if let Some(n) = state.max_redirects {
             args.max_redirs = n;
@@ -474,11 +478,10 @@ fn do_request(
     // Body handling: only apply body if per-call opts didn't set one.
     if !has_opts_field(opts, "body") {
         match body {
-            Some(RequestBody::Raw(s)) => {
-                if !s.is_empty() {
-                    args.data = Some(s);
-                }
+            Some(RequestBody::Raw(s)) if !s.is_empty() => {
+                args.data = Some(s);
             }
+            Some(RequestBody::Raw(_)) => {}
             Some(RequestBody::Json(s)) => {
                 args.data = Some(s);
                 if !has_header_ci(&args.header, "content-type") {

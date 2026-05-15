@@ -34,9 +34,7 @@ pub fn parse_input(raw: &str) -> Result<InputKind> {
             token: raw.to_string(),
         }),
         1 => {
-            let mut parts = raw.splitn(2, '.');
-            let header_part = parts.next().unwrap();
-            let payload_part = parts.next().unwrap();
+            let (header_part, payload_part) = raw.split_once('.').unwrap();
             let header =
                 decode_b64_json(header_part).context("Failed to decode JWT header")?;
             let payload =
