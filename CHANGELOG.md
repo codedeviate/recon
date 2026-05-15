@@ -8,6 +8,26 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.78.1] - 2026-05-15
+
+### Changed
+
+- `OUT-OF-SCOPE.md` — bucket discipline sweep. ~20 items that were
+  sitting under **Waiting** were actually upstream-blocked or had
+  internal scope trade-offs, contradicting the bucket's own
+  definition ("can be done, not asked for"). Moved them to
+  **Not yet supported** (true upstream blocks: FTP `--ftp-account` /
+  `--ftp-ssl-control` family, SMTP `--mail-rcpt-allowfails` /
+  `--sasl-ir`, IMAP `--login-options` / `--sasl-authzid`, Telnet
+  `--telnet-option`, `--append`, the proxy + TLS-tuning per-flag
+  stubs, `--tr-encoding`, "Other markup → PDF") or **Deferred**
+  (internal trade-offs with no upstream block: `--suppress-connect-headers`,
+  `--path-as-is`, `--proxy-pass`). The Waiting list now correctly
+  contains only the two items it should: tax-ID coverage gaps and
+  PNG HRT. Added a "Bucket discipline" note to the Process section
+  to prevent future drift. The 0.66.2 sweep was the previous
+  canonical clean; this is its 0.78.1 follow-up.
+
 ## [0.78.0] - 2026-05-15
 
 ### Added

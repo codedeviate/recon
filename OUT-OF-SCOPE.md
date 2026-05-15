@@ -35,101 +35,6 @@ entry rather than leaving a crossed-out line here.
   (~50–100 KB compiled) is the path; picking a font + rasterization
   positioning wasn't worth it in the original release.
 
-### Document conversions
-
-- **Other markup → PDF** — reStructuredText, AsciiDoc, Org. Each would
-  need its own parser crate. No production-ready pure-Rust parsers for
-  any of these formats as of mid-2025. Deferred until a concrete
-  user need arises and a viable crate exists.
-  (PDF metadata beyond title — author, subject, keywords — shipped in 0.74.0.)
-
-### curl flags — leftover after the 0.61.0–0.66.0 Waiting-arc
-
-The 0.61.0→0.66.0 arc shipped ~90 curl-parity flags. The 0.73.0
-release shipped three more: `--remote-name-all`, `-#/--progress-bar`,
-and `--proxy-pass` (deferred-with-warning). The remaining leftovers:
-
-- **`--suppress-connect-headers`** — hide proxy CONNECT request /
-  response from `-v` output. Architectural: recon doesn't render
-  the raw proxy CONNECT exchange in verbose mode; no hook point
-  exists without a significant low-level rewrite.
-- **`--path-as-is`** — preserve `..` / `.` segments in URL paths.
-  `reqwest::Url` normalises paths unconditionally; bypassing this
-  requires switching to a raw request path, which conflicts with
-  the `url::Url` plumbing throughout the codebase. Cost > value.
-- **FTP gaps** — `--ftp-account`, `--ftp-alternative-to-user`,
-  `-P --ftp-port`, `--ftp-pret`, `--ftp-ssl-ccc`, `--ftp-ssl-ccc-mode`,
-  `--ftp-ssl-control`. Blocked on suppaftp 6 API gaps.
-- **`--proxy-pass`** — shipped as deferred-with-warning in 0.73.0.
-  reqwest 0.12's `Identity::from_pem` has no passphrase variant;
-  the PKCS#12 path (`from_pkcs12_der`) accepts a password but is a
-  different format. Will ship properly when proxy mTLS cert flags
-  (`--proxy-cert` / `--proxy-key`) land and the passphrase path is
-  clear.
-- **`--ssl`, `--ssl-reqd`** — soft / hard TLS-required for FTP / SMTP.
-  Only meaningful once the `--ftp-ssl-control` family also lands.
-- **`--tr-encoding`** — request Transfer-Encoding compression.
-  reqwest has no opt-out from its own TE header handling; no API
-  surface to toggle this flag's behaviour.
-
-### wget standalone wins — leftover
-
-The 0.64.0 release shipped `--input-file`, `--continue` /
-`--continue-at`, `--spider`, `--timestamping`. The 0.67.0 release
-added `--wait`, `--tries`, `--accept`, `--reject` as flat (non-
-recursive) filters / pacing knobs. Nothing standalone-feasible
-remains in this bucket — short forms (`-A`, `-R`, `-w`, `-t`) are
-intentionally not provided because recon reserves single-letter flags
-for curl compatibility.
-
-### Per-protocol plumb-through (remaining stubs → real)
-
-0.71.0 shipped the bulk of the 0.65.0 FTP/SSH stubs. What remains is
-blocked by upstream crate API gaps:
-
-- **FTP**: `--ftp-method` — suppaftp has no CWD-strategy selector;
-  no API surface to choose between CWD+RETR vs path-in-RETR.
-- **FTP**: `--ftp-account` — suppaftp has no ACCT command support.
-- **FTP**: `--ftp-create-dirs` — needs an upload path (STOR/APPE)
-  that doesn't exist yet; blocked by the same gap as `--append`.
-- **SMTP**: `--mail-rcpt-allowfails` — lettre's send loop
-  short-circuits on RCPT failure; no partial-success API.
-- **SMTP**: `--sasl-ir` — lettre bakes SASL IR per-mechanism
-  unconditionally (PLAIN/XOAUTH2 always on, LOGIN always off);
-  no toggle to expose.
-- **IMAP / POP3**: `--login-options` — imap 3-alpha crate has no
-  parameter-passing surface on LOGIN/AUTHENTICATE.
-- **IMAP / POP3**: `--sasl-authzid` — neither the imap crate nor
-  recon's hand-rolled POP3 probe expose an authzid parameter.
-- **Telnet**: `--telnet-option` — `src/telnet.rs` is a TCP banner
-  reader with no IAC negotiation; wiring this flag requires building
-  telnet IAC infrastructure from scratch (genuine feature work, not
-  stub-plumbing).
-- **Upload**: `-a / --append` for FTP / SFTP — needs FTP STOR/APPE
-  swap + sftp open-flags; no upload path exists yet.
-
-### Per-flag plumb-through (0.66.0 stubs → real)
-
-The proxy + TLS-tuning flags shipped at CLI but most need a custom
-rustls `ServerCertVerifier` or cipher-list parser. `--crlfile`,
-`--proxy-capath`, and `--proxy-ca-native` shipped in 0.72.0.
-Remaining:
-
-- **Proxy**: `--preproxy`, `--proxy-header`, `--proxy-http2`,
-  `--proxytunnel` — blocked on reqwest 0.12 not exposing chained-proxy /
-  CONNECT-header / proxy HTTP/2-force / force-tunnel API.
-- **Proxy TLS**: `--proxy-crlfile`, `--proxy-pinnedpubkey` — require
-  the same `use_preconfigured_tls` migration as the non-proxy versions,
-  plus per-proxy TLS not yet exposed by reqwest 0.12.
-- **Proxy ciphers**: `--proxy-ciphers`, `--proxy-tls13-ciphers` —
-  rustls 0.23 has no public cipher-list API; upstream-blocked.
-- **TLS tuning**: `--ciphers`, `--tls13-ciphers` — rustls 0.23 has no
-  public cipher-list API; upstream-blocked.
-- **TLS tuning (preconfigured path)**: `--pinnedpubkey`, `--curves` —
-  require migrating recon's HTTP TLS path to a custom
-  `build_rustls_client_config()` helper via `use_preconfigured_tls`.
-  See Deferred section for details.
-
 ---
 
 ## Deferred — put off, path is known
@@ -195,6 +100,27 @@ Remaining:
   cloned `CryptoProvider`. Note: P-521 (`secp521r1`) is unavailable under
   the ring backend; the implementation must error gracefully on that
   curve name when `rustls` features include only `ring`.
+
+### curl flags — internal trade-offs, no upstream block
+
+These were originally tracked as "Waiting" but the blocker is recon's
+own architecture or scope budget, not upstream — moved here so the
+intent is honest.
+
+- **`--suppress-connect-headers`** — hide proxy CONNECT request /
+  response from `-v` output. Architectural: recon doesn't render
+  the raw proxy CONNECT exchange in verbose mode; no hook point
+  exists without a significant low-level rewrite.
+- **`--path-as-is`** — preserve `..` / `.` segments in URL paths.
+  `reqwest::Url` normalises paths unconditionally; bypassing this
+  requires switching to a raw request path, which conflicts with
+  the `url::Url` plumbing throughout the codebase. Cost > value.
+- **`--proxy-pass`** — shipped as deferred-with-warning in 0.73.0.
+  reqwest 0.12's `Identity::from_pem` has no passphrase variant;
+  the PKCS#12 path (`from_pkcs12_der`) accepts a password but is a
+  different format. Will ship properly when proxy mTLS cert flags
+  (`--proxy-cert` / `--proxy-key`) land and the passphrase path is
+  clear — an internal sequencing decision.
 
 ### SMTP envelope parameters
 
@@ -406,9 +332,71 @@ hook (or when recon bypasses reqwest for a direct hyper stack).
 - **DoH** — `--doh-url`, `--doh-insecure`, `--doh-cert-status`.
   hickory-resolver has no DoH yet; would need hickory 0.25 or a
   side-car DoH client.
+- **`--tr-encoding`** — request Transfer-Encoding compression.
+  reqwest has no opt-out from its own TE header handling; no API
+  surface to toggle this flag's behaviour.
+
+### Per-protocol plumb-through (remaining stubs → real)
+
+0.71.0 shipped the bulk of the 0.65.0 FTP/SSH stubs. What remains is
+blocked by upstream crate API gaps:
+
+- **FTP**: `--ftp-method` — suppaftp has no CWD-strategy selector;
+  no API surface to choose between CWD+RETR vs path-in-RETR.
+- **FTP**: `--ftp-account`, `--ftp-alternative-to-user`,
+  `-P --ftp-port`, `--ftp-pret`, `--ftp-ssl-ccc`,
+  `--ftp-ssl-ccc-mode`, `--ftp-ssl-control` — suppaftp 6 has no
+  surface for ACCT, alternative-user, active-mode port, PRET, or
+  CCC. Lock-step group; ships when suppaftp grows the APIs.
+- **FTP**: `--ftp-create-dirs` — needs an upload path (STOR/APPE)
+  that doesn't exist yet; blocked by the same gap as `--append`.
+- **FTP / SMTP**: `--ssl`, `--ssl-reqd` — soft / hard TLS-required.
+  Only meaningful once the `--ftp-ssl-control` family above lands.
+- **SMTP**: `--mail-rcpt-allowfails` — lettre's send loop
+  short-circuits on RCPT failure; no partial-success API.
+- **SMTP**: `--sasl-ir` — lettre bakes SASL IR per-mechanism
+  unconditionally (PLAIN/XOAUTH2 always on, LOGIN always off);
+  no toggle to expose.
+- **IMAP / POP3**: `--login-options` — imap 3-alpha crate has no
+  parameter-passing surface on LOGIN/AUTHENTICATE.
+- **IMAP / POP3**: `--sasl-authzid` — neither the imap crate nor
+  recon's hand-rolled POP3 probe expose an authzid parameter.
+- **Telnet**: `--telnet-option` — `src/telnet.rs` is a TCP banner
+  reader with no IAC negotiation; wiring this flag requires building
+  telnet IAC infrastructure from scratch (genuine feature work, not
+  stub-plumbing).
+- **Upload**: `-a / --append` for FTP / SFTP — needs FTP STOR/APPE
+  swap + sftp open-flags; no upload path exists yet.
+
+### Per-flag plumb-through (0.66.0 stubs → real)
+
+The proxy + TLS-tuning flags shipped at CLI but most need a custom
+rustls `ServerCertVerifier` or cipher-list parser. `--crlfile`,
+`--proxy-capath`, and `--proxy-ca-native` shipped in 0.72.0.
+Remaining:
+
+- **Proxy**: `--preproxy`, `--proxy-header`, `--proxy-http2`,
+  `--proxytunnel` — blocked on reqwest 0.12 not exposing chained-proxy /
+  CONNECT-header / proxy HTTP/2-force / force-tunnel API.
+- **Proxy TLS**: `--proxy-crlfile`, `--proxy-pinnedpubkey` — require
+  the same `use_preconfigured_tls` migration as the non-proxy versions,
+  plus per-proxy TLS not yet exposed by reqwest 0.12.
+- **Proxy ciphers**: `--proxy-ciphers`, `--proxy-tls13-ciphers` —
+  rustls 0.23 has no public cipher-list API; upstream-blocked.
+- **TLS tuning**: `--ciphers`, `--tls13-ciphers` — rustls 0.23 has no
+  public cipher-list API; upstream-blocked.
+
+(`--pinnedpubkey` and `--curves` also live here in spirit, but the
+remaining work is the `use_preconfigured_tls` migration inside recon
+rather than an upstream block — tracked under Deferred.)
 
 ### Document conversions
 
+- **Other markup → PDF** — reStructuredText, AsciiDoc, Org. Each
+  would need its own parser crate. No production-ready pure-Rust
+  parsers for any of these formats as of mid-2025. Ships if a viable
+  crate appears.
+  (PDF metadata beyond title — author, subject, keywords — shipped in 0.74.0.)
 - **Pure-Rust HTML+CSS → PDF renderer** — `servo`/`blitz` exist but
   aren't packaged as an embeddable crate yet. `typst` is pure-Rust
   and has `#outline()` for linkable TOC, but does NOT accept HTML
@@ -519,6 +507,12 @@ hook (or when recon bypasses reqwest for a direct hyper stack).
   maturity unblocks a "Not yet supported" item it graduates to
   "Waiting"; when a "Waiting" item picks up enough scope weight to
   merit punting, it moves to "Deferred".
+- **Bucket discipline.** "Waiting" must mean "no upstream block, no
+  internal trade-off — just nobody's asked yet." If you find yourself
+  writing "blocked on X" inside a Waiting entry, move it. The 0.78.0
+  re-bucketing sweep moved ~20 items out of Waiting because they were
+  in fact blocked or deferred — the bucket had drifted into a generic
+  todo list.
 - This file is deliberately not versioned in `CHANGELOG.md` — it's
   a working-notes file, not a release artifact.
 - **Audit cadence**: at the end of every multi-release arc, walk
