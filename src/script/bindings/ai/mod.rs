@@ -5,4 +5,5 @@ pub mod backend;
 pub mod backends;
 pub mod flatten;
 pub mod request;
+pub mod resolve;
 pub mod runner;
