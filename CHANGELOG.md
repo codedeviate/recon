@@ -8,6 +8,25 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.80.0] - 2026-05-15
+
+### Added
+
+- `ai::*` — new built-in `copilot` backend for the GitHub Copilot CLI
+  (the standalone agentic CLI, GA October 2025 — distinct from the now-
+  deprecated `gh copilot` extension). Invocation: `copilot -s --no-color
+  [--model M]` with the prompt piped on stdin; `-s` strips session
+  metadata, `--no-color` keeps stdout machine-parseable. System prompts
+  are inlined into the body (the standalone CLI has no
+  `--system-prompt` flag). Auth uses `GH_TOKEN` / `GITHUB_TOKEN` or the
+  CLI's own `/login`. Documented model values include `auto` (the
+  default), `gpt-5.3-codex`, `claude-sonnet-4.6`, `claude-haiku-4.5`.
+
+  The deprecated `gh copilot` extension is intentionally not wired up:
+  its archived upstream and TUI-only output make it unsuitable for the
+  subprocess pattern (it can only suggest shell commands, not return
+  free-form chat).
+
 ## [0.79.0] - 2026-05-15
 
 ### Added

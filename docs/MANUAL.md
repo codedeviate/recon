@@ -2,7 +2,7 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.79.0</div>
+<div class="version">Version 0.80.0</div>
 <div class="date">2026-05-15</div>
 <div class="meta">
 Repository · https://github.com/codedeviate/recon<br>
@@ -3368,9 +3368,11 @@ md_to_pdf(md, "/tmp/styled.pdf", #{
 ## AI bindings (`ai::*`)
 
 The `ai::*` namespace dispatches a prompt to one of several subprocess-driven
-agent CLIs. v1 supports `claude`, `codex`, `gemini`, and a user-defined
-`cmd` backend; an HTTP backend (Anthropic Messages, OpenAI Chat Completions)
-is reserved as a follow-up — the builder API is forward-compatible.
+agent CLIs. Built-in backends: `claude` (Anthropic Claude Code), `codex`
+(OpenAI Codex), `copilot` (GitHub Copilot CLI), `gemini` (Google Gemini CLI).
+A user-defined `cmd` backend covers anything else. An HTTP backend
+(Anthropic Messages, OpenAI Chat Completions) is reserved as a follow-up —
+the builder API is forward-compatible.
 
 | Function | Returns | Description |
 |----------|---------|-------------|
@@ -3381,7 +3383,7 @@ Builder methods on an `AiRequest`:
 
 | Method | Behaviour |
 |--------|-----------|
-| `.backend(name)` | Select backend (`claude` / `codex` / `gemini` / config-defined). |
+| `.backend(name)` | Select backend (`claude` / `codex` / `copilot` / `gemini` / config-defined). |
 | `.model(name)` | Pass-through to the backend's `--model` flag or equivalent. |
 | `.system(s)` | System prompt; singleton. |
 | `.context(s)` | Append a context block; multiple calls accumulate. |
