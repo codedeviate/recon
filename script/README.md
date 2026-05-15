@@ -184,6 +184,12 @@ surprise failures.
 | `agent-browser-pdf.rhai` | Render a JS-rendered page to PDF, with per-call options (0.75.1) |
 | `agent-browser-cmd.rhai` | Escape hatch: cookies / storage / tabs / network / console via cmd() (0.75.1) |
 
+### AI agent CLIs (0.79.0)
+
+| Script | What it does |
+|---|---|
+| `ai.rhai` | `ai::*` request builder + send (subprocess to claude / codex / gemini) |
+
 Every script starts with a usage comment showing args and a one-line
 description. Scripts that take positional args support a sensible
 default so `recon --script NAME` alone does something useful.

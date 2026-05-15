@@ -2300,6 +2300,66 @@ static TOPIC_IMPERSONATE: Topic = Topic {
     ],
 };
 
+static TOPIC_AI: Topic = Topic {
+    title: "AI — script-engine bindings to agent CLIs",
+    description: "The ai::* namespace lets a Rhai script ask an LLM a question via a\n\
+                  subprocess-driven backend (claude, codex, gemini, or a user-defined\n\
+                  command). Build a request with .system / .context / .prompt /\n\
+                  optionally .assistant for multi-turn replay, then call .send().",
+    flags: &[
+        FlagHelp {
+            flags: "ai::ask(prompt)",
+            description: "One-liner. Equivalent to request().prompt(p).send().",
+        },
+        FlagHelp {
+            flags: "ai::request()",
+            description: "Returns a builder. Mutate-in-place or chain — methods return\n\
+                          the cloned builder so both styles work.",
+        },
+        FlagHelp {
+            flags: ".backend(name) / .model(name)",
+            description: "Backend selection (claude / codex / gemini / a config-defined\n\
+                          cmd entry). Model name is pass-through to the backend's CLI.",
+        },
+        FlagHelp {
+            flags: ".system(s) / .context(s) / .prompt(s) / .user(s)",
+            description: "System prompt (singleton), accumulating context blocks,\n\
+                          current user turn (singleton). .user is an alias for .prompt.",
+        },
+        FlagHelp {
+            flags: ".assistant(s)",
+            description: "Append a prior assistant turn for manual multi-turn replay.\n\
+                          Errors if the last turn is already an assistant.",
+        },
+        FlagHelp {
+            flags: ".max_tokens / .temperature / .timeout",
+            description: "Hint knobs. timeout is seconds; default 60. max_tokens and\n\
+                          temperature are honoured only by backends that expose them.",
+        },
+        FlagHelp {
+            flags: ".send() / .send_full()",
+            description: ".send() returns the model's reply as a string. .send_full()\n\
+                          returns a map with .text, .backend, .model, .duration_ms,\n\
+                          .exit_code.",
+        },
+    ],
+    related: &["script"],
+    examples: &[
+        ExampleHelp {
+            description: "One-shot ask",
+            command: "let a = ai::ask(\"Summarize this cert chain\");",
+        },
+        ExampleHelp {
+            description: "Builder with context",
+            command: "request().system(\"...\").context(c).prompt(q).send()",
+        },
+        ExampleHelp {
+            description: "Multi-turn replay",
+            command: "req.assistant(a1); req.user(\"follow-up\"); req.send();",
+        },
+    ],
+};
+
 // ── Topic resolution ─────────────────────────────────────────────────────────
 
 fn resolve_topic(key: &str) -> Option<&'static Topic> {
@@ -2361,6 +2421,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "archive" | "zip" | "tar" | "extract" => Some(&TOPIC_ARCHIVE),
         "flags" | "flag-list" | "list-flags" => Some(&TOPIC_FLAGS),
         "wget" | "wait" | "tries" | "accept" | "reject" | "input-file" | "spider" | "timestamping" | "batch" => Some(&TOPIC_WGET),
+        "ai" | "llm" | "chat" => Some(&TOPIC_AI),
         _ => None,
     }
 }
@@ -2455,6 +2516,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "flags",
         "wget",
         "impersonate",
+        "ai",
     ]
 }
 
