@@ -6,8 +6,36 @@ use std::collections::HashMap;
 pub struct ReconConfig {
     pub netstatus: Option<NetstatusConfig>,
     pub editor: Option<EditorConfig>,
+    pub ai: Option<AiConfig>,
     #[serde(default)]
     pub sampledata: HashMap<String, SampleDataConfig>,
+}
+
+#[derive(Deserialize, Default, Debug, Clone)]
+pub struct AiConfig {
+    #[serde(default)]
+    pub default_backend: Option<String>,
+    #[serde(default)]
+    pub default_model: Option<String>,
+    #[serde(default)]
+    pub timeout_secs: Option<u64>,
+    #[serde(default)]
+    pub backends: HashMap<String, AiBackendConfig>,
+}
+
+#[derive(Deserialize, Default, Debug, Clone)]
+pub struct AiBackendConfig {
+    /// argv for user-defined backends. Empty for built-in backends
+    /// (`claude`, `codex`, `gemini`) where the entry only carries
+    /// `model` and `system` overrides.
+    #[serde(default)]
+    pub cmd: Vec<String>,
+    #[serde(default)]
+    pub model: Option<String>,
+    #[serde(default)]
+    pub model_flag: Option<String>,
+    #[serde(default)]
+    pub system_flag: Option<String>,
 }
 
 #[derive(Deserialize, Default, Debug)]
@@ -253,5 +281,62 @@ probes = []
 "#;
         let config: ReconConfig = toml::from_str(toml_str).unwrap();
         assert!(config.sampledata.is_empty());
+    }
+
+    #[test]
+    fn test_parse_ai_config_full() {
+        let toml_str = r#"
+[ai]
+default_backend = "claude"
+default_model = "sonnet"
+timeout_secs = 90
+
+[ai.backends.claude]
+model = "claude-sonnet-4-5"
+
+[ai.backends.my-llm]
+cmd = ["my-llm-cli", "--print"]
+model_flag = "--model"
+system_flag = "--system"
+"#;
+        let config: ReconConfig = toml::from_str(toml_str).unwrap();
+        let ai = config.ai.expect("ai section should parse");
+        assert_eq!(ai.default_backend.as_deref(), Some("claude"));
+        assert_eq!(ai.default_model.as_deref(), Some("sonnet"));
+        assert_eq!(ai.timeout_secs, Some(90));
+
+        let claude = ai.backends.get("claude").expect("claude backend");
+        assert_eq!(claude.model.as_deref(), Some("claude-sonnet-4-5"));
+        assert!(claude.cmd.is_empty());
+
+        let custom = ai.backends.get("my-llm").expect("my-llm backend");
+        assert_eq!(custom.cmd, vec!["my-llm-cli", "--print"]);
+        assert_eq!(custom.model_flag.as_deref(), Some("--model"));
+        assert_eq!(custom.system_flag.as_deref(), Some("--system"));
+    }
+
+    #[test]
+    fn test_parse_ai_config_all_optional() {
+        let toml_str = r#"
+[ai]
+"#;
+        let config: ReconConfig = toml::from_str(toml_str).unwrap();
+        let ai = config.ai.expect("ai section");
+        assert!(ai.default_backend.is_none());
+        assert!(ai.default_model.is_none());
+        assert!(ai.timeout_secs.is_none());
+        assert!(ai.backends.is_empty());
+    }
+
+    #[test]
+    fn test_ai_section_missing_is_none() {
+        let toml_str = r#"
+[netstatus]
+ip_sources = []
+dns_lookup_domains = []
+probes = []
+"#;
+        let config: ReconConfig = toml::from_str(toml_str).unwrap();
+        assert!(config.ai.is_none());
     }
 }

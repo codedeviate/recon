@@ -2119,6 +2119,34 @@ recon --script /tmp/decode.rhai"#,
     ]);
     note("Built-in aliases: zed, code, cursor, subl, vim, nvim, nano, emacs. User aliases can be added under [editor.aliases] in ~/.recon/config.toml.");
 
+    section("AI SCRIPT BINDINGS (0.79.0)");
+
+    example("One-shot question to the configured backend", &[
+        "# In a .rhai script:",
+        "let a = ai::ask(\"Summarize the response headers\");",
+        "# Selecting backend per script:",
+        "ai::request().backend(\"claude\").prompt(q).send()",
+    ]);
+
+    example("Builder with system + accumulating context", &[
+        "let req = ai::request();",
+        "req.system(\"You are concise.\");",
+        "req.context(\"Cert: \" + cert_pem);",
+        "req.context(\"Probe: \" + banner);",
+        "req.prompt(\"Anything unusual?\");",
+        "let answer = req.send();",
+    ]);
+
+    example("Multi-turn replay (manual)", &[
+        "let req = ai::request().prompt(\"Q1\");",
+        "let a1 = req.send();",
+        "req.assistant(a1);",
+        "req.user(\"Q2\");",
+        "let a2 = req.send();",
+    ]);
+
+    note("ai::* requires a backend (claude / codex / gemini, or a user-defined `cmd` entry in ~/.recon/config.toml under [ai.backends.<name>]). Select with .backend(), $RECON_AI_BACKEND, or [ai].default_backend. send() throws on failure — wrap in `try { ... } catch (e) { ... }` to recover.");
+
     println!();
 }
 

@@ -108,6 +108,7 @@ pub fn build_engine(defaults: &ScriptDefaults) -> rhai::Engine {
     let mut engine = rhai::Engine::new();
     install_module_resolver(&mut engine);
     super::bindings::agent_browser::register(&mut engine);
+    super::bindings::ai::register(&mut engine);
     super::bindings::archive::register(&mut engine);
     super::bindings::browser::register(&mut engine, defaults.clone());
     super::bindings::checkdigit::register(&mut engine);

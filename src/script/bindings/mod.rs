@@ -1,6 +1,7 @@
 //! Rhai function bindings: helpers and per-protocol probes.
 
 pub mod agent_browser;
+pub mod ai;
 pub mod archive;
 pub mod browser;
 pub mod checkdigit;

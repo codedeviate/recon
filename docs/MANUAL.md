@@ -2,7 +2,7 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.78.0</div>
+<div class="version">Version 0.79.0</div>
 <div class="date">2026-05-15</div>
 <div class="meta">
 Repository · https://github.com/codedeviate/recon<br>
@@ -3364,6 +3364,92 @@ md_to_pdf(md, "/tmp/styled.pdf", #{
     toc_title: "Table of Contents",
 });
 ```
+
+## AI bindings (`ai::*`)
+
+The `ai::*` namespace dispatches a prompt to one of several subprocess-driven
+agent CLIs. v1 supports `claude`, `codex`, `gemini`, and a user-defined
+`cmd` backend; an HTTP backend (Anthropic Messages, OpenAI Chat Completions)
+is reserved as a follow-up — the builder API is forward-compatible.
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `ai::ask(prompt)` | string | One-shot: `request().prompt(p).send()`. |
+| `ai::request()` | builder | Fresh `AiRequest` builder. |
+
+Builder methods on an `AiRequest`:
+
+| Method | Behaviour |
+|--------|-----------|
+| `.backend(name)` | Select backend (`claude` / `codex` / `gemini` / config-defined). |
+| `.model(name)` | Pass-through to the backend's `--model` flag or equivalent. |
+| `.system(s)` | System prompt; singleton. |
+| `.context(s)` | Append a context block; multiple calls accumulate. |
+| `.prompt(s)` / `.user(s)` | Set the current user turn (singleton). |
+| `.assistant(s)` | Append a prior assistant turn (for multi-turn replay). |
+| `.max_tokens(n)`, `.temperature(f)` | Hints; backend honours when available. |
+| `.timeout(secs)` | Wall-clock kill switch; default 60. |
+| `.send()` | Returns `string` — model's reply. Throws on failure. |
+| `.send_full()` | Returns map: `.text .backend .model .duration_ms .exit_code`. |
+
+### Backend selection
+
+Three-layer precedence per `.send()`:
+
+1. Per-request `.backend(name)` / `.model(name)` / `.timeout(secs)`.
+2. Env vars: `RECON_AI_BACKEND`, `RECON_AI_MODEL`, `RECON_AI_TIMEOUT`.
+3. `~/.recon/config.toml` `[ai]` section.
+
+No PATH fallback. If nothing selects a backend the request errors.
+
+### Config file
+
+```toml
+[ai]
+default_backend = "claude"
+default_model   = "sonnet"
+timeout_secs    = 60
+
+[ai.backends.claude]
+model = "claude-sonnet-4-5"
+
+[ai.backends.my-llm]
+cmd          = ["my-llm-cli", "--print"]
+model_flag   = "--model"
+system_flag  = "--system"
+```
+
+The `[ai.backends.<name>]` block is the escape hatch for new agent
+CLIs without recompiling — name it, give it argv, optionally name its
+model and system flags. Scripts then write
+`req.backend("my-llm").model("v1")`.
+
+### Example
+
+```rhai
+let req = ai::request()
+    .system("You are a concise TLS expert.")
+    .context("Cert subject CN: example.com")
+    .context("Issuer: Let's Encrypt R3")
+    .prompt("Is this a typical commercial cert?")
+    .timeout(30);
+print(req.send());
+```
+
+### Errors
+
+All `.send()` failures throw a Rhai script error prefixed `ai:`:
+
+| Tag | When |
+|-----|------|
+| `ai: backend not configured` | no env, no config, no `.backend()` |
+| `ai: backend '<name>' not found` | unknown built-in / config entry |
+| `ai: CLI exited with status <N>:\n<stderr tail>` | non-zero exit |
+| `ai: timed out after <N>s` | subprocess killed by timeout |
+| `ai: spawn failed: <io error>` | CLI not on PATH, etc. |
+| `ai: empty response from backend` | exit-zero but no stdout |
+| `ai: no user prompt — call .prompt()/.user() before .send()` | builder validation |
+| `ai: cannot append assistant turn — last turn is already assistant` | builder validation |
 
 ---
 
