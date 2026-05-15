@@ -42,7 +42,7 @@ fn check_letter(idx: u32) -> char {
 /// Returns None if the character is not A–I.
 fn suffix_value(c: char) -> Option<u32> {
     let uc = c.to_ascii_uppercase();
-    if uc >= 'A' && uc <= 'I' {
+    if ('A'..='I').contains(&uc) {
         Some((uc as u32) - ('A' as u32) + 1)
     } else {
         None

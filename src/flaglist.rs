@@ -35,7 +35,7 @@ pub fn print_flags_listing() {
         .get_arguments()
         .filter_map(FlagEntry::from_arg)
         .collect();
-    entries.sort_by(|a, b| a.long.to_ascii_lowercase().cmp(&b.long.to_ascii_lowercase()));
+    entries.sort_by_key(|a| a.long.to_ascii_lowercase());
 
     for entry in &entries {
         println!("{}", entry.render());
@@ -170,7 +170,7 @@ mod tests {
             .get_arguments()
             .filter_map(FlagEntry::from_arg)
             .collect();
-        entries.sort_by(|a, b| a.long.to_ascii_lowercase().cmp(&b.long.to_ascii_lowercase()));
+        entries.sort_by_key(|a| a.long.to_ascii_lowercase());
         assert!(!entries.is_empty(), "no flags extracted");
         for pair in entries.windows(2) {
             assert!(

@@ -72,21 +72,18 @@ pub fn connect(raw_url: &str, args: &Args) -> Result<()> {
 
         // ── Poll for keyboard input (10 ms timeout) ───────────────────────────
         if crossterm::event::poll(Duration::from_millis(10))? {
-            match crossterm::event::read()? {
-                Event::Key(key) => {
-                    // Ctrl+D closes the connection
-                    if key.code == KeyCode::Char('d')
-                        && key.modifiers.contains(KeyModifiers::CONTROL)
-                    {
-                        return Ok(());
-                    }
-                    let bytes = key_event_to_bytes(&key);
-                    let escaped = escape_iac(&bytes);
-                    write_stream.write_all(&escaped)?;
-                    write_stream.flush()?;
+            if let Event::Key(key) = crossterm::event::read()? {
+                // Ctrl+D closes the connection
+                if key.code == KeyCode::Char('d')
+                    && key.modifiers.contains(KeyModifiers::CONTROL)
+                {
+                    return Ok(());
                 }
-                _ => {} // Telnet has no PTY resize mechanism (no NAWS negotiation implemented)
-            }
+                let bytes = key_event_to_bytes(&key);
+                let escaped = escape_iac(&bytes);
+                write_stream.write_all(&escaped)?;
+                write_stream.flush()?;
+            } // else: Telnet has no PTY resize mechanism (no NAWS negotiation implemented)
         }
     }
 }
