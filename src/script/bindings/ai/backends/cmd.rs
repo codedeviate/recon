@@ -5,10 +5,10 @@
 //! to be appended when those fields are set. Prompt body goes to stdin.
 
 use crate::config::AiBackendConfig;
-use crate::script::bindings::ai::backend::{BackendCtx, Response};
-use crate::script::bindings::ai::flatten::{flatten_for_subprocess, SystemDelivery};
-use crate::script::bindings::ai::request::Request;
-use crate::script::bindings::ai::runner::run;
+use super::super::backend::{BackendCtx, Response};
+use super::super::flatten::{flatten_for_subprocess, SystemDelivery};
+use super::super::request::Request;
+use super::super::runner::run;
 
 /// Build argv from a config entry plus the effective model / system.
 pub fn build_argv(cfg: &AiBackendConfig, model: Option<&str>, system: Option<&str>) -> Vec<String> {

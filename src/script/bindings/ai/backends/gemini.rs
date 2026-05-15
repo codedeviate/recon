@@ -1,10 +1,10 @@
 //! Gemini CLI backend. Invocation:
 //! `gemini --prompt [--model M] [--system S]`. Prompt on stdin.
 
-use crate::script::bindings::ai::backend::{AiBackend, BackendCtx, Response};
-use crate::script::bindings::ai::flatten::{flatten_for_subprocess, SystemDelivery};
-use crate::script::bindings::ai::request::Request;
-use crate::script::bindings::ai::runner::run;
+use super::super::backend::{AiBackend, BackendCtx, Response};
+use super::super::flatten::{flatten_for_subprocess, SystemDelivery};
+use super::super::request::Request;
+use super::super::runner::run;
 
 pub struct GeminiBackend;
 
