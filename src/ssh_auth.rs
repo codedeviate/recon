@@ -36,15 +36,10 @@ pub fn resolve_credentials(user_from_url: &str, args: &Args) -> (String, Option<
     (user, password)
 }
 
-pub fn verify_host_key(sess: &Session, host: &str, port: u16, insecure: bool) -> Result<()> {
-    verify_host_key_with_pins(sess, host, port, insecure, None, None)
-}
-
-/// Extended variant honoring `--hostpubsha256` / `--hostpubmd5`. If a
-/// pin is supplied AND matches, the function succeeds regardless of
-/// known_hosts. If a pin is supplied and does NOT match, it fails
-/// with a MITM warning. No pin → fall through to known_hosts (the
-/// original behaviour).
+/// Verify a server's SSH host key. Honours `--hostpubsha256` /
+/// `--hostpubmd5` when supplied: a matching pin succeeds regardless of
+/// known_hosts; a non-matching pin fails with a MITM warning. With no
+/// pin, falls through to known_hosts.
 pub fn verify_host_key_with_pins(
     sess: &Session,
     host: &str,

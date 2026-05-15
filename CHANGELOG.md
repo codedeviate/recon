@@ -8,6 +8,28 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.78.2] - 2026-05-15
+
+### Fixed
+
+- Build warnings — three lingering compiler diagnostics resolved:
+  - `src/docs.rs:200` `comrak_options(opts: &DocOptions) -> Options`
+    triggered `mismatched_lifetime_syntaxes` because the elided
+    lifetime in the parameter is also present in the return type.
+    Made it explicit: `Options<'_>`.
+  - `src/client.rs::snapshot_response_for_impersonate` was a
+    `pub(crate)` wrapper called only from `src/impersonate.rs`, which
+    is itself behind `#[cfg(feature = "impersonate")]`. Without the
+    feature the function was unused and triggered `dead_code`. Gated
+    with the same cfg.
+  - `src/ssh_auth.rs::verify_host_key` was a thin wrapper around
+    `verify_host_key_with_pins(.., None, None)` with zero call sites
+    anywhere in the tree. Deleted; the with-pins variant is the only
+    caller already in use.
+
+  Default release build is now warning-free; the `--features
+  impersonate` build remains warning-free as well.
+
 ## [0.78.1] - 2026-05-15
 
 ### Changed

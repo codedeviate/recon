@@ -44,6 +44,7 @@ fn snapshot_response(metrics: &mut RequestMetrics, args: &Args, response: &Respo
 
 /// Thin public wrapper so `impersonate::execute` can call `snapshot_response`
 /// without duplicating its body. The inner `snapshot_response` stays private.
+#[cfg(feature = "impersonate")]
 pub(crate) fn snapshot_response_for_impersonate(
     metrics: &mut RequestMetrics,
     args: &Args,

@@ -4,7 +4,7 @@
 # binary is still `recon` — `cargo install recon-cli` produces a `recon`
 # executable thanks to the [[bin]] block below.
 name = "recon-cli"
-version = "0.78.1"
+version = "0.78.2"
 edition = "2021"
 rust-version = "1.85"
 license = "MIT"

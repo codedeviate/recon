@@ -197,7 +197,7 @@ pub fn markdown_to_html(markdown: &[u8], opts: &DocOptions) -> Result<String> {
     Ok(wrap_document(&title, opts, top_toc, &body_str))
 }
 
-fn comrak_options(opts: &DocOptions) -> Options {
+fn comrak_options(opts: &DocOptions) -> Options<'_> {
     let mut ext = ExtensionOptions::default();
     ext.header_ids = Some(String::new()); // emit <h1 id="slug"> for TOC links
 
