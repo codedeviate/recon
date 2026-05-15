@@ -2125,11 +2125,11 @@ recon --script /tmp/decode.rhai"#,
         "# In a .rhai script:",
         "let a = ai::ask(\"Summarize the response headers\");",
         "# Selecting backend per script:",
-        "request().backend(\"claude\").prompt(q).send()",
+        "ai::request().backend(\"claude\").prompt(q).send()",
     ]);
 
     example("Builder with system + accumulating context", &[
-        "let req = request();",
+        "let req = ai::request();",
         "req.system(\"You are concise.\");",
         "req.context(\"Cert: \" + cert_pem);",
         "req.context(\"Probe: \" + banner);",
@@ -2138,7 +2138,7 @@ recon --script /tmp/decode.rhai"#,
     ]);
 
     example("Multi-turn replay (manual)", &[
-        "let req = request().prompt(\"Q1\");",
+        "let req = ai::request().prompt(\"Q1\");",
         "let a1 = req.send();",
         "req.assistant(a1);",
         "req.user(\"Q2\");",

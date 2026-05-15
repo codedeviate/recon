@@ -9,7 +9,7 @@
 //!
 //! Skipped at parse-check time only; real execution requires the CLI.
 
-let req = request();
+let req = ai::request();
 req.system("You are a concise TLS expert.");
 req.context("Certificate subject CN: example.com");
 req.context("Issuer: Let's Encrypt R3");

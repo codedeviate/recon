@@ -3427,7 +3427,7 @@ model and system flags. Scripts then write
 ### Example
 
 ```rhai
-let req = request()
+let req = ai::request()
     .system("You are a concise TLS expert.")
     .context("Cert subject CN: example.com")
     .context("Issuer: Let's Encrypt R3")

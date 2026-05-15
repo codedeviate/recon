@@ -51,16 +51,29 @@ pub fn register(engine: &mut Engine) {
 fn register_with_state(engine: &mut Engine, state: Arc<AiState>) {
     engine.register_type_with_name::<Request>("AiRequest");
 
-    // Constructors -----------------------------------------------------
-    engine.register_fn("request", Request::new);
+    // Constructors live under the `ai::` namespace so scripts write
+    // `ai::request()` and `ai::ask("…")`, matching the encode:: / jwt::
+    // pattern used elsewhere in this codebase.
+    let mut module = rhai::Module::new();
+
+    module.set_native_fn(
+        "request",
+        || -> Result<Request, Box<EvalAltResult>> { Ok(Request::new()) },
+    );
+
     {
         let state = state.clone();
-        engine.register_fn("ask", move |prompt: &str| -> Result<String, Box<EvalAltResult>> {
-            let mut r = Request::new();
-            r.set_user(prompt);
-            send_string(&mut r, &state)
-        });
+        module.set_native_fn(
+            "ask",
+            move |prompt: &str| -> Result<String, Box<EvalAltResult>> {
+                let mut r = Request::new();
+                r.set_user(prompt);
+                send_string(&mut r, &state)
+            },
+        );
     }
+
+    engine.register_static_module("ai", module.into());
 
     // Builder methods. Each takes `&mut Request`, mutates, returns the
     // cloned Request so Rhai can chain.

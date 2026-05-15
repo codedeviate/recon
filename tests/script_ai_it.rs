@@ -46,7 +46,7 @@ fn engine_with_mock(canned: &str) -> rhai::Engine {
 #[test]
 fn ask_one_liner_returns_canned() {
     let engine = engine_with_mock("hello");
-    let out: String = engine.eval(r#"ask("hi")"#).unwrap();
+    let out: String = engine.eval(r#"ai::ask("hi")"#).unwrap();
     assert_eq!(out, "hello");
 }
 
@@ -54,7 +54,7 @@ fn ask_one_liner_returns_canned() {
 fn builder_chain_returns_canned() {
     let engine = engine_with_mock("done");
     let script = r#"
-        let req = request();
+        let req = ai::request();
         req.backend("mock");
         req.system("be terse");
         req.context("ctx1");
@@ -70,7 +70,7 @@ fn builder_chain_returns_canned() {
 fn send_full_returns_object_with_fields() {
     let engine = engine_with_mock("body");
     let script = r#"
-        let req = request();
+        let req = ai::request();
         req.backend("mock");
         req.prompt("Q");
         let r = req.send_full();
@@ -84,7 +84,7 @@ fn send_full_returns_object_with_fields() {
 fn multi_turn_replay_works() {
     let engine = engine_with_mock("a2");
     let script = r#"
-        let req = request().backend("mock").prompt("Q1");
+        let req = ai::request().backend("mock").prompt("Q1");
         req.send();
         req.assistant("a1");
         req.user("Q2");
@@ -97,7 +97,7 @@ fn multi_turn_replay_works() {
 #[test]
 fn send_without_prompt_errors() {
     let engine = engine_with_mock("ignored");
-    let script = r#"request().backend("mock").send()"#;
+    let script = r#"ai::request().backend("mock").send()"#;
     let err = engine.eval::<String>(script).unwrap_err();
     let msg = format!("{err}");
     assert!(msg.contains("no user prompt"), "got: {msg}");
@@ -106,7 +106,7 @@ fn send_without_prompt_errors() {
 #[test]
 fn unknown_backend_errors() {
     let engine = engine_with_mock("ignored");
-    let script = r#"request().backend("nope").prompt("Q").send()"#;
+    let script = r#"ai::request().backend("nope").prompt("Q").send()"#;
     let err = engine.eval::<String>(script).unwrap_err();
     let msg = format!("{err}");
     assert!(msg.contains("not found"), "got: {msg}");
@@ -116,7 +116,7 @@ fn unknown_backend_errors() {
 fn appending_assistant_when_last_is_assistant_errors() {
     let engine = engine_with_mock("ignored");
     let script = r#"
-        let req = request().backend("mock").prompt("Q1");
+        let req = ai::request().backend("mock").prompt("Q1");
         req.assistant("a1");
         req.assistant("a2");
         req.send()
