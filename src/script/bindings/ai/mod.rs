@@ -1,5 +1,10 @@
 //! `ai::*` Rhai bindings — spec at
 //! `~/Development/Starweb/superpowers/recon/specs/2026-05-15-ai-script-bindings-design.md`.
+//!
+//! `#[allow(dead_code)]` suppresses warnings when this tree is compiled
+//! via the `lib.rs` `#[path]` re-mount for the test-seam surface. In the
+//! binary tree all symbols are reachable, so this allow is a no-op there.
+#![allow(dead_code)]
 
 pub mod backend;
 pub mod backends;
