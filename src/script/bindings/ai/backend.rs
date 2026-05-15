@@ -59,6 +59,30 @@ impl Registry {
     }
 }
 
+/// Resolves the named backend (built-in or config-defined `cmd`) and
+/// invokes it. Returns the `Response` or a tagged error string.
+pub fn dispatch(
+    backend_name: &str,
+    req: &Request,
+    config: &AiConfig,
+    ctx: &BackendCtx<'_>,
+    registry: &Registry,
+) -> Result<Response, String> {
+    if let Some(b) = registry.get(backend_name) {
+        return b.invoke(req, ctx);
+    }
+    // Fall through to config-defined cmd entries.
+    if let Some(bcfg) = config.backends.get(backend_name) {
+        if !bcfg.cmd.is_empty() {
+            return super::backends::cmd::invoke(backend_name, bcfg, req, ctx);
+        }
+    }
+    Err(format!(
+        "ai: backend '{backend_name}' not found (no built-in, and no \
+         `[ai.backends.{backend_name}]` with non-empty `cmd` in ~/.recon/config.toml)"
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

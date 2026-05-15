@@ -5,5 +5,6 @@
 
 // Stub — populated in later tasks.
 pub mod claude;
+pub mod cmd;
 pub mod codex;
 pub mod gemini;
