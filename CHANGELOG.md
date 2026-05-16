@@ -8,6 +8,19 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.80.2] - 2026-05-16
+
+### Changed
+
+- Two CLAUDE.md exposure-policy gaps from 0.80.0 closed:
+  - `script/README.md` AI-agent-CLIs table now lists `copilot`
+    alongside `claude / codex / gemini`.
+  - `HISTORY.md` numbered entry #74 added for the Copilot backend.
+    Documents the design rationale that the CHANGELOG only summarised
+    — specifically the `copilot` (standalone) vs `gh copilot`
+    (deprecated extension) split, the choice of stdin + `-s --no-color`
+    invocation, and the inlined system-prompt delivery.
+
 ## [0.80.1] - 2026-05-16
 
 ### Changed

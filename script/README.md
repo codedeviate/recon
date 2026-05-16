@@ -188,7 +188,7 @@ surprise failures.
 
 | Script | What it does |
 |---|---|
-| `ai.rhai` | `ai::*` request builder + send (subprocess to claude / codex / gemini) |
+| `ai.rhai` | `ai::*` request builder + send (subprocess to claude / codex / copilot / gemini) |
 
 Every script starts with a usage comment showing args and a one-line
 description. Scripts that take positional args support a sensible

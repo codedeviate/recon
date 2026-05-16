@@ -52,6 +52,45 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 74. GitHub Copilot CLI as `ai::*` backend (0.80.0)
+
+Follow-up on the 0.79.0 `ai::*` foundation. A user with a Copilot
+subscription asked for the same first-class treatment that claude,
+codex, and gemini got. Adding a backend is a 80-line file under the
+existing `AiBackend` trait — the architecture from entry #73 was
+designed for exactly this.
+
+**Why the standalone `copilot` CLI, not `gh copilot`.** Two products
+share the "Copilot CLI" name. The newer standalone `copilot`
+(GA October 2025) is an agentic CLI that behaves like Claude Code:
+takes a prompt, returns a free-form response on stdout, supports
+`--model` selection, plays nicely with shell redirection. The older
+`gh copilot` extension was archived October 30, 2025 and was
+fundamentally a different product — a shell-command suggester
+(`gh copilot suggest -t shell …`) with TUI-only output and no
+free-form chat mode. There is no realistic way to wrap `gh copilot`
+inside the subprocess + free-form-chat shape `ai::send()` expects.
+Skipping it cleanly was the right call; users who want it can still
+wire it through the `cmd` backend in `~/.recon/config.toml` for
+shell-suggestion-flavoured scripts, but they won't be doing chat.
+
+**Invocation shape: stdin + `-s --no-color`.** `copilot` accepts the
+prompt either via `-p "..."` or on stdin. recon uses stdin
+universally (avoids argv length limits when contexts accumulate),
+so this backend follows suit. `-s` (silent) strips the
+session-metadata header that would otherwise leak into stdout; the
+recon-side parser only wants the model's reply. `--no-color`
+suppresses ANSI codes — important because some flatten/quote
+downstream consumers don't strip them. System prompts are inlined
+into the body (`SystemDelivery::Inline`) since `copilot` has no
+`--system-prompt` flag. Model pass-through values include `auto`
+(default), `gpt-5.3-codex`, `claude-sonnet-4.6`, `claude-haiku-4.5`.
+
+**Auth.** Reuses Copilot's own `GH_TOKEN` / `GITHUB_TOKEN`
+mechanism or its interactive `/login` flow — recon doesn't touch
+credentials, matching the design rationale from #73 (no API-key
+story in recon).
+
 ### 73. AI script-engine bindings — `ai::*` (0.79.0)
 
 Diagnostic recon scripts had every primitive *except* "ask the model
