@@ -121,7 +121,7 @@ fn verify_ua_individual_body(clean: &str) -> Verdict {
     let digits: Vec<i64> = clean.chars().map(|c| c.to_digit(10).unwrap() as i64).collect();
     let sum: i64 = digits[..9].iter().zip(RNOKPP_WEIGHTS.iter()).map(|(d, w)| d * w).sum();
     // Euclidean modulo to handle potential negative sum
-    let check = ((sum % 11) + 11) % 11 % 10;
+    let check = (sum % 11).rem_euclid(11) % 10;
     if check == digits[9] {
         Verdict::Valid {
             formatted: format!("UA{}", clean),
@@ -159,7 +159,7 @@ pub fn create_ua_individual(input: &str, _raw: bool) -> Result<String> {
     }
     let digits: Vec<i64> = clean.chars().map(|c| c.to_digit(10).unwrap() as i64).collect();
     let sum: i64 = digits.iter().zip(RNOKPP_WEIGHTS.iter()).map(|(d, w)| d * w).sum();
-    let check = ((sum % 11) + 11) % 11 % 10;
+    let check = (sum % 11).rem_euclid(11) % 10;
     Ok(format!("UA{}{}", clean, check))
 }
 

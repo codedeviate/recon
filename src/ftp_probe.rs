@@ -123,7 +123,7 @@ pub fn probe(url: &str, fargs: &FtpArgs<'_>) -> Result<FtpProbeOk> {
         }
         // -Q / --quote
         for cmd in &fargs.quote {
-            stream.custom_command(cmd, &QUOTE_ACCEPT).with_context(|| format!("FTP --quote: {cmd} failed"))?;
+            stream.custom_command(cmd, QUOTE_ACCEPT).with_context(|| format!("FTP --quote: {cmd} failed"))?;
         }
         let pwd = stream.pwd().ok();
         let mode = do_path_op_tls(&mut stream, &path, fargs.list_only)?;
@@ -147,7 +147,7 @@ pub fn probe(url: &str, fargs: &FtpArgs<'_>) -> Result<FtpProbeOk> {
         }
         // -Q / --quote
         for cmd in &fargs.quote {
-            plain.custom_command(cmd, &QUOTE_ACCEPT).with_context(|| format!("FTP --quote: {cmd} failed"))?;
+            plain.custom_command(cmd, QUOTE_ACCEPT).with_context(|| format!("FTP --quote: {cmd} failed"))?;
         }
         let pwd = plain.pwd().ok();
         let mode = do_path_op_plain(&mut plain, &path, fargs.list_only)?;

@@ -247,7 +247,7 @@ fn main() {
         }
     };
 
-    let mut args = match Args::parse_with_script_split(expanded_argv.into_iter()) {
+    let mut args = match Args::parse_with_script_split(expanded_argv) {
         Ok(a) => a,
         Err(e) => {
             e.exit();
@@ -1042,7 +1042,6 @@ fn main() {
     }
 
     // ── -O / -o mutual exclusion + filename substitution ─────────────────────
-    let mut args = args;
     if args.remote_name && args.output.is_some() {
         eprintln!("error: -O/--remote-name and -o/--output are mutually exclusive");
         std::process::exit(1);

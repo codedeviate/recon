@@ -19,6 +19,12 @@ use std::time::{Duration, Instant};
 const DEFAULT_POP3_PORT: u16 = 110;
 const DEFAULT_POP3S_PORT: u16 = 995;
 
+/// (message_count, total_bytes, message_body) returned by auth+retrieve helpers.
+type MailboxStats = (Option<u32>, Option<u64>, Option<Vec<u8>>);
+
+/// Parsed components of a pop3[s]:// URL.
+type ParsedUrl = (String, String, Option<u16>, Option<String>, Option<String>, String);
+
 pub struct Pop3ProbeOk {
     pub host: String,
     pub port: u16,
@@ -113,6 +119,7 @@ fn run_session_plain(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_session_starttls(
     tcp: TcpStream,
     host: &str,
@@ -152,6 +159,7 @@ fn run_session_starttls(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_session_tls<S: Read + Write>(
     conn: &mut S,
     host: String,
@@ -323,7 +331,7 @@ fn maybe_auth_and_retrieve<W: Write, R: BufRead>(
     user: Option<&str>,
     pass: Option<&str>,
     msg_n: Option<u32>,
-) -> Result<(Option<u32>, Option<u64>, Option<Vec<u8>>)> {
+) -> Result<MailboxStats> {
     let Some(u) = user else {
         return Ok((None, None, None));
     };
@@ -354,7 +362,7 @@ fn maybe_auth_and_retrieve_rw<S: Read + Write>(
     user: Option<&str>,
     pass: Option<&str>,
     msg_n: Option<u32>,
-) -> Result<(Option<u32>, Option<u64>, Option<Vec<u8>>)> {
+) -> Result<MailboxStats> {
     let Some(u) = user else {
         return Ok((None, None, None));
     };
@@ -438,7 +446,7 @@ fn read_dot_terminated<R: BufRead>(r: &mut R) -> Result<Vec<u8>> {
     Ok(out)
 }
 
-fn parse_url(url: &str) -> Result<(String, String, Option<u16>, Option<String>, Option<String>, String)> {
+fn parse_url(url: &str) -> Result<ParsedUrl> {
     let parsed = url::Url::parse(url).with_context(|| format!("pop3: bad URL '{url}'"))?;
     let scheme = parsed.scheme().to_string();
     if scheme != "pop3" && scheme != "pop3s" {

@@ -222,7 +222,7 @@ fn resolve_body(args: &Args) -> Result<Vec<u8>> {
         return std::fs::read(path).with_context(|| format!("upload file '{}'", path.display()));
     }
     if let Some(json) = &args.json {
-        return Ok(load_body_string(json)?);
+        return load_body_string(json);
     }
     if let Some(raw) = &args.data_raw {
         return Ok(raw.as_bytes().to_vec());
@@ -240,7 +240,7 @@ fn resolve_body(args: &Args) -> Result<Vec<u8>> {
         bail!("unix-socket: --data-urlencode not supported over UDS; use -d / --json");
     }
     if let Some(data) = &args.data {
-        return Ok(load_body_string(data)?);
+        return load_body_string(data);
     }
     Ok(Vec::new())
 }

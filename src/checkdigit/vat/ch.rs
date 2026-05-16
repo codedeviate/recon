@@ -99,7 +99,7 @@ pub fn create_ch_vat(input: &str, _raw: bool) -> Result<String> {
     let digits: Vec<u32> = clean.chars().map(|c| c.to_digit(10).unwrap()).collect();
     match compute_check(&digits) {
         None => Err(anyhow!("this 8-digit body produces check_raw=10, which is structurally invalid")),
-        Some(check) => Ok(format!("CHE-{}.{}.{}", &clean[..3], &clean[3..6], format!("{}{}", &clean[6..], check))),
+        Some(check) => Ok(format!("CHE-{}.{}.{}{}", &clean[..3], &clean[3..6], &clean[6..], check)),
     }
 }
 

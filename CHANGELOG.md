@@ -8,6 +8,40 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.80.2] - 2026-05-16
+
+### Changed
+
+- Two CLAUDE.md exposure-policy gaps from 0.80.0 closed:
+  - `script/README.md` AI-agent-CLIs table now lists `copilot`
+    alongside `claude / codex / gemini`.
+  - `HISTORY.md` numbered entry #74 added for the Copilot backend.
+    Documents the design rationale that the CHANGELOG only summarised
+    — specifically the `copilot` (standalone) vs `gh copilot`
+    (deprecated extension) split, the choice of stdin + `-s --no-color`
+    invocation, and the inlined system-prompt delivery.
+
+## [0.80.1] - 2026-05-16
+
+### Changed
+
+- Codebase-wide clippy sweep — 46 → 0 warnings. Mostly mechanical
+  idiom upgrades: `strip_prefix` instead of slicing-after-starts_with,
+  `rem_euclid` instead of manual modulo, `checked_div`, `split_once`,
+  `!RangeInclusive::contains`, `is_empty()` for length-zero checks,
+  `sort_by_key`, `if let` for unwrap-after-is_some / single-arm match,
+  `vec![...]` literal instead of push-after-new, `#[derive(Default)]`
+  on `QrLevel`, needless-borrow and needless-question-mark cleanups.
+  Two type aliases (`MailboxStats`, `ParsedUrl`) factored out of
+  `pop3_probe` to address `type_complexity`; the long parameter list
+  on `run_session_*` is now explicitly annotated with
+  `#[allow(clippy::too_many_arguments)]` since a parameter struct
+  would obscure the call sites. The `HasherKind` `large_enum_variant`
+  warning is similarly silenced with a comment — boxing the large
+  variants would add per-update allocations on the streaming hot path.
+- Bumped `RELEASE_DATE` to 2026-05-16 (matches `--version` banner to
+  the actual ship date).
+
 ## [0.80.0] - 2026-05-15
 
 ### Added

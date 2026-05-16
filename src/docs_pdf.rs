@@ -226,13 +226,14 @@ pub fn render_html_to_pdf_with_meta(html: &[u8], output: &Path, meta: &PdfMeta) 
 
     let open_result =
         crate::agent_browser::run_cmd(&["open", &url], false).map(|_| ());
-    let pdf_result = if open_result.is_ok() {
-        let out_str = output
-            .to_str()
-            .context("docs_pdf: output path is not UTF-8")?;
-        crate::agent_browser::run_cmd(&["pdf", out_str], false).map(|_| ())
-    } else {
-        Err(open_result.unwrap_err())
+    let pdf_result = match open_result {
+        Ok(_) => {
+            let out_str = output
+                .to_str()
+                .context("docs_pdf: output path is not UTF-8")?;
+            crate::agent_browser::run_cmd(&["pdf", out_str], false).map(|_| ())
+        }
+        Err(e) => Err(e),
     };
 
     // Always attempt a close so agent-browser doesn't leak a session.

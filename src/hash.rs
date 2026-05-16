@@ -116,6 +116,13 @@ use digest::Digest;
 /// Internal streaming hasher state. Each variant wraps the per-algorithm
 /// hasher type so we can `update` and `finalize` without chasing trait
 /// objects with associated types.
+///
+/// `blake3::Hasher` carries a multi-KB sliding window while
+/// `crc32fast::Hasher` is a handful of bytes — the size disparity is
+/// intentional. Boxing the large variants would add per-update
+/// allocations on the streaming hot path; we'd rather pay the stack
+/// footprint once per hasher instance.
+#[allow(clippy::large_enum_variant)]
 pub enum HasherKind {
     Md5(md5::Md5),
     Sha1(sha1::Sha1),
