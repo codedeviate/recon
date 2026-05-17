@@ -2,7 +2,7 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.80.5</div>
+<div class="version">Version 0.80.6</div>
 <div class="date">2026-05-17</div>
 <div class="meta">
 Repository · https://github.com/codedeviate/recon<br>

@@ -8,6 +8,39 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.80.6] - 2026-05-17
+
+### Changed
+
+- `CLAUDE.md` — four targeted gap closures in the workflow docs:
+  1. **Version-bump consistency table.** "Version Bumping" section now
+     enumerates all four files that carry the version (`Cargo.toml`,
+     `src/version.rs::RELEASE_DATE`, `CHANGELOG.md`, `docs/MANUAL.md`
+     cover) in one table rather than splitting them across "Version
+     Bumping" and "Exposure policy / Manual".
+  2. **`--features impersonate` in the post-merge rebuild.** The
+     hygiene section now requires both `cargo build --release` AND
+     `cargo build --release --features impersonate` after every push,
+     plus the impersonate-test invocation. Without this, regressions
+     in `src/impersonate.rs` (which the default build doesn't compile)
+     ship silently.
+  3. **Worktree base ref drift.** A new sub-section explains that
+     `EnterWorktree` branches from `origin/<default>`, not local
+     master — so creating a worktree after a merge but before a
+     push silently leaves the new branch behind. Documented two
+     fixes: push first (preferred), or `git merge --ff-only master`
+     inside the new worktree.
+  4. **`script/README.md` enforcement for non-new-module scripts.**
+     The "new binding module" branch of the pre-commit checklist
+     already required README to list new scripts, but adding more
+     scripts to an existing area didn't trigger that checklist. A
+     new "For any new `script/*.rhai`" branch fires for every new
+     `.rhai` regardless of module status. The
+     `readme_indexes_every_script` test was already enforcing this
+     — the checklist now matches.
+
+  All four are gaps that bit us during 0.79.0–0.80.5 development.
+
 ## [0.80.5] - 2026-05-17
 
 ### Changed
