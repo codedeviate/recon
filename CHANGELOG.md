@@ -8,6 +8,27 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.80.4] - 2026-05-17
+
+### Added
+
+- Four focused `ai::*` demo scripts under `script/`, complementing
+  the existing kitchen-sink `ai.rhai`. Each is pinned to
+  `claude` + `sonnet` so it runs out of the box without
+  `RECON_AI_*` env / config, and asks for a one-to-three-word
+  answer to keep token cost negligible.
+  - `ai-simple.rhai` — smallest possible builder use.
+  - `ai-system.rhai` — same prompt with two different system
+    prompts to show how `.system()` steers tone / length.
+  - `ai-context.rhai` — accumulating `.context()` blocks; classify
+    a synthetic HTTP response.
+  - `ai-multiturn.rhai` — manual multi-turn replay using
+    `.assistant()` + `.user()`.
+
+  All four parse against the registered Rhai engine
+  (`tests/script_examples_it.rs`); none actually invoke a real
+  CLI without an installed backend.
+
 ## [0.80.3] - 2026-05-17
 
 ### Changed
