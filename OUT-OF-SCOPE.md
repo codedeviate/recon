@@ -67,11 +67,11 @@ entry rather than leaving a crossed-out line here.
   ships without it because the `register` fn doesn't currently
   thread `ScriptDefaults` through. Follow-up release adds it.
 
-### Raw fingerprint overrides for `--impersonate` (0.77.0 → v0.78)
+### Raw fingerprint overrides for `--impersonate` (since 0.77.0)
 
 - **`--ja3 <STRING>`, `--ja4 <STRING>`, `--http2-fingerprint <STRING>`** —
   reserved in the CLI of 0.77.0 for forward-compatibility but error at
-  runtime with a "deferred to v0.78" message. The original 0.77.0 plan
+  runtime with a "not yet implemented" message. The original 0.77.0 plan
   promised raw fingerprint overrides alongside named profiles, but
   `rquest` 5.1.0 turned out to be a lower-level toolkit (`TlsConfig`
   builders for cipher list / sigalgs / curves / extension order) rather
@@ -80,14 +80,17 @@ entry rather than leaving a crossed-out line here.
   is lossy and partial. JA4's cipher and extension components are
   SHA-256 truncations, fundamentally non-invertible. Each parser would
   be 100–200 lines of brittle TLS plumbing producing partial fingerprints.
-  Path forward for v0.78: build a JA3-prefix → known-profile lookup
-  table (covers the common "this Chrome version was captured" case),
-  ship `--http2-fingerprint` as a real Akamai-format parser into
-  `rquest::Http2Config` (the H2 layer is fully introspectable), and
-  document `--ja3` / `--ja4` as best-effort with explicit limitations.
+  Path forward when this becomes a priority: build a JA3-prefix →
+  known-profile lookup table (covers the common "this Chrome version
+  was captured" case), ship `--http2-fingerprint` as a real Akamai-format
+  parser into `rquest::Http2Config` (the H2 layer is fully introspectable),
+  and document `--ja3` / `--ja4` as best-effort with explicit limitations.
   Named `--impersonate <profile>` covers the captcha-testing use case
-  in v1; revisit when a real captured-fingerprint case lands that
-  named profiles can't reproduce.
+  in v1; revisit when a real captured-fingerprint case lands that named
+  profiles can't reproduce. (The original 0.77.0 spec targeted v0.78 for
+  this; 0.78–0.80 shipped without it because no concrete fingerprint
+  case turned up — moving the target date out of the heading rather than
+  letting it drift release by release.)
 
 ### Client cert / custom CA bundle through `--impersonate` (0.77.0)
 

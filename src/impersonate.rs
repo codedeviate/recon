@@ -109,14 +109,15 @@ async fn convert_response(resp: rquest::Response) -> Result<ReqwestResponse> {
 pub fn execute(args: &Args) -> Result<(ReqwestResponse, RequestMetrics)> {
     validate_combination(args)?;
 
-    // Defer raw-fingerprint flags to v0.78 (stubbed in Task 5). Fail fast
-    // if any of them is set so the user sees a clear "not yet implemented"
-    // rather than a silent no-op.
+    // Raw-fingerprint flags are reserved at the CLI but not implemented.
+    // Fail fast so the user sees a clear "not yet implemented" rather than
+    // a silent no-op. Rationale lives in OUT-OF-SCOPE.md under
+    // "Raw fingerprint overrides for --impersonate (since 0.77.0)".
     if args.ja3.is_some() || args.ja4.is_some() || args.http2_fingerprint.is_some() {
         return Err(anyhow!(
-            "--ja3 / --ja4 / --http2-fingerprint are not implemented in v1 \
-             (tracked for v0.78). Use --impersonate <profile> for a named-profile \
-             fingerprint instead."
+            "--ja3 / --ja4 / --http2-fingerprint are not implemented yet. \
+             Use --impersonate <profile> for a named-profile fingerprint \
+             instead. See OUT-OF-SCOPE.md for the upstream-blockers rationale."
         ));
     }
 

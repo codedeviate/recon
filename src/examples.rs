@@ -314,11 +314,11 @@ pub fn print() {
     note("The `impersonate` opts key on http() takes a profile name string, just like the CLI flag. Demo at script/impersonate.rhai.");
 
     example("Raw fingerprint overrides (deferred — currently error)", &[
-        "recon --ja3 \"771,4865-...,0-23-...,29-23-24,0\" https://example.com/   # v0.78",
-        "recon --ja4 t13d1516h2_8daaf6152771_b1ff8ab2d16f https://example.com/   # v0.78",
-        "recon --http2-fingerprint \"1:65536,4:6291456|...|0|m,a,s,p\" https://example.com/   # v0.78",
+        "recon --ja3 \"771,4865-...,0-23-...,29-23-24,0\" https://example.com/   # not yet implemented",
+        "recon --ja4 t13d1516h2_8daaf6152771_b1ff8ab2d16f https://example.com/   # not yet implemented",
+        "recon --http2-fingerprint \"1:65536,4:6291456|...|0|m,a,s,p\" https://example.com/   # not yet implemented",
     ]);
-    note("These flags are reserved in the CLI for forward-compatibility but error at runtime in v1 — implementation is tracked for v0.78. Use --impersonate <profile> for now; named profiles cover the common captcha-testing cases.");
+    note("These flags are reserved in the CLI for forward-compatibility but error at runtime — implementation is deferred (no concrete captured-fingerprint use case has driven the work yet). Use --impersonate <profile> for now; named profiles cover the common captcha-testing cases. See OUT-OF-SCOPE.md for the rationale.");
 
     example("Rate control and slow-transfer abort", &[
         "recon --limit-rate 500K https://example.com/big.bin -o big.bin",

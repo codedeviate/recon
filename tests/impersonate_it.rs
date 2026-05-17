@@ -44,10 +44,11 @@ fn impersonate_accepts_hyphenated_profile_name() {
 }
 
 #[test]
-fn raw_overrides_deferred_to_v0_78() {
+fn raw_overrides_error_as_not_yet_implemented() {
     // --ja3 / --ja4 / --http2-fingerprint are accepted by clap (so --help and
-    // --flags stay stable) but error out at runtime in v1 with a message
-    // pointing at v0.78.
+    // --flags stay stable) but error out at runtime as not-yet-implemented.
+    // (Previously this test pinned to a "v0.78" version target; 0.78–0.80
+    // shipped without these so the message moved to a version-agnostic form.)
     for flag in ["--ja3", "--ja4", "--http2-fingerprint"] {
         let out = Command::new(recon_bin())
             .args([flag, "dummy-value", "https://example.com/"])
@@ -56,8 +57,8 @@ fn raw_overrides_deferred_to_v0_78() {
         assert!(!out.status.success(), "{flag} unexpectedly succeeded");
         let stderr = String::from_utf8_lossy(&out.stderr);
         assert!(
-            stderr.contains("not implemented in v1") && stderr.contains("v0.78"),
-            "{flag}: expected v0.78 deferral message, got: {stderr}"
+            stderr.contains("not implemented yet"),
+            "{flag}: expected not-yet-implemented message, got: {stderr}"
         );
     }
 }

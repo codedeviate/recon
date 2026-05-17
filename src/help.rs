@@ -2206,10 +2206,10 @@ static TOPIC_IMPERSONATE: Topic = Topic {
                   immediate error with a hint to rebuild with `--features impersonate`\n\
                   or to download the `recon-impersonate` release artifact.\n\
                   \n\
-                  V1 SCOPE: only --impersonate is implemented in v1 (recon 0.77.x).\n\
-                  The --ja3, --ja4, and --http2-fingerprint flags are reserved in the\n\
-                  CLI for forward-compatibility but error at runtime with a message\n\
-                  indicating they are deferred to v0.78. Use --impersonate for now.\n\
+                  V1 SCOPE: only --impersonate is implemented. The --ja3, --ja4,\n\
+                  and --http2-fingerprint flags are reserved in the CLI for\n\
+                  forward-compatibility but error at runtime as not-yet-implemented.\n\
+                  Use --impersonate for now. See OUT-OF-SCOPE.md for the rationale.\n\
                   \n\
                   PROFILES\n\
                   Named profiles are forwarded to rquest_util::Emulation. The format\n\
@@ -2252,21 +2252,21 @@ static TOPIC_IMPERSONATE: Topic = Topic {
         FlagHelp {
             flags: "--ja3 <STRING>",
             description: "Provide a raw JA3 fingerprint string for TLS impersonation.\n\
-                          DEFERRED to v0.78 -- currently errors at runtime with a\n\
+                          DEFERRED -- currently errors at runtime with a\n\
                           'not yet implemented' message. Parsed and reserved in the\n\
                           CLI for forward-compatibility only. Use --impersonate instead.",
         },
         FlagHelp {
             flags: "--ja4 <STRING>",
             description: "Provide a raw JA4 fingerprint string for TLS impersonation.\n\
-                          DEFERRED to v0.78 -- currently errors at runtime with a\n\
+                          DEFERRED -- currently errors at runtime with a\n\
                           'not yet implemented' message. Parsed and reserved in the\n\
                           CLI for forward-compatibility only. Use --impersonate instead.",
         },
         FlagHelp {
             flags: "--http2-fingerprint <STRING>",
             description: "Provide a raw HTTP/2 SETTINGS fingerprint string.\n\
-                          DEFERRED to v0.78 -- currently errors at runtime with a\n\
+                          DEFERRED -- currently errors at runtime with a\n\
                           'not yet implemented' message. Parsed and reserved in the\n\
                           CLI for forward-compatibility only. Use --impersonate instead.",
         },
