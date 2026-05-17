@@ -8,6 +8,19 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.80.5] - 2026-05-17
+
+### Changed
+
+- `CLAUDE.md` — added a "Post-merge hygiene" section documenting that
+  `target/release/recon` is NOT updated by a merge from a worktree.
+  The worktree built its binary inside its own `target/` which gets
+  wiped by `ExitWorktree --remove`; the master checkout's binary
+  reflects whatever was last built directly there, often several
+  releases behind. Rule: run `cargo build --release` after every
+  `git push origin master`. Caught after noticing `target/release/recon`
+  was two releases behind master.
+
 ## [0.80.4] - 2026-05-17
 
 ### Added
