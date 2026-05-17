@@ -8,6 +8,30 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.80.3] - 2026-05-17
+
+### Changed
+
+- Removed stale `v0.78` version targets from the `--ja3` / `--ja4` /
+  `--http2-fingerprint` deferred-feature documentation. The original
+  0.77.0 plan promised these in v0.78, but 0.78–0.80 shipped without
+  them and the version reference outlived its accuracy. Updated:
+  - `OUT-OF-SCOPE.md` section heading and body — now reads
+    "(since 0.77.0)" with a parenthetical note explaining why the
+    target was dropped.
+  - `src/impersonate.rs` runtime error — now reads "not implemented
+    yet" with a pointer to OUT-OF-SCOPE.md rather than "tracked for
+    v0.78".
+  - `src/help.rs` `--help impersonate` topic — three FlagHelp entries
+    + the V1 SCOPE paragraph.
+  - `src/examples.rs` impersonate examples + note.
+  - `docs/MANUAL.md` two tables (Part II flag table, Part III script
+    binding options).
+  - `tests/impersonate_it.rs` test renamed and re-asserted against
+    the new version-agnostic message.
+
+  No behaviour change. Found during the 0.80.x OUT-OF-SCOPE.md audit.
+
 ## [0.80.2] - 2026-05-16
 
 ### Changed

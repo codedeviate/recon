@@ -2,8 +2,8 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.80.2</div>
-<div class="date">2026-05-16</div>
+<div class="version">Version 0.80.3</div>
+<div class="date">2026-05-17</div>
 <div class="meta">
 Repository · https://github.com/codedeviate/recon<br>
 License · MIT
@@ -486,9 +486,9 @@ release artifact.
 | Flag | Description |
 |------|-------------|
 | `--impersonate <PROFILE>` | Forwards to `rquest_util::Emulation`. Examples: `chrome_131`, `firefox_128`, `safari_17.5`, `edge_131`, `okhttp_5`, `chrome_android_131`, `safari_ios_17.4.1`. Hyphens accepted as a convenience (`chrome-131` ≡ `chrome_131`). See `recon --help impersonate` for the full list of supported profiles. |
-| `--ja3 <STRING>` | **Deferred to v0.78.** Reserved in the CLI for forward-compatibility; errors at runtime in v1. Use `--impersonate` for now. |
-| `--ja4 <STRING>` | **Deferred to v0.78.** Same. |
-| `--http2-fingerprint <STRING>` | **Deferred to v0.78.** Same. |
+| `--ja3 <STRING>` | **Deferred.** Reserved in the CLI for forward-compatibility; errors at runtime as not-yet-implemented. Use `--impersonate` for now. See OUT-OF-SCOPE.md for the upstream-blockers rationale. |
+| `--ja4 <STRING>` | **Deferred.** Same. |
+| `--http2-fingerprint <STRING>` | **Deferred.** Same. |
 
 V1 incompatibility list — these flags cannot combine with `--impersonate`:
 `--ciphers`, `--tls13-ciphers`, `--tlsv1.2`, `--tlsv1.3`, `--client-cert`,
@@ -2349,9 +2349,9 @@ Every key is optional.
 | `prettify` | bool | Pretty-print response body (auto-detect format). |
 | `prettify_as` | string | Force prettify format (json/xml/html/yaml/csv/tsv/auto). Implies `prettify: true`. |
 | `impersonate` | string | (0.77.0) Browser TLS+H2 fingerprint profile name (e.g. `"chrome_131"`, `"firefox_128"`, `"safari_17.5"`). Requires a build with `--features impersonate`; rejected with a rebuild hint otherwise. Hyphens accepted (`"chrome-131"` ≡ `"chrome_131"`). See `recon --help impersonate`. |
-| `ja3` | string | (0.77.0, **deferred to v0.78**) Reserved for raw JA3 ClientHello override. Errors at runtime in v1; use `impersonate` instead. |
-| `ja4` | string | (0.77.0, **deferred to v0.78**) Reserved for raw JA4 fingerprint override. Errors at runtime in v1. |
-| `http2_fingerprint` | string | (0.77.0, **deferred to v0.78**) Reserved for raw Akamai HTTP/2 fingerprint override. Errors at runtime in v1. |
+| `ja3` | string | (0.77.0, **deferred**) Reserved for raw JA3 ClientHello override. Errors at runtime as not-yet-implemented; use `impersonate` instead. |
+| `ja4` | string | (0.77.0, **deferred**) Reserved for raw JA4 fingerprint override. Errors at runtime as not-yet-implemented. |
+| `http2_fingerprint` | string | (0.77.0, **deferred**) Reserved for raw Akamai HTTP/2 fingerprint override. Errors at runtime as not-yet-implemented. |
 
 ### Examples
 
