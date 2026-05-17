@@ -2,7 +2,7 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.80.6</div>
+<div class="version">Version 0.80.7</div>
 <div class="date">2026-05-17</div>
 <div class="meta">
 Repository · https://github.com/codedeviate/recon<br>
@@ -474,9 +474,11 @@ See also: `recon --help client-cert`.
 ## Browser fingerprint impersonation (0.77.0, opt-in)
 
 Shipped in 0.77.0 behind the `impersonate` Cargo feature. Routes the request
-through `rquest` (BoringSSL) + `rquest-util` to mimic a real browser's TLS
+through `wreq` (BoringSSL) + `wreq-util` to mimic a real browser's TLS
 ClientHello and HTTP/2 SETTINGS frame. Useful when a server uses JA3/JA4
 fingerprinting or H2-frame analysis to distinguish bots from real browsers.
+(`wreq` is the renamed successor to `rquest`, which was yanked from crates.io
+after the upstream rename; recon-cli migrated in 0.80.7.)
 
 The default `recon` binary is built without this feature so the binary stays
 small and skips the BoringSSL build dependency. Build with
@@ -485,7 +487,7 @@ release artifact.
 
 | Flag | Description |
 |------|-------------|
-| `--impersonate <PROFILE>` | Forwards to `rquest_util::Emulation`. Examples: `chrome_131`, `firefox_128`, `safari_17.5`, `edge_131`, `okhttp_5`, `chrome_android_131`, `safari_ios_17.4.1`. Hyphens accepted as a convenience (`chrome-131` ≡ `chrome_131`). See `recon --help impersonate` for the full list of supported profiles. |
+| `--impersonate <PROFILE>` | Forwards to `wreq_util::Emulation`. Examples: `chrome_131`, `firefox_128`, `safari_17.5`, `edge_131`, `okhttp_5`, `chrome_android_131`, `safari_ios_17.4.1`. Hyphens accepted as a convenience (`chrome-131` ≡ `chrome_131`). See `recon --help impersonate` for the full list of supported profiles. |
 | `--ja3 <STRING>` | **Deferred.** Reserved in the CLI for forward-compatibility; errors at runtime as not-yet-implemented. Use `--impersonate` for now. See OUT-OF-SCOPE.md for the upstream-blockers rationale. |
 | `--ja4 <STRING>` | **Deferred.** Same. |
 | `--http2-fingerprint <STRING>` | **Deferred.** Same. |
