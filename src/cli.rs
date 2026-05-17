@@ -1449,10 +1449,10 @@ pub struct Args {
 
     /// Impersonate a browser TLS+H2 fingerprint.
     ///
-    /// Accepts an `rquest` profile name such as `chrome-131`, `firefox-128`,
+    /// Accepts a `wreq` profile name such as `chrome-131`, `firefox-128`,
     /// `safari-17_5`, `edge-131`, `chrome-android-131`, `safari-ios-17_5`,
     /// or `okhttp-5`. Requires the `impersonate` Cargo feature to be enabled
-    /// at build time. Uses BoringSSL via `rquest`; routes through a separate
+    /// at build time. Uses BoringSSL via `wreq`; routes through a separate
     /// HTTP client from the default rustls path.
     ///
     /// Incompatible in v1 with --http3, --ciphers/--tls13-ciphers,

@@ -1,7 +1,7 @@
-//! Browser TLS+H2 fingerprint impersonation via `rquest` (BoringSSL).
+//! Browser TLS+H2 fingerprint impersonation via `wreq` (BoringSSL).
 //!
 //! Activated when any of `--impersonate`, `--ja3`, `--ja4`, or
-//! `--http2-fingerprint` is set. Owns its own `rquest::Client` driven by a
+//! `--http2-fingerprint` is set. Owns its own `wreq::Client` driven by a
 //! tokio runtime parallel to `client::execute`; supports a deliberate subset
 //! of recon's HTTP feature surface (see HISTORY.md and OUT-OF-SCOPE.md for
 //! the v1 incompat list).
@@ -32,7 +32,7 @@ pub fn validate_combination(args: &Args) -> Result<()> {
     // because main.rs::friendly_message rewrites any error containing them
     // to the generic "TLS/certificate error" placeholder, which would hide
     // the actually-helpful message from the user. Use "browser fingerprint
-    // impersonation", "profile", "rquest" instead.
+    // impersonation", "profile", "wreq" instead.
     if args.ciphers.is_some() || args.tls13_ciphers.is_some() {
         return Err(anyhow!(
             "--ciphers / --tls13-ciphers cannot be combined with browser \
@@ -67,14 +67,14 @@ pub fn validate_combination(args: &Args) -> Result<()> {
 }
 
 /// Parse a user-supplied profile string ("chrome_131", "chrome-131") into
-/// rquest_util's Emulation enum. Normalizes hyphens to underscores so users
+/// wreq_util's Emulation enum. Normalizes hyphens to underscores so users
 /// can type either form on the CLI.
-fn parse_emulation(name: &str) -> Result<rquest_util::Emulation> {
-    // rquest_util's serde format is `chrome_131`, `safari_17.5`, etc.
+fn parse_emulation(name: &str) -> Result<wreq_util::Emulation> {
+    // wreq_util's serde format is `chrome_131`, `safari_17.5`, etc.
     // Normalize hyphens to underscores so users can type either form.
     let normalized = name.trim().replace('-', "_").to_ascii_lowercase();
     let value = serde_json::Value::String(normalized.clone());
-    serde_json::from_value::<rquest_util::Emulation>(value).map_err(|e| {
+    serde_json::from_value::<wreq_util::Emulation>(value).map_err(|e| {
         anyhow!(
             "unknown impersonate profile '{name}' (normalized to '{normalized}'). \
              Valid examples: chrome_131, firefox_128, safari_17.5, edge_131, \
@@ -84,10 +84,10 @@ fn parse_emulation(name: &str) -> Result<rquest_util::Emulation> {
     })
 }
 
-/// Convert an rquest::Response (async client) into a reqwest::blocking::Response
+/// Convert an wreq::Response (async client) into a reqwest::blocking::Response
 /// so the rest of recon's output pipeline (reqwest-typed) consumes it unchanged.
 /// Buffers the body in memory; acceptable for the v1 captcha-testing use case.
-async fn convert_response(resp: rquest::Response) -> Result<ReqwestResponse> {
+async fn convert_response(resp: wreq::Response) -> Result<ReqwestResponse> {
     let status = resp.status();
     let headers = resp.headers().clone();
     let version = resp.version();
@@ -129,7 +129,7 @@ pub fn execute(args: &Args) -> Result<(ReqwestResponse, RequestMetrics)> {
     let mut metrics = RequestMetrics::default();
     metrics.request_start = Some(Instant::now());
 
-    // rquest 5.1.0 is async-only; spin up a current-thread tokio runtime and
+    // wreq is async-only; spin up a current-thread tokio runtime and
     // block on the request. recon's pipeline above us is blocking, so this
     // is the standard sync-bridges-async pattern.
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -143,14 +143,14 @@ pub fn execute(args: &Args) -> Result<(ReqwestResponse, RequestMetrics)> {
     let insecure = args.insecure;
 
     let converted = runtime.block_on(async move {
-        let client = rquest::Client::builder()
+        let client = wreq::Client::builder()
             .emulation(emulation)
             .cert_verification(!insecure)
             .connect_timeout(std::time::Duration::from_secs(timeout_secs))
             .build()
-            .map_err(|e| anyhow!("rquest client build: {e}"))?;
+            .map_err(|e| anyhow!("wreq client build: {e}"))?;
 
-        let method = rquest::Method::from_bytes(method_str.as_bytes())
+        let method = wreq::Method::from_bytes(method_str.as_bytes())
             .map_err(|e| anyhow!("invalid HTTP method '{method_str}': {e}"))?;
 
         let resp = client

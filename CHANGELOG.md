@@ -8,6 +8,28 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.80.7] - 2026-05-17
+
+### Changed
+
+- `--features impersonate` dep migration: `rquest` → `wreq` and
+  `rquest-util` → `wreq-util`. Upstream renamed the crate and yanked
+  all `rquest` versions on crates.io; the 0.80.6 publish carried a
+  noisy yank warning and risked breaking `cargo install
+  --features impersonate` without `--locked`.
+
+  Same author (`0x676e67`), same BoringSSL backend, same API shape —
+  the migration was a mechanical search-and-replace across
+  `Cargo.toml`, `src/impersonate.rs`, `src/cli.rs`, `src/help.rs`,
+  `src/examples.rs`, `docs/MANUAL.md`, and `OUT-OF-SCOPE.md`. The
+  exact pin (`=5.1.0`) was loosened to a caret range (`5.3` for
+  `wreq`, `2.2` for `wreq-util`) so future patch-level upstream
+  fixes flow through without another publish dance.
+
+  All 5 `--features impersonate` integration tests pass against
+  `wreq 5.3.0`; both build configs warning-free; clippy clean.
+  HISTORY.md entry #75 captures the migration rationale.
+
 ## [0.80.6] - 2026-05-17
 
 ### Changed

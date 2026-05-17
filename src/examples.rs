@@ -290,7 +290,7 @@ pub fn print() {
         "recon --impersonate chrome_131 https://example.com/",
         "recon --impersonate chrome-131 https://httpbin.org/headers",
     ]);
-    note("Requires a build with --features impersonate (BoringSSL via rquest). The default recon binary errors on these flags with a rebuild hint pointing at the recon-impersonate release artifact. Hyphens in the profile name are accepted as a convenience (chrome-131 ≡ chrome_131).");
+    note("Requires a build with --features impersonate (BoringSSL via wreq). The default recon binary errors on these flags with a rebuild hint pointing at the recon-impersonate release artifact. Hyphens in the profile name are accepted as a convenience (chrome-131 ≡ chrome_131).");
 
     example("Impersonate Firefox / Safari / Edge / mobile / OkHttp", &[
         "recon --impersonate firefox_128 https://example.com/",
@@ -300,7 +300,7 @@ pub fn print() {
         "recon --impersonate safari_ios_17.4.1 https://example.com/",
         "recon --impersonate okhttp_5 https://example.com/",
     ]);
-    note("Profile names follow rquest_util's serde rename convention (underscores + dots). See `recon --help impersonate` for the full list of supported profiles.");
+    note("Profile names follow wreq_util's serde rename convention (underscores + dots). See `recon --help impersonate` for the full list of supported profiles.");
 
     example("Verify the live fingerprint against tls.peet.ws", &[
         "recon --impersonate chrome_131 https://tls.peet.ws/api/all",

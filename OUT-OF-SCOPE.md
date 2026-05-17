@@ -73,7 +73,7 @@ entry rather than leaving a crossed-out line here.
   reserved in the CLI of 0.77.0 for forward-compatibility but error at
   runtime with a "not yet implemented" message. The original 0.77.0 plan
   promised raw fingerprint overrides alongside named profiles, but
-  `rquest` 5.1.0 turned out to be a lower-level toolkit (`TlsConfig`
+  `wreq` (formerly `rquest`) turned out to be a lower-level toolkit (`TlsConfig`
   builders for cipher list / sigalgs / curves / extension order) rather
   than a turnkey "set this JA3 string" library. JA3 strings don't capture
   sigalgs or extension order, so reconstructing a `TlsConfig` from a JA3
@@ -83,7 +83,7 @@ entry rather than leaving a crossed-out line here.
   Path forward when this becomes a priority: build a JA3-prefix →
   known-profile lookup table (covers the common "this Chrome version
   was captured" case), ship `--http2-fingerprint` as a real Akamai-format
-  parser into `rquest::Http2Config` (the H2 layer is fully introspectable),
+  parser into `wreq::Http2Config` (the H2 layer is fully introspectable),
   and document `--ja3` / `--ja4` as best-effort with explicit limitations.
   Named `--impersonate <profile>` covers the captcha-testing use case
   in v1; revisit when a real captured-fingerprint case lands that named
@@ -95,20 +95,20 @@ entry rather than leaving a crossed-out line here.
 ### Client cert / custom CA bundle through `--impersonate` (0.77.0)
 
 - **`--client-cert` / `--client-key` with `--impersonate`** — BoringSSL
-  has its own mTLS API distinct from rustls, and rquest's `Identity`
+  has its own mTLS API distinct from rustls, and wreq's `Identity`
   surface differs from reqwest's. v1 of the impersonate path errors
   cleanly when these flags are combined; mTLS with browser
   fingerprint impersonation is a follow-up release. Workaround: use
   the default rustls path for mTLS, accept the rustls-shaped
   fingerprint.
 - **`--cacert` / `--capath` with `--impersonate`** — same story.
-  rquest 5.1.0's emulation path uses the system root store only;
+  wreq's emulation path uses the system root store only;
   user-supplied roots aren't plumbed in v1. Errors at runtime when
   combined with any impersonation flag.
 
 ### HTTP/3 browser fingerprint impersonation
 
-- **HTTP/3 / QUIC impersonation** — rquest is HTTP/1.1 + H2 only.
+- **HTTP/3 / QUIC impersonation** — wreq is HTTP/1.1 + H2 only.
   Chrome's H3 fingerprint would need a separate H3 client (`h3` crate
   + custom QUIC fingerprinting library + ALPN + 0-RTT settings).
   Out of scope for the captcha-server v1 use case, which targets

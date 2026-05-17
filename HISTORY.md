@@ -52,6 +52,41 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 75. `rquest` → `wreq` dependency migration (0.80.7)
+
+Upstream `rquest` was renamed to `wreq` and every `rquest` crate
+version on crates.io was yanked. recon-cli 0.80.6 was published with
+the (now-yanked) `rquest =5.1.0` exact pin, which produced a noisy
+warning on every `cargo install recon-cli --features impersonate`
+invocation and risked breaking fresh installs without `--locked`.
+
+**Why a plain rename, not an alternative crate.** Same author
+(`0x676e67`), same GitHub repo (just moved from `rquest` to `wreq`),
+same BoringSSL-backed API. `wreq 5.3.0` is essentially `rquest 5.2.0`
+with the namespace renamed. The migration was line-by-line
+mechanical: `rquest` → `wreq` and `rquest_util` → `wreq_util` across
+`Cargo.toml`, `src/impersonate.rs`, `src/cli.rs` doc-comment,
+`src/help.rs` topic, `src/examples.rs` notes, `docs/MANUAL.md`,
+`OUT-OF-SCOPE.md`. Entry #72 of this file (the original 0.77.0
+historical record) was left untouched — `rquest` was accurate then,
+so the archaeology stays honest.
+
+**Why not pin `=5.3.0`.** The previous `=5.1.0` exact pin was a
+brittle choice (the yank trapped us at a yanked version with no
+in-band upgrade path). Loosened to caret ranges (`5.3` for `wreq`,
+`2.2` for `wreq-util`) so patch-level upstream fixes flow through
+without another publish dance. If `wreq` ever ships a real breaking
+change inside 5.x, the lock file pins specifically anyway.
+
+**Why not the 6.0.0 release candidates.** As of the migration, `wreq`
+had a `6.0.0-rc.28` series alongside the stable `5.3.0`. Stable was
+the obvious pick — pre-release deps in a crates.io-published binary
+are a recipe for the same churn we just escaped.
+
+**Zero behavioural change.** All 5 impersonate integration tests
+pass identically against `wreq 5.3.0`; `cargo build --release
+--features impersonate` is warning-free; clippy clean.
+
 ### 74. GitHub Copilot CLI as `ai::*` backend (0.80.0)
 
 Follow-up on the 0.79.0 `ai::*` foundation. A user with a Copilot

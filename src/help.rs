@@ -2212,7 +2212,7 @@ static TOPIC_IMPERSONATE: Topic = Topic {
                   Use --impersonate for now. See OUT-OF-SCOPE.md for the rationale.\n\
                   \n\
                   PROFILES\n\
-                  Named profiles are forwarded to rquest_util::Emulation. The format\n\
+                  Named profiles are forwarded to wreq_util::Emulation. The format\n\
                   uses underscores and dots; hyphens are accepted as a convenience and\n\
                   are normalised to underscores before dispatch.\n\
                   \n\
@@ -2225,7 +2225,7 @@ static TOPIC_IMPERSONATE: Topic = Topic {
                     safari_ios_18.1.1  safari_ios_17.4.1\n\
                     okhttp_5           okhttp_4.12\n\
                   \n\
-                  Check the rquest_util crate docs for the full list of supported\n\
+                  Check the wreq_util crate docs for the full list of supported\n\
                   profile identifiers. Profiles are case-sensitive.\n\
                   \n\
                   COMBINATION RULES\n\
