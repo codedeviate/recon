@@ -74,10 +74,9 @@ fn run_to_dest(
     let mut render_opts = match opts {
         Some(m) => opts_from_map(m, Some(&dest_path))?,
         None => {
-            let mut o = RenderOpts::default();
-            o.format = infer_format(None, Some(&dest_path))
+            let format = infer_format(None, Some(&dest_path))
                 .map_err(|e| err(e.to_string()))?;
-            o
+            RenderOpts { format, ..Default::default() }
         }
     };
     if page < 1 {
