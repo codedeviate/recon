@@ -45,6 +45,7 @@ mod netrc;
 mod netstatus;
 mod ntp_probe;
 mod output;
+mod pdf_export;
 mod ping;
 mod prettify;
 mod proto_filter;
