@@ -1958,6 +1958,38 @@ static TOPIC_ARCHIVE: Topic = Topic {
     ],
 };
 
+static TOPIC_PDF_EXPORT: Topic = Topic {
+    title: "PDF page → image export",
+    description: "`--export-pdf-page <PAGE> <PDF>` renders a single page of a PDF\n\
+                  to a raster image (PNG / JPEG / WEBP). Rendering runs through\n\
+                  agent-browser (Chrome's PDF viewer); the same external tool\n\
+                  recon already uses for HTML → PDF. The viewport flags drive\n\
+                  the output image size in CSS pixels; --pdf-scale multiplies\n\
+                  for higher-density output.\n\
+                  \n\
+                  Output path: -o PATH (extension picks the format), or\n\
+                  default `page-<N>.png` in CWD. Use -o - to stream the image\n\
+                  bytes to stdout. --pdf-format overrides extension inference.\n\
+                  \n\
+                  Script equivalent: `pdf_export_page(pdf, page, dest, opts)`\n\
+                  or `pdf_export_page(pdf, page, opts)` returning a Blob.",
+    flags: &[
+        FlagHelp { flags: "--export-pdf-page <PAGE> <PDF>", description: "Export the 1-indexed PAGE of PDF as an image.\nPDF is a local path. Requires agent-browser." },
+        FlagHelp { flags: "-o / --output <PATH>", description: "Destination path. Extension picks format\n(.png / .jpg / .jpeg / .webp). `-` writes to stdout.\nDefault: page-<N>.png in CWD." },
+        FlagHelp { flags: "--pdf-format <FMT>", description: "Override format inference: png / jpeg / webp.\nUseful with -o - (no extension to sniff)." },
+        FlagHelp { flags: "--pdf-viewport <WxH>", description: "Chrome viewport in CSS pixels. Default 1024x1366." },
+        FlagHelp { flags: "--pdf-scale <N>", description: "Device scale factor (>= 1). Default 2.\nFinal image is ~ W*N × H*N pixels." },
+        FlagHelp { flags: "--pdf-quality <0-100>", description: "JPEG/WEBP quality. Ignored for PNG. Default 90." },
+    ],
+    related: &["--md-to-pdf", "--html-to-pdf", "-o / --output"],
+    examples: &[
+        ExampleHelp { description: "Default: write page-1.png in CWD", command: "recon --export-pdf-page 1 docs/MANUAL.pdf" },
+        ExampleHelp { description: "Choose page 3, save as JPEG", command: "recon --export-pdf-page 3 report.pdf -o cover.jpg" },
+        ExampleHelp { description: "Large WEBP", command: "recon --export-pdf-page 1 report.pdf -o cover.webp --pdf-viewport 1920x2715 --pdf-scale 2" },
+        ExampleHelp { description: "Stream to stdout", command: "recon --export-pdf-page 1 report.pdf --pdf-format png -o -" },
+    ],
+};
+
 static TOPIC_BROWSER: Topic = Topic {
     title: "Browser Sessions (scripting)",
     description: "`browser()` returns a stateful HTTP session handle for Rhai\n\
@@ -2418,7 +2450,8 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "decode" | "scan" | "barcode-scan" | "decode-image" => Some(&TOPIC_DECODE),
         "threads" | "spawn" | "concurrency" | "thread" => Some(&TOPIC_SCRIPT_THREADS),
         "script-server" | "tcp-server" | "udp-server" | "listen" => Some(&TOPIC_SCRIPT_SERVER),
-        "docs" | "markdown" | "md-to-html" | "md-to-pdf" | "html-to-pdf" | "pdf" => Some(&TOPIC_DOCS),
+        "docs" | "markdown" | "md-to-html" | "md-to-pdf" | "html-to-pdf" => Some(&TOPIC_DOCS),
+        "pdf" | "pdf-export" | "pdf-page" | "pdf-image" | "export-pdf-page" => Some(&TOPIC_PDF_EXPORT),
         "client-cert" | "mtls" | "client-certificate" => Some(&TOPIC_CLIENT_CERT),
         "archive" | "zip" | "tar" | "extract" => Some(&TOPIC_ARCHIVE),
         "flags" | "flag-list" | "list-flags" => Some(&TOPIC_FLAGS),
@@ -2515,6 +2548,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "threads",
         "script-server",
         "docs",
+        "pdf-export",
         "flags",
         "wget",
         "impersonate",
