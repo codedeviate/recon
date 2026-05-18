@@ -1347,6 +1347,33 @@ recon --rekey \
 
     note("HTML backend is `comrak` (CommonMark + GFM, pure Rust). PDF backend is `agent-browser pdf` (wraps Chrome's printToPDF, preserving anchor links so the TOC stays clickable). --md-to-html is pure-Rust / no external deps. --md-to-pdf and --html-to-pdf require agent-browser on PATH (`brew install agent-browser`). URL sources flow through the normal request pipeline and honor every HTTP flag.");
 
+    section("PDF PAGE EXPORT");
+
+    example("Render PDF page 1 to PNG (default)", &[
+        "recon --export-pdf-page 1 docs/MANUAL.pdf",
+        "# Writes ./page-1.png at 1024x1366 @ 2x device scale.",
+    ]);
+
+    example("Choose output path + format by extension", &[
+        "recon --export-pdf-page 3 report.pdf -o cover.jpg",
+        "recon --export-pdf-page 3 report.pdf -o cover.webp",
+    ]);
+
+    example("Larger image via viewport + device scale", &[
+        "recon --export-pdf-page 1 docs/MANUAL.pdf --pdf-viewport 1920x2715 --pdf-scale 2 -o cover.png",
+        "# Resulting image ≈ 3840 x 5430 px.",
+    ]);
+
+    example("JPEG quality tuning", &[
+        "recon --export-pdf-page 1 docs/MANUAL.pdf -o cover.jpg --pdf-quality 75",
+    ]);
+
+    example("Pipe the image to another tool", &[
+        "recon --export-pdf-page 1 docs/MANUAL.pdf --pdf-format png -o - | open -f -a Preview",
+    ]);
+
+    note("Renders via agent-browser (Chrome's PDF viewer). The viewport flag sets Chrome's CSS-pixel viewport; --pdf-scale multiplies for higher pixel density. WEBP output is encoded in-process via the `webp` crate (Chrome screenshots WEBP-natively in some builds; recon transcodes from PNG for portability).");
+
     section("SCRIPT TCP / UDP SERVERS (0.57.0)");
 
     example("Run the shipped tcp echo server", &[
