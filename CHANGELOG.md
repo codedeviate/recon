@@ -8,6 +8,24 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.81.1] - 2026-05-18
+
+### Fixed
+
+- Piping `--examples` (or any long-output subcommand) into a reader
+  that closes early — e.g. `recon --examples | head` — no longer
+  panics with `failed printing to stdout: Broken pipe (os error 32)`.
+  Restored the default Unix `SIGPIPE` disposition at startup so the
+  reader closing causes a clean exit instead of a `println!` panic.
+  Also fixes the same scenario for `--flags`, `--help`, and any
+  other multi-page stdout output.
+
+### Changed
+
+- `README.md` gained a badges header (GitHub repo, latest release,
+  crates.io, Homebrew tap, MIT license, Rust edition / MSRV) for
+  visual consistency with other `codedeviate/*` Rust projects.
+
 ## [0.81.0] - 2026-05-18
 
 ### Added
