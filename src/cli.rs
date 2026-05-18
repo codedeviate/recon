@@ -1645,6 +1645,39 @@ pub struct Args {
     #[arg(long = "page-break-on-h1", help_heading = "Docs")]
     pub page_break_on_h1: bool,
 
+    // ── PDF page export ──────────────────────────────────────────────────────
+
+    /// Export a single page of a PDF as an image.
+    ///
+    /// Takes two values: `<PAGE> <PDF>`. PAGE is 1-indexed. PDF is a
+    /// local path. Output defaults to `page-<N>.png` in the current
+    /// directory; override with `-o PATH`. Format is inferred from the
+    /// `-o` extension (png / jpg / jpeg / webp) or set explicitly with
+    /// `--pdf-format`. Requires agent-browser on PATH.
+    #[arg(
+        long = "export-pdf-page",
+        value_names = ["PAGE", "PDF"],
+        num_args = 2,
+        help_heading = "Docs"
+    )]
+    pub export_pdf_page: Option<Vec<String>>,
+
+    /// Viewport size `WxH` (CSS px) for --export-pdf-page. Default 1024x1366.
+    #[arg(long = "pdf-viewport", value_name = "WxH", help_heading = "Docs")]
+    pub pdf_viewport: Option<String>,
+
+    /// Device scale factor for --export-pdf-page. Default 2.
+    #[arg(long = "pdf-scale", value_name = "N", help_heading = "Docs")]
+    pub pdf_scale: Option<u32>,
+
+    /// JPEG/WEBP quality 0–100 for --export-pdf-page. Default 90.
+    #[arg(long = "pdf-quality", value_name = "N", help_heading = "Docs")]
+    pub pdf_quality: Option<u32>,
+
+    /// Output format for --export-pdf-page: png, jpeg, or webp.
+    #[arg(long = "pdf-format", value_name = "FMT", help_heading = "Docs")]
+    pub pdf_format: Option<String>,
+
     // ── Compare ──────────────────────────────────────────────────────────────
 
     /// Diff two sources. Each source is a URL, a local path, or `-` for
