@@ -151,6 +151,103 @@ pub fn png_to_webp(png_bytes: &[u8], quality: u32) -> Result<Vec<u8>> {
     Ok(webp_bytes)
 }
 
+use std::path::PathBuf;
+
+/// Render `opts.page` of the PDF at `pdf_path` and return the bytes in
+/// the format specified by `opts.format`. Caller is responsible for
+/// writing the bytes to disk or stdout.
+///
+/// Flow: set viewport → open file://…#page=N → wait → screenshot → close.
+/// Always closes the agent-browser session, even on error, so a hung
+/// invocation doesn't leak a session.
+pub fn render_page(pdf_path: &Path, opts: &RenderOpts) -> Result<Vec<u8>> {
+    let state = crate::agent_browser::state_snapshot();
+    if !state.available {
+        return Err(anyhow!(
+            "PDF-page export needs agent-browser (which renders the PDF in Chrome). \
+             Install via `brew install agent-browser` or \
+             `npm install -g agent-browser` and retry."
+        ));
+    }
+
+    if opts.page == 0 {
+        return Err(anyhow!("page number must be >= 1"));
+    }
+    if opts.scale == 0 {
+        return Err(anyhow!("--pdf-scale must be >= 1"));
+    }
+
+    let abs = pdf_path
+        .canonicalize()
+        .with_context(|| format!("PDF not found: {}", pdf_path.display()))?;
+    let abs_str = abs.to_str().context("PDF path is not UTF-8")?;
+    let url = format!(
+        "file://{abs_str}#page={page}&toolbar=0&navpanes=0&scrollbar=0&view=Fit",
+        page = opts.page
+    );
+
+    // Output for agent-browser screenshot. We need a tempfile because
+    // agent-browser writes to a path; we read it back as bytes.
+    let capture_fmt = match opts.format {
+        OutputFormat::Webp => OutputFormat::Png, // transcode after
+        other => other,
+    };
+    let tmp = tempfile::Builder::new()
+        .prefix("recon-pdf-page-")
+        .suffix(&format!(".{}", capture_fmt.default_extension()))
+        .tempfile()
+        .context("create capture tempfile")?;
+    let tmp_path: PathBuf = tmp.path().to_path_buf();
+    let tmp_str = tmp_path.to_str().context("tempfile path is not UTF-8")?;
+
+    let w = opts.viewport_w.to_string();
+    let h = opts.viewport_h.to_string();
+    let scale = opts.scale.to_string();
+    let quality = opts.quality.min(100).to_string();
+    let wait_ms = "500"; // see spec §6 — Chrome layout settle time
+
+    let drive = || -> Result<()> {
+        crate::agent_browser::run_cmd(&["set", "viewport", &w, &h, &scale], false)
+            .context("agent-browser set viewport")?;
+        crate::agent_browser::run_cmd(&["open", &url], false)
+            .context("agent-browser open")?;
+        // wait <ms>: agent-browser's wait takes either a selector or a
+        // numeric millisecond count.
+        let _ = crate::agent_browser::run_cmd(&["wait", wait_ms], false);
+        let fmt_arg = match capture_fmt {
+            OutputFormat::Png => "png",
+            OutputFormat::Jpeg => "jpeg",
+            OutputFormat::Webp => unreachable!("captured as png"),
+        };
+        let mut shot_args: Vec<&str> = vec![
+            "screenshot",
+            "--full",
+            "--screenshot-format",
+            fmt_arg,
+        ];
+        if matches!(capture_fmt, OutputFormat::Jpeg) {
+            shot_args.push("--screenshot-quality");
+            shot_args.push(&quality);
+        }
+        shot_args.push(tmp_str);
+        crate::agent_browser::run_cmd(&shot_args, false)
+            .context("agent-browser screenshot")?;
+        Ok(())
+    };
+
+    let result = drive();
+    // Always close.
+    let _ = crate::agent_browser::run_cmd(&["close"], false);
+    result?;
+
+    let captured = std::fs::read(&tmp_path).context("read screenshot tempfile")?;
+    if matches!(opts.format, OutputFormat::Webp) {
+        png_to_webp(&captured, opts.quality)
+    } else {
+        Ok(captured)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
