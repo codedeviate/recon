@@ -88,6 +88,69 @@ pub fn infer_format(explicit: Option<&str>, path: Option<&Path>) -> Result<Outpu
     Ok(OutputFormat::Png)
 }
 
+/// All knobs for a render. Constructed by the CLI entry point or the
+/// Rhai binding.
+#[derive(Debug, Clone)]
+pub struct RenderOpts {
+    pub page: u32,
+    pub viewport_w: u32,
+    pub viewport_h: u32,
+    pub scale: u32,
+    pub quality: u32,
+    pub format: OutputFormat,
+}
+
+impl Default for RenderOpts {
+    fn default() -> Self {
+        Self {
+            page: 1,
+            viewport_w: 1024,
+            viewport_h: 1366,
+            scale: 2,
+            quality: 90,
+            format: OutputFormat::Png,
+        }
+    }
+}
+
+/// Decode a PNG buffer and re-encode it as WEBP at the given quality
+/// (0–100). Quality > 100 is clamped to 100.
+pub fn png_to_webp(png_bytes: &[u8], quality: u32) -> Result<Vec<u8>> {
+    use png::Decoder;
+    let decoder = Decoder::new(png_bytes);
+    let mut reader = decoder.read_info().context("png decode header")?;
+    let mut buf = vec![0u8; reader.output_buffer_size()];
+    let info = reader.next_frame(&mut buf).context("png decode frame")?;
+    // `webp::Encoder::from_rgba` / `from_rgb` expects a tightly-packed
+    // buffer. Convert grayscale / palette / 16-bit by re-using the
+    // `png` crate's transformations: here we only support the formats
+    // Chrome's screenshot emits, which is always RGBA8.
+    if info.bit_depth != png::BitDepth::Eight {
+        return Err(anyhow!(
+            "pdf-export: expected 8-bit PNG from agent-browser, got {:?}",
+            info.bit_depth
+        ));
+    }
+    let q = quality.min(100) as f32;
+    let webp_bytes = match info.color_type {
+        png::ColorType::Rgba => {
+            let enc = webp::Encoder::from_rgba(&buf[..info.buffer_size()], info.width, info.height);
+            enc.encode(q).to_vec()
+        }
+        png::ColorType::Rgb => {
+            let enc = webp::Encoder::from_rgb(&buf[..info.buffer_size()], info.width, info.height);
+            enc.encode(q).to_vec()
+        }
+        other => {
+            return Err(anyhow!(
+                "pdf-export: unsupported PNG color type {:?} from agent-browser",
+                other
+            ));
+        }
+    };
+    Ok(webp_bytes)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -168,5 +231,27 @@ mod tests {
     #[test]
     fn output_format_from_name_unknown() {
         assert!(OutputFormat::from_name("gif").is_err());
+    }
+
+    #[test]
+    fn png_to_webp_roundtrip() {
+        // Build a 2x2 RGBA PNG in memory.
+        let mut png_bytes: Vec<u8> = Vec::new();
+        {
+            let mut encoder = png::Encoder::new(&mut png_bytes, 2, 2);
+            encoder.set_color(png::ColorType::Rgba);
+            encoder.set_depth(png::BitDepth::Eight);
+            let mut writer = encoder.write_header().unwrap();
+            // 2x2 = 16 bytes RGBA, alternating red and blue.
+            let pixels: [u8; 16] = [
+                255, 0, 0, 255,  0, 0, 255, 255,
+                0, 0, 255, 255,  255, 0, 0, 255,
+            ];
+            writer.write_image_data(&pixels).unwrap();
+        }
+        let webp_bytes = png_to_webp(&png_bytes, 80).expect("webp encode");
+        // WEBP files start with "RIFF" then 4 size bytes then "WEBP".
+        assert_eq!(&webp_bytes[0..4], b"RIFF", "bytes: {:02x?}", &webp_bytes[..16]);
+        assert_eq!(&webp_bytes[8..12], b"WEBP");
     }
 }
