@@ -4,6 +4,7 @@
 //! agent-browser drive sequence.
 
 use anyhow::{anyhow, Context, Result};
+use std::io::Write;
 use std::path::Path;
 
 /// Parse `"WxH"` (e.g. `"1024x1366"`) into `(w, h)`. Both must be > 0.
@@ -246,6 +247,70 @@ pub fn render_page(pdf_path: &Path, opts: &RenderOpts) -> Result<Vec<u8>> {
     } else {
         Ok(captured)
     }
+}
+
+/// CLI entry point for `--export-pdf-page`.
+pub fn run_export_pdf_page_cli(args: &crate::cli::Args) -> Result<()> {
+    let pair = args
+        .export_pdf_page
+        .as_ref()
+        .context("--export-pdf-page requires two values: PAGE PDF")?;
+    if pair.len() != 2 {
+        return Err(anyhow!(
+            "--export-pdf-page takes exactly two values: <PAGE> <PDF>"
+        ));
+    }
+    let page: u32 = pair[0]
+        .parse()
+        .with_context(|| format!("page number '{}' is not a positive integer", pair[0]))?;
+    let pdf = PathBuf::from(&pair[1]);
+    if !pdf.exists() {
+        return Err(anyhow!("PDF not found: {}", pdf.display()));
+    }
+
+    let (vw, vh) = match args.pdf_viewport.as_deref() {
+        Some(s) => parse_viewport(s)?,
+        None => (1024u32, 1366u32),
+    };
+    let scale = args.pdf_scale.unwrap_or(2);
+    let quality = args.pdf_quality.unwrap_or(90);
+
+    // Format resolution: explicit --pdf-format, then -o extension, then PNG.
+    let out_path_for_inference: Option<&Path> = args
+        .output
+        .as_ref()
+        .filter(|p| p.to_str() != Some("-"))
+        .map(|p| p.as_path());
+    let format = infer_format(args.pdf_format.as_deref(), out_path_for_inference)?;
+
+    let opts = RenderOpts {
+        page,
+        viewport_w: vw,
+        viewport_h: vh,
+        scale,
+        quality,
+        format,
+    };
+    let bytes = render_page(&pdf, &opts)?;
+
+    // Output: -o PATH (where "-" is stdout), or default page-<N>.<ext>.
+    let dest = args.output.as_ref();
+    match dest {
+        Some(p) if p.to_str() == Some("-") => {
+            let mut out = std::io::stdout().lock();
+            out.write_all(&bytes).context("write stdout")?;
+        }
+        Some(p) => {
+            std::fs::write(p, &bytes)
+                .with_context(|| format!("write '{}'", p.display()))?;
+        }
+        None => {
+            let default = format!("page-{}.{}", page, format.default_extension());
+            std::fs::write(&default, &bytes)
+                .with_context(|| format!("write '{default}'"))?;
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
