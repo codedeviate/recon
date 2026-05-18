@@ -124,6 +124,7 @@ pub fn build_engine(defaults: &ScriptDefaults) -> rhai::Engine {
     super::bindings::jwt::register(&mut engine);
     super::bindings::netstatus::register(&mut engine);
     super::bindings::output::register(&mut engine);
+    super::bindings::pdf::register(&mut engine);
     super::bindings::sample::register(&mut engine);
     super::bindings::dict::register(&mut engine, defaults.clone());
     super::bindings::dns::register(&mut engine);

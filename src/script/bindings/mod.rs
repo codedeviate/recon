@@ -25,6 +25,7 @@ pub mod ipfs;
 pub mod jwt;
 pub mod netstatus;
 pub mod output;
+pub mod pdf;
 pub mod sample;
 pub mod http;
 pub mod ldap;
