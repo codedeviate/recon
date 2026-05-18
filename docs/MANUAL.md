@@ -2,8 +2,8 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.80.7</div>
-<div class="date">2026-05-17</div>
+<div class="version">Version 0.81.0</div>
+<div class="date">2026-05-18</div>
 <div class="meta">
 Repository · https://github.com/codedeviate/recon<br>
 License · MIT
@@ -1024,6 +1024,26 @@ Chrome's printToPDF is the renderer for both `--md-to-pdf` and
 or `page-break-*` works. `@page` rules for size and margins (defined in
 the bundled default CSS) are honored too — override via `--doc-css` or
 inline `<style>` with `--unsafe-html`.
+
+### PDF page export
+
+| Flag | Value | Description |
+|---|---|---|
+| `--export-pdf-page` | `<PAGE> <PDF>` | Render the 1-indexed PAGE of PDF as a raster image. Requires `agent-browser`. |
+| `--pdf-viewport` | `<WxH>` | Chrome viewport in CSS pixels. Default `1024x1366`. |
+| `--pdf-scale` | `<N>` | Device scale factor (≥ 1). Default `2`. |
+| `--pdf-quality` | `<0-100>` | JPEG/WEBP quality. Default `90`. |
+| `--pdf-format` | `<png\|jpeg\|webp>` | Override output format inference. |
+
+Examples:
+
+```sh
+recon --export-pdf-page 1 docs/MANUAL.pdf
+# → page-1.png in CWD
+
+recon --export-pdf-page 3 report.pdf -o cover.jpg --pdf-quality 75
+recon --export-pdf-page 1 doc.pdf -o cover.webp --pdf-viewport 1920x2715
+```
 
 ## Barcode encoding & decoding
 
@@ -3366,6 +3386,44 @@ md_to_pdf(md, "/tmp/styled.pdf", #{
     toc_title: "Table of Contents",
 });
 ```
+
+### `pdf_export_page`
+
+| Signature | Returns | Description |
+|---|---|---|
+| `pdf_export_page(pdf, page)` | `Blob` | Render page as PNG bytes. |
+| `pdf_export_page(pdf, page, opts)` | `Blob` | Render page; opts map drives format / viewport / scale / quality. |
+| `pdf_export_page(pdf, page, dest)` | `()` | Write to dest path; format from extension. |
+| `pdf_export_page(pdf, page, dest, opts)` | `()` | Write to dest with full options. |
+
+Opts map keys:
+
+| Key | Type | Default | Notes |
+|---|---|---|---|
+| `viewport` | string `"WxH"` | `"1024x1366"` | Chrome CSS-pixel viewport. |
+| `scale` | int | `2` | Device scale factor. |
+| `quality` | int 0–100 | `90` | JPEG/WEBP quality. |
+| `format` | `"png" \| "jpeg" \| "webp"` | inferred from dest extension, else `png` | Explicit override. |
+
+Examples:
+
+```rhai
+// Write PNG, defaults
+pdf_export_page("report.pdf", 1, "/tmp/cover.png");
+
+// Larger WEBP
+pdf_export_page("report.pdf", 1, "/tmp/cover.webp", #{
+    viewport: "1920x2715",
+    scale: 2,
+    quality: 80,
+});
+
+// Return bytes
+let png_bytes = pdf_export_page("report.pdf", 1);
+let jpeg_bytes = pdf_export_page("report.pdf", 1, #{ format: "jpeg", quality: 70 });
+```
+
+Requires `agent-browser` on PATH (same runtime requirement as `html_to_pdf`).
 
 ## AI bindings (`ai::*`)
 
