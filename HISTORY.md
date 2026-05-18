@@ -52,6 +52,35 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 76. PDF page → image export — `--export-pdf-page` (0.81.0)
+
+**What:** New CLI flag `--export-pdf-page <PAGE> <PDF>` that renders a
+single page of a PDF to PNG / JPEG / WEBP. Mirrored as
+`pdf_export_page(pdf, page, [dest], [opts])` in the script engine.
+
+**Why this approach (agent-browser backend):** recon already requires
+`agent-browser` for HTML→PDF generation, so reusing it for PDF→image
+adds no new external-tool surface for users. Considered and rejected:
+- `pdfium-render` — bundling PDFium adds ~10–15 MB to the release
+  binary, or pushes a separate runtime-library install onto users.
+- shelling out to `pdftoppm` (poppler-utils) — zero new Rust deps but
+  a second external CLI to install alongside agent-browser.
+agent-browser drives Chrome, which renders PDFs via the same PDFium
+engine pdfium-render would have linked — net visual fidelity is the
+same.
+
+**What's new internally:**
+- `src/pdf_export.rs` — viewport + format parsing, `RenderOpts`,
+  `render_page()` that drives `agent-browser set viewport → open →
+  wait → screenshot → close` against a `file://…#page=N` URL with
+  Chrome's PDF-viewer UI suppressed via `toolbar=0&navpanes=0&scrollbar=0`.
+- `src/script/bindings/pdf.rs` — Rhai binding mirroring CLI shape.
+- `webp = "0.3"` dependency for the PNG → WEBP transcode (Chrome's
+  screenshot subcommand only emits PNG / JPEG).
+
+**Deferred / out-of-scope:** multi-page export per call, HTTP/stdin
+PDF source, SVG / vector output, page-count introspection.
+
 ### 75. `rquest` → `wreq` dependency migration (0.80.7)
 
 Upstream `rquest` was renamed to `wreq` and every `rquest` crate

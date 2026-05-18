@@ -8,6 +8,29 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.81.0] - 2026-05-18
+
+### Added
+
+- `--export-pdf-page <PAGE> <PDF>` renders a single PDF page to an
+  image. Output defaults to `page-<N>.png`; override via `-o PATH`
+  with format inferred from the extension (`.png`, `.jpg`, `.jpeg`,
+  `.webp`). Tuning flags:
+  - `--pdf-viewport WxH` (default `1024x1366`),
+  - `--pdf-scale N` (default `2`),
+  - `--pdf-quality 0-100` (JPEG/WEBP, default 90),
+  - `--pdf-format png|jpeg|webp` (override extension inference;
+    needed with `-o -` to write to stdout).
+- Script binding `pdf_export_page(pdf, page, [dest], [opts])` with the
+  same options as a map (`viewport`, `scale`, `quality`, `format`).
+  Returns image bytes as a Blob when no destination is supplied.
+- New `--help pdf-export` topic (aliases: `pdf`, `pdf-page`,
+  `pdf-image`, `export-pdf-page`). The previous `pdf` alias on the
+  `docs` topic now points to this richer page.
+- New script demo `script/pdf.rhai`.
+- New dependency: `webp = "0.3"` — pure-Rust libwebp bindings used
+  only for the WEBP transcode step.
+
 ## [0.80.7] - 2026-05-17
 
 ### Changed
