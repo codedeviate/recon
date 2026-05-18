@@ -168,6 +168,18 @@ fn resolve_clipboard(args: &cli::Args) -> Option<ClipboardDir> {
 }
 
 fn main() {
+    // ── SIGPIPE → default (terminate) ────────────────────────────────────────
+    // Rust's std installs SIG_IGN for SIGPIPE on Unix so the first `write` to
+    // a closed pipe surfaces as `BrokenPipe`, which `println!` then turns into
+    // a panic. For a CLI that pipes long output (--examples, --flags, --help)
+    // into pagers / `head`, that panic is just noise. Restoring SIG_DFL means
+    // the reader closing causes a clean exit, the same as `cat /dev/urandom`
+    // behaves when piped to `head`.
+    #[cfg(unix)]
+    unsafe {
+        libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+    }
+
     // ── --help [topic] interception (before clap parses) ─────────────────────
     {
         let args: Vec<String> = std::env::args().collect();
