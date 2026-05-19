@@ -104,8 +104,11 @@ pub fn finish(child: Option<Child>) {
 pub fn finish(_child: Option<()>) {}
 
 /// Resolve the pager command to run. `$PAGER` wins when set and
-/// non-empty, otherwise `less -F -R -X` is used. Shell-split by
-/// whitespace only (no quote handling — $PAGER rarely needs it).
+/// non-empty, otherwise `less -F -R -X` is used. When the local `less`
+/// supports `--mouse` (added in less 530, December 2017), it's
+/// appended to the default args so the wheel scrolls the page instead
+/// of the terminal scrollback. Shell-split by whitespace only (no
+/// quote handling — $PAGER rarely needs it).
 #[cfg(unix)]
 pub fn resolve_command() -> Vec<String> {
     match std::env::var("PAGER") {
@@ -113,13 +116,42 @@ pub fn resolve_command() -> Vec<String> {
             .split_whitespace()
             .map(|p| p.to_string())
             .collect(),
-        _ => vec![
-            "less".to_string(),
-            "-F".to_string(),
-            "-R".to_string(),
-            "-X".to_string(),
-        ],
+        _ => {
+            let mut cmd = vec![
+                "less".to_string(),
+                "-F".to_string(),
+                "-R".to_string(),
+                "-X".to_string(),
+            ];
+            if less_supports_mouse() {
+                cmd.push("--mouse".to_string());
+            }
+            cmd
+        }
     }
+}
+
+/// Probe `less --version`'s first line and return true when the major
+/// version is at least 530 (the release that introduced `--mouse`).
+/// Falls back to false on any error — old / missing `less` simply
+/// doesn't get the flag, matching pre-0.81.2 behaviour.
+#[cfg(unix)]
+fn less_supports_mouse() -> bool {
+    Command::new("less")
+        .arg("--version")
+        .output()
+        .ok()
+        .and_then(|out| {
+            if !out.status.success() {
+                return None;
+            }
+            // "less 668 (POSIX regular expressions)\n..."
+            let text = String::from_utf8_lossy(&out.stdout);
+            let first = text.lines().next()?;
+            first.split_whitespace().nth(1)?.parse::<u32>().ok()
+        })
+        .map(|v| v >= 530)
+        .unwrap_or(false)
 }
 
 /// Check raw argv for `--no-pager`, used during the pre-clap `--help`
@@ -138,14 +170,16 @@ mod tests {
         // Ensure $PAGER is unset for this test. Using set_var is safe in
         // single-threaded test harness; `cargo test` uses threads so we
         // guard with a lock in case other tests touch $PAGER.
-        // Simpler: use a throwaway key and assert against the default.
         let saved = std::env::var("PAGER").ok();
         std::env::remove_var("PAGER");
         let cmd = resolve_command();
         if let Some(v) = saved {
             std::env::set_var("PAGER", v);
         }
-        assert_eq!(cmd, vec!["less", "-F", "-R", "-X"]);
+        // The leading flags are stable; --mouse appears on systems
+        // running less >= 530.
+        assert_eq!(&cmd[..4], &["less", "-F", "-R", "-X"]);
+        assert!(cmd.len() == 4 || (cmd.len() == 5 && cmd[4] == "--mouse"));
     }
 
     #[test]
