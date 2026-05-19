@@ -36,6 +36,20 @@ Then regenerate `docs/MANUAL.pdf` (see exposure-policy section 6 for
 the command). `recon --version` should now report the new version and
 the new date — that's the consistency check.
 
+### Tagging always implies a GitHub release
+
+When you push a `vX.Y.Z` tag, immediately create the matching GitHub
+release:
+
+```sh
+gh release create vX.Y.Z --generate-notes
+```
+
+A tag without a release leaves the GitHub Releases page out of sync
+with tag history and hides the version from anyone browsing the
+repo's front page. Treat the release as part of the tag — same step,
+no follow-up commits needed.
+
 ### README.md badges — keep in sync with reality
 
 The `README.md` header carries six shields.io badges. The release-version
