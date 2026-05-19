@@ -8,6 +8,33 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.81.2] - 2026-05-19
+
+### Fixed
+
+- `--export-pdf-page` produced a solid dark-gray image because Chromium
+  (which `agent-browser` drives) ships without the closed-source PDF
+  viewer plugin and rendered the page as an empty body. Renderer
+  swapped to `pdftoppm` from poppler-utils. Same install-hint pattern
+  as agent-browser; CLI surface (`--export-pdf-page`, `--pdf-viewport`,
+  `--pdf-scale`, `--pdf-quality`, `--pdf-format`) and script binding
+  (`pdf_export_page`) unchanged. Aspect ratio is now preserved
+  (previously stretched to fit the viewport); the `viewport × scale`
+  rectangle is treated as an upper-bound box.
+- `recon --examples` (and `--flags`, `--help`) now scroll with the
+  mouse wheel: when the local `less` is version 530+ (introduced
+  `--mouse`), the flag is appended to the default pager argv. Older
+  `less` still works without `--mouse`.
+
+### Changed
+
+- Out-of-range page numbers (e.g. `--export-pdf-page 999 small.pdf`)
+  produce a clean `page N out of range: PDF has M page(s)` message
+  rather than poppler's raw "Wrong page range given" stderr.
+- Integration tests now assert rendered images aren't flat-color (the
+  exact failure mode 0.81.0 / 0.81.1 silently shipped) and run ~9×
+  faster without the agent-browser daemon's serialisation lock.
+
 ## [0.81.1] - 2026-05-18
 
 ### Fixed

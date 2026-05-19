@@ -52,6 +52,45 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 77. PDF-export backend pivot: agent-browser → `pdftoppm` (0.81.2)
+
+**What:** `--export-pdf-page` switched from `agent-browser` (Chromium
+screenshot of `file://*.pdf`) to a shell-out to `pdftoppm` from
+poppler-utils. CLI surface and script binding unchanged.
+
+**Why:** the 0.81.0 implementation produced a solid dark-gray image
+on every PDF. Investigation in 0.81.2 showed Chromium ships without
+the closed-source PDF viewer plugin (only Chrome-branded builds carry
+it); the open-source build that agent-browser drives navigates to the
+PDF URL successfully but renders an empty `<body>`, leaving the
+viewport's default background as the only thing the screenshot
+captures. The "is this even rendering?" verification step (sample
+pixel variance) was missing from the 0.81.0 integration tests, so the
+defect shipped silently.
+
+The spec's planned HTML-wrapper fallback (`<embed src="…pdf">`) would
+have hit the same wall — Chromium doesn't have the viewer to embed.
+
+**Why pdftoppm vs. pdfium-render or mutool:** all three were on the
+original brainstorm table; `pdftoppm` won the swap for three reasons:
+shell-out matches recon's existing external-tool pattern
+(agent-browser is shelled out, not linked); poppler is ubiquitous on
+both Homebrew (macOS) and apt (Debian/Ubuntu); pdftoppm's
+`-scale-to-x` / `-scale-to-y` flags map cleanly onto the existing
+`--pdf-viewport` / `--pdf-scale` surface so the CLI didn't have to
+change. The `--pdf-viewport` semantics did tighten — aspect ratio is
+now preserved (previously stretched), with the viewport×scale
+rectangle treated as an upper-bound box. Page geometry comes from a
+companion `pdfinfo` call (same poppler package) so the binding can
+compute a fit-within DPI without guessing.
+
+The 0.81.0 `webp` crate dependency stayed; pdftoppm emits PNG / JPEG
+directly, and WEBP is still transcoded in-process the same way.
+
+**Lessons captured in tests:** the new `assert_png_has_content` helper
+scans every 8th pixel and refuses a flat-color result. A 0.81.0-style
+silent-rendering failure would now fail the integration suite.
+
 ### 76. PDF page → image export — `--export-pdf-page` (0.81.0)
 
 **What:** New CLI flag `--export-pdf-page <PAGE> <PDF>` that renders a
