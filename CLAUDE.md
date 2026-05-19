@@ -15,7 +15,7 @@ After every change, bump the version according to these rules:
 - **MINOR** (`0.N+1.0`): new flag or feature added, existing flag removed or significantly changed.
 - **MAJOR** (`N+1.0.0`): breaking changes to existing behaviour (reserved, rare).
 
-### The version number lives in four files — touch ALL of them
+### The version number lives in five files — touch ALL of them
 
 A version bump is incomplete if any of these is missing. They must
 agree exactly: same `X.Y.Z`, same `YYYY-MM-DD`.
@@ -26,6 +26,7 @@ agree exactly: same `X.Y.Z`, same `YYYY-MM-DD`.
 | `src/version.rs` | `const RELEASE_DATE: &str = "YYYY-MM-DD"` |
 | `CHANGELOG.md` | New `## [X.Y.Z] - YYYY-MM-DD` heading at the top, above older versions, under `## [Unreleased]` if present |
 | `docs/MANUAL.md` cover (top of file) | `<div class="version">Version X.Y.Z</div>` and `<div class="date">YYYY-MM-DD</div>` |
+| `README.md` badges header (top of file) | `release-v<X.Y.Z>-blue` in the "Latest release" badge URL |
 
 Group CHANGELOG entries into the keep-a-changelog subsections:
 `### Added`, `### Changed`, `### Fixed`, `### Removed`, `### Deprecated`,
@@ -34,6 +35,27 @@ Group CHANGELOG entries into the keep-a-changelog subsections:
 Then regenerate `docs/MANUAL.pdf` (see exposure-policy section 6 for
 the command). `recon --version` should now report the new version and
 the new date — that's the consistency check.
+
+### README.md badges — keep in sync with reality
+
+The `README.md` header carries six shields.io badges. The release-version
+badge changes every bump (covered by the table above); the others are
+mostly static but need a sync sweep whenever the underlying fact changes.
+The hard rule: **if any of these underlying facts changes, update the
+matching badge in the same commit.**
+
+| Badge | Underlying fact | When to update |
+|---|---|---|
+| `release-vX.Y.Z-blue` | `Cargo.toml` `version` | Every version bump. |
+| `github-codedeviate%2Frecon` | Repo location | Only on repo rename / org change. |
+| `crates.io` | Published crate name (`recon-cli`) | Only if the crate is republished under a new name. |
+| `homebrew-codedeviate%2Fcli%2Frecon` | Tap formula path | Only if the tap or formula is renamed. |
+| `license-MIT-blue` | `LICENSE` file | Only on a license change. |
+| `rust-2021_edition_(MSRV_1.85)` | `Cargo.toml` `edition` + `rust-version` | Whenever `edition` or `rust-version` in `Cargo.toml` changes. |
+
+`README.md` is a six-surface-policy artifact like the others — leaving
+a badge stale (e.g. a Rust MSRV badge that no longer matches
+`rust-version`) is the same class of violation as a stale CHANGELOG.
 
 ### HISTORY.md — only when there's design rationale to capture
 
