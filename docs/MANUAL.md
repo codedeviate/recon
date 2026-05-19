@@ -2,8 +2,8 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.81.1</div>
-<div class="date">2026-05-18</div>
+<div class="version">Version 0.81.2</div>
+<div class="date">2026-05-19</div>
 <div class="meta">
 Repository · https://github.com/codedeviate/recon<br>
 License · MIT
@@ -1029,9 +1029,9 @@ inline `<style>` with `--unsafe-html`.
 
 | Flag | Value | Description |
 |---|---|---|
-| `--export-pdf-page` | `<PAGE> <PDF>` | Render the 1-indexed PAGE of PDF as a raster image. Requires `agent-browser`. |
-| `--pdf-viewport` | `<WxH>` | Chrome viewport in CSS pixels. Default `1024x1366`. |
-| `--pdf-scale` | `<N>` | Device scale factor (≥ 1). Default `2`. |
+| `--export-pdf-page` | `<PAGE> <PDF>` | Render the 1-indexed PAGE of PDF as a raster image. Requires `pdftoppm` (poppler-utils). |
+| `--pdf-viewport` | `<WxH>` | Target image box in pixels. Default `1024x1366`. Aspect is preserved — this is an upper-bound box. |
+| `--pdf-scale` | `<N>` | Density multiplier (≥ 1). Default `2`. Final image fits within `W*N × H*N` px. |
 | `--pdf-quality` | `<0-100>` | JPEG/WEBP quality. Default `90`. |
 | `--pdf-format` | `<png\|jpeg\|webp>` | Override output format inference. |
 
@@ -3423,7 +3423,9 @@ let png_bytes = pdf_export_page("report.pdf", 1);
 let jpeg_bytes = pdf_export_page("report.pdf", 1, #{ format: "jpeg", quality: 70 });
 ```
 
-Requires `agent-browser` on PATH (same runtime requirement as `html_to_pdf`).
+Requires `pdftoppm` (poppler-utils) on PATH. Install via
+`brew install poppler` (macOS) or `apt install poppler-utils`
+(Debian/Ubuntu).
 
 ## AI bindings (`ai::*`)
 

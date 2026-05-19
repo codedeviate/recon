@@ -1962,10 +1962,11 @@ static TOPIC_PDF_EXPORT: Topic = Topic {
     title: "PDF page → image export",
     description: "`--export-pdf-page <PAGE> <PDF>` renders a single page of a PDF\n\
                   to a raster image (PNG / JPEG / WEBP). Rendering runs through\n\
-                  agent-browser (Chrome's PDF viewer); the same external tool\n\
-                  recon already uses for HTML → PDF. The viewport flags drive\n\
-                  the output image size in CSS pixels; --pdf-scale multiplies\n\
-                  for higher-density output.\n\
+                  `pdftoppm` from the poppler-utils suite (`brew install poppler`\n\
+                  on macOS; `apt install poppler-utils` on Debian/Ubuntu).\n\
+                  The viewport flag defines an upper-bound target box; pdftoppm\n\
+                  rasterizes the page at the highest DPI that fits, preserving\n\
+                  aspect. `--pdf-scale` multiplies for higher pixel density.\n\
                   \n\
                   Output path: -o PATH (extension picks the format), or\n\
                   default `page-<N>.png` in CWD. Use -o - to stream the image\n\
@@ -1974,11 +1975,11 @@ static TOPIC_PDF_EXPORT: Topic = Topic {
                   Script equivalent: `pdf_export_page(pdf, page, dest, opts)`\n\
                   or `pdf_export_page(pdf, page, opts)` returning a Blob.",
     flags: &[
-        FlagHelp { flags: "--export-pdf-page <PAGE> <PDF>", description: "Export the 1-indexed PAGE of PDF as an image.\nPDF is a local path. Requires agent-browser." },
+        FlagHelp { flags: "--export-pdf-page <PAGE> <PDF>", description: "Export the 1-indexed PAGE of PDF as an image.\nPDF is a local path. Requires `pdftoppm`." },
         FlagHelp { flags: "-o / --output <PATH>", description: "Destination path. Extension picks format\n(.png / .jpg / .jpeg / .webp). `-` writes to stdout.\nDefault: page-<N>.png in CWD." },
         FlagHelp { flags: "--pdf-format <FMT>", description: "Override format inference: png / jpeg / webp.\nUseful with -o - (no extension to sniff)." },
-        FlagHelp { flags: "--pdf-viewport <WxH>", description: "Chrome viewport in CSS pixels. Default 1024x1366." },
-        FlagHelp { flags: "--pdf-scale <N>", description: "Device scale factor (>= 1). Default 2.\nFinal image is ~ W*N × H*N pixels." },
+        FlagHelp { flags: "--pdf-viewport <WxH>", description: "Target image box in pixels. Default 1024x1366.\nAspect is preserved; this is an upper-bound box." },
+        FlagHelp { flags: "--pdf-scale <N>", description: "Density multiplier (>= 1). Default 2.\nFinal image fits within (W*N × H*N) px." },
         FlagHelp { flags: "--pdf-quality <0-100>", description: "JPEG/WEBP quality. Ignored for PNG. Default 90." },
     ],
     related: &["--md-to-pdf", "--html-to-pdf", "-o / --output"],

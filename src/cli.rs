@@ -1653,7 +1653,7 @@ pub struct Args {
     /// local path. Output defaults to `page-<N>.png` in the current
     /// directory; override with `-o PATH`. Format is inferred from the
     /// `-o` extension (png / jpg / jpeg / webp) or set explicitly with
-    /// `--pdf-format`. Requires agent-browser on PATH.
+    /// `--pdf-format`. Requires `pdftoppm` (poppler-utils) on PATH.
     #[arg(
         long = "export-pdf-page",
         value_names = ["PAGE", "PDF"],
@@ -1662,7 +1662,7 @@ pub struct Args {
     )]
     pub export_pdf_page: Option<Vec<String>>,
 
-    /// Viewport size `WxH` (CSS px) for --export-pdf-page. Default 1024x1366.
+    /// Target image box `WxH` (px) for --export-pdf-page. Default 1024x1366.
     #[arg(long = "pdf-viewport", value_name = "WxH", help_heading = "Docs")]
     pub pdf_viewport: Option<String>,
 

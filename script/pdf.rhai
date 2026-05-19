@@ -16,7 +16,7 @@ try {
     print(`png: wrote ${png_path}`);
 } catch(e) {
     print(`png: skipped (${e})`);
-    return 0;  // agent-browser missing — skip the rest
+    return 0;  // pdftoppm missing — skip the rest
 }
 
 // 2. JPEG at custom quality + larger viewport.

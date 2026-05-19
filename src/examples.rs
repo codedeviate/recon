@@ -1372,7 +1372,7 @@ recon --rekey \
         "recon --export-pdf-page 1 docs/MANUAL.pdf --pdf-format png -o - | open -f -a Preview",
     ]);
 
-    note("Renders via agent-browser (Chrome's PDF viewer). The viewport flag sets Chrome's CSS-pixel viewport; --pdf-scale multiplies for higher pixel density. WEBP output is encoded in-process via the `webp` crate (Chrome screenshots WEBP-natively in some builds; recon transcodes from PNG for portability).");
+    note("Renders via `pdftoppm` (poppler-utils). The viewport flag defines an upper-bound box; pdftoppm rasterizes the page preserving aspect at the highest DPI that still fits, then --pdf-scale multiplies for higher pixel density. PNG / JPEG come from pdftoppm directly; WEBP output is encoded in-process via the `webp` crate. Install via `brew install poppler` (macOS) or `apt install poppler-utils` (Debian/Ubuntu).");
 
     section("SCRIPT TCP / UDP SERVERS (0.57.0)");
 
