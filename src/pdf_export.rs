@@ -153,21 +153,121 @@ pub fn png_to_webp(png_bytes: &[u8], quality: u32) -> Result<Vec<u8>> {
 }
 
 use std::path::PathBuf;
+use std::process::Command;
+
+/// Whether `pdftoppm` is reachable on PATH. Used by the binding and by
+/// integration tests that gate on the renderer's availability.
+pub fn pdftoppm_available() -> bool {
+    Command::new("pdftoppm")
+        .arg("-v")
+        .output()
+        .map(|o| o.status.success() || !o.stderr.is_empty())
+        .unwrap_or(false)
+}
+
+/// Per-page geometry returned by `pdfinfo`.
+struct PageInfo {
+    total_pages: u32,
+    width_pts: f64,
+    height_pts: f64,
+}
+
+/// Run `pdfinfo` (optionally limited to a single page) and capture
+/// stdout. `page` is `None` for a top-level call (returns total pages
+/// and page-1 size) or `Some(N)` to ask for page N's geometry.
+fn run_pdfinfo(pdf: &Path, page: Option<u32>) -> Result<String> {
+    let mut cmd = Command::new("pdfinfo");
+    if let Some(n) = page {
+        let s = n.to_string();
+        cmd.args(["-f", &s, "-l", &s]);
+    }
+    let out = cmd.arg(pdf).output().context("spawn pdfinfo")?;
+    if !out.status.success() {
+        return Err(anyhow!(
+            "pdfinfo failed: {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        ));
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
+/// Pull `Pages: <n>` from a pdfinfo dump.
+fn parse_total_pages(s: &str) -> Option<u32> {
+    s.lines()
+        .find_map(|l| l.strip_prefix("Pages:"))
+        .and_then(|rest| rest.trim().parse().ok())
+}
+
+/// Pull `Page <n> size:  W x H pts (...)` from a pdfinfo dump.
+fn parse_page_size(s: &str) -> Option<(f64, f64)> {
+    for line in s.lines() {
+        if let Some(rest) = line.strip_prefix("Page") {
+            if let Some(idx) = rest.find("size:") {
+                let geom = &rest[idx + "size:".len()..];
+                if let Some(pts_idx) = geom.find("pts") {
+                    let pair = geom[..pts_idx].trim();
+                    if let Some((w, h)) = pair.split_once('x') {
+                        if let (Ok(w), Ok(h)) =
+                            (w.trim().parse::<f64>(), h.trim().parse::<f64>())
+                        {
+                            return Some((w, h));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Resolve total page count + the requested page's geometry. The
+/// total-pages query runs first so we can reject out-of-range pages
+/// with a clean message before pdfinfo's per-page call complains
+/// about "Wrong page range given".
+fn pdfinfo_page(pdf: &Path, page: u32) -> Result<PageInfo> {
+    let top = run_pdfinfo(pdf, None)?;
+    let total_pages =
+        parse_total_pages(&top).context("pdfinfo: Pages: line missing")?;
+    if page > total_pages {
+        return Err(anyhow!(
+            "page {} out of range: PDF has {} page(s)",
+            page,
+            total_pages
+        ));
+    }
+    // Page sizes are usually uniform; ask pdfinfo for this specific
+    // page's geometry so mixed-size PDFs render correctly.
+    let per_page = run_pdfinfo(pdf, Some(page))?;
+    let (width_pts, height_pts) = parse_page_size(&per_page)
+        .or_else(|| parse_page_size(&top))
+        .context("pdfinfo: page size line missing")?;
+    if width_pts <= 0.0 || height_pts <= 0.0 {
+        return Err(anyhow!(
+            "pdfinfo: page {page} has invalid dimensions {width_pts} x {height_pts}"
+        ));
+    }
+    Ok(PageInfo {
+        total_pages,
+        width_pts,
+        height_pts,
+    })
+}
 
 /// Render `opts.page` of the PDF at `pdf_path` and return the bytes in
 /// the format specified by `opts.format`. Caller is responsible for
 /// writing the bytes to disk or stdout.
 ///
-/// Flow: set viewport → open file://…#page=N → wait → screenshot → close.
-/// Always closes the agent-browser session, even on error, so a hung
-/// invocation doesn't leak a session.
+/// Flow: pdfinfo for page geometry → compute fit-within DPI from
+/// `viewport × scale` → `pdftoppm -singlefile -r DPI` → read result →
+/// transcode to WEBP if requested. Aspect ratio is preserved; the
+/// `viewport` × `scale` rectangle is treated as an upper bound, and
+/// the page is scaled so the longer dimension matches.
 pub fn render_page(pdf_path: &Path, opts: &RenderOpts) -> Result<Vec<u8>> {
-    let state = crate::agent_browser::state_snapshot();
-    if !state.available {
+    if !pdftoppm_available() {
         return Err(anyhow!(
-            "PDF-page export needs agent-browser (which renders the PDF in Chrome). \
-             Install via `brew install agent-browser` or \
-             `npm install -g agent-browser` and retry."
+            "PDF-page export needs `pdftoppm` (from poppler-utils). \
+             Install via `brew install poppler` (macOS) or \
+             `apt install poppler-utils` (Debian/Ubuntu) and retry."
         ));
     }
 
@@ -181,67 +281,83 @@ pub fn render_page(pdf_path: &Path, opts: &RenderOpts) -> Result<Vec<u8>> {
     let abs = pdf_path
         .canonicalize()
         .with_context(|| format!("PDF not found: {}", pdf_path.display()))?;
-    let abs_str = abs.to_str().context("PDF path is not UTF-8")?;
-    let url = format!(
-        "file://{abs_str}#page={page}&toolbar=0&navpanes=0&scrollbar=0&view=Fit",
-        page = opts.page
-    );
 
-    // Output for agent-browser screenshot. We need a tempfile because
-    // agent-browser writes to a path; we read it back as bytes.
+    let info = pdfinfo_page(&abs, opts.page)?;
+    if opts.page > info.total_pages {
+        return Err(anyhow!(
+            "page {} out of range: PDF has {} page(s)",
+            opts.page,
+            info.total_pages
+        ));
+    }
+
+    // Fit-within DPI: pick the smaller of the two so neither dimension
+    // overflows the requested box. 72 pts = 1 inch.
+    let box_w = (opts.viewport_w as u64 * opts.scale as u64) as f64;
+    let box_h = (opts.viewport_h as u64 * opts.scale as u64) as f64;
+    let dpi_x = box_w * 72.0 / info.width_pts;
+    let dpi_y = box_h * 72.0 / info.height_pts;
+    let dpi = dpi_x.min(dpi_y).max(1.0).round() as u32;
+
     let capture_fmt = match opts.format {
         OutputFormat::Webp => OutputFormat::Png, // transcode after
         other => other,
     };
-    let tmp = tempfile::Builder::new()
+
+    let tmpdir = tempfile::Builder::new()
         .prefix("recon-pdf-page-")
-        .suffix(&format!(".{}", capture_fmt.default_extension()))
-        .tempfile()
-        .context("create capture tempfile")?;
-    let tmp_path: PathBuf = tmp.path().to_path_buf();
-    let tmp_str = tmp_path.to_str().context("tempfile path is not UTF-8")?;
+        .tempdir()
+        .context("create render tempdir")?;
+    let prefix_path = tmpdir.path().join("page");
+    let prefix_str = prefix_path.to_str().context("tempdir path is not UTF-8")?;
+    let abs_str = abs.to_str().context("PDF path is not UTF-8")?;
+    let page_str = opts.page.to_string();
+    let dpi_str = dpi.to_string();
 
-    let w = opts.viewport_w.to_string();
-    let h = opts.viewport_h.to_string();
-    let scale = opts.scale.to_string();
-    let quality = opts.quality.min(100).to_string();
-    let wait_ms = "500"; // see spec §6 — Chrome layout settle time
-
-    let drive = || -> Result<()> {
-        crate::agent_browser::run_cmd(&["set", "viewport", &w, &h, &scale], false)
-            .context("agent-browser set viewport")?;
-        crate::agent_browser::run_cmd(&["open", &url], false)
-            .context("agent-browser open")?;
-        // wait <ms>: agent-browser's wait takes either a selector or a
-        // numeric millisecond count.
-        let _ = crate::agent_browser::run_cmd(&["wait", wait_ms], false);
-        let fmt_arg = match capture_fmt {
-            OutputFormat::Png => "png",
-            OutputFormat::Jpeg => "jpeg",
-            OutputFormat::Webp => unreachable!("captured as png"),
-        };
-        let mut shot_args: Vec<&str> = vec![
-            "screenshot",
-            "--full",
-            "--screenshot-format",
-            fmt_arg,
-        ];
-        if matches!(capture_fmt, OutputFormat::Jpeg) {
-            shot_args.push("--screenshot-quality");
-            shot_args.push(&quality);
+    let mut args: Vec<String> = vec![
+        "-f".into(),
+        page_str.clone(),
+        "-l".into(),
+        page_str,
+        "-singlefile".into(),
+        "-r".into(),
+        dpi_str,
+    ];
+    let jpeg_quality_arg;
+    match capture_fmt {
+        OutputFormat::Png => args.push("-png".into()),
+        OutputFormat::Jpeg => {
+            args.push("-jpeg".into());
+            jpeg_quality_arg = format!("quality={}", opts.quality.min(100));
+            args.push("-jpegopt".into());
+            args.push(jpeg_quality_arg);
         }
-        shot_args.push(tmp_str);
-        crate::agent_browser::run_cmd(&shot_args, false)
-            .context("agent-browser screenshot")?;
-        Ok(())
+        OutputFormat::Webp => unreachable!("captured as png"),
+    }
+    args.push(abs_str.to_string());
+    args.push(prefix_str.to_string());
+
+    let out = Command::new("pdftoppm")
+        .args(&args)
+        .output()
+        .context("spawn pdftoppm")?;
+    if !out.status.success() {
+        return Err(anyhow!(
+            "pdftoppm failed: {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        ));
+    }
+
+    let out_ext = match capture_fmt {
+        OutputFormat::Png => "png",
+        OutputFormat::Jpeg => "jpg",
+        OutputFormat::Webp => unreachable!(),
     };
+    let out_path = prefix_path.with_extension(out_ext);
+    let captured = std::fs::read(&out_path).with_context(|| {
+        format!("read pdftoppm output '{}'", out_path.display())
+    })?;
 
-    let result = drive();
-    // Always close.
-    let _ = crate::agent_browser::run_cmd(&["close"], false);
-    result?;
-
-    let captured = std::fs::read(&tmp_path).context("read screenshot tempfile")?;
     if matches!(opts.format, OutputFormat::Webp) {
         png_to_webp(&captured, opts.quality)
     } else {
