@@ -7,6 +7,26 @@ after wiring up CLI flags, after updating docs — create a git commit. Small,
 focused commits make it easy to revert a specific step without losing unrelated
 work. Don't batch everything into one commit at the end.
 
+## Building — release-only by default
+
+When building `recon`, build the **release** target only. Do **not**
+also run `cargo build` (debug) as a follow-up — it doubles compile
+time and disk footprint for no benefit in the normal verify-a-change
+workflow. The release binary is what the manual-regen step, the
+post-merge sanity check, and the user's day-to-day invocations all use.
+
+Build the debug target only when:
+
+- the user explicitly asks for it ("build debug", "give me a debug
+  build", etc.), or
+- a debug-only workflow requires it (e.g. running `cargo test` without
+  `--release`, attaching a debugger, or chasing a bug that only
+  reproduces in the dev profile).
+
+Both feature variants of the release build still apply per the
+post-merge hygiene section — `cargo build --release` and
+`cargo build --release --features impersonate`.
+
 ## Version Bumping
 
 After every change, bump the version according to these rules:
