@@ -8,6 +8,16 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.81.3] - 2026-05-20
+
+### Changed
+
+- `CLAUDE.md` build policy: build the release target only by default;
+  the debug target is built only on explicit request or when a
+  debug-only workflow (e.g. `cargo test` without `--release`, debugger
+  attach) requires it. Halves the build-and-verify time and disk
+  footprint for routine changes.
+
 ## [0.81.2] - 2026-05-19
 
 ### Fixed
