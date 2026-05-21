@@ -5,6 +5,7 @@
 //! sibling modules. Entry point: `run(&args)` returns the process exit
 //! code.
 
+mod multiline;
 mod print;
 
 use crate::cli::Args;
