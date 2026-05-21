@@ -5,6 +5,8 @@
 //! sibling modules. Entry point: `run(&args)` returns the process exit
 //! code.
 
+mod print;
+
 use crate::cli::Args;
 
 pub fn run(_args: &Args) -> i32 {
