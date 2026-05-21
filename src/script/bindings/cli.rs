@@ -80,6 +80,50 @@ pub fn build_flags_map(args: &Args) -> Map {
     m
 }
 
+/// Same shape as `build_flags_map`, but built from `ScriptDefaults`
+/// instead of `Args`. Used by the REPL's `:set` to rebuild the `flags`
+/// scope binding after a mutation. Keys and value types must match
+/// `build_flags_map` exactly so user Rhai code sees consistent shape
+/// regardless of how the map was built.
+pub fn build_flags_from_defaults(d: &crate::script::defaults::ScriptDefaults) -> Map {
+    let mut m = Map::new();
+
+    let headers: Array = d.headers.iter().map(|h| Dynamic::from(h.clone())).collect();
+    m.insert("headers".into(), headers.into());
+    m.insert("insecure".into(), d.insecure.into());
+    m.insert("connect_timeout".into(), (d.connect_timeout as i64).into());
+    m.insert("follow_redirects".into(), d.follow_redirects.into());
+    m.insert("max_redirs".into(), (d.max_redirs as i64).into());
+    m.insert("verbose".into(), (d.verbose as i64).into());
+    m.insert("wait_time".into(), d.wait_time.into());
+    m.insert("ping_count".into(), (d.ping_count as i64).into());
+    m.insert("max_hops".into(), (d.max_hops as i64).into());
+
+    m.insert("max_time".into(), opt_f64(d.max_time));
+    m.insert("user_agent".into(), opt_string(d.user_agent.as_deref()));
+    m.insert("referer".into(), opt_string(d.referer.as_deref()));
+    m.insert("user".into(), opt_string(d.user.as_deref()));
+    m.insert("method".into(), opt_string(d.method.as_deref()));
+    // `data` and `output` are not in ScriptDefaults (they're per-request,
+    // not defaults). Keep keys present as Unit for shape consistency:
+    m.insert("data".into(), Dynamic::UNIT);
+    m.insert("output".into(), Dynamic::UNIT);
+    m.insert("tlsv12".into(), d.tlsv12.into());
+    m.insert("tlsv13".into(), d.tlsv13.into());
+    m.insert(
+        "cacert".into(),
+        opt_string(
+            d.cacert
+                .as_ref()
+                .map(|p| p.to_string_lossy().into_owned())
+                .as_deref(),
+        ),
+    );
+    m.insert("interface".into(), opt_string(d.interface.as_deref()));
+
+    m
+}
+
 fn opt_string(v: Option<&str>) -> Dynamic {
     match v {
         Some(s) => s.to_string().into(),

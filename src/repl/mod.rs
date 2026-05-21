@@ -216,6 +216,10 @@ pub(super) fn run_script_isolated(
         .map_err(|e| e.to_string())
 }
 
+pub(super) fn build_flags_from_defaults(d: &ScriptDefaults) -> rhai::Map {
+    crate::script::bindings::cli::build_flags_from_defaults(d)
+}
+
 fn default_history_path() -> PathBuf {
     std::env::var_os("HOME")
         .map(PathBuf::from)

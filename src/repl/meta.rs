@@ -48,10 +48,11 @@ pub fn dispatch(line: &str, state: &mut ReplState) -> Outcome {
         }
         "load" => { cmd_load(state, rest); Outcome::Continue }
         "run" => { cmd_run(state, rest); Outcome::Continue }
+        "set" => { cmd_set(state, rest); Outcome::Continue }
         // Commands defined in later tasks; emit a clear "not yet" so
         // the wiring is visible even before they're implemented:
-        "set" | "paste" | "save" | "history" | "edit" | "time" => {
-            eprintln!("error: :{cmd} not implemented in this build (coming in Task 10-13)");
+        "paste" | "save" | "history" | "edit" | "time" => {
+            eprintln!("error: :{cmd} not implemented in this build (coming in Task 11-12)");
             Outcome::Continue
         }
         bang if bang.starts_with('!') => {
@@ -188,6 +189,72 @@ fn cmd_run(state: &ReplState, rest: &str) {
         }
         Err(e) => eprintln!("error: {e}"),
     }
+}
+
+fn cmd_set(state: &mut ReplState, rest: &str) {
+    let (key, value) = match rest.split_once(char::is_whitespace) {
+        Some((k, v)) => (k, v.trim()),
+        None => {
+            eprintln!(
+                "error: usage :set <key> <value>. Keys: method, header, timeout, user-agent, autoprint"
+            );
+            return;
+        }
+    };
+    match key {
+        "autoprint" => match value {
+            "on" | "true" | "1" => {
+                state.autoprint = true;
+                println!("autoprint = on");
+            }
+            "off" | "false" | "0" => {
+                state.autoprint = false;
+                println!("autoprint = off");
+            }
+            _ => eprintln!("error: :set autoprint on|off"),
+        },
+        "method" => {
+            state.defaults.method = Some(value.to_uppercase());
+            rebuild_flags(state);
+            println!("method = {}", value.to_uppercase());
+        }
+        "header" => {
+            if !value.contains(':') {
+                eprintln!("error: :set header expects 'Name: value', got '{value}'");
+                return;
+            }
+            state.defaults.headers.push(value.to_string());
+            rebuild_flags(state);
+            println!("header added: {value}");
+        }
+        "timeout" => match value.parse::<u64>() {
+            Ok(n) => {
+                state.defaults.connect_timeout = n;
+                rebuild_flags(state);
+                println!("timeout = {n}s");
+            }
+            Err(_) => eprintln!("error: :set timeout expects a number of seconds"),
+        },
+        "user-agent" => {
+            state.defaults.user_agent = Some(value.to_string());
+            rebuild_flags(state);
+            println!("user-agent = {value}");
+        }
+        other => {
+            eprintln!(
+                "error: unknown key '{other}'. Allowed: method, header, timeout, user-agent, autoprint"
+            );
+        }
+    }
+}
+
+fn rebuild_flags(state: &mut ReplState) {
+    // `flags` was pushed as a constant (ReadOnly) so we cannot use
+    // `set_value` — that would panic. Instead, push a new constant with
+    // the same name. Rhai's Scope searches from the most-recent entry
+    // backwards, so the new binding shadows the old one transparently.
+    let new_flags = super::build_flags_from_defaults(&state.defaults);
+    state.scope.push_constant("flags", new_flags);
 }
 
 fn resolve_script_path(rest: &str) -> Result<std::path::PathBuf, String> {
