@@ -9,10 +9,12 @@
 
 use super::ReplState;
 
-/// Outcome of a meta-command. `Quit` ends the REPL.
+/// Outcome of a meta-command. `Quit` ends the REPL. `Paste` signals
+/// the main loop to enter multi-line paste mode.
 pub enum Outcome {
     Continue,
     Quit,
+    Paste,
 }
 
 /// Parse and dispatch a single meta-command line (including the leading
@@ -49,14 +51,15 @@ pub fn dispatch(line: &str, state: &mut ReplState) -> Outcome {
         "load" => { cmd_load(state, rest); Outcome::Continue }
         "run" => { cmd_run(state, rest); Outcome::Continue }
         "set" => { cmd_set(state, rest); Outcome::Continue }
-        // Commands defined in later tasks; emit a clear "not yet" so
-        // the wiring is visible even before they're implemented:
-        "paste" | "save" | "history" | "edit" | "time" => {
-            eprintln!("error: :{cmd} not implemented in this build (coming in Task 11-12)");
+        "paste" => Outcome::Paste,
+        "save" => { cmd_save(state, rest); Outcome::Continue }
+        "history" => { cmd_history(state, rest); Outcome::Continue }
+        "edit" | "time" => {
+            eprintln!("error: :{cmd} not implemented in this build (coming in Task 12)");
             Outcome::Continue
         }
         bang if bang.starts_with('!') => {
-            eprintln!("error: :!N (history rerun) not implemented yet");
+            cmd_rerun(state, &bang[1..]);
             Outcome::Continue
         }
         unknown => {
@@ -255,6 +258,58 @@ fn rebuild_flags(state: &mut ReplState) {
     // backwards, so the new binding shadows the old one transparently.
     let new_flags = super::build_flags_from_defaults(&state.defaults);
     state.scope.push_constant("flags", new_flags);
+}
+
+fn cmd_save(state: &ReplState, rest: &str) {
+    if rest.is_empty() {
+        eprintln!("error: usage :save <path>");
+        return;
+    }
+    let header = format!(
+        "// recon REPL session — {} epoch s\n\n",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0)
+    );
+    let body = state.history.join("\n");
+    if let Err(e) = std::fs::write(rest, format!("{header}{body}\n")) {
+        eprintln!("error: write {rest}: {e}");
+    } else {
+        println!("saved {} entries to {rest}", state.history.len());
+    }
+}
+
+fn cmd_history(state: &ReplState, rest: &str) {
+    let n: usize = if rest.is_empty() {
+        20
+    } else {
+        rest.parse().unwrap_or(20)
+    };
+    let start = state.history.len().saturating_sub(n);
+    for (i, line) in state.history.iter().enumerate().skip(start) {
+        println!("  {:4}  {}", i + 1, line.replace('\n', " ⏎ "));
+    }
+    if state.history.is_empty() {
+        println!("(empty)");
+    }
+}
+
+fn cmd_rerun(state: &mut ReplState, n_str: &str) {
+    let n: usize = match n_str.parse() {
+        Ok(n) if n >= 1 => n,
+        _ => {
+            eprintln!("error: :!N expects a 1-based index, got '{n_str}'");
+            return;
+        }
+    };
+    let idx = n - 1;
+    let Some(line) = state.history.get(idx).cloned() else {
+        eprintln!("error: no history entry {n} (have {})", state.history.len());
+        return;
+    };
+    println!("(rerun) {line}");
+    super::eval_and_print_load(state, &line);
 }
 
 fn resolve_script_path(rest: &str) -> Result<std::path::PathBuf, String> {

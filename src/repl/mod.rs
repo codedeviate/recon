@@ -84,6 +84,10 @@ pub fn run(args: &Args) -> i32 {
                     match meta::dispatch(&line, &mut state) {
                         meta::Outcome::Continue => continue,
                         meta::Outcome::Quit => break,
+                        meta::Outcome::Paste => {
+                            paste_mode(&mut rl, &mut state);
+                            continue;
+                        }
                     }
                 }
                 if !buffer.is_empty() {
@@ -226,4 +230,31 @@ fn default_history_path() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
         .join(".recon")
         .join("repl_history")
+}
+
+fn paste_mode(rl: &mut DefaultEditor, state: &mut ReplState) {
+    eprintln!("(paste mode: lines accumulate until ':end' on its own line)");
+    let mut buf = String::new();
+    loop {
+        match rl.readline("... ") {
+            Ok(line) if line.trim() == ":end" => break,
+            Ok(line) => {
+                if !buf.is_empty() {
+                    buf.push('\n');
+                }
+                buf.push_str(&line);
+            }
+            Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => {
+                eprintln!("(paste aborted)");
+                return;
+            }
+            Err(e) => {
+                eprintln!("error: {e}");
+                return;
+            }
+        }
+    }
+    if !buf.trim().is_empty() {
+        eval_and_print(state, &buf);
+    }
 }
