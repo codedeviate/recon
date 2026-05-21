@@ -113,6 +113,16 @@ release exists:
 curl -sL https://github.com/codedeviate/recon/archive/refs/tags/vX.Y.Z.tar.gz | shasum -a 256
 ```
 
+**Important: GitHub's auto-generated tarball CDN can serve a
+transient/incomplete payload for the first minute or two after the
+tag is pushed.** Run the `shasum` command twice with a short pause
+between, and only proceed if both runs return the same hash. If they
+differ, wait 30–60 seconds and re-check until the hash stabilises.
+Using an unstable hash is the most common cause of "homebrew reports
+wrong checksum" reports after a release — and it produces a confusing
+failure mode where the formula matches what you computed but doesn't
+match what users fetch later. v0.82.0 hit this exact race.
+
 Then commit and push the tap repo:
 
 ```sh
