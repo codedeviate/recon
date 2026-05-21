@@ -163,6 +163,59 @@ fn eval_and_print(state: &mut ReplState, source: &str) {
     }
 }
 
+/// Variant of `eval_and_print` used by `:load`. Identical semantics
+/// (current scope, autoprint applies) but reads source from a string.
+/// Re-exported `pub(super)` because `meta::cmd_load` calls it.
+pub(super) fn eval_and_print_load(state: &mut ReplState, source: &str) {
+    eval_and_print(state, source);
+}
+
+/// Run a script file in a fresh, throwaway scope. Used by `:run`.
+/// Returns the script's final value (or an error). Does not touch
+/// REPL state.
+pub(super) fn run_script_isolated(
+    path: &std::path::Path,
+    defaults: &ScriptDefaults,
+) -> Result<Dynamic, String> {
+    let raw = std::fs::read_to_string(path)
+        .map_err(|e| format!("read {}: {e}", path.display()))?;
+    let source = if raw.starts_with("#!") {
+        format!("//{}", &raw[2..])
+    } else {
+        raw
+    };
+
+    let mut engine = build_engine(defaults);
+    bindings::thread::register_repl_stub(&mut engine);
+
+    let mut scope = Scope::new();
+    scope.push_constant("args", rhai::Array::new());
+    scope.push_constant("flags", rhai::Map::new());
+    scope.push_constant(
+        "script_path",
+        path.to_string_lossy().into_owned(),
+    );
+    scope.push_constant(
+        "script_dir",
+        path.parent()
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_default(),
+    );
+    scope.push_constant(
+        "script_name",
+        path.file_stem()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_default(),
+    );
+
+    let ast = engine
+        .compile_into_self_contained(&scope, &source)
+        .map_err(|e| e.to_string())?;
+    engine
+        .eval_ast_with_scope::<Dynamic>(&mut scope, &ast)
+        .map_err(|e| e.to_string())
+}
+
 fn default_history_path() -> PathBuf {
     std::env::var_os("HOME")
         .map(PathBuf::from)

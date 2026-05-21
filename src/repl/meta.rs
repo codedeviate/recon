@@ -46,10 +46,12 @@ pub fn dispatch(line: &str, state: &mut ReplState) -> Outcome {
             cmd_reset(state);
             Outcome::Continue
         }
+        "load" => { cmd_load(state, rest); Outcome::Continue }
+        "run" => { cmd_run(state, rest); Outcome::Continue }
         // Commands defined in later tasks; emit a clear "not yet" so
         // the wiring is visible even before they're implemented:
-        "load" | "run" | "set" | "paste" | "save" | "history" | "edit" | "time" => {
-            eprintln!("error: :{cmd} not implemented in this build (coming in Task 9-13)");
+        "set" | "paste" | "save" | "history" | "edit" | "time" => {
+            eprintln!("error: :{cmd} not implemented in this build (coming in Task 10-13)");
             Outcome::Continue
         }
         bang if bang.starts_with('!') => {
@@ -149,6 +151,68 @@ fn cmd_reset(state: &mut ReplState) {
     state.scope = fresh;
     state.user_asts.clear();
     println!("(scope cleared)");
+}
+
+fn cmd_load(state: &mut ReplState, rest: &str) {
+    let path = match resolve_script_path(rest) {
+        Ok(p) => p,
+        Err(msg) => {
+            eprintln!("error: {msg}");
+            return;
+        }
+    };
+    let source = match std::fs::read_to_string(&path) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("error: could not read '{}': {e}", path.display());
+            return;
+        }
+    };
+    super::eval_and_print_load(state, &source);
+}
+
+fn cmd_run(state: &ReplState, rest: &str) {
+    let path = match resolve_script_path(rest) {
+        Ok(p) => p,
+        Err(msg) => {
+            eprintln!("error: {msg}");
+            return;
+        }
+    };
+    let result = super::run_script_isolated(&path, &state.defaults);
+    match result {
+        Ok(value) => {
+            if let Some(s) = super::print::format(&value) {
+                println!("{s}");
+            }
+        }
+        Err(e) => eprintln!("error: {e}"),
+    }
+}
+
+fn resolve_script_path(rest: &str) -> Result<std::path::PathBuf, String> {
+    if rest.is_empty() {
+        return Err("usage: :load <path>  or  :run <path>".into());
+    }
+    let literal = std::path::PathBuf::from(rest);
+    if literal.exists() {
+        return Ok(literal);
+    }
+    if let Some(home) = std::env::var_os("HOME") {
+        let home = std::path::PathBuf::from(home);
+        let recon = home.join(".recon").join("script").join(rest);
+        if recon.exists() {
+            return Ok(recon);
+        }
+        if !rest.ends_with(".rhai") {
+            let recon_rhai = home.join(".recon").join("script")
+                .join(format!("{rest}.rhai"));
+            if recon_rhai.exists() {
+                return Ok(recon_rhai);
+            }
+        }
+    }
+    Err(format!("script not found: {rest} (also tried ~/.recon/script/{rest}[.rhai])"))
 }
 
 #[cfg(test)]
