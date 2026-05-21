@@ -5,9 +5,9 @@
 //! the scope; `fn` definitions persist via AST accumulation (merged
 //! into each newly compiled AST before eval).
 
+mod meta;
 mod multiline;
 mod print;
-// `meta` arrives in Task 8.
 
 use crate::cli::Args;
 use crate::script::{bindings, defaults::ScriptDefaults, engine::build_engine};
@@ -16,16 +16,16 @@ use rustyline::error::ReadlineError;
 use rustyline::{Config, DefaultEditor};
 use std::path::PathBuf;
 
-struct ReplState {
-    engine: rhai::Engine,
-    scope: Scope<'static>,
-    user_asts: Vec<AST>,
-    autoprint: bool,
-    history: Vec<String>,
+pub(super) struct ReplState {
+    pub(super) engine: rhai::Engine,
+    pub(super) scope: Scope<'static>,
+    pub(super) user_asts: Vec<AST>,
+    pub(super) autoprint: bool,
+    pub(super) history: Vec<String>,
     #[allow(dead_code)] // used by :set in Task 10
-    defaults: ScriptDefaults,
+    pub(super) defaults: ScriptDefaults,
     #[allow(dead_code)] // used by :save in Task 11
-    history_path: PathBuf,
+    pub(super) history_path: PathBuf,
 }
 
 pub fn run(args: &Args) -> i32 {
@@ -79,10 +79,12 @@ pub fn run(args: &Args) -> i32 {
         let prompt = if buffer.is_empty() { ">>> " } else { "... " };
         match rl.readline(prompt) {
             Ok(line) => {
-                // Meta-command handling arrives in Task 8. For now,
-                // only :quit is recognized so the loop can exit cleanly.
-                if buffer.is_empty() && line.trim() == ":quit" {
-                    break;
+                // Empty buffer + meta-command → dispatch and continue.
+                if buffer.is_empty() && line.trim_start().starts_with(':') {
+                    match meta::dispatch(&line, &mut state) {
+                        meta::Outcome::Continue => continue,
+                        meta::Outcome::Quit => break,
+                    }
                 }
                 if !buffer.is_empty() {
                     buffer.push('\n');
