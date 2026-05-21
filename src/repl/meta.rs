@@ -54,10 +54,8 @@ pub fn dispatch(line: &str, state: &mut ReplState) -> Outcome {
         "paste" => Outcome::Paste,
         "save" => { cmd_save(state, rest); Outcome::Continue }
         "history" => { cmd_history(state, rest); Outcome::Continue }
-        "edit" | "time" => {
-            eprintln!("error: :{cmd} not implemented in this build (coming in Task 12)");
-            Outcome::Continue
-        }
+        "edit" => { cmd_edit(state); Outcome::Continue }
+        "time" => { cmd_time(state, rest); Outcome::Continue }
         bang if bang.starts_with('!') => {
             cmd_rerun(state, &bang[1..]);
             Outcome::Continue
@@ -335,6 +333,50 @@ fn resolve_script_path(rest: &str) -> Result<std::path::PathBuf, String> {
         }
     }
     Err(format!("script not found: {rest} (also tried ~/.recon/script/{rest}[.rhai])"))
+}
+
+fn cmd_edit(state: &mut ReplState) {
+    let editor = std::env::var("EDITOR").unwrap_or_else(|_| "vi".to_string());
+    let tmp = std::env::temp_dir().join(format!(
+        "recon-repl-{}.rhai",
+        std::process::id()
+    ));
+    // Pre-populate with a hint comment so saving an empty file is a no-op.
+    let _ = std::fs::write(&tmp, "// Type Rhai below. Save and quit your editor to evaluate.\n");
+
+    let status = std::process::Command::new(&editor)
+        .arg(&tmp)
+        .status();
+    match status {
+        Ok(s) if s.success() => {
+            let source = std::fs::read_to_string(&tmp).unwrap_or_default();
+            let _ = std::fs::remove_file(&tmp);
+            // If the only content is the hint comment, treat as empty.
+            let trimmed: String = source
+                .lines()
+                .filter(|l| !l.trim_start().starts_with("//"))
+                .collect::<Vec<_>>()
+                .join("\n");
+            if trimmed.trim().is_empty() {
+                println!("(empty)");
+                return;
+            }
+            super::eval_and_print_load(state, &source);
+        }
+        Ok(s) => eprintln!("error: editor exited with status {s}"),
+        Err(e) => eprintln!("error: could not launch '{editor}': {e}"),
+    }
+}
+
+fn cmd_time(state: &mut ReplState, expr: &str) {
+    if expr.is_empty() {
+        eprintln!("error: usage :time <expr>");
+        return;
+    }
+    let start = std::time::Instant::now();
+    super::eval_and_print_load(state, expr);
+    let elapsed = start.elapsed();
+    println!("elapsed: {:.3?}", elapsed);
 }
 
 #[cfg(test)]
