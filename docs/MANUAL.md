@@ -2,8 +2,8 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.81.3</div>
-<div class="date">2026-05-20</div>
+<div class="version">Version 0.82.0</div>
+<div class="date">2026-05-21</div>
 <div class="meta">
 Repository · https://github.com/codedeviate/recon<br>
 License · MIT
