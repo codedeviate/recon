@@ -98,7 +98,62 @@ pub fn register(engine: &mut Engine, ast: Shared<AST>, defaults: ScriptDefaults)
         },
     );
 
-    // ── join ──────────────────────────────────────────────────────
+    register_join_and_channels(engine);
+}
+
+/// REPL-mode variant of `register`. Registers everything `register` does
+/// **except** `thread_spawn`, which is replaced with a stub that returns
+/// a clear error. The script engine's spawn needs a `Shared<AST>` handle
+/// to dispatch into; the REPL has no single static AST, so threading is
+/// disabled there. Channels, sleep, tid, and join still work for any
+/// pre-existing `ThreadHandle`s (in practice unreachable, but harmless).
+pub fn register_repl_stub(engine: &mut Engine) {
+    // Same type registrations as `register`.
+    engine.register_type_with_name::<ThreadHandle>("ThreadHandle");
+    engine.register_type_with_name::<RhaiSender>("RhaiSender");
+    engine.register_type_with_name::<RhaiReceiver>("RhaiReceiver");
+
+    // tid + sleep don't need the AST — register as-is.
+    engine.register_fn("tid", || -> i64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        thread::current().id().hash(&mut h);
+        (h.finish() as i64).abs()
+    });
+    engine.register_fn("sleep", |ms: i64| {
+        if ms > 0 {
+            thread::sleep(Duration::from_millis(ms as u64));
+        }
+    });
+
+    // thread_spawn — all three overloads error out identically.
+    engine.register_fn(
+        "thread_spawn",
+        |_f: FnPtr| -> Result<ThreadHandle, Box<EvalAltResult>> {
+            Err(err("thread_spawn is not available in REPL mode (script-only)"))
+        },
+    );
+    engine.register_fn(
+        "thread_spawn",
+        |_f: FnPtr, _a: Dynamic| -> Result<ThreadHandle, Box<EvalAltResult>> {
+            Err(err("thread_spawn is not available in REPL mode (script-only)"))
+        },
+    );
+    engine.register_fn(
+        "thread_spawn",
+        |_f: FnPtr, _a: Array| -> Result<ThreadHandle, Box<EvalAltResult>> {
+            Err(err("thread_spawn is not available in REPL mode (script-only)"))
+        },
+    );
+
+    // join, channel, send, recv — these don't need the AST either.
+    register_join_and_channels(engine);
+}
+
+/// Helper shared by `register` and `register_repl_stub`. Registers the
+/// AST-independent surface: join, channel, send, recv. Both entry points
+/// call this so the surface stays in sync.
+fn register_join_and_channels(engine: &mut Engine) {
     engine.register_fn(
         "join",
         |h: &mut ThreadHandle| -> Result<Dynamic, Box<EvalAltResult>> {
@@ -120,7 +175,6 @@ pub fn register(engine: &mut Engine, ast: Shared<AST>, defaults: ScriptDefaults)
         },
     );
 
-    // ── channels ──────────────────────────────────────────────────
     engine.register_fn("channel", || -> Array {
         let (tx, rx) = mpsc::channel::<Dynamic>();
         vec![
@@ -187,9 +241,7 @@ pub fn register(engine: &mut Engine, ast: Shared<AST>, defaults: ScriptDefaults)
                 .inner
                 .lock()
                 .map_err(|_| err("recv: receiver mutex poisoned"))?;
-            guard
-                .recv()
-                .map_err(|_| err("recv: all senders dropped"))
+            guard.recv().map_err(|_| err("recv: all senders dropped"))
         },
     );
 
@@ -302,5 +354,32 @@ recv(rx, 10)
 "#,
         );
         assert!(res.is_err());
+    }
+}
+
+#[cfg(test)]
+mod repl_stub_tests {
+    use super::*;
+    use rhai::Engine;
+
+    #[test]
+    fn thread_spawn_errors_in_repl_mode() {
+        let mut engine = Engine::new();
+        register_repl_stub(&mut engine);
+        let err = engine
+            .eval::<rhai::Dynamic>(r#"thread_spawn(|| { 1 })"#)
+            .unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("not available in REPL mode"),
+            "unexpected error: {msg}"
+        );
+    }
+
+    #[test]
+    fn sleep_still_works_in_repl_mode() {
+        let mut engine = Engine::new();
+        register_repl_stub(&mut engine);
+        engine.eval::<()>("sleep(1)").expect("sleep should work");
     }
 }
