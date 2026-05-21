@@ -119,7 +119,7 @@ Then commit and push the tap repo:
 cd ../homebrew-cli
 git add Formula/recon.rb Formula/recon-impersonate.rb
 git commit -m "recon X.Y.Z"
-git push origin master
+git push origin main   # tap default branch is `main`, not `master`
 ```
 
 (Tap commits follow the convention `<formula> X.Y.Z` — see
