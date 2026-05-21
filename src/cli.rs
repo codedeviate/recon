@@ -1760,7 +1760,7 @@ pub struct Args {
     #[arg(long = "script", value_name = "PATH", help_heading = "Meta")]
     pub script: Option<PathBuf>,
 
-    /// Start an interactive REPL backed by the script engine.
+    /// Start an interactive REPL (script-engine prompt).
     /// Same bindings as --script. Meta-commands start with ':'.
     /// Try :help. See `--help repl`.
     #[arg(long = "repl", help_heading = "Meta")]

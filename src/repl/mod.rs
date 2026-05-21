@@ -22,10 +22,7 @@ pub(super) struct ReplState {
     pub(super) user_asts: Vec<AST>,
     pub(super) autoprint: bool,
     pub(super) history: Vec<String>,
-    #[allow(dead_code)] // used by :set in Task 10
     pub(super) defaults: ScriptDefaults,
-    #[allow(dead_code)] // used by :save in Task 11
-    pub(super) history_path: PathBuf,
 }
 
 pub fn run(args: &Args) -> i32 {
@@ -57,7 +54,6 @@ pub fn run(args: &Args) -> i32 {
         autoprint: true,
         history: Vec::new(),
         defaults,
-        history_path: history_path.clone(),
     };
 
     let rl_config = Config::builder().auto_add_history(true).build();

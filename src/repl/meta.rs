@@ -184,8 +184,10 @@ fn cmd_run(state: &ReplState, rest: &str) {
     let result = super::run_script_isolated(&path, &state.defaults);
     match result {
         Ok(value) => {
-            if let Some(s) = super::print::format(&value) {
-                println!("{s}");
+            if state.autoprint {
+                if let Some(s) = super::print::format(&value) {
+                    println!("{s}");
+                }
             }
         }
         Err(e) => eprintln!("error: {e}"),
@@ -250,6 +252,17 @@ fn cmd_set(state: &mut ReplState, rest: &str) {
 }
 
 fn rebuild_flags(state: &mut ReplState) {
+    // Rebuild the engine so binding closures (http/dns/tcp/...) see the
+    // new defaults. Each `register_fn` in a probe binding clones
+    // `ScriptDefaults` into its closure at engine-build time, so mutating
+    // `state.defaults` is invisible to existing closures — we must
+    // construct a fresh engine to pick up the new values. `state.scope`
+    // and `state.user_asts` are preserved, so user `let`/`fn` bindings
+    // survive the swap.
+    let mut engine = crate::script::engine::build_engine(&state.defaults);
+    crate::script::bindings::thread::register_repl_stub(&mut engine);
+    state.engine = engine;
+
     // `flags` was pushed as a constant (ReadOnly) so we cannot use
     // `set_value` — that would panic. Instead, push a new constant with
     // the same name. Rhai's Scope searches from the most-recent entry
@@ -347,10 +360,16 @@ fn cmd_edit(state: &mut ReplState) {
     let status = std::process::Command::new(&editor)
         .arg(&tmp)
         .status();
-    match status {
-        Ok(s) if s.success() => {
-            let source = std::fs::read_to_string(&tmp).unwrap_or_default();
-            let _ = std::fs::remove_file(&tmp);
+    let result = match status {
+        Ok(s) if s.success() => Ok(std::fs::read_to_string(&tmp).unwrap_or_default()),
+        Ok(s) => Err(format!("editor exited with status {s}")),
+        Err(e) => Err(format!("could not launch '{editor}': {e}")),
+    };
+    // Always clean up the temp file, even on editor-failure / launch-failure.
+    let _ = std::fs::remove_file(&tmp);
+
+    match result {
+        Ok(source) => {
             // If the only content is the hint comment, treat as empty.
             let trimmed: String = source
                 .lines()
@@ -359,12 +378,11 @@ fn cmd_edit(state: &mut ReplState) {
                 .join("\n");
             if trimmed.trim().is_empty() {
                 println!("(empty)");
-                return;
+            } else {
+                super::eval_and_print_load(state, &source);
             }
-            super::eval_and_print_load(state, &source);
         }
-        Ok(s) => eprintln!("error: editor exited with status {s}"),
-        Err(e) => eprintln!("error: could not launch '{editor}': {e}"),
+        Err(msg) => eprintln!("error: {msg}"),
     }
 }
 

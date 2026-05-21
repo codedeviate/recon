@@ -104,10 +104,16 @@ pub fn build_flags_from_defaults(d: &crate::script::defaults::ScriptDefaults) ->
     m.insert("referer".into(), opt_string(d.referer.as_deref()));
     m.insert("user".into(), opt_string(d.user.as_deref()));
     m.insert("method".into(), opt_string(d.method.as_deref()));
-    // `data` and `output` are not in ScriptDefaults (they're per-request,
-    // not defaults). Keep keys present as Unit for shape consistency:
-    m.insert("data".into(), Dynamic::UNIT);
-    m.insert("output".into(), Dynamic::UNIT);
+    m.insert("data".into(), opt_string(d.data.as_deref()));
+    m.insert(
+        "output".into(),
+        opt_string(
+            d.output
+                .as_ref()
+                .map(|p| p.to_string_lossy().into_owned())
+                .as_deref(),
+        ),
+    );
     m.insert("tlsv12".into(), d.tlsv12.into());
     m.insert("tlsv13".into(), d.tlsv13.into());
     m.insert(
