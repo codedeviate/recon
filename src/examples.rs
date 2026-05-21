@@ -2174,6 +2174,33 @@ recon --script /tmp/decode.rhai"#,
 
     note("ai::* requires a backend (claude / codex / copilot / gemini, or a user-defined `cmd` entry in ~/.recon/config.toml under [ai.backends.<name>]). Select with .backend(), $RECON_AI_BACKEND, or [ai].default_backend. send() throws on failure — wrap in `try { ... } catch (e) { ... }` to recover.");
 
+    section("INTERACTIVE REPL");
+
+    example("Launch the REPL", &[
+        "recon --repl",
+    ]);
+    note("Opens an interactive Rhai prompt with all script bindings available. Type :help for the cheat sheet, :quit to exit.");
+
+    example("Preconfigure default flags at launch", &[
+        "recon --repl -H 'X-Token: abc' -X POST",
+    ]);
+    note("The `flags` constant inside the REPL reflects the launch-time CLI flags. :set can adjust them at runtime.");
+
+    example("Load a helper script into the session", &[
+        "recon --repl",
+    ]);
+    note(":load ~/.recon/script/helpers.rhai  — Functions and let bindings defined in the file become available at the prompt.");
+
+    example("Run a script in isolation (without touching REPL state)", &[
+        "recon --repl",
+    ]);
+    note(":run benchmarks.rhai  — Builds a throwaway engine, evaluates the file, prints the return value, drops everything. REPL bindings unaffected.");
+
+    example("Save a session as a reusable script", &[
+        "recon --repl",
+    ]);
+    note(":save session.rhai  — Writes each successful input line to <path> with a timestamp header.");
+
     println!();
 }
 

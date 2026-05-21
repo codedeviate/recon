@@ -1383,6 +1383,99 @@ static TOPIC_SCRIPT_THREADS: Topic = Topic {
     ],
 };
 
+static TOPIC_REPL: Topic = Topic {
+    title: "Interactive REPL (--repl)",
+    description: "Open an interactive Rhai prompt backed by the script engine.\n\
+                  Every binding available in --script mode is available at the prompt:\n\
+                  http(), hash_sha256(), encrypt_*, sqlite_*, and so on.\n\
+                  \n\
+                  State persists across lines: `let` bindings and `fn` definitions\n\
+                  remain in scope until you `:reset` or exit.\n\
+                  \n\
+                  Multi-line input is detected automatically (open `{`, `(`, `\"`).\n\
+                  Use `:paste` to force a multi-line capture when the auto-detector\n\
+                  mis-classifies pasted content; lines accumulate until `:end`.\n\
+                  \n\
+                  Autoprint: bare expressions print their result automatically\n\
+                  (Python/Node convention). Toggle off with `:set autoprint off`.\n\
+                  \n\
+                  Threading caveat: thread_spawn is not available in REPL mode\n\
+                  because it requires a static AST handle. Calls return an error.\n\
+                  Use --script for threaded workflows.",
+    flags: &[
+        FlagHelp {
+            flags: "--repl",
+            description: "Open the interactive prompt. Mutually exclusive with --script.\n\
+                          Threading is disabled (script-only).",
+        },
+        FlagHelp {
+            flags: "--repl-history <PATH>",
+            description: "Override the history file (default ~/.recon/repl_history).\n\
+                          Capped at ~1000 lines by rustyline.\n\
+                          Loaded on launch; saved on clean exit (:quit, Ctrl-D).",
+        },
+        FlagHelp {
+            flags: ":help",
+            description: "Print the REPL cheat sheet (meta-commands, multi-line, autoprint).",
+        },
+        FlagHelp {
+            flags: ":help <topic>",
+            description: "Print `recon --help <topic>` content (http, jwt, ...) without leaving the REPL.",
+        },
+        FlagHelp {
+            flags: ":load <path>",
+            description: "Eval <path> in the current scope. let/fn defined in the file persist.\n\
+                          Path resolves like --script: literal then ~/.recon/script/<path>[.rhai].",
+        },
+        FlagHelp {
+            flags: ":run <path>",
+            description: "Eval <path> in a fresh, throwaway scope. Prints the return value.\n\
+                          REPL state untouched.",
+        },
+        FlagHelp {
+            flags: ":paste",
+            description: "Enter paste mode. Lines accumulate until `:end` alone on a line.\n\
+                          Then compile + eval once.",
+        },
+        FlagHelp {
+            flags: ":set <key> <val>",
+            description: "Mutate flags. Keys: method, header (append), timeout, user-agent, autoprint (on|off).",
+        },
+        FlagHelp {
+            flags: ":vars / :fns",
+            description: ":vars lists bindings (consts + let). :fns lists user-defined functions.",
+        },
+        FlagHelp {
+            flags: ":reset",
+            description: "Clear user bindings and user functions. Keeps engine and history.",
+        },
+        FlagHelp {
+            flags: ":save <path>",
+            description: "Write this session's input lines to <path> with a timestamp header.",
+        },
+        FlagHelp {
+            flags: ":history [N] / :!N",
+            description: ":history [N] prints the last N inputs (default 20).\n\
+                          :!N re-runs entry N (1-based).",
+        },
+        FlagHelp {
+            flags: ":edit",
+            description: "Open $EDITOR (fallback `vi`) with a temp .rhai file.\n\
+                          Eval the contents on save+quit.",
+        },
+        FlagHelp {
+            flags: ":time <expr>",
+            description: "Evaluate <expr> and print the elapsed wall-clock time.",
+        },
+        FlagHelp {
+            flags: ":quit / :exit",
+            description: "Save history file and exit with code 0. Ctrl-D does the same.",
+        },
+    ],
+    related: &["script", "scripting", "threads"],
+    examples: &[],
+};
+
 static TOPIC_DECODE: Topic = Topic {
     title: "Barcode / QR / DataMatrix decoding (--decode)",
     description: "Scan an image for a barcode and print the embedded\n\
@@ -2432,6 +2525,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "checkdigit" | "check-digit" | "checksum" => Some(&TOPIC_CHECKDIGIT),
         "write-out" | "writeout" | "write_out" => Some(&TOPIC_WRITE_OUT),
         "script" | "scripting" | "rhai" | "shebang" => Some(&TOPIC_SCRIPT),
+        "repl" | "interactive" | "prompt" => Some(&TOPIC_REPL),
         "agent-browser" | "agentbrowser" => Some(&TOPIC_AGENT_BROWSER),
         "browser" | "session" | "browser-session" => Some(&TOPIC_BROWSER),
         "charset" | "encoding-text" | "text-encoding" | "iconv" | "text" => Some(&TOPIC_TEXT_ENCODING),
@@ -2528,6 +2622,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "serve-tls",
         "write-out",
         "script",
+        "repl",
         "browser",
         "agent-browser",
         "archive",

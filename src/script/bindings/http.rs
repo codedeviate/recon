@@ -141,6 +141,24 @@ pub(crate) fn response_charset_dynamic(
     }
 }
 
+// ── Opts-map exclusion list ───────────────────────────────────────────────────
+//
+// The following CLI flags intentionally have NO opts-map equivalent in
+// build_args (and never will — they are mode-selecting or pre-clap):
+//
+//   - --script / --input-file / --config (-K) / --disable / --next:
+//     pre-clap argv expansion — meaningless inside a running script.
+//   - --init / --examples / --flags / --version / --help / --checkdigit* /
+//     --encode* / --decode* / --encrypt* / --decrypt* / --compress /
+//     --decompress / --hash / --archive / --extract / --sample* /
+//     --jwt-* / --md-to-html / --md-to-pdf / --html-to-pdf / --compare:
+//     mode-selecting — they do not fire an HTTP request.
+//   - --repl / --repl-history: mode-selecting (you can't enter a REPL from
+//     inside a running script). No opts-map equivalent.
+//   - --stderr: rewires stderr globally; per-call wouldn't help.
+//
+// Everything else MUST have an opts-map key. When in doubt: add it.
+
 pub(crate) fn build_args(
     url: &str,
     defaults: &ScriptDefaults,
