@@ -51,6 +51,7 @@ mod prettify;
 mod proto_filter;
 mod proxy;
 mod redis_probe;
+mod repl;
 mod remote_name;
 mod retry;
 mod rtsp_probe;
@@ -145,6 +146,7 @@ fn any_no_url_mode_flag(args: &cli::Args) -> bool {
         || args.html_to_pdf.is_some()
         || args.export_pdf_page.is_some()
         || args.input_file.is_some()
+        || args.repl
 }
 
 fn resolve_clipboard(args: &cli::Args) -> Option<ClipboardDir> {
@@ -1089,6 +1091,14 @@ fn main() {
             eprintln!("error: --max-time must be a non-negative finite number");
             std::process::exit(2);
         }
+    }
+
+    // ── REPL mode ────────────────────────────────────────────────────────────
+    // `--repl` opens an interactive prompt backed by the script engine.
+    // Mutually exclusive with --script (this routing order makes --repl win
+    // if both are given).
+    if args.repl {
+        std::process::exit(repl::run(&args));
     }
 
     // ── Script mode ──────────────────────────────────────────────────────────
