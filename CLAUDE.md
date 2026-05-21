@@ -56,19 +56,80 @@ Then regenerate `docs/MANUAL.pdf` (see exposure-policy section 6 for
 the command). `recon --version` should now report the new version and
 the new date — that's the consistency check.
 
-### Tagging always implies a GitHub release
+### Tagging implies three publish steps — same release, no exceptions
 
-When you push a `vX.Y.Z` tag, immediately create the matching GitHub
-release:
+When you push a `vX.Y.Z` tag, the release isn't complete until all
+three downstream surfaces are updated:
+
+1. **GitHub release** — auto-generated notes attached to the tag.
+2. **crates.io** — `recon-cli` published from `Cargo.toml`.
+3. **Homebrew tap** — both formulae in `../homebrew-cli/Formula/`
+   bumped (url + sha256) and committed.
+
+A tag without these leaves the install paths out of sync: shields.io
+badges turn stale, `cargo install recon-cli` and `brew upgrade recon`
+keep returning the old version, and anyone following the install
+instructions from the README installs an older binary. Treat all
+three publishes as part of the tag — same flow, no follow-up commits
+needed on the recon repo itself.
+
+#### 1. GitHub release
 
 ```sh
 gh release create vX.Y.Z --generate-notes
 ```
 
-A tag without a release leaves the GitHub Releases page out of sync
-with tag history and hides the version from anyone browsing the
-repo's front page. Treat the release as part of the tag — same step,
-no follow-up commits needed.
+#### 2. crates.io
+
+```sh
+# From the recon repo root, with the new version already in Cargo.toml.
+cargo publish
+```
+
+The crate name is `recon-cli` (per `Cargo.toml [package] name`). The
+binary inside the crate is still `recon`. Requires `cargo login` to
+have been run once (token stored in `~/.cargo/credentials.toml`).
+`cargo publish` runs its own checks (clean working tree, no
+path-dependencies, etc.) and aborts cleanly if anything is wrong —
+fix the underlying issue rather than passing `--allow-dirty`.
+
+#### 3. Homebrew tap (`../homebrew-cli/`)
+
+The tap repo at `../homebrew-cli/` carries two formulae for recon:
+`Formula/recon.rb` (default build) and `Formula/recon-impersonate.rb`
+(the `impersonate` feature variant). **Both must be bumped on every
+release** — they install conflicting binaries, but users may be on
+either formula.
+
+For each `.rb` file, update two fields:
+
+- `url "https://github.com/codedeviate/recon/archive/refs/tags/vX.Y.Z.tar.gz"`
+- `sha256 "<new-tarball-sha256>"`
+
+Compute the sha256 from the GitHub-generated tarball after the
+release exists:
+
+```sh
+curl -sL https://github.com/codedeviate/recon/archive/refs/tags/vX.Y.Z.tar.gz | shasum -a 256
+```
+
+Then commit and push the tap repo:
+
+```sh
+cd ../homebrew-cli
+git add Formula/recon.rb Formula/recon-impersonate.rb
+git commit -m "recon X.Y.Z"
+git push origin master
+```
+
+(Tap commits follow the convention `<formula> X.Y.Z` — see
+`git log --oneline` in `../homebrew-cli` for examples.)
+
+If `shasum` produces a hash that, after pasting into `recon.rb`,
+makes `brew install --build-from-source recon` fail with "SHA256
+mismatch", recompute against the URL the formula points to (case
+matters — `vX.Y.Z` not `VX.Y.Z`) and amend with a follow-up commit
+like the existing `recon 0.81.3 — fix sha256` precedent.
 
 ### README.md badges — keep in sync with reality
 
