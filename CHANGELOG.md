@@ -8,6 +8,31 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.82.0] - 2026-05-21
+
+### Added
+
+- Interactive REPL mode (`recon --repl`) backed by the script engine.
+  Persistent `let`/`fn` state across lines, colon-prefixed
+  meta-commands (`:help`, `:load`, `:run`, `:set`, `:vars`, `:fns`,
+  `:reset`, `:save`, `:history`, `:!N`, `:edit`, `:time`, `:paste`,
+  `:quit`), multi-line input auto-detection (open `{`, `(`, `"`),
+  autoprint of bare expression results (toggle with `:set autoprint
+  off`), and configurable history file (`--repl-history`, default
+  `~/.recon/repl_history`).
+- `recon --help repl` topic covering the meta-command catalogue and
+  the threading caveat.
+- `--repl-history <PATH>` flag to override the default REPL history
+  file location.
+
+### Changed
+
+- `src/script/bindings/thread.rs` refactored: `register` and a new
+  `register_repl_stub` now share a `register_join_and_channels`
+  helper. The REPL variant stubs `thread_spawn` with an explanatory
+  error because the spawn machinery needs a static AST handle that
+  the per-line REPL doesn't have.
+
 ## [0.81.3] - 2026-05-20
 
 ### Changed

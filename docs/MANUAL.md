@@ -1394,6 +1394,86 @@ recon --flags | grep -i cookie
 recon --flags | grep -E '^\s*-[a-zA-Z],'   # only flags with short keys
 ```
 
+## Interactive REPL
+
+The `--repl` flag opens an interactive Rhai prompt backed by the
+script engine. Every binding available in `--script` mode is
+available at the prompt: `http()`, `hash_sha256()`, `encrypt_*`,
+`sqlite_*`, and so on.
+
+### Launching
+
+| Flag | Description |
+|---|---|
+| `--repl` | Open the REPL. Mutually exclusive with `--script` (REPL wins if both are given). |
+| `--repl-history PATH` | Override the history file (default `~/.recon/repl_history`). |
+
+State persists across lines: `let` bindings and `fn` definitions
+remain in scope until you `:reset` or exit.
+
+### Meta-commands
+
+All meta-commands start with `:` so they never collide with valid
+Rhai code.
+
+| Command | Behaviour |
+|---|---|
+| `:help` | Print the REPL cheat sheet. |
+| `:help <topic>` | Print `recon --help <topic>` content without leaving the REPL. |
+| `:load <path>` | Eval `<path>` in the current scope. `let`/`fn` persist. Path resolves: literal then `~/.recon/script/<path>[.rhai]`. |
+| `:run <path>` | Eval `<path>` in a fresh, throwaway scope. Prints the return value. REPL state untouched. |
+| `:paste` | Enter paste mode. Lines accumulate until `:end` alone on a line. Then compile + eval once. |
+| `:set <key> <val>` | Mutate flags. Keys: `method`, `header` (append), `timeout`, `user-agent`, `autoprint` (on/off). |
+| `:vars` | List bound variables (consts and `let` bindings) with type tag and value preview. |
+| `:fns` | List user-defined functions from the accumulated AST chain. |
+| `:reset` | Clear user bindings and user functions. Keeps engine, history, and the const bindings (`args`, `flags`, …). |
+| `:save <path>` | Write this session's successful input lines to `<path>` with a timestamp header. |
+| `:history [N]` | Print the last `N` (default 20) inputs with 1-based indices. |
+| `:!N` | Re-run history entry `N`. |
+| `:edit` | Open `$EDITOR` (fallback `vi`) with a temp `.rhai` file. Eval the contents on save+quit. |
+| `:time <expr>` | Evaluate `<expr>` and print the elapsed wall-clock time. |
+| `:quit` / `:exit` | Save the history file and exit with code 0. |
+
+### Multi-line input
+
+The REPL detects unbalanced braces, parentheses, and strings and
+shows a `... ` continuation prompt until the buffer parses. Use
+`:paste` to force a multi-line capture when the auto-detector
+mis-classifies pasted content; lines accumulate until `:end` on its
+own line.
+
+### Autoprint
+
+Bare expressions print their result automatically (Python/Node
+convention). Toggle off with `:set autoprint off` if you want
+script-mode silence. `let` and `fn` declarations never print.
+
+### Threading caveat
+
+`thread_spawn` is not available in REPL mode — it requires a static
+AST handle that the per-line REPL doesn't have. Calls return an
+error. Use `--script` for threaded workflows.
+
+### Example session
+
+```text
+$ recon --repl
+recon REPL — :help for commands, :quit to exit
+>>> let response = http("https://api.example.com/users/1")
+>>> response.status
+200
+>>> response.body.from_json().name
+"Alice"
+>>> fn pretty(r) { r.body.from_json().name }
+>>> pretty(response)
+"Alice"
+>>> :vars
+  let   response = #{status: 200, body: ...}
+>>> :save investigation.rhai
+saved 4 entries to investigation.rhai
+>>> :quit
+```
+
 ---
 
 # Part III — Script engine

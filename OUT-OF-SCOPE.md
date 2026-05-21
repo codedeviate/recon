@@ -284,6 +284,21 @@ recursive-engine pieces below remain deferred.
 recursive variant (filters applied to discovered links during a
 crawl) is the part that's still deferred.
 
+### REPL enhancements
+
+- **REPL tab completion** — rustyline supports a `Completer` trait,
+  but populating the completion set from ~50 binding modules is its
+  own design problem (which symbols to show? per-module? alphabetical?
+  contextual based on argument position?). Workable v2.
+- **REPL threading support** — `thread_spawn` is stubbed in REPL mode
+  because the spawn machinery needs a `Shared<AST>` handle and the
+  per-line REPL has no static AST. Reintroducing it needs an
+  AST-accumulation strategy that doesn't bloat the engine
+  indefinitely. Deferred until someone hits the limitation.
+- **REPL syntax highlighting** — would require reedline (nushell's
+  line editor) or a hand-built ANSI-emitting line editor; defer until
+  the dep cost is justified by demand.
+
 ---
 
 ## Not yet supported — blocked on upstream / ecosystem

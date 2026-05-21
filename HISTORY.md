@@ -1769,6 +1769,41 @@ The `required_unless_present_any` on the positional URL was extended to include 
 
 ---
 
+### 78. Interactive REPL (0.82.0)
+
+Added a Rhai REPL mode (`recon --repl`) that reuses the existing
+script engine. Design decisions worth recording:
+
+**Persistent engine + persistent scope.** Each line compiles into its
+own AST; `let` bindings persist via the shared `Scope`, and
+user-defined `fn`s persist via an explicit `Vec<AST>` that's
+re-merged before each eval. Mirrors Rhai's own example repl.
+
+**Colon meta-command prefix.** Considered bare-words (`help`,
+`quit`) but they'd collide with valid Rhai identifiers. Considered
+`.cmd` (sqlite3 style) but `:cmd` is the convention in psql, ghci,
+lldb, and Rhai's example. The prefix is unambiguous regardless of
+what the user `let`s.
+
+**Threading deferred.** `thread_spawn` needs a `Shared<AST>` handle
+to dispatch into. In REPL mode there's no static AST. v1 stubs
+`thread_spawn` with `"not available in REPL mode"`; future work could
+either accumulate every line's AST (with last-wins on duplicate fn
+names — needs care) or refactor spawn to take the AST at call time.
+
+**rustyline over reedline / hand-rolled.** rustyline is the de-facto
+Rust readline; reedline (nushell's) is bigger; hand-rolled would
+mean no up-arrow / Ctrl-R / history, which defeats the purpose of a
+REPL.
+
+**Flag-mutation via shadowing.** `:set` updates `state.defaults` and
+rebuilds the `flags` scope binding. Rhai's `Scope::set_value` panics
+on constants, so the implementation pushes a new `flags` constant
+that shadows the previous one (scope lookup walks newest-first). One
+extra entry per `:set` is negligible for REPL session length.
+
+---
+
 ## Naming History
 
 The project started as **curlclone** — an accurate but uninspiring name given how much the tool grew beyond simple HTTP requests.
