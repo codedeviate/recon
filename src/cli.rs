@@ -1760,6 +1760,16 @@ pub struct Args {
     #[arg(long = "script", value_name = "PATH", help_heading = "Meta")]
     pub script: Option<PathBuf>,
 
+    /// Start an interactive REPL backed by the script engine.
+    /// Same bindings as --script. Meta-commands start with ':'.
+    /// Try :help. See `--help repl`.
+    #[arg(long = "repl", help_heading = "Meta")]
+    pub repl: bool,
+
+    /// Path to the REPL history file. Default ~/.recon/repl_history.
+    #[arg(long = "repl-history", value_name = "PATH", help_heading = "Meta")]
+    pub repl_history: Option<PathBuf>,
+
     /// Trailing positional args forwarded to `--script`. Populated in
     /// `main.rs` by splitting argv on the `--script` boundary before clap
     /// parses — clap is skipped here to avoid a conflict with the
@@ -2104,5 +2114,21 @@ mod udp_flag_tests {
     fn wait_time_accepts_fractional() {
         let args = Args::try_parse_from(["recon", "udp://b:1/", "--wait-time", "0.5"]).unwrap();
         assert_eq!(args.wait_time, 0.5);
+    }
+
+    #[test]
+    fn repl_flag_parses() {
+        let args = Args::try_parse_from(["recon", "--repl"]).expect("parse");
+        assert!(args.repl);
+        assert!(args.repl_history.is_none());
+    }
+
+    #[test]
+    fn repl_history_flag_parses() {
+        let args = Args::try_parse_from(["recon", "--repl", "--repl-history", "/tmp/h"])
+            .expect("parse");
+        assert!(args.repl);
+        assert_eq!(args.repl_history.as_deref(),
+                   Some(std::path::Path::new("/tmp/h")));
     }
 }
