@@ -149,6 +149,7 @@ pub fn build_engine(defaults: &ScriptDefaults) -> rhai::Engine {
     super::bindings::sftp::register(&mut engine, defaults.clone());
     super::bindings::smtp::register(&mut engine, defaults.clone());
     super::bindings::sqlite::register(&mut engine);
+    super::bindings::strutil::register(&mut engine);
     super::bindings::tcp::register(&mut engine, defaults.clone());
     super::bindings::tcp_server::register(&mut engine);
     super::bindings::text::register(&mut engine);
