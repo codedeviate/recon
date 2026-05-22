@@ -8,6 +8,19 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.82.2] - 2026-05-22
+
+### Fixed
+
+- README is now rendered as the crate-level rustdoc on docs.rs. 0.82.1
+  added `#![doc = include_str!("../README.md")]` to `src/main.rs`, but
+  docs.rs renders the library crate (`src/lib.rs`), not the binary, so
+  the README still didn't surface on the docs.rs landing page. Moved
+  the attribute to `src/lib.rs` (kept on `main.rs` too for local
+  `cargo doc --bins`). The previous `//!` doc comment on `lib.rs` was
+  converted to a plain `//` comment so it documents the file's
+  internal purpose without clobbering the crate-level rustdoc.
+
 ## [0.82.1] - 2026-05-22
 
 ### Changed

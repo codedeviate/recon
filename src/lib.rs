@@ -1,14 +1,21 @@
-//! Library surface for integration tests and downstream crates.
-//!
-//! The `recon-cli` crate is primarily a binary; this `lib.rs` exposes the
-//! minimal internal paths required by `tests/script_ai_it.rs`. Nothing
-//! here is part of a public API guarantee.
-//!
-//! We deliberately do NOT re-export the full `script` module tree because
-//! that tree depends on `cli::Args` and hundreds of other internal modules.
-//! Instead we mirror only the `script::bindings::ai` path the tests need,
-//! using `#[path]` so Rust finds the source files in their real location
-//! under `src/script/bindings/ai/`.
+#![doc = include_str!("../README.md")]
+//
+// The doc-comment block below is intentionally a `//` comment, not `//!`,
+// so it doesn't clobber the README-derived crate-level rustdoc that
+// docs.rs renders. It documents the *internal* purpose of this lib.rs
+// shim for anyone reading the source:
+//
+// Library surface for integration tests and downstream crates.
+//
+// The `recon-cli` crate is primarily a binary; this `lib.rs` exposes the
+// minimal internal paths required by `tests/script_ai_it.rs`. Nothing
+// here is part of a public API guarantee.
+//
+// We deliberately do NOT re-export the full `script` module tree because
+// that tree depends on `cli::Args` and hundreds of other internal modules.
+// Instead we mirror only the `script::bindings::ai` path the tests need,
+// using `#[path]` so Rust finds the source files in their real location
+// under `src/script/bindings/ai/`.
 
 pub mod config;
 
