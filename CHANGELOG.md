@@ -8,6 +8,32 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.84.0] - 2026-05-22
+
+### Added
+
+- Eleven PHP-style string helpers exposed as top-level callables in the
+  script engine and REPL: `trim` / `ltrim` / `rtrim` (with optional
+  char-mask second argument), `strrev` (Unicode-codepoint reverse),
+  `strip_html` (tag stripper that respects quoted attributes),
+  `nl2br` / `br2nl` (HTML5 `<br>` round-trip that preserves the
+  original EOL), `preg_match` / `preg_replace` (regex helpers accepting
+  either raw patterns or PHP-style `/pat/flags` delimiters with i / m
+  / s / x), and `printf` / `sprintf` (C-style with d / i / u / o / x /
+  X / b / f / e / E / g / G / s / c / `%`, plus `-` / `0` / `+` /
+  space / `#` flags, width, and precision). Multi-arg formats pass an
+  Array (`[a, b, c]`) since Rhai has no variadic concept.
+- New help topic `recon --help strutil` (aliases: `string-helpers`,
+  `trim`, `sprintf`, `printf`, `preg`, `strip-html`, `nl2br`, `strrev`)
+  and a new `--examples` section "STRING HELPERS (script + REPL)".
+- Demo script `script/strutil.rhai` exercising every helper.
+
+### Changed
+
+- `regex` is now a direct dependency. It was already transitively in
+  the lock file via the markdown/PDF rendering path, so the build cost
+  is unchanged.
+
 ## [0.83.0] - 2026-05-22
 
 ### Added

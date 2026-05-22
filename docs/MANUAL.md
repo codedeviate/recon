@@ -2,7 +2,7 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.83.0</div>
+<div class="version">Version 0.84.0</div>
 <div class="date">2026-05-22</div>
 <div class="meta">
 Repository · https://github.com/codedeviate/recon<br>
@@ -3229,6 +3229,55 @@ let utf8 = text::decode(bytes, charset);
 file_write_all("greek-utf8.txt", text::encode(utf8, "utf-8"));
 
 let crlf = text::normalize_newlines("line1\nline2\n", "windows");
+```
+
+## String helpers
+
+PHP-style free functions for string manipulation. All are top-level
+callables — `trim(s)` reads the same as in PHP — and co-exist with
+Rhai's existing String methods (which keep working).
+
+| Function | Description |
+|---|---|
+| `trim(s)` / `trim(s, mask)` | Strip whitespace, or any character in `mask`, from both ends. |
+| `ltrim(s)` / `ltrim(s, mask)` | Strip from the left end only. |
+| `rtrim(s)` / `rtrim(s, mask)` | Strip from the right end only. |
+| `strrev(s)` | Reverse a string by Unicode codepoints (accented letters and emoji stay intact). |
+| `strip_html(s)` | Remove every `<...>` segment. Quoted attribute values are respected; HTML entities pass through. |
+| `nl2br(s)` | Insert `<br>` before each `\n`, `\r\n`, or `\r`. HTML5 form (no trailing slash). Preserves the original newline. |
+| `br2nl(s)` | Replace `<br>` / `<br/>` / `<br />` (any case, any inner whitespace) with `\n`. If the tag is immediately followed by an EOL, that EOL is kept — so `nl2br` ↔ `br2nl` round-trips. |
+| `preg_match(pattern, subject)` | Returns an Array of capture strings: index 0 is the whole match, 1+ are groups. Empty array if no match. |
+| `preg_replace(pattern, replacement, subject)` | Replace every match. `$1` / `${name}` in `replacement` expand to captures. |
+| `sprintf(fmt)` / `sprintf(fmt, arg)` / `sprintf(fmt, [a, b, …])` | Format and return a String. |
+| `printf(fmt)` / `printf(fmt, arg)` / `printf(fmt, [a, b, …])` | Format and write to stdout. Returns the byte count. |
+
+Regex patterns accept either raw form (`"foo\\d+"`) or PHP-style
+delimited form (`"/foo\\d+/i"`) with the `i` / `m` / `s` / `x` flags.
+
+`printf` / `sprintf` specifiers: `d` `i` `u` `o` `x` `X` `b` `f` `e`
+`E` `g` `G` `s` `c` `%`. Flags: `-` (left-align), `0` (zero-pad), `+`
+(force sign), space (space-sign), `#` (alt form for `o` / `x` / `X` /
+`b`). Width and precision are both supported. Rhai has no variadic
+concept; pass `[a, b, c]` for multi-arg formats.
+
+### Examples
+
+```rhai
+print(trim("   hello   "));            // "hello"
+print(ltrim("...path", "."));          // "path"
+print(rtrim("file.log", ".log"));      // "file"
+
+print(strrev("café"));                 // "éfac"
+print(strip_html("<p>plain <b>text</b></p>"));   // "plain text"
+print(nl2br("a\nb"));                  // "a<br>\nb"
+
+let caps = preg_match("/^Host:\\s*(.+)$/i", "Host: example.com");
+print(caps);                           // ["Host: example.com", "example.com"]
+print(preg_replace("\\s+", "-", "a  b   c"));     // "a-b-c"
+
+print(sprintf("%-10s %5d", ["alpha", 42]));       // "alpha           42"
+print(sprintf("hex=%#x bin=%08b", [255, 10]));    // "hex=0xff bin=00001010"
+printf("pi=%.4f\n", 3.14159265);                  // writes "pi=3.1416\n"
 ```
 
 ## Whois binding
