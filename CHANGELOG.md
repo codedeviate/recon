@@ -8,6 +8,18 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.85.0] - 2026-05-22
+
+### Added
+
+- Script binding `arr.join(sep)` (also callable as `join(arr, sep)`).
+  Rhai 1.24's BasicArrayPackage doesn't ship an Array.join in our
+  configuration, and recon's existing `join(&mut ThreadHandle)` is the
+  only registration users see — which makes the natural `arr.join(", ")`
+  fail with a confusing overload-mismatch. Non-string elements are
+  coerced via `Dynamic::to_string` so `[1, "two", 3.5].join("-")` works
+  the way scripts expect.
+
 ## [0.84.1] - 2026-05-22
 
 ### Changed

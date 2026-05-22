@@ -2033,6 +2033,7 @@ static TOPIC_STRUTIL: Topic = Topic {
         FlagHelp { flags: "br2nl(s)", description: "Replace `<br>` / `<br/>` / `<br />` (any case, any inner\nwhitespace) with `\\n`. If the tag is immediately followed by\nan EOL, that EOL is kept — so nl2br ↔ br2nl round-trips." },
         FlagHelp { flags: "preg_match(pattern, subject)", description: "Returns Array of captures: index 0 is the whole match, 1+ are\ngroups. Empty array when no match. Errors on invalid regex." },
         FlagHelp { flags: "preg_replace(pattern, replacement, subject)", description: "Replace every match. `$1` / `${name}` in `replacement` expand\nto captures, per the regex crate's default replacement syntax." },
+        FlagHelp { flags: "arr.join(sep) / join(arr, sep)", description: "Concatenate an Array's elements with `sep` between them.\nNon-string elements are stringified via Dynamic::to_string." },
         FlagHelp { flags: "sprintf(fmt, args)", description: "Format and return a String. `args` is either a single value or\nan Array for multi-arg formats. Supports flags -, 0, +, space,\n#, plus width and precision." },
         FlagHelp { flags: "printf(fmt, args)", description: "Format and write to stdout. Returns the number of bytes\nwritten (matches C printf)." },
     ],

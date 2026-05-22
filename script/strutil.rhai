@@ -20,6 +20,10 @@ let caps = preg_match("/^Host:\\s*(.+)$/i", "Host: example.com");
 print(caps);                                      // ["Host: example.com", "example.com"]
 print(preg_replace("\\s+", "-", "a  b   c"));     // "a-b-c"
 
+// Array join — also callable as join(arr, sep).
+print(["a", "b", "c"].join(", "));               // "a, b, c"
+print([1, "two", 3.5].join("-"));                 // "1-two-3.5"
+
 // sprintf / printf — supports %s %d %f %x %X %o %b %c %% with flags + width.
 print(sprintf("%-10s %5d", ["alpha", 42]));      // "alpha           42"
 print(sprintf("hex=%#x bin=%08b", [255, 10]));    // "hex=0xff bin=00001010"

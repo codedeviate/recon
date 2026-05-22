@@ -2,7 +2,7 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.84.1</div>
+<div class="version">Version 0.85.0</div>
 <div class="date">2026-05-22</div>
 <div class="meta">
 Repository · https://github.com/codedeviate/recon<br>
@@ -3248,6 +3248,7 @@ Rhai's existing String methods (which keep working).
 | `br2nl(s)` | Replace `<br>` / `<br/>` / `<br />` (any case, any inner whitespace) with `\n`. If the tag is immediately followed by an EOL, that EOL is kept — so `nl2br` ↔ `br2nl` round-trips. |
 | `preg_match(pattern, subject)` | Returns an Array of capture strings: index 0 is the whole match, 1+ are groups. Empty array if no match. |
 | `preg_replace(pattern, replacement, subject)` | Replace every match. `$1` / `${name}` in `replacement` expand to captures. |
+| `arr.join(sep)` / `join(arr, sep)` | Concatenate an Array's elements with `sep` between them. Non-string elements are stringified via `to_string`. |
 | `sprintf(fmt)` / `sprintf(fmt, arg)` / `sprintf(fmt, [a, b, …])` | Format and return a String. |
 | `printf(fmt)` / `printf(fmt, arg)` / `printf(fmt, [a, b, …])` | Format and write to stdout. Returns the byte count. |
 
@@ -3275,6 +3276,7 @@ let caps = preg_match("/^Host:\\s*(.+)$/i", "Host: example.com");
 print(caps);                           // ["Host: example.com", "example.com"]
 print(preg_replace("\\s+", "-", "a  b   c"));     // "a-b-c"
 
+print(["a", "b", "c"].join(", "));                // "a, b, c"
 print(sprintf("%-10s %5d", ["alpha", 42]));       // "alpha           42"
 print(sprintf("hex=%#x bin=%08b", [255, 10]));    // "hex=0xff bin=00001010"
 printf("pi=%.4f\n", 3.14159265);                  // writes "pi=3.1416\n"

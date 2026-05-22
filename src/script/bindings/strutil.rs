@@ -46,6 +46,22 @@ pub fn register(engine: &mut Engine) {
         s.chars().rev().collect()
     });
 
+    // ---- array join ---------------------------------------------------
+
+    // join(arr, sep) — also reachable as `arr.join(sep)` since Rhai
+    // dispatches method syntax through the same registration. Rhai
+    // 1.24's BasicArrayPackage doesn't ship this, and recon's existing
+    // `join(&mut ThreadHandle)` is the only registration users see —
+    // which makes `arr.join(", ")` fail with a confusing overload-mismatch.
+    // Non-string elements are coerced via Dynamic::to_string so mixed
+    // arrays (numbers + strings) work the way scripts expect.
+    engine.register_fn("join", |arr: &mut rhai::Array, sep: &str| -> String {
+        arr.iter()
+            .map(|d| crate::script::convert::to_string(d))
+            .collect::<Vec<_>>()
+            .join(sep)
+    });
+
     // ---- HTML helpers -------------------------------------------------
 
     engine.register_fn("strip_html", |s: &str| -> String { strip_html(s) });
@@ -784,6 +800,30 @@ mod tests {
         assert_eq!(sprintf_apply("%#x", &[255i64.into()]).unwrap(), "0xff");
         assert_eq!(sprintf_apply("%b", &[5i64.into()]).unwrap(), "101");
         assert_eq!(sprintf_apply("100%%", &[]).unwrap(), "100%");
+    }
+
+    #[test]
+    fn join_binding_handles_strings_and_mixed_types() {
+        let engine = rhai::Engine::new();
+        let mut engine = engine;
+        super::register(&mut engine);
+
+        let out = engine
+            .eval::<String>(r#"["a", "b", "c"].join(", ")"#)
+            .unwrap();
+        assert_eq!(out, "a, b, c");
+
+        // Free-function form.
+        let out = engine
+            .eval::<String>(r#"join(["x", "y"], "|")"#)
+            .unwrap();
+        assert_eq!(out, "x|y");
+
+        // Mixed types coerce via Dynamic::to_string.
+        let out = engine
+            .eval::<String>(r#"[1, "two", 3.5].join("-")"#)
+            .unwrap();
+        assert_eq!(out, "1-two-3.5");
     }
 
     #[test]
