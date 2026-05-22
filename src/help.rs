@@ -1454,6 +1454,16 @@ static TOPIC_REPL: Topic = Topic {
             description: "Write this session's input lines to <path> with a timestamp header.",
         },
         FlagHelp {
+            flags: ":save-tidy <path>",
+            description: "Like :save, but appends missing `;` and drops entries that fail to compile.\n\
+                          The result is a runnable script — recon --script <path> should succeed.",
+        },
+        FlagHelp {
+            flags: ":functions [all]",
+            description: "List every callable registered with the engine (probes, helpers, builders).\n\
+                          Pass `all` to include the Rhai standard library. Alias: :function-list.",
+        },
+        FlagHelp {
             flags: ":history [N] / :!N",
             description: ":history [N] prints the last N inputs (default 20).\n\
                           :!N re-runs entry N (1-based).",

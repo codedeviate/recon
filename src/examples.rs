@@ -2201,6 +2201,16 @@ recon --script /tmp/decode.rhai"#,
     ]);
     note(":save session.rhai  — Writes each successful input line to <path> with a timestamp header.");
 
+    example("Save a session as a directly-runnable script", &[
+        "recon --repl",
+    ]);
+    note(":save-tidy session.rhai  — Like :save, but appends missing `;` and drops entries that fail to parse; the result runs with `recon --script session.rhai` without manual fixup.");
+
+    example("List every callable registered with the engine", &[
+        "recon --repl",
+    ]);
+    note(":functions  — Probes, helpers, and builders that the engine knows about, plus user-defined functions. Pass `all` to also include the Rhai standard library.");
+
     println!();
 }
 

@@ -38,10 +38,14 @@ pub fn run_source(
     args: &Args,
 ) -> i32 {
     // Allow shebang: #!/usr/bin/env -S recon --script
-    // Rhai doesn't treat `#` as a comment, so we turn `#!` into `//`
-    // which preserves line numbers in error messages.
+    // Rhai doesn't treat `#` as a comment, so we turn `#!` into `// `
+    // (note the trailing space — with the `metadata` feature enabled,
+    // Rhai parses `///` as a doc comment that must immediately precede
+    // a function definition, so a bare `//` prefix on `/usr/bin/env`
+    // would break shebangs). The space keeps the rewritten line a
+    // normal comment and preserves source line numbers.
     let source = if let Some(stripped) = raw.strip_prefix("#!") {
-        format!("//{}", stripped)
+        format!("// {}", stripped)
     } else {
         raw
     };

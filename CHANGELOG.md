@@ -8,6 +8,22 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.83.0] - 2026-05-22
+
+### Added
+
+- REPL meta-command `:save-tidy <path>` — like `:save` but compiles each
+  history entry with the engine before writing, appending a missing `;`
+  where needed and dropping entries that fail to parse (recorded as
+  `// skipped: …` comments). The result is a runnable script:
+  `recon --script <path>` works without manual editing.
+- REPL meta-commands `:functions` (alias `:function-list`) — list every
+  callable registered with the engine (probes, helpers, builders, plus
+  user-defined functions from the accumulated AST). Pass `all` to also
+  include the Rhai standard library. Enabled by switching the `rhai`
+  dependency to the `metadata` feature (which also pulls `serde` /
+  `serde_json` — both already in the dependency tree, so no new crates).
+
 ## [0.82.2] - 2026-05-22
 
 ### Fixed

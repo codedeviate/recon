@@ -53,6 +53,11 @@ pub fn dispatch(line: &str, state: &mut ReplState) -> Outcome {
         "set" => { cmd_set(state, rest); Outcome::Continue }
         "paste" => Outcome::Paste,
         "save" => { cmd_save(state, rest); Outcome::Continue }
+        "save-tidy" => { cmd_save_tidy(state, rest); Outcome::Continue }
+        "functions" | "function-list" => {
+            cmd_functions(state, rest);
+            Outcome::Continue
+        }
         "history" => { cmd_history(state, rest); Outcome::Continue }
         "edit" => { cmd_edit(state); Outcome::Continue }
         "time" => { cmd_time(state, rest); Outcome::Continue }
@@ -82,6 +87,10 @@ Meta-commands (start with ':'):
   :fns               list user-defined functions
   :reset             clear bindings (keep history)
   :save <path>       write this session's inputs to <path>
+  :save-tidy <path>  like :save, but appends missing `;` and drops entries
+                     that fail to parse so the file is runnable as a script
+  :functions [all]   list every callable registered with the engine; pass
+                     `all` to include stdlib functions (alias :function-list)
   :history [N]       print last N inputs (default 20)
   :!N                re-run history entry N
   :edit              open $EDITOR for multi-line composition
@@ -288,6 +297,98 @@ fn cmd_save(state: &ReplState, rest: &str) {
         eprintln!("error: write {rest}: {e}");
     } else {
         println!("saved {} entries to {rest}", state.history.len());
+    }
+}
+
+fn cmd_save_tidy(state: &ReplState, rest: &str) {
+    if rest.is_empty() {
+        eprintln!("error: usage :save-tidy <path>");
+        return;
+    }
+    let header = format!(
+        "// recon REPL session (tidied) — {} epoch s\n\n",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0)
+    );
+    let mut body = String::new();
+    let mut kept = 0usize;
+    let mut skipped = 0usize;
+    for entry in &state.history {
+        let trimmed = entry.trim_end_matches([' ', '\t', '\r', '\n']);
+        if trimmed.trim().is_empty() {
+            continue;
+        }
+        // Drop entries the engine can't compile — typically incomplete
+        // buffers or pasted noise that the REPL accepted via multi-line
+        // mode and then errored on. Record them as comments so the user
+        // can still see what was discarded.
+        if state.engine.compile(trimmed).is_err() {
+            for line in trimmed.lines() {
+                body.push_str("// skipped: ");
+                body.push_str(line);
+                body.push('\n');
+            }
+            skipped += 1;
+            continue;
+        }
+        body.push_str(trimmed);
+        if !ends_with_terminator(trimmed) {
+            body.push(';');
+        }
+        body.push('\n');
+        kept += 1;
+    }
+    if let Err(e) = std::fs::write(rest, format!("{header}{body}")) {
+        eprintln!("error: write {rest}: {e}");
+    } else if skipped == 0 {
+        println!("saved {kept} entries to {rest}");
+    } else {
+        println!("saved {kept} entries to {rest} ({skipped} skipped — see // comments)");
+    }
+}
+
+/// Returns true when `s` already ends with a statement-terminating token,
+/// so we shouldn't tack on another `;`. We only look at the last non-
+/// whitespace character — block closers (`}`) and explicit `;` both
+/// count. Comments-as-last-line aren't worth handling: such entries
+/// rarely make it into history (the REPL would have replied `()`).
+fn ends_with_terminator(s: &str) -> bool {
+    matches!(s.trim_end().chars().last(), Some(';') | Some('}'))
+}
+
+fn cmd_functions(state: &ReplState, rest: &str) {
+    let include_std = matches!(rest, "all" | "std" | "standard");
+    let mut sigs = state.engine.gen_fn_signatures(include_std);
+    sigs.sort();
+    sigs.dedup();
+    if sigs.is_empty() {
+        println!("(no registered functions)");
+    } else {
+        for sig in &sigs {
+            println!("  {sig}");
+        }
+    }
+
+    let mut user_count = 0usize;
+    for ast in &state.user_asts {
+        for f in ast.iter_functions() {
+            if user_count == 0 {
+                println!("\nuser-defined:");
+            }
+            user_count += 1;
+            println!("  fn {}/{}", f.name, f.params.len());
+        }
+    }
+
+    let n = sigs.len();
+    if include_std {
+        println!("\n({n} registered, {user_count} user-defined)");
+    } else {
+        println!(
+            "\n({n} registered, {user_count} user-defined; pass `all` to include stdlib)"
+        );
     }
 }
 

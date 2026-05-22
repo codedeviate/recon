@@ -2,7 +2,7 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.82.2</div>
+<div class="version">Version 0.83.0</div>
 <div class="date">2026-05-22</div>
 <div class="meta">
 Repository · https://github.com/codedeviate/recon<br>
@@ -1428,6 +1428,8 @@ Rhai code.
 | `:fns` | List user-defined functions from the accumulated AST chain. |
 | `:reset` | Clear user bindings and user functions. Keeps engine, history, and the const bindings (`args`, `flags`, …). |
 | `:save <path>` | Write this session's successful input lines to `<path>` with a timestamp header. |
+| `:save-tidy <path>` | Like `:save`, but appends missing `;` and drops entries that fail to compile so the saved file runs as a script. |
+| `:functions [all]` / `:function-list` | List every callable registered with the engine (probes, helpers, builders). Pass `all` to also include the Rhai standard library. |
 | `:history [N]` | Print the last `N` (default 20) inputs with 1-based indices. |
 | `:!N` | Re-run history entry `N`. |
 | `:edit` | Open `$EDITOR` (fallback `vi`) with a temp `.rhai` file. Eval the contents on save+quit. |
