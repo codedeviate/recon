@@ -8,6 +8,16 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.82.1] - 2026-05-22
+
+### Changed
+
+- `src/main.rs` includes `README.md` as the crate-level rustdoc via
+  `#![doc = include_str!("../README.md")]`. Improves the rendered
+  documentation on docs.rs by surfacing the README's overview, install
+  instructions, and examples on the crate's landing page instead of an
+  empty doc shell.
+
 ## [0.82.0] - 2026-05-21
 
 ### Added
