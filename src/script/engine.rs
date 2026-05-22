@@ -99,7 +99,7 @@ pub fn run_source(
             }
         }
         Err(e) => {
-            eprintln!("error: {e}");
+            eprintln!("error: {}", super::error_hint::format(&engine, &e));
             take_protocol_exit_code().unwrap_or(1)
         }
     }

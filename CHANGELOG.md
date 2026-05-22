@@ -8,6 +8,32 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.84.1] - 2026-05-22
+
+### Changed
+
+- Function-not-found errors from the script engine and REPL now list
+  the available overloads when the name *is* registered but no overload
+  accepts the runtime argument types. Before:
+
+      error: Function not found: json_parse (map) (line 1, position 18)
+
+  After:
+
+      error: Function not found: json_parse (map) (line 1, position 18)
+      note: `json_parse` is defined, but no overload accepts (map).
+      hint: check that you're passing the expected argument types —
+            e.g. an http() response is a map, so pass `r.body` (string)
+            to functions that take a string.
+      Available overloads:
+        json_parse(_: string)
+
+  Rhai's default message is identical for "name doesn't exist" and
+  "name exists, wrong types"; the second case is the more common one
+  and used to send people chasing a missing import when the real fix
+  was `.body` or a `to_string`. Truly-unknown names keep the original
+  one-liner.
+
 ## [0.84.0] - 2026-05-22
 
 ### Added
