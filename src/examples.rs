@@ -2124,6 +2124,28 @@ recon --script /tmp/decode.rhai"#,
     ]);
     note("Every http() / browser() response map now includes `body_bytes` (raw Blob) and `charset` (String or `()` when undecidable). Scripts combine these with `text::decode()` / `text::transcode()` for precise control. See `recon --help charset`.");
 
+    section("STRING HELPERS (script + REPL)");
+
+    example("Trim whitespace or a custom mask", &[
+        r#"recon --script - <<< 'print(trim("  hi  ")); print(ltrim("...path", ".")); print(rtrim("file.log", ".log"));'"#,
+    ]);
+    note("trim / ltrim / rtrim default to whitespace; pass a second argument to strip any character in that mask (PHP semantics). The existing Rhai `.trim()` String method keeps working alongside these free functions.");
+
+    example("Reverse, strip HTML, switch newlines for <br>", &[
+        r#"recon --script - <<< 'print(strrev("café")); print(strip_html("<p>plain <b>text</b></p>")); print(nl2br("a\nb"));'"#,
+    ]);
+    note("strrev reverses by Unicode codepoints so accented letters and emoji stay intact. strip_html respects quoted attributes; nl2br ↔ br2nl round-trips cleanly because br2nl preserves the trailing EOL on the original tag.");
+
+    example("Regex match + replace (PHP-style delimiters optional)", &[
+        r#"recon --script - <<< 'print(preg_match("/^Host:\\s*(.+)$/i", "Host: example.com")); print(preg_replace("\\s+", "-", "a  b   c"));'"#,
+    ]);
+    note("preg_match returns an Array: index 0 is the whole match, 1+ are captures. Empty array if no match. `/pat/i` form supports the i / m / s / x flags.");
+
+    example("printf / sprintf — pass an Array for multi-arg formats", &[
+        r#"recon --script - <<< 'printf("%-10s %5d\n", ["alpha", 42]); print(sprintf("hex=%#x", 255));'"#,
+    ]);
+    note("Specifiers: d i u o x X b f e E g G s c %%. Flags: - (left-align), 0 (zero-pad), + (force sign), space (space-sign), # (alt form). Rhai has no variadic concept, so multi-arg formats pass `[a, b, c]`.");
+
     section("EDITOR OUTPUT");
 
     example("Open the response in an editor (--editor [EDITOR])", &[

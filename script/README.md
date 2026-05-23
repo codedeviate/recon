@@ -128,6 +128,7 @@ surprise failures.
 | Script | What it does |
 |---|---|
 | `text.rhai` | Charset detect / decode / encode + newline normalisation |
+| `strutil.rhai` | PHP-style string helpers: trim/ltrim/rtrim, strrev, strip_html, nl2br/br2nl, preg_match/preg_replace, printf/sprintf |
 
 ### Concurrency
 

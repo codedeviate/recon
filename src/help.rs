@@ -2002,6 +2002,51 @@ static TOPIC_TEXT_ENCODING: Topic = Topic {
     ],
 };
 
+static TOPIC_STRUTIL: Topic = Topic {
+    title: "String helpers (trim, regex, sprintf, …)",
+    description: "PHP-style free functions for working with strings in\n\
+                  scripts and at the REPL. Adds the recognisable names\n\
+                  alongside Rhai's existing String methods (which keep\n\
+                  working). All functions are top-level callables, not\n\
+                  namespaced — `trim(s)` reads the same as in PHP.\n\
+                  \n\
+                  Regex helpers are backed by the `regex` crate. They\n\
+                  accept either a raw pattern or PHP-style delimited\n\
+                  form (e.g. `/foo/i`) with the i / m / s / x flags.\n\
+                  preg_match returns an Array of capture strings: index\n\
+                  0 is the whole match, 1+ are groups; empty if no\n\
+                  match.\n\
+                  \n\
+                  printf / sprintf accept three argument shapes per\n\
+                  format: zero args, a single arg, or an Array. Rhai\n\
+                  has no variadic concept, so multi-arg formats are\n\
+                  passed as `[a, b, c]`. Supported specifiers: d i u o\n\
+                  x X b f e E g G s c %% with -, 0, +, space, # flags,\n\
+                  plus width and precision.",
+    flags: &[
+        FlagHelp { flags: "trim(s) / trim(s, mask)", description: "Strip whitespace (or any char in `mask`) from both ends." },
+        FlagHelp { flags: "ltrim(s) / ltrim(s, mask)", description: "Strip from the left end only." },
+        FlagHelp { flags: "rtrim(s) / rtrim(s, mask)", description: "Strip from the right end only." },
+        FlagHelp { flags: "strrev(s)", description: "Reverse a string by Unicode codepoints — accented letters and\nemoji survive intact." },
+        FlagHelp { flags: "strip_html(s)", description: "Remove every `<...>` segment. Quoted attribute values are\nrespected so `<a title=\"oh >no<\">` strips cleanly. HTML\nentities pass through untouched (matches PHP strip_tags)." },
+        FlagHelp { flags: "nl2br(s)", description: "Insert `<br>` before every `\\n`, `\\r\\n`, or `\\r`. HTML5 form,\nno trailing slash. The original newline is preserved." },
+        FlagHelp { flags: "br2nl(s)", description: "Replace `<br>` / `<br/>` / `<br />` (any case, any inner\nwhitespace) with `\\n`. If the tag is immediately followed by\nan EOL, that EOL is kept — so nl2br ↔ br2nl round-trips." },
+        FlagHelp { flags: "preg_match(pattern, subject)", description: "Returns Array of captures: index 0 is the whole match, 1+ are\ngroups. Empty array when no match. Errors on invalid regex." },
+        FlagHelp { flags: "preg_replace(pattern, replacement, subject)", description: "Replace every match. `$1` / `${name}` in `replacement` expand\nto captures, per the regex crate's default replacement syntax." },
+        FlagHelp { flags: "arr.join(sep) / join(arr, sep)", description: "Concatenate an Array's elements with `sep` between them.\nNon-string elements are stringified via Dynamic::to_string." },
+        FlagHelp { flags: "sprintf(fmt, args)", description: "Format and return a String. `args` is either a single value or\nan Array for multi-arg formats. Supports flags -, 0, +, space,\n#, plus width and precision." },
+        FlagHelp { flags: "printf(fmt, args)", description: "Format and write to stdout. Returns the number of bytes\nwritten (matches C printf)." },
+    ],
+    related: &["script", "scripting", "text"],
+    examples: &[
+        ExampleHelp { description: "Whitespace + custom mask", command: r#"recon --script - <<< 'print(trim("  hi  ")); print(ltrim("...path", "."));'"# },
+        ExampleHelp { description: "Strip HTML and convert linebreaks", command: r#"recon --script - <<< 'print(strip_html("<p>plain <b>text</b></p>"));'"# },
+        ExampleHelp { description: "Regex capture", command: r#"recon --script - <<< 'print(preg_match("/^Host:\\s*(.+)$/i", "Host: example.com"));'"# },
+        ExampleHelp { description: "printf with multiple args", command: r#"recon --script - <<< 'printf("%-10s %5d\n", ["alpha", 42]);'"# },
+        ExampleHelp { description: "sprintf hex with alt form", command: r#"recon --script - <<< 'print(sprintf("hex=%#x", 255));'"# },
+    ],
+};
+
 static TOPIC_FLAGS: Topic = Topic {
     title: "Flag listing (`--flags`)",
     description: "A curl-style alphabetical listing of every flag.\n\
@@ -2539,6 +2584,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "agent-browser" | "agentbrowser" => Some(&TOPIC_AGENT_BROWSER),
         "browser" | "session" | "browser-session" => Some(&TOPIC_BROWSER),
         "charset" | "encoding-text" | "text-encoding" | "iconv" | "text" => Some(&TOPIC_TEXT_ENCODING),
+        "strutil" | "string-helpers" | "trim" | "sprintf" | "printf" | "preg" | "strip-html" | "nl2br" | "strrev" => Some(&TOPIC_STRUTIL),
         "smtp" | "smtps" | "mail" | "email-send" => Some(&TOPIC_SMTP),
         "ftp" | "ftps" => Some(&TOPIC_FTP),
         "sftp" => Some(&TOPIC_SFTP),
@@ -2637,6 +2683,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "agent-browser",
         "archive",
         "charset",
+        "strutil",
         "smtp",
         "ftp",
         "sftp",

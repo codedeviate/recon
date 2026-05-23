@@ -39,6 +39,7 @@ pub mod rtsp;
 pub mod sftp;
 pub mod smtp;
 pub mod sqlite;
+pub mod strutil;
 pub mod tcp;
 pub mod tcp_server;
 pub mod text;

@@ -158,7 +158,7 @@ fn eval_and_print(state: &mut ReplState, source: &str) {
             }
         }
         Err(e) => {
-            eprintln!("error: {e}");
+            eprintln!("error: {}", crate::script::error_hint::format(&state.engine, &e));
         }
     }
 }
@@ -213,7 +213,7 @@ pub(super) fn run_script_isolated(
         .map_err(|e| e.to_string())?;
     engine
         .eval_ast_with_scope::<Dynamic>(&mut scope, &ast)
-        .map_err(|e| e.to_string())
+        .map_err(|e| crate::script::error_hint::format(&engine, &e))
 }
 
 pub(super) fn build_flags_from_defaults(d: &ScriptDefaults) -> rhai::Map {

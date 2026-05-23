@@ -22,6 +22,7 @@ pub mod bindings;
 pub mod convert;
 pub mod defaults;
 pub mod engine;
+pub mod error_hint;
 
 /// Entry point from `main.rs`. Returns the process exit code.
 pub fn run(args: &Args) -> i32 {

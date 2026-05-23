@@ -8,6 +8,70 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.85.0] - 2026-05-23
+
+### Added
+
+- Script binding `arr.join(sep)` (also callable as `join(arr, sep)`).
+  Rhai 1.24's BasicArrayPackage doesn't ship an Array.join in our
+  configuration, and recon's existing `join(&mut ThreadHandle)` is the
+  only registration users see — which makes the natural `arr.join(", ")`
+  fail with a confusing overload-mismatch. Non-string elements are
+  coerced via `Dynamic::to_string` so `[1, "two", 3.5].join("-")` works
+  the way scripts expect.
+
+## [0.84.1] - 2026-05-22
+
+### Changed
+
+- Function-not-found errors from the script engine and REPL now list
+  the available overloads when the name *is* registered but no overload
+  accepts the runtime argument types. Before:
+
+      error: Function not found: json_parse (map) (line 1, position 18)
+
+  After:
+
+      error: Function not found: json_parse (map) (line 1, position 18)
+      note: `json_parse` is defined, but no overload accepts (map).
+      hint: check that you're passing the expected argument types —
+            e.g. an http() response is a map, so pass `r.body` (string)
+            to functions that take a string.
+      Available overloads:
+        json_parse(_: string)
+
+  Rhai's default message is identical for "name doesn't exist" and
+  "name exists, wrong types"; the second case is the more common one
+  and used to send people chasing a missing import when the real fix
+  was `.body` or a `to_string`. Truly-unknown names keep the original
+  one-liner.
+
+## [0.84.0] - 2026-05-22
+
+### Added
+
+- Eleven PHP-style string helpers exposed as top-level callables in the
+  script engine and REPL: `trim` / `ltrim` / `rtrim` (with optional
+  char-mask second argument), `strrev` (Unicode-codepoint reverse),
+  `strip_html` (tag stripper that respects quoted attributes),
+  `nl2br` / `br2nl` (HTML5 `<br>` round-trip that preserves the
+  original EOL), `preg_match` / `preg_replace` (regex helpers accepting
+  either raw patterns or PHP-style `/pat/flags` delimiters with i / m
+  / s / x), and `printf` / `sprintf` (C-style with d / i / u / o / x /
+  X / b / f / e / E / g / G / s / c / `%`, plus `-` / `0` / `+` /
+  space / `#` flags, width, and precision). Multi-arg formats pass an
+  Array (`[a, b, c]`) since Rhai has no variadic concept.
+- New help topic `recon --help strutil` (aliases: `string-helpers`,
+  `trim`, `sprintf`, `printf`, `preg`, `strip-html`, `nl2br`, `strrev`)
+  and a new `--examples` section "STRING HELPERS (script + REPL)".
+- Demo script `script/strutil.rhai` exercising every helper.
+
+### Changed
+
+- `regex` is now a direct dependency. It was already transitively in
+  the lock file via the markdown/PDF rendering path, so the build cost
+  is unchanged.
+
 ## [0.83.0] - 2026-05-22
 
 ### Added
