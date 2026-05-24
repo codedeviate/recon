@@ -4308,7 +4308,7 @@ dependencies = [
 
 [[package]]
 name = "recon-cli"
-version = "0.85.1"
+version = "0.86.0"
 dependencies = [
  "age",
  "anyhow",
