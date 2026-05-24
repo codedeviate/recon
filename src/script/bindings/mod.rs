@@ -22,6 +22,7 @@ pub mod hash;
 pub mod helpers;
 pub mod imap;
 pub mod ipfs;
+pub mod jq;
 pub mod jwt;
 pub mod netstatus;
 pub mod output;
