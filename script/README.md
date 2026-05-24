@@ -137,6 +137,8 @@ surprise failures.
 | `thread.rhai` | Spawn workers, collect via channel, demo bounded channels |
 | `tcp-echo.rhai` | Concurrent TCP echo server (accept → thread_spawn per conn) |
 | `udp-listen.rhai` | UDP beacon listener that prints each datagram |
+| `shell.rhai` | `shell(cmd)` and `shell_stream(cmd, callback)` — run subprocesses with cwd / env / timeout opts, stream stdout+stderr line-by-line into a callback |
+| `tui.rhai` | `tui::run(|d| { ... })` — multi-pane dashboard. Demonstrates routing subprocess output into one pane while the script logs progress in another. Requires a real TTY. |
 
 ### Data primitives
 

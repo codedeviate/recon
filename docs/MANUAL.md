@@ -2,7 +2,7 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.86.0</div>
+<div class="version">Version 0.88.0</div>
 <div class="date">2026-05-24</div>
 <div class="meta">
 Repository · https://github.com/codedeviate/recon<br>
@@ -2728,6 +2728,137 @@ let h = thread_spawn(|| {
 let status = join(h);
 print(`completed with status ${status}`);
 ```
+
+## Shell binding
+
+Run external commands from a script. Two forms — `shell()` blocks
+and captures everything, `shell_stream()` fires a callback per line
+as the child writes it. Built for run-and-watch scripts (local
+software updates, multi-step setup, log filtering) and as the
+substrate for the upcoming TUI pane primitive.
+
+| Function | Description |
+|---|---|
+| `shell(cmd_string)` / `shell(cmd_string, opts)` | Run via `sh -c <s>` (Unix) or `cmd /C <s>` (Windows). Pipes / globs / redirects / && chains work. |
+| `shell(argv_array)` / `shell(argv_array, opts)` | Direct argv form. No shell layer, no quoting surprises. |
+| `shell_stream(cmd, callback)` / `shell_stream(cmd, callback, opts)` | Streaming form. Callback fires per merged stdout+stderr line as the child writes; returns the exit code on child exit. |
+
+### Return value (`shell`)
+
+A Map:
+
+| Key | Type | Description |
+|---|---|---|
+| `stdout` | String | Captured stdout (lossy UTF-8). |
+| `stderr` | String | Captured stderr (or empty when `merge_stderr: true`). |
+| `exit_code` | Int | Child's exit code, or `-1` if killed by signal. |
+| `success` | Bool | `exit_code == 0`. |
+
+### Opts map (both forms)
+
+All keys optional.
+
+| Key | Type | Behaviour |
+|---|---|---|
+| `cwd` | String | Working directory (default: inherit). |
+| `env` | Map | Name → value, layered on top of the parent environment. |
+| `env_clear` | Bool | Drop the parent env entirely before applying `env`. |
+| `timeout_ms` | Int | Kill the child after N ms; raises a Rhai error the script can `try`/`catch`. |
+| `merge_stderr` | Bool | `shell` only — fold stderr into stdout. `shell_stream` always merges. |
+
+### Examples
+
+```rhai
+// Blocking — common case.
+let r = shell("git status --short");
+if r.success { print(r.stdout); } else { print(`exit ${r.exit_code}: ${r.stderr}`); }
+
+// argv form skips shell expansion.
+let r = shell(["echo", "$HOME"]);   // stdout: "$HOME\n"
+
+// Opts.
+let r = shell("cargo test", #{
+    cwd: "/path/to/repo",
+    env: #{ RUST_LOG: "info" },
+    timeout_ms: 60000,
+});
+
+// Streaming — callback per line as the child writes.
+let exit = shell_stream("brew upgrade", |line| {
+    print(`[brew] ${line}`);
+});
+print(`brew exit ${exit}`);
+
+// Multi-step update with error isolation.
+for cmd in ["brew upgrade", "npm -g update", "cargo install-update -a"] {
+    try {
+        shell_stream(cmd, |line| print(line));
+    } catch (e) {
+        print(`step '${cmd}' failed: ${e}`);
+    }
+}
+```
+
+A non-zero exit code does NOT raise an error — check `r.success`
+(or compare `exit_code` in the streaming form's return value). A
+timeout DOES raise an error, hence the `try` / `catch` in the
+multi-step example.
+
+## TUI dashboard binding
+
+Multi-pane text dashboard for scripts. Sits on top of `shell_stream`:
+the canonical use case is a run-and-watch script where one or more
+subprocesses stream their output into distinct panes while the
+script logs its own progress.
+
+| Function | Description |
+|---|---|
+| `tui::run(callback)` | Enter alt-screen, build a Dashboard, pass it to the callback. Restores the terminal on any exit (normal, Rhai error, panic, SIGINT). Errors if stdout isn't a TTY or another dashboard is already active. |
+| `d.split_vertical([p1, p2, …])` | Stack panes top-to-bottom. Each percentage is in `(0, 100]`. Returns an Array of pane handles. Can only be called once per dashboard. |
+| `d.split_horizontal([p1, p2, …])` | Lay panes left-to-right. Same semantics as `split_vertical`. |
+| `pane.println(line)` | Append a line to the pane's scrollback. Auto-scrolls. Cap: 1000 lines per pane. |
+| `pane.title(s)` | Set the pane's top-row title. Rendered as ` <s> ` followed by a horizontal rule. |
+| `pane.clear()` | Empty the pane's scrollback. Title is preserved. |
+
+### Example
+
+```rhai
+tui::run(|d| {
+    let parts = d.split_vertical([70, 30]);
+    let main = parts[0];
+    let status = parts[1];
+
+    main.title("subprocess output");
+    status.title("script progress");
+
+    for cmd in ["brew upgrade", "npm -g update", "cargo install-update -a"] {
+        status.println(`[running] ${cmd}`);
+        try {
+            shell_stream(cmd, |line| main.println(line));
+            status.println(`[done] ${cmd}`);
+        } catch (e) {
+            status.println(`[failed] ${cmd}: ${e}`);
+        }
+    }
+    status.println("all done");
+    sleep_ms(1500);
+});
+```
+
+### v1 limitations (intentional)
+
+- **No raw mode.** Terminal resize is handled by a 150 ms polling
+  redraw rather than via SIGWINCH events. Layout glitches between
+  updates are possible until the next pane write.
+- **No PTY allocation.** Subprocesses spawned via `shell_stream` still
+  detect "not a terminal" and switch to non-coloured / unbuffered
+  output. Fixing this requires a real PTY (`portable-pty` / `nix`)
+  and is its own work item.
+- **Truncation, not wrapping.** Lines longer than the pane width are
+  cut at the right edge.
+- **Wide characters undercounted.** Emoji and CJK render as two
+  terminal cells but count as one when truncating. Lines containing
+  them may overflow by a column or two.
 
 ## DNS binding
 

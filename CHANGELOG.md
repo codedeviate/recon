@@ -8,6 +8,55 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.88.0] - 2026-05-24
+
+### Added
+
+- New `tui::run(callback)` script binding — minimal multi-pane text
+  dashboard. Built to sit on top of `shell_stream` from 0.87.0:
+  scripts can launch one or more long-running subprocesses and route
+  their output into distinct text regions while a separate pane
+  shows the script's own progress.
+- Dashboard API: `d.split_vertical([percents])` and
+  `d.split_horizontal([percents])` return an Array of pane handles
+  (last pane absorbs rounding so the screen is fully covered). Pane
+  methods: `println(line)` (auto-scrolling, 1000-line cap), `title(s)`
+  (rendered as a horizontal rule above each pane), `clear()`.
+- Drop guard restores the terminal on any exit path: normal
+  completion, propagated Rhai error, or panic. Best-effort
+  `ctrlc::try_set_handler` writes the same restore sequence on
+  SIGINT before exiting with 130 (silently skipped if another
+  handler is already installed, e.g. by `recon --mqtt subscribe`).
+- New help topic `recon --help tui` (aliases: `dashboard`, `pane`,
+  `panes`, `split`), a `--examples` section "TUI DASHBOARD", and a
+  "TUI dashboard binding" section in `docs/MANUAL.md` Part III.
+- Demo `script/tui.rhai` exercises the two-pane pattern end-to-end
+  with a `for…sleep` loop standing in for a real `brew upgrade`.
+
+## [0.87.0] - 2026-05-24
+
+### Added
+
+- New `shell(cmd, [opts])` script binding — run an external command,
+  capture stdout/stderr/exit, return a Map. String input runs via
+  `sh -c <s>` on Unix and `cmd /C <s>` on Windows so pipes / globs /
+  redirects / && chains work; Array input is a direct argv with no
+  shell layer.
+- New `shell_stream(cmd, callback, [opts])` — same shapes, but the
+  callback fires once per merged stdout/stderr line as the child
+  writes it. Returns the exit code on child exit. Built for live
+  progress UIs and as the substrate for the upcoming TUI pane
+  primitive.
+- Opts map for both forms: `cwd`, `env` (layered on parent),
+  `env_clear`, `timeout_ms` (kills the child + raises a catchable
+  error on overrun), `merge_stderr` (blocking form only).
+- New help topic `recon --help shell` (aliases: `subprocess`,
+  `shell-stream`, `exec`), a `--examples` section "SHELL SUBPROCESS",
+  and a "Shell binding" section in `docs/MANUAL.md` Part III.
+- Demo script `script/shell.rhai` exercises every shape end-to-end:
+  blocking capture, argv form, cwd+env opts, streaming with line
+  callback, timeout kill via `try`/`catch`.
+
 ## [0.86.0] - 2026-05-24
 
 ### Added

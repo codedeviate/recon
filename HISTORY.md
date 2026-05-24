@@ -52,6 +52,130 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 81. TUI dashboard binding — `tui::run` with split panes (0.88.0)
+
+**What:** A minimal multi-pane text dashboard for scripts. `tui::run(|d|
+{...})` enters the terminal alt-screen, hands the closure a Dashboard,
+and tears down cleanly on any exit path. The Dashboard exposes
+`split_vertical([percents])` / `split_horizontal([percents])` returning
+an Array of `PaneHandle` values, each of which has `println(line)` /
+`title(s)` / `clear()` methods. Backed by `crossterm` (already a recon
+dep) — no new compile units.
+
+**Why hand-roll on crossterm rather than pull in ratatui.** The use
+case is "two or three append-only scrolling text panes with title
+rules". Ratatui's value is its widget vocabulary (tables, gauges,
+sparklines, charts) and its constraint solver for complex layouts —
+none of which this feature needs. Crossterm is 100 LOC of layout math
+and ~150 LOC of redraw; ratatui would be a ~300 KB code addition and
+a vocabulary to learn. The decision is reversible: if a future feature
+needs gauges or tables, swapping the renderer to ratatui is a
+contained change because pane state is already separated from
+rendering.
+
+**Why the script's closure runs on the main thread rather than a
+worker.** Rhai's engine is `Send + Sync` under the `sync` feature, but
+calling a `FnPtr` from a non-script thread requires a fresh evaluation
+context — captured scope wouldn't resolve the way users expect.
+Implementation: the renderer is a worker thread; pane handles are
+thin `mpsc::Sender` clones; the script's closure stays on the thread
+that invoked `tui::run`. A `pane.println()` call is therefore just a
+non-blocking channel send — it returns immediately even while
+shell_stream is busy pumping bytes into a child's stdin, so the
+script doesn't deadlock against its own UI thread.
+
+**Why a Drop guard for terminal restore.** Anything that strands the
+user in alt-screen mode with their cursor hidden is a bug — they have
+to type `reset` blind to recover. The guard ensures restore on normal
+exit, Rhai-error propagation, and any panic between `EnterAlternateScreen`
+and the close of the closure. Belt-and-suspenders: a best-effort
+`ctrlc::try_set_handler` also writes the leave-alt-screen escape on
+SIGINT and exits with 130. `try_set_handler` rather than `set_handler`
+because `mqtt::subscribe` installs its own handler and only one is
+allowed per process; the Drop guard is the load-bearing piece.
+
+**Why split percentages absorb rounding into the last pane.** A 50/50
+split of 25 lines is 12 + 13, and the user shouldn't have to think
+about which pane "lost" a row. Allocating the remainder to the last
+pane is a one-line rule that always sums to the full height/width and
+matches what most layout managers do (CSS flex, tmux).
+
+**What v1 deferred and why.** No raw mode: skipped because the only
+benefit would be intercepting keystrokes for pane focus / scrollback,
+which this feature doesn't need; the cost is a `disable_raw_mode` call
+that must run on every exit path, doubling the failure modes. Resize
+handling falls back to a 150 ms polling redraw — glitches between
+pane writes are visible but self-correcting. No PTY allocation: child
+processes spawned via `shell_stream` still detect "not a terminal" and
+switch to non-coloured / unbuffered output; fixing this requires
+`portable-pty` and is its own slice. Line truncation rather than
+wrapping: wrapping is ~50 LOC of additional logic per pane and the
+common case (subprocess output) is shorter than 80 columns.
+
+### 80. Shell subprocess binding — `shell()` and `shell_stream()` (0.87.0)
+
+**What:** Two script-engine callables for running external commands.
+`shell()` blocks and returns a Map of stdout/stderr/exit_code/success.
+`shell_stream()` fires a Rhai FnPtr callback once per merged
+stdout+stderr line as the child writes it, returning the exit code at
+the end. Both accept either a String (run via `sh -c` / `cmd /C`) or
+an Array (literal argv); both take an opts Map with `cwd`, `env`,
+`env_clear`, `timeout_ms`, `merge_stderr`.
+
+**Why this is its own module rather than another helper.** The
+existing pattern in `bindings/helpers.rs` is for one-line wrappers
+around stdlib calls (`env`, `now`, `sleep_ms`). Subprocess handling
+needs three threads (stdout drain, stderr drain, wait), an mpsc
+channel for line forwarding, and timeout-aware blocking — too much
+state to belong in `helpers.rs`. A dedicated `bindings/shell.rs`
+keeps that complexity local and gives Phase 2 (TUI panes) a clear
+foothold.
+
+**Why string-input goes through the platform shell by default.** The
+target use case is "run a list of update commands" — `brew upgrade`,
+`npm -g update`, `cargo install-update -a`, `apt-get update`. People
+write those with `&&` chains, pipes, and `$VAR` expansion; they
+don't want to remember to invoke `sh -c` for every call. Direct
+argv is still one keystroke away (`shell([...])`) and is the right
+default when the command name comes from untrusted input.
+
+**Why the streaming callback runs on the script's own thread.**
+Rhai's engine is `Send + Sync` under the `sync` feature, but calling
+a `FnPtr` from a non-script thread requires re-entering the engine
+with a fresh evaluation context — error-prone and surprising
+(captured scope wouldn't resolve the way users expect). The
+implementation instead spawns two forwarder threads that just push
+String lines into an mpsc, and the main thread loops on `rx.recv`
+inside the native function, invoking
+`callback.call_within_context(ctx, (line,))` per arrival. That keeps
+all Rhai-engine work on the same thread, captured variables behave
+exactly like they do in a synchronous loop, and reentrancy
+semantics match the array-method conventions (`.map`, `.filter`).
+
+**Why timeout is whole-call, not per-line.** A common subprocess
+(`brew upgrade`) might be silent for 30s while it resolves
+dependencies, then write a burst of lines. A per-line idle timeout
+would have to be set conservatively high enough to tolerate those
+quiet stretches, defeating its purpose. A whole-call deadline is
+predictable: "fail after N ms total" is what users want when they
+add a timeout at all.
+
+**Why stderr is always merged in `shell_stream`.** Separating them
+would require either two callbacks (awkward) or a tagged line type
+(invasive). Users staring at live output read the natural arrival
+order anyway — the OS already serialises writes from the child's
+two pipes by interleaving them at the read-end. Blocking `shell()`
+still keeps them separate because parse-the-result workflows often
+care which stream a line came from.
+
+**What's deferred to Phase 2.** No TTY allocation, so commands that
+prompt for input (`apt-get install` without `-y`, `passwd`) appear
+to hang. No PTY means interactive tools also detect "not a terminal"
+and switch to non-coloured / different-formatted output — not a bug,
+but a known limitation. The TUI pane primitive that lands in the
+next slice doesn't fix this either; full PTY support is a separate
+ticket.
+
 ### 79. Script-engine string helpers, error hints, and the metadata feature (0.83.0–0.85.0)
 
 **What:** Three connected additions to the script engine and REPL.
