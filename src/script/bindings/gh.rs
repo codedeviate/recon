@@ -576,6 +576,30 @@ mod tests {
     }
 
     #[test]
+    fn pr_create_opts_rejects_missing_title() {
+        let mut opts = rhai::Map::new();
+        opts.insert("body".into(), "hello".to_string().into());
+        let result = pr_create_opts_to_args(&opts);
+        assert!(result.is_err());
+        assert!(
+            result.unwrap_err().to_string().contains("title is required"),
+        );
+    }
+
+    #[test]
+    fn pr_create_opts_rejects_body_and_body_file_together() {
+        let mut opts = rhai::Map::new();
+        opts.insert("title".into(), "T".to_string().into());
+        opts.insert("body".into(), "x".to_string().into());
+        opts.insert("body_file".into(), "/p".to_string().into());
+        let result = pr_create_opts_to_args(&opts);
+        assert!(result.is_err());
+        assert!(
+            result.unwrap_err().to_string().contains("mutually exclusive"),
+        );
+    }
+
+    #[test]
     fn parse_pr_url_extracts_number_and_url() {
         let m = parse_pr_url("https://github.com/owner/repo/pull/123\n").unwrap();
         assert_eq!(m.get("number").unwrap().as_int().unwrap(), 123);
