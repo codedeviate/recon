@@ -129,6 +129,7 @@ surprise failures.
 |---|---|
 | `text.rhai` | Charset detect / decode / encode + newline normalisation |
 | `strutil.rhai` | PHP-style string helpers: trim/ltrim/rtrim, strrev, strip_html, nl2br/br2nl, preg_match/preg_replace, printf/sprintf |
+| `jq.rhai` | jq-style filters on any Map/Array via `.jq(filter)` and `.jq_all(filter)` — first vs all results |
 
 ### Concurrency
 
