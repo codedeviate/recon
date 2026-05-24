@@ -8,6 +8,24 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+### Added
+
+- New `obj.jq(filter)` / `obj.jq_all(filter)` script binding (also
+  callable as free functions `jq(obj, f)` / `jq_all(obj, f)`). Apply
+  a full jq-grammar filter to any Map or Array — pipes, `select`,
+  `map`, alternative `//`, arithmetic, jq stdlib functions. Backed
+  by the `jaq` crate.
+- `jq(filter)` returns the first result (or `()` if the filter
+  yields nothing); `jq_all(filter)` returns every result as an
+  Array. The split avoids the shape ambiguity a single
+  auto-shaping method would have.
+- Strings are not auto-parsed — chain `json_parse(s).jq(filter)`
+  when starting from JSON text. Filter parse / runtime errors
+  throw and are catchable.
+- New help topic `recon --help jq` (aliases: `filter`, `jaq`),
+  a `--examples` section "JQ FILTER", a "jq filter" section in
+  `docs/MANUAL.md` Part III, and demo script `script/jq.rhai`.
+
 ## [0.88.0] - 2026-05-24
 
 ### Added
