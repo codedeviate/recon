@@ -326,6 +326,10 @@ const ISSUE_LIST_FIELDS: &str =
 const ISSUE_VIEW_FIELDS: &str =
     "number,title,state,author,body,labels,assignees,createdAt,closedAt,url";
 
+const RELEASE_LIST_FIELDS: &str = "name,tagName,createdAt,isDraft,isPrerelease,url";
+const RELEASE_VIEW_FIELDS: &str =
+    "name,tagName,body,createdAt,publishedAt,isDraft,isPrerelease,assets,url,targetCommitish";
+
 fn issue_list_opts_to_args(opts: &Map) -> Result<Vec<String>, Box<EvalAltResult>> {
     let mut out = Vec::new();
     for (k, v) in opts {
@@ -433,6 +437,69 @@ fn issue_create_opts_to_args(opts: &Map) -> Result<Vec<String>, Box<EvalAltResul
         return Err(err("issue_create opts: body and body_file are mutually exclusive"));
     }
     Ok(out)
+}
+
+fn release_create_opts_to_args(opts: &Map) -> Result<Vec<String>, Box<EvalAltResult>> {
+    let mut out = Vec::new();
+    let mut have_notes = false;
+    let mut have_notes_file = false;
+    for (k, v) in opts {
+        match k.as_str() {
+            "title" => {
+                out.push("--title".into());
+                out.push(v.clone().into_string().map_err(|_| err("release_create opts: title must be a string"))?);
+            }
+            "notes" => {
+                have_notes = true;
+                out.push("--notes".into());
+                out.push(v.clone().into_string().map_err(|_| err("release_create opts: notes must be a string"))?);
+            }
+            "notes_file" => {
+                have_notes_file = true;
+                out.push("--notes-file".into());
+                out.push(v.clone().into_string().map_err(|_| err("release_create opts: notes_file must be a string"))?);
+            }
+            "generate_notes" => {
+                if v.clone().as_bool().unwrap_or(false) {
+                    out.push("--generate-notes".into());
+                }
+            }
+            "draft" => {
+                if v.clone().as_bool().unwrap_or(false) {
+                    out.push("--draft".into());
+                }
+            }
+            "prerelease" => {
+                if v.clone().as_bool().unwrap_or(false) {
+                    out.push("--prerelease".into());
+                }
+            }
+            "target" => {
+                out.push("--target".into());
+                out.push(v.clone().into_string().map_err(|_| err("release_create opts: target must be a string"))?);
+            }
+            other => return Err(err(format!("release_create opts: unknown key '{other}'"))),
+        }
+    }
+    if have_notes && have_notes_file {
+        return Err(err("release_create opts: notes and notes_file are mutually exclusive"));
+    }
+    Ok(out)
+}
+
+/// Parse the URL line that `gh release create` emits, returning
+/// `{ url, tag }` map.
+fn parse_release_url(s: &str) -> Result<Map, Box<EvalAltResult>> {
+    let re = regex::Regex::new(r"https://[^\s]+/releases/tag/(\S+)").unwrap();
+    let cap = re.captures(s).ok_or_else(|| {
+        err(format!("gh.release_create: could not parse URL from output: {s}"))
+    })?;
+    let url = cap.get(0).unwrap().as_str().to_string();
+    let tag = cap[1].to_string();
+    let mut m = Map::new();
+    m.insert("url".into(), url.into());
+    m.insert("tag".into(), tag.into());
+    Ok(m)
 }
 
 /// Parse the URL line that `gh issue create` emits, returning
@@ -670,6 +737,44 @@ pub fn register(engine: &mut Engine) {
             Ok(())
         },
     );
+
+    engine.register_fn(
+        "release_list",
+        |h: &mut Gh| -> Result<Array, Box<EvalAltResult>> {
+            let argv = &["release", "list", "--json", RELEASE_LIST_FIELDS];
+            let out = h.run(argv, true)?;
+            let stdout = ok_or_throw(argv, out)?;
+            let v: serde_json::Value = serde_json::from_str(&stdout)
+                .map_err(|e| err(format!("gh.release_list: {e}")))?;
+            let d = crate::script::bindings::helpers::json_to_dynamic(v);
+            d.try_cast::<Array>().ok_or_else(|| err("gh.release_list: expected Array"))
+        },
+    );
+
+    engine.register_fn(
+        "release_view",
+        |h: &mut Gh, tag: &str| -> Result<Map, Box<EvalAltResult>> {
+            let argv = &["release", "view", tag, "--json", RELEASE_VIEW_FIELDS];
+            let out = h.run(argv, true)?;
+            let stdout = ok_or_throw(argv, out)?;
+            let v: serde_json::Value = serde_json::from_str(&stdout)
+                .map_err(|e| err(format!("gh.release_view: {e}")))?;
+            let d = crate::script::bindings::helpers::json_to_dynamic(v);
+            d.try_cast::<Map>().ok_or_else(|| err("gh.release_view: expected Map"))
+        },
+    );
+
+    engine.register_fn(
+        "release_create",
+        |h: &mut Gh, tag: &str, opts: Map| -> Result<Map, Box<EvalAltResult>> {
+            let mut argv: Vec<String> = vec!["release".into(), "create".into(), tag.to_string()];
+            argv.extend(release_create_opts_to_args(&opts)?);
+            let refs: Vec<&str> = argv.iter().map(|s| s.as_str()).collect();
+            let out = h.run(&refs, true)?;
+            let stdout = ok_or_throw(&refs, out)?;
+            parse_release_url(&stdout)
+        },
+    );
 }
 
 #[cfg(test)]
@@ -831,6 +936,41 @@ mod tests {
         assert_eq!(
             m.get("url").unwrap().clone().into_string().unwrap(),
             "https://github.com/owner/repo/issues/42"
+        );
+    }
+
+    #[test]
+    fn release_create_opts_to_args_handles_flags_and_strings() {
+        let mut opts = rhai::Map::new();
+        opts.insert("title".into(), "v1".to_string().into());
+        opts.insert("generate_notes".into(), true.into());
+        opts.insert("draft".into(), true.into());
+        let args = release_create_opts_to_args(&opts).unwrap();
+        assert!(args.contains(&"--title".to_string()) && args.contains(&"v1".to_string()));
+        assert!(args.contains(&"--generate-notes".to_string()));
+        assert!(args.contains(&"--draft".to_string()));
+    }
+
+    #[test]
+    fn release_create_rejects_both_notes_and_notes_file() {
+        let mut opts = rhai::Map::new();
+        opts.insert("notes".into(), "x".to_string().into());
+        opts.insert("notes_file".into(), "/path".to_string().into());
+        let result = release_create_opts_to_args(&opts);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("mutually exclusive"));
+    }
+
+    #[test]
+    fn parse_release_url_extracts_tag_and_url() {
+        let m = parse_release_url("https://github.com/owner/repo/releases/tag/v0.89.0\n").unwrap();
+        assert_eq!(
+            m.get("tag").unwrap().clone().into_string().unwrap(),
+            "v0.89.0"
+        );
+        assert_eq!(
+            m.get("url").unwrap().clone().into_string().unwrap(),
+            "https://github.com/owner/repo/releases/tag/v0.89.0"
         );
     }
 }
