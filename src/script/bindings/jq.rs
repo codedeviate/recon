@@ -38,10 +38,22 @@ pub fn register(engine: &mut Engine) {
         },
     );
 
-    // jq_all forms land in Task 5.
+    // jq_all(Map, &str) — every result as an Array.
+    engine.register_fn(
+        "jq_all",
+        |m: Map, filter: &str| -> Result<Dynamic, Box<EvalAltResult>> {
+            run_filter(Dynamic::from(m), filter, FirstOnly::No)
+        },
+    );
+    // jq_all(Array, &str) — same.
+    engine.register_fn(
+        "jq_all",
+        |a: Array, filter: &str| -> Result<Dynamic, Box<EvalAltResult>> {
+            run_filter(Dynamic::from(a), filter, FirstOnly::No)
+        },
+    );
 }
 
-#[allow(dead_code)] // No variant used by jq_all, which lands in Task 5
 #[derive(Copy, Clone)]
 enum FirstOnly {
     Yes,
@@ -236,5 +248,43 @@ mod tests {
             msg.contains("byte string"),
             "expected 'byte string' in error, got: {msg}"
         );
+    }
+
+    #[test]
+    fn jq_all_returns_every_result() {
+        let mut e = engine();
+        let r: Array = e
+            .eval(r#"["a", "b", "c"].jq_all(".[]")"#)
+            .unwrap();
+        let collected: Vec<String> = r
+            .into_iter()
+            .map(|d| d.into_string().unwrap())
+            .collect();
+        assert_eq!(collected, vec!["a", "b", "c"]);
+    }
+
+    #[test]
+    fn jq_all_returns_empty_array_when_no_results() {
+        let mut e = engine();
+        let r: Array = e
+            .eval(r#"[1, 2, 3].jq_all(".[] | select(. > 99)")"#)
+            .unwrap();
+        assert!(r.is_empty());
+    }
+
+    #[test]
+    fn jq_all_supports_pipe_and_select() {
+        let mut e = engine();
+        let r: Array = e
+            .eval(
+                r#"[#{ name: "a", on: true }, #{ name: "b", on: false }, #{ name: "c", on: true }]
+                   .jq_all(".[] | select(.on) | .name")"#,
+            )
+            .unwrap();
+        let names: Vec<String> = r
+            .into_iter()
+            .map(|d| d.into_string().unwrap())
+            .collect();
+        assert_eq!(names, vec!["a", "c"]);
     }
 }
