@@ -13,7 +13,7 @@ use crate::script::bindings::helpers;
 use crate::script::convert::err;
 use jaq_core::{
     data,
-    load::{Arena, File, Loader},
+    load::{self, Arena, File, Loader},
     unwrap_valr, Compiler, Ctx, Vars,
 };
 use jaq_json::Val;
@@ -104,6 +104,43 @@ fn run_filter(
     }
 }
 
+/// Convert a [`load::Error`] into one or more human-readable message strings.
+///
+/// The jaq error types do not implement `Display`; instead each variant
+/// carries structured data (`as_str()` helpers, found-token slices, etc.)
+/// that we format manually here. This avoids the Rust-debug blobs that
+/// `{e:?}` would otherwise produce (e.g. `Lex([(Delim("("), "")])`).
+fn load_error_messages(e: load::Error<&str>) -> Vec<String> {
+    match e {
+        load::Error::Lex(errs) => errs
+            .into_iter()
+            .map(|(expected, found)| {
+                let found_desc = if found.is_empty() {
+                    "end of input".to_string()
+                } else {
+                    format!("'{found}'")
+                };
+                format!("expected {}, found {found_desc}", expected.as_str())
+            })
+            .collect(),
+        load::Error::Parse(errs) => errs
+            .into_iter()
+            .map(|(expected, found)| {
+                let found_desc = if found.is_empty() {
+                    "end of input".to_string()
+                } else {
+                    format!("'{found}'")
+                };
+                format!("expected {}, found {found_desc}", expected.as_str())
+            })
+            .collect(),
+        load::Error::Io(errs) => errs
+            .into_iter()
+            .map(|(path, msg)| format!("io error loading '{path}': {msg}"))
+            .collect(),
+    }
+}
+
 fn compile_filter(src: &str) -> Result<JaqFilter, Box<EvalAltResult>> {
     // jaq 3.x compile pipeline: Loader → File → Compiler.
     // Pulls in core + std + json defs/funs so `select`, `map`, etc. are
@@ -123,7 +160,7 @@ fn compile_filter(src: &str) -> Result<JaqFilter, Box<EvalAltResult>> {
     let modules = loader.load(&arena, file).map_err(|errs| {
         let msg = errs
             .into_iter()
-            .map(|(_, e)| format!("{e:?}"))
+            .flat_map(|(_, e)| load_error_messages(e))
             .collect::<Vec<_>>()
             .join("; ");
         err(format!("jq: filter parse error: {msg}"))
@@ -135,7 +172,14 @@ fn compile_filter(src: &str) -> Result<JaqFilter, Box<EvalAltResult>> {
         .map_err(|errs| {
             let msg = errs
                 .into_iter()
-                .map(|(_, e)| format!("{e:?}"))
+                .flat_map(|(_, compile_errs)| {
+                    compile_errs
+                        .into_iter()
+                        .map(|(name, undef)| {
+                            format!("undefined {} '{name}'", undef.as_str())
+                        })
+                        .collect::<Vec<_>>()
+                })
                 .collect::<Vec<_>>()
                 .join("; ");
             err(format!("jq: filter compile error: {msg}"))
@@ -269,6 +313,41 @@ mod tests {
             .eval(r#"[1, 2, 3].jq_all(".[] | select(. > 99)")"#)
             .unwrap();
         assert!(r.is_empty());
+    }
+
+    #[test]
+    fn jq_filter_parse_error_message_is_human_readable() {
+        let mut e = engine();
+        let err_msg = e
+            .eval::<rhai::Dynamic>(r#"[1, 2].jq("invalid syntax (")"#)
+            .unwrap_err()
+            .to_string();
+        // Should NOT contain Rust-debug-format markers.
+        assert!(!err_msg.contains("Lex(["), "got: {err_msg}");
+        assert!(!err_msg.contains("Vec("), "got: {err_msg}");
+        // Should contain something useful (expected/found style or error type name).
+        assert!(
+            err_msg.to_lowercase().contains("parse")
+                || err_msg.to_lowercase().contains("expected")
+                || err_msg.to_lowercase().contains("syntax"),
+            "got: {err_msg}",
+        );
+    }
+
+    #[test]
+    fn jq_all_on_map_yields_values() {
+        let mut e = engine();
+        let r: Array = e
+            .eval(r#"#{ a: 1, b: 2, c: 3 }.jq_all(".[]")"#)
+            .unwrap();
+        // jq's `.[]` on an object yields its values in some order; check
+        // that all three are present without depending on iteration order.
+        let mut collected: Vec<i64> = r
+            .into_iter()
+            .map(|d| d.as_int().unwrap())
+            .collect();
+        collected.sort();
+        assert_eq!(collected, vec![1, 2, 3]);
     }
 
     #[test]
