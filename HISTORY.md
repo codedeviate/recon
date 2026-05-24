@@ -52,6 +52,66 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 81. TUI dashboard binding — `tui::run` with split panes (0.88.0)
+
+**What:** A minimal multi-pane text dashboard for scripts. `tui::run(|d|
+{...})` enters the terminal alt-screen, hands the closure a Dashboard,
+and tears down cleanly on any exit path. The Dashboard exposes
+`split_vertical([percents])` / `split_horizontal([percents])` returning
+an Array of `PaneHandle` values, each of which has `println(line)` /
+`title(s)` / `clear()` methods. Backed by `crossterm` (already a recon
+dep) — no new compile units.
+
+**Why hand-roll on crossterm rather than pull in ratatui.** The use
+case is "two or three append-only scrolling text panes with title
+rules". Ratatui's value is its widget vocabulary (tables, gauges,
+sparklines, charts) and its constraint solver for complex layouts —
+none of which this feature needs. Crossterm is 100 LOC of layout math
+and ~150 LOC of redraw; ratatui would be a ~300 KB code addition and
+a vocabulary to learn. The decision is reversible: if a future feature
+needs gauges or tables, swapping the renderer to ratatui is a
+contained change because pane state is already separated from
+rendering.
+
+**Why the script's closure runs on the main thread rather than a
+worker.** Rhai's engine is `Send + Sync` under the `sync` feature, but
+calling a `FnPtr` from a non-script thread requires a fresh evaluation
+context — captured scope wouldn't resolve the way users expect.
+Implementation: the renderer is a worker thread; pane handles are
+thin `mpsc::Sender` clones; the script's closure stays on the thread
+that invoked `tui::run`. A `pane.println()` call is therefore just a
+non-blocking channel send — it returns immediately even while
+shell_stream is busy pumping bytes into a child's stdin, so the
+script doesn't deadlock against its own UI thread.
+
+**Why a Drop guard for terminal restore.** Anything that strands the
+user in alt-screen mode with their cursor hidden is a bug — they have
+to type `reset` blind to recover. The guard ensures restore on normal
+exit, Rhai-error propagation, and any panic between `EnterAlternateScreen`
+and the close of the closure. Belt-and-suspenders: a best-effort
+`ctrlc::try_set_handler` also writes the leave-alt-screen escape on
+SIGINT and exits with 130. `try_set_handler` rather than `set_handler`
+because `mqtt::subscribe` installs its own handler and only one is
+allowed per process; the Drop guard is the load-bearing piece.
+
+**Why split percentages absorb rounding into the last pane.** A 50/50
+split of 25 lines is 12 + 13, and the user shouldn't have to think
+about which pane "lost" a row. Allocating the remainder to the last
+pane is a one-line rule that always sums to the full height/width and
+matches what most layout managers do (CSS flex, tmux).
+
+**What v1 deferred and why.** No raw mode: skipped because the only
+benefit would be intercepting keystrokes for pane focus / scrollback,
+which this feature doesn't need; the cost is a `disable_raw_mode` call
+that must run on every exit path, doubling the failure modes. Resize
+handling falls back to a 150 ms polling redraw — glitches between
+pane writes are visible but self-correcting. No PTY allocation: child
+processes spawned via `shell_stream` still detect "not a terminal" and
+switch to non-coloured / unbuffered output; fixing this requires
+`portable-pty` and is its own slice. Line truncation rather than
+wrapping: wrapping is ~50 LOC of additional logic per pane and the
+common case (subprocess output) is shorter than 80 columns.
+
 ### 80. Shell subprocess binding — `shell()` and `shell_stream()` (0.87.0)
 
 **What:** Two script-engine callables for running external commands.

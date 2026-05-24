@@ -1427,7 +1427,27 @@ recon --rekey \
     example("Multi-step local update with `try`/`catch`", &[
         r#"recon --script - <<< 'for cmd in ["brew upgrade", "npm -g update"] { try { shell_stream(cmd, |line| print(line)); } catch (e) { print(`step failed: ${e}`); } }'"#,
     ]);
-    note("Each shell call is independent — a non-zero exit code does NOT raise an error (the Map's `success` is just `false`). A timeout DOES raise an error, hence the try/catch. This is the run-and-watch pattern the upcoming TUI pane primitive will sit on top of.");
+    note("Each shell call is independent — a non-zero exit code does NOT raise an error (the Map's `success` is just `false`). A timeout DOES raise an error, hence the try/catch. This is the run-and-watch pattern the TUI pane primitive (next section) sits on top of.");
+
+    section("TUI DASHBOARD (0.87.0)");
+
+    example("Two-pane update dashboard", &[
+        "recon --script script/tui.rhai",
+    ]);
+    note("The shipped demo splits 70/30 vertically, streams two `for i; do echo; sleep; done` loops into the top pane, and logs progress in the bottom pane. Demonstrates the pattern: `shell_stream` callback writes to a pane handle.");
+
+    example("Three horizontal panes (inline)", &[
+        r#"recon --script - <<< '
+  tui::run(|d| {
+      let p = d.split_horizontal([33, 33, 34]);
+      for i in 0..3 {
+          p[i].title(`pane ${i}`);
+          for j in 0..5 { p[i].println(`line ${j}`); }
+      }
+      sleep_ms(2000);
+  });'"#,
+    ]);
+    note("`split_horizontal([percents])` lays panes left-to-right; `split_vertical([percents])` stacks them top-to-bottom. Last pane absorbs rounding so the screen is always fully covered. Pane methods: `println(line)`, `title(s)`, `clear()`.");
 
     section("DECODING / Aztec / PDF417 / MaxiCode (0.55.0)");
 

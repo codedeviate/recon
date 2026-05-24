@@ -1429,6 +1429,46 @@ static TOPIC_SHELL: Topic = Topic {
     ],
 };
 
+static TOPIC_TUI: Topic = Topic {
+    title: "TUI dashboard (`tui::run`)",
+    description: "Multi-pane text dashboard for scripts. Built for\n\
+                  run-and-watch flows where one or more long-running\n\
+                  subprocesses stream their output into distinct text\n\
+                  regions while the script logs its own progress.\n\
+                  \n\
+                  Sits on top of `shell_stream` — see `recon --help\n\
+                  shell`. The natural pairing is to spawn each command\n\
+                  with `shell_stream` and route lines into a pane via\n\
+                  the callback (`|line| main.println(line)`).\n\
+                  \n\
+                  Single dashboard per process: nested `tui::run` calls\n\
+                  raise an error rather than fighting over the\n\
+                  terminal. Drop guard restores the terminal on any\n\
+                  exit path (normal completion, Rhai error, panic).\n\
+                  A best-effort SIGINT handler also restores on\n\
+                  Ctrl-C.\n\
+                  \n\
+                  v1 limitations: no raw mode (resize handled by\n\
+                  periodic poll); no PTY (subprocesses still detect\n\
+                  \"not a terminal\"); lines truncated to pane width\n\
+                  rather than wrapped; wide characters undercounted by\n\
+                  one column.",
+    flags: &[
+        FlagHelp { flags: "tui::run(callback)", description: "Enter alt-screen, build a Dashboard, pass it to the callback.\nRestores terminal on any exit. stdout must be a TTY." },
+        FlagHelp { flags: "d.split_vertical([p1, p2, …])", description: "Stack panes top-to-bottom. Each pi is a percentage in (0, 100].\nReturns an Array of PaneHandle. Last pane absorbs rounding." },
+        FlagHelp { flags: "d.split_horizontal([p1, p2, …])", description: "Lay panes left-to-right. Same semantics as split_vertical." },
+        FlagHelp { flags: "pane.println(line)", description: "Append a line to the pane's scrollback. Auto-scrolls to the\nbottom. Cap: 1000 lines per pane." },
+        FlagHelp { flags: "pane.title(s)", description: "Set the pane's top-row title text. Rendered as ` <s> ` followed\nby a horizontal rule to the pane's right edge." },
+        FlagHelp { flags: "pane.clear()", description: "Empty the pane's scrollback. Title is preserved." },
+    ],
+    related: &["script", "shell", "scripting", "threads"],
+    examples: &[
+        ExampleHelp { description: "Run the shipped demo", command: "recon --script script/tui.rhai" },
+        ExampleHelp { description: "Two-pane update script", command: r#"recon --script - <<< 'tui::run(|d| { let p = d.split_vertical([70, 30]); let main = p[0]; let status = p[1]; main.title("output"); status.title("progress"); status.println("brew…"); shell_stream("brew upgrade", |l| main.println(l)); status.println("done"); });'"# },
+        ExampleHelp { description: "Three horizontal panes", command: r#"recon --script - <<< 'tui::run(|d| { let p = d.split_horizontal([33, 33, 34]); for i in 0..3 { p[i].title(`pane ${i}`); for j in 0..5 { p[i].println(`line ${j}`); } } sleep_ms(2000); });'"# },
+    ],
+};
+
 static TOPIC_REPL: Topic = Topic {
     title: "Interactive REPL (--repl)",
     description: "Open an interactive Rhai prompt backed by the script engine.\n\
@@ -2659,6 +2699,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "decode" | "scan" | "barcode-scan" | "decode-image" => Some(&TOPIC_DECODE),
         "threads" | "spawn" | "concurrency" | "thread" => Some(&TOPIC_SCRIPT_THREADS),
         "shell" | "subprocess" | "shell-stream" | "shell_stream" | "exec" => Some(&TOPIC_SHELL),
+        "tui" | "dashboard" | "pane" | "panes" | "split" => Some(&TOPIC_TUI),
         "script-server" | "tcp-server" | "udp-server" | "listen" => Some(&TOPIC_SCRIPT_SERVER),
         "docs" | "markdown" | "md-to-html" | "md-to-pdf" | "html-to-pdf" => Some(&TOPIC_DOCS),
         "pdf" | "pdf-export" | "pdf-page" | "pdf-image" | "export-pdf-page" => Some(&TOPIC_PDF_EXPORT),
@@ -2759,6 +2800,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "decode",
         "threads",
         "shell",
+        "tui",
         "script-server",
         "docs",
         "pdf-export",
