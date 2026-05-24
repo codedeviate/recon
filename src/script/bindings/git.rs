@@ -137,6 +137,55 @@ fn parse_json_to_dynamic(s: &str) -> Result<Dynamic, Box<EvalAltResult>> {
     Ok(crate::script::bindings::helpers::json_to_dynamic(v))
 }
 
+fn parse_diff_stat(output: &str) -> rhai::Map {
+    let mut per_file = rhai::Array::new();
+    let mut files = 0i64;
+    let mut insertions = 0i64;
+    let mut deletions = 0i64;
+
+    for line in output.lines() {
+        let line = line.trim();
+        // Per-file line: "<ins>\t<del>\t<path>"
+        if let Some((rest, path)) = line.rsplit_once('\t') {
+            if let Some((ins, del)) = rest.split_once('\t') {
+                let ins_n: i64 = ins.parse().unwrap_or(0);
+                let del_n: i64 = del.parse().unwrap_or(0);
+                let mut entry = rhai::Map::new();
+                entry.insert("path".into(), path.to_string().into());
+                entry.insert("insertions".into(), ins_n.into());
+                entry.insert("deletions".into(), del_n.into());
+                per_file.push(Dynamic::from(entry));
+                continue;
+            }
+        }
+        // Summary line: " N files changed, M insertions(+), K deletions(-)"
+        if line.contains("file") && (line.contains("changed") || line.contains("change")) {
+            let parts = line.split(',');
+            for chunk in parts {
+                let chunk = chunk.trim();
+                if let Some(n_str) = chunk.split_whitespace().next() {
+                    if let Ok(n) = n_str.parse::<i64>() {
+                        if chunk.contains("file") {
+                            files = n;
+                        } else if chunk.contains("insertion") {
+                            insertions = n;
+                        } else if chunk.contains("deletion") {
+                            deletions = n;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let mut m = rhai::Map::new();
+    m.insert("files".into(), files.into());
+    m.insert("insertions".into(), insertions.into());
+    m.insert("deletions".into(), deletions.into());
+    m.insert("per_file".into(), per_file.into());
+    m
+}
+
 fn parse_porcelain_v2(output: &str) -> Map {
     use rhai::Array;
     let mut branch = String::new();
@@ -305,6 +354,38 @@ pub fn register(engine: &mut Engine) {
             Ok(parse_log(&stdout))
         },
     );
+
+    engine.register_fn("diff", |g: &mut Git| -> Result<String, Box<EvalAltResult>> {
+        let argv = &["diff"];
+        let out = g.run(argv)?;
+        ok_or_throw(argv, out)
+    });
+    engine.register_fn(
+        "diff",
+        |g: &mut Git, rev: &str| -> Result<String, Box<EvalAltResult>> {
+            let argv = &["diff", rev];
+            let out = g.run(argv)?;
+            ok_or_throw(argv, out)
+        },
+    );
+    engine.register_fn(
+        "diff_stat",
+        |g: &mut Git| -> Result<rhai::Map, Box<EvalAltResult>> {
+            let argv = &["diff", "--numstat", "--shortstat"];
+            let out = g.run(argv)?;
+            let stdout = ok_or_throw(argv, out)?;
+            Ok(parse_diff_stat(&stdout))
+        },
+    );
+    engine.register_fn(
+        "diff_stat",
+        |g: &mut Git, rev: &str| -> Result<rhai::Map, Box<EvalAltResult>> {
+            let argv = &["diff", "--numstat", "--shortstat", rev];
+            let out = g.run(argv)?;
+            let stdout = ok_or_throw(argv, out)?;
+            Ok(parse_diff_stat(&stdout))
+        },
+    );
 }
 
 #[cfg(test)]
@@ -440,6 +521,57 @@ mod tests {
         for k in &["hash", "short_hash", "author", "email", "date", "subject", "body"] {
             assert!(c.contains_key(*k), "missing key: {k}");
         }
+    }
+
+    #[test]
+    fn git_diff_returns_patch_text() {
+        let dir = make_repo();
+        std::fs::write(dir.path().join("foo.txt"), "hello\n").unwrap();
+        StdCommand::new("git")
+            .current_dir(dir.path())
+            .args(&["add", "foo.txt"])
+            .output()
+            .unwrap();
+        StdCommand::new("git")
+            .current_dir(dir.path())
+            .args(&["commit", "-q", "-m", "add foo"])
+            .output()
+            .unwrap();
+        std::fs::write(dir.path().join("foo.txt"), "hello\nworld\n").unwrap();
+        let mut e = engine();
+        let path = dir.path().to_string_lossy().to_string();
+        let s: String = e
+            .eval(&format!(r#"git("{}").diff()"#, path))
+            .unwrap();
+        assert!(s.contains("+world"), "got: {s}");
+    }
+
+    #[test]
+    fn git_diff_stat_returns_counts() {
+        let dir = make_repo();
+        std::fs::write(dir.path().join("foo.txt"), "a\nb\nc\n").unwrap();
+        StdCommand::new("git")
+            .current_dir(dir.path())
+            .args(&["add", "foo.txt"])
+            .output()
+            .unwrap();
+        StdCommand::new("git")
+            .current_dir(dir.path())
+            .args(&["commit", "-q", "-m", "add foo"])
+            .output()
+            .unwrap();
+        std::fs::write(dir.path().join("foo.txt"), "a\nb\nc\nd\n").unwrap();
+        let mut e = engine();
+        let path = dir.path().to_string_lossy().to_string();
+        let m: rhai::Map = e
+            .eval(&format!(r#"git("{}").diff_stat()"#, path))
+            .unwrap();
+        assert_eq!(m.get("files").unwrap().as_int().unwrap(), 1);
+        assert_eq!(m.get("insertions").unwrap().as_int().unwrap(), 1);
+        let per_file: rhai::Array = m.get("per_file").unwrap().clone().cast();
+        assert_eq!(per_file.len(), 1);
+        let f0: rhai::Map = per_file[0].clone().cast();
+        assert_eq!(f0.get("path").unwrap().clone().into_string().unwrap(), "foo.txt");
     }
 
     #[test]
