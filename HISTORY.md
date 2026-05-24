@@ -74,9 +74,11 @@ release because each magnifies the others.
   issue, release, repo, and workflow-run methods each use
   `--json <fields>` with sensible defaults. Auto-account-switch:
   reads `git config user.email` before every call and runs
-  `gh auth switch --user <handle>` based on the user's CLAUDE.md
-  mapping. `auth_status()` is the only method that doesn't
-  trigger auto-switch.
+  `gh auth switch --user <handle>` based on an email-to-handle
+  mapping loaded from `$XDG_CONFIG_HOME/recon/gh-accounts.toml`
+  (or `$RECON_GH_ACCOUNTS_FILE`). Without the config file, no
+  switch happens. `auth_status()` is the only method that
+  doesn't trigger auto-switch.
 
 **Why ship the three together.** The originating use case was
 "write scripts that drive local dev workflows" — release

@@ -2,8 +2,8 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.88.0</div>
-<div class="date">2026-05-24</div>
+<div class="version">Version 0.89.0</div>
+<div class="date">2026-05-25</div>
 <div class="meta">
 Repository · https://github.com/codedeviate/recon<br>
 License · MIT
@@ -3540,17 +3540,27 @@ Arrays.
 
 Before every `gh` call, the wrapper reads `git config user.email`
 and runs `gh auth switch --user <handle>` when the active gh
-account doesn't match. Mapping (from CLAUDE.md):
+account doesn't match. The email-to-handle mapping is loaded from
+a TOML config file — first match wins:
 
-| Email | gh handle |
-|---|---|
-| `codedv8@gmail.com` | `codedeviate` |
-| `thomas.bjork@starweb.se` | `starweb-thomas` |
+1. `$RECON_GH_ACCOUNTS_FILE` (explicit override).
+2. `$XDG_CONFIG_HOME/recon/gh-accounts.toml`.
+3. `$HOME/.config/recon/gh-accounts.toml`.
 
-The switch is cached per `Gh` value (atomic check on every call,
-no redundant switches). `auth_status()` is the lone method that
-does NOT trigger auto-switch — useful when querying which account
-is active.
+Config format:
+
+```toml
+[accounts]
+"you@example.com" = "your-gh-handle"
+"work@company.com" = "work-gh-handle"
+```
+
+If no config file is found, or the current `git config user.email`
+isn't listed, no switch happens — the call uses whichever account
+`gh` has active. The switch is cached per `Gh` value (atomic check
+on every call, no redundant switches). `auth_status()` is the lone
+method that does NOT trigger auto-switch — useful when querying
+which account is active.
 
 ### Methods
 

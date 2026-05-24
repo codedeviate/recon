@@ -7,16 +7,27 @@
 //! anything not promoted.
 //!
 //! Auto-account-switch: before every `gh` call, the wrapper checks
-//! `git config user.email` against the user's CLAUDE.md mapping
-//! (codedv8@gmail.com → codedeviate, thomas.bjork@starweb.se → starweb-thomas)
-//! and runs `gh auth switch --user <handle>` if the active account
-//! doesn't match. Opt out per call via `#{ auto_switch_account: false }`.
+//! `git config user.email` against an email-to-gh-handle mapping loaded
+//! from a config file (`$RECON_GH_ACCOUNTS_FILE`, or
+//! `$XDG_CONFIG_HOME/recon/gh-accounts.toml`, falling back to
+//! `~/.config/recon/gh-accounts.toml`). If the file is missing or
+//! has no entry for the current email, no switch happens and the
+//! call uses whichever `gh` account is currently active.
+//!
+//! Config format:
+//!
+//! ```toml
+//! [accounts]
+//! "you@example.com" = "your-gh-handle"
+//! ```
 //!
 //! Errors throw on non-zero exit (matching `git`). Scripts use
 //! `try` / `catch` to recover — especially relevant for `gh pr view`
 //! which exits 1 for "not found".
 
 use rhai::{Array, Dynamic, Engine, EvalAltResult, Map};
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::{Arc, Mutex};
 
@@ -70,18 +81,18 @@ impl Gh {
         };
         let expected = match account_handle_for_email(&email) {
             Some(h) => h,
-            None => return Ok(()), // Unknown email; fall back to current gh account.
+            None => return Ok(()), // No mapping; fall back to current gh account.
         };
         // Cache check.
         {
             let cache = self.switched_to.lock().unwrap();
-            if cache.as_deref() == Some(expected) {
+            if cache.as_deref() == Some(expected.as_str()) {
                 return Ok(());
             }
         }
         // Switch.
         let switch_result = Command::new("gh")
-            .args(["auth", "switch", "--user", expected])
+            .args(["auth", "switch", "--user", &expected])
             .output()
             .map_err(|e| err(format!("gh: failed to invoke `gh auth switch`: {e}")))?;
         if !switch_result.status.success() {
@@ -92,7 +103,7 @@ impl Gh {
                 String::from_utf8_lossy(&switch_result.stderr).trim()
             );
         } else {
-            *self.switched_to.lock().unwrap() = Some(expected.to_string());
+            *self.switched_to.lock().unwrap() = Some(expected);
         }
         Ok(())
     }
@@ -110,12 +121,40 @@ fn read_git_email() -> Option<String> {
     if s.is_empty() { None } else { Some(s) }
 }
 
-pub(crate) fn account_handle_for_email(email: &str) -> Option<&'static str> {
-    match email {
-        "codedv8@gmail.com" => Some("codedeviate"),
-        "thomas.bjork@starweb.se" => Some("starweb-thomas"),
-        _ => None,
+/// Load the email → gh-handle mapping from the user's config file
+/// and look up `email`. Returns `None` when no config file exists,
+/// the file can't be parsed, or the email isn't listed.
+pub(crate) fn account_handle_for_email(email: &str) -> Option<String> {
+    let path = account_config_path()?;
+    load_account_map(&path).remove(email)
+}
+
+/// Resolve the path of the gh-accounts config file. Honours the
+/// `RECON_GH_ACCOUNTS_FILE` override; otherwise prefers
+/// `$XDG_CONFIG_HOME/recon/gh-accounts.toml`, falling back to
+/// `$HOME/.config/recon/gh-accounts.toml`.
+fn account_config_path() -> Option<PathBuf> {
+    if let Some(p) = std::env::var_os("RECON_GH_ACCOUNTS_FILE") {
+        return Some(PathBuf::from(p));
     }
+    let base = std::env::var_os("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))?;
+    Some(base.join("recon").join("gh-accounts.toml"))
+}
+
+fn load_account_map(path: &Path) -> HashMap<String, String> {
+    #[derive(serde::Deserialize, Default)]
+    struct Cfg {
+        #[serde(default)]
+        accounts: HashMap<String, String>,
+    }
+    let Ok(text) = std::fs::read_to_string(path) else {
+        return HashMap::new();
+    };
+    toml::from_str::<Cfg>(&text)
+        .map(|c| c.accounts)
+        .unwrap_or_default()
 }
 
 fn ok_or_throw(args: &[&str], output: Output) -> Result<String, Box<EvalAltResult>> {
@@ -569,8 +608,8 @@ fn run_list_opts_to_args(opts: &Map) -> Result<Vec<String>, Box<EvalAltResult>> 
 /// Parse the textual output of `gh auth status` (no --json equivalent).
 ///
 /// Looks for lines containing:
-///   "Logged in to github.com account codedeviate (keyring)"
-///   "Token scopes: 'admin:public_key', 'gist', 'read:org', 'repo'"
+///   "Logged in to <host> account <name> (...)"
+///   "Token scopes: '<scope>', '<scope>', ..."
 ///
 /// Returns `{ host, account, scopes: [...] }`. Missing fields stay
 /// absent rather than rendering as empty strings.
@@ -940,17 +979,39 @@ mod tests {
     fn gh_constructor_returns_gh_type() {
         let mut e = engine();
         let _: Dynamic = e.eval(r#"gh()"#).unwrap();
-        let _: Dynamic = e.eval(r#"gh("codedeviate/recon")"#).unwrap();
+        let _: Dynamic = e.eval(r#"gh("owner/name")"#).unwrap();
     }
 
     #[test]
-    fn account_handle_for_email_maps_known_emails() {
-        assert_eq!(account_handle_for_email("codedv8@gmail.com"), Some("codedeviate"));
-        assert_eq!(
-            account_handle_for_email("thomas.bjork@starweb.se"),
-            Some("starweb-thomas"),
-        );
-        assert_eq!(account_handle_for_email("unknown@example.com"), None);
+    fn load_account_map_reads_toml_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("gh-accounts.toml");
+        std::fs::write(
+            &path,
+            "[accounts]\n\
+             \"alice@example.com\" = \"alice-gh\"\n\
+             \"bob@example.org\" = \"bob-gh\"\n",
+        )
+        .unwrap();
+        let m = load_account_map(&path);
+        assert_eq!(m.get("alice@example.com").map(String::as_str), Some("alice-gh"));
+        assert_eq!(m.get("bob@example.org").map(String::as_str), Some("bob-gh"));
+        assert_eq!(m.get("missing@example.com"), None);
+    }
+
+    #[test]
+    fn load_account_map_missing_file_is_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("does-not-exist.toml");
+        assert!(load_account_map(&path).is_empty());
+    }
+
+    #[test]
+    fn load_account_map_malformed_file_is_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("bad.toml");
+        std::fs::write(&path, "this = is = not valid toml\n").unwrap();
+        assert!(load_account_map(&path).is_empty());
     }
 
     #[test]
@@ -1124,9 +1185,9 @@ mod tests {
 
     #[test]
     fn parse_auth_status_extracts_account_and_scopes() {
-        let sample = "github.com\n  ✓ Logged in to github.com account codedeviate (keyring)\n  - Token scopes: 'admin:public_key', 'gist', 'read:org', 'repo'\n";
+        let sample = "github.com\n  ✓ Logged in to github.com account sample-user (keyring)\n  - Token scopes: 'admin:public_key', 'gist', 'read:org', 'repo'\n";
         let m = parse_auth_status(sample);
-        assert_eq!(m.get("account").unwrap().clone().into_string().unwrap(), "codedeviate");
+        assert_eq!(m.get("account").unwrap().clone().into_string().unwrap(), "sample-user");
         assert_eq!(m.get("host").unwrap().clone().into_string().unwrap(), "github.com");
         let scopes: rhai::Array = m.get("scopes").unwrap().clone().cast();
         assert_eq!(scopes.len(), 4);

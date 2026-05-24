@@ -8,6 +8,8 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.89.0] - 2026-05-25
+
 ### Added
 
 - New `obj.jq(filter)` / `obj.jq_all(filter)` script binding (also
@@ -38,9 +40,12 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
   Constructor takes an optional `OWNER/NAME` for cross-repo work.
   Auto-account-switch: reads `git config user.email` before each
   call and runs `gh auth switch --user <handle>` when needed, with
-  per-instance caching. Mapping: codedv8@gmail.com → codedeviate,
-  thomas.bjork@starweb.se → starweb-thomas. `auth_status()` is the
-  one method that doesn't trigger auto-switch.
+  per-instance caching. The email-to-handle mapping is loaded from
+  `$XDG_CONFIG_HOME/recon/gh-accounts.toml` (or
+  `$RECON_GH_ACCOUNTS_FILE` if set); without the file no switch
+  happens and the call uses whichever account `gh` has active.
+  `auth_status()` is the one method that doesn't trigger
+  auto-switch.
 - New help topics `recon --help git` and `recon --help gh` (aliases:
   `git-wrapper`, `github`, `github-cli`), `--examples` sections
   "GIT WRAPPER" and "GH WRAPPER", and `## git wrapper` / `## gh

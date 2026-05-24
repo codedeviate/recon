@@ -2239,10 +2239,12 @@ static TOPIC_GH: Topic = Topic {
                   Auto-account-switch: before every `gh` call, the\n\
                   wrapper reads `git config user.email` and runs\n\
                   `gh auth switch --user <handle>` when the active\n\
-                  account doesn't match. Mapping comes from CLAUDE.md.\n\
-                  `auth_status()` is the lone exception — it queries\n\
-                  whichever account is currently active without\n\
-                  triggering a switch.\n\
+                  account doesn't match. The email-to-handle mapping\n\
+                  is loaded from `$XDG_CONFIG_HOME/recon/gh-accounts.toml`\n\
+                  (or set `$RECON_GH_ACCOUNTS_FILE` to override).\n\
+                  Without the file, no switch happens. `auth_status()`\n\
+                  is the lone exception — it queries whichever account\n\
+                  is currently active without triggering a switch.\n\
                   \n\
                   Errors throw on non-zero exit. `gh pr view <id>`\n\
                   exiting 1 for \"not found\" is the canonical case\n\
