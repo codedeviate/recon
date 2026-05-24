@@ -11,7 +11,7 @@
 //! Scripts use `try` / `catch` to recover.
 
 use crate::script::convert::err;
-use rhai::{Dynamic, Engine, EvalAltResult};
+use rhai::{Dynamic, Engine, EvalAltResult, Map};
 use serde_json::Value as JsonValue;
 use std::path::PathBuf;
 use std::process::{Command, Output};
@@ -112,6 +112,89 @@ fn parse_json_to_dynamic(s: &str) -> Result<Dynamic, Box<EvalAltResult>> {
     Ok(crate::script::bindings::helpers::json_to_dynamic(v))
 }
 
+fn parse_porcelain_v2(output: &str) -> Map {
+    use rhai::Array;
+    let mut branch = String::new();
+    let mut upstream: Option<String> = None;
+    let mut ahead = 0i64;
+    let mut behind = 0i64;
+    let mut staged = Array::new();
+    let mut unstaged = Array::new();
+    let mut untracked = Array::new();
+
+    for line in output.lines() {
+        if let Some(rest) = line.strip_prefix("# branch.head ") {
+            branch = rest.to_string();
+        } else if let Some(rest) = line.strip_prefix("# branch.upstream ") {
+            upstream = Some(rest.to_string());
+        } else if let Some(rest) = line.strip_prefix("# branch.ab ") {
+            // Format: "+<a> -<b>"
+            let mut parts = rest.split_whitespace();
+            if let Some(a) = parts.next() {
+                ahead = a.trim_start_matches('+').parse().unwrap_or(0);
+            }
+            if let Some(b) = parts.next() {
+                behind = b.trim_start_matches('-').parse().unwrap_or(0);
+            }
+        } else if let Some(rest) = line.strip_prefix("1 ") {
+            // `1 <xy> <sub> <m1> <m2> <m3> <h1> <h2> <path>`
+            let parts: Vec<&str> = rest.splitn(8, ' ').collect();
+            if parts.len() == 8 {
+                let xy = parts[0];
+                let path = parts[7];
+                let mut entry = Map::new();
+                entry.insert("path".into(), path.to_string().into());
+                entry.insert("x_y".into(), xy.to_string().into());
+                if xy.chars().nth(0) != Some('.') {
+                    staged.push(Dynamic::from(entry.clone()));
+                }
+                if xy.chars().nth(1) != Some('.') {
+                    unstaged.push(Dynamic::from(entry));
+                }
+            }
+        } else if let Some(rest) = line.strip_prefix("2 ") {
+            // Rename: `2 <xy> <sub> <m1> <m2> <m3> <h1> <h2> <X<score>> <path>\t<orig>`
+            let parts: Vec<&str> = rest.splitn(10, ' ').collect();
+            if parts.len() == 10 {
+                let xy = parts[0];
+                let path_pair = parts[9];
+                let (new_path, orig_path) = path_pair
+                    .split_once('\t')
+                    .unwrap_or((path_pair, ""));
+                let mut entry = Map::new();
+                entry.insert("path".into(), new_path.to_string().into());
+                entry.insert("x_y".into(), xy.to_string().into());
+                entry.insert("original".into(), orig_path.to_string().into());
+                if xy.chars().nth(0) != Some('.') {
+                    staged.push(Dynamic::from(entry.clone()));
+                }
+                if xy.chars().nth(1) != Some('.') {
+                    unstaged.push(Dynamic::from(entry));
+                }
+            }
+        } else if let Some(rest) = line.strip_prefix("? ") {
+            untracked.push(rest.to_string().into());
+        }
+        // Ignore `u` (unmerged) and `!` (ignored) lines for v1.
+    }
+
+    let clean = staged.is_empty() && unstaged.is_empty() && untracked.is_empty();
+
+    let mut m = Map::new();
+    m.insert("branch".into(), branch.into());
+    m.insert("upstream".into(), match upstream {
+        Some(u) => u.into(),
+        None => Dynamic::UNIT,
+    });
+    m.insert("ahead".into(), ahead.into());
+    m.insert("behind".into(), behind.into());
+    m.insert("clean".into(), clean.into());
+    m.insert("staged".into(), staged.into());
+    m.insert("unstaged".into(), unstaged.into());
+    m.insert("untracked".into(), untracked.into());
+    m
+}
+
 pub fn register(engine: &mut Engine) {
     engine.register_type_with_name::<Git>("Git");
 
@@ -156,6 +239,24 @@ pub fn register(engine: &mut Engine) {
             Ok(Dynamic::from(stdout))
         },
     );
+
+    engine.register_fn(
+        "status",
+        |g: &mut Git| -> Result<Map, Box<EvalAltResult>> {
+            let argv = &["status", "--porcelain=v2", "--branch"];
+            let out = g.run(argv)?;
+            let stdout = ok_or_throw(argv, out)?;
+            Ok(parse_porcelain_v2(&stdout))
+        },
+    );
+
+    engine.register_fn("is_clean", |g: &mut Git| -> Result<bool, Box<EvalAltResult>> {
+        let argv = &["status", "--porcelain=v2", "--branch"];
+        let out = g.run(argv)?;
+        let stdout = ok_or_throw(argv, out)?;
+        let m = parse_porcelain_v2(&stdout);
+        Ok(m.get("clean").and_then(|v| v.as_bool().ok()).unwrap_or(false))
+    });
 }
 
 #[cfg(test)]
@@ -204,6 +305,58 @@ mod tests {
         assert!(result.is_err());
         let msg = result.unwrap_err().to_string();
         assert!(msg.contains("git:"), "got: {msg}");
+    }
+
+    use std::process::Command as StdCommand;
+    use tempfile::TempDir;
+
+    fn make_repo() -> TempDir {
+        let dir = TempDir::new().unwrap();
+        let cwd = dir.path();
+        for args in &[
+            vec!["init", "-q", "-b", "master"],
+            vec!["config", "user.email", "test@example.com"],
+            vec!["config", "user.name", "Test"],
+            vec!["commit", "--allow-empty", "-q", "-m", "initial"],
+        ] {
+            StdCommand::new("git")
+                .current_dir(cwd)
+                .args(args)
+                .output()
+                .expect("git command failed during test setup");
+        }
+        dir
+    }
+
+    #[test]
+    fn git_status_clean_repo() {
+        let dir = make_repo();
+        let mut e = engine();
+        let path = dir.path().to_string_lossy().to_string();
+        let script = format!(r#"git("{}").status()"#, path);
+        let m: rhai::Map = e.eval(&script).unwrap();
+        assert_eq!(m.get("branch").unwrap().clone().into_string().unwrap(), "master");
+        assert_eq!(m.get("clean").unwrap().as_bool().unwrap(), true);
+        let staged: rhai::Array = m.get("staged").unwrap().clone().cast();
+        let unstaged: rhai::Array = m.get("unstaged").unwrap().clone().cast();
+        let untracked: rhai::Array = m.get("untracked").unwrap().clone().cast();
+        assert!(staged.is_empty());
+        assert!(unstaged.is_empty());
+        assert!(untracked.is_empty());
+    }
+
+    #[test]
+    fn git_status_dirty_repo() {
+        let dir = make_repo();
+        std::fs::write(dir.path().join("foo.txt"), "hi").unwrap();
+        let mut e = engine();
+        let path = dir.path().to_string_lossy().to_string();
+        let script = format!(r#"git("{}").status()"#, path);
+        let m: rhai::Map = e.eval(&script).unwrap();
+        assert_eq!(m.get("clean").unwrap().as_bool().unwrap(), false);
+        let untracked: rhai::Array = m.get("untracked").unwrap().clone().cast();
+        assert_eq!(untracked.len(), 1);
+        assert_eq!(untracked[0].clone().into_string().unwrap(), "foo.txt");
     }
 
     #[test]
