@@ -321,6 +321,13 @@ fn pr_merge_opts_to_args(opts: &Map) -> Result<Vec<String>, Box<EvalAltResult>> 
     Ok(out)
 }
 
+const REPO_VIEW_FIELDS: &str =
+    "name,owner,description,defaultBranchRef,visibility,isPrivate,homepageUrl,createdAt,url";
+const RUN_LIST_FIELDS: &str =
+    "databaseId,name,status,conclusion,workflowName,headBranch,event,createdAt,url";
+const RUN_VIEW_FIELDS: &str =
+    "databaseId,name,status,conclusion,workflowName,headBranch,event,jobs,startedAt,url";
+
 const ISSUE_LIST_FIELDS: &str =
     "number,title,state,author,labels,assignees,createdAt,url";
 const ISSUE_VIEW_FIELDS: &str =
@@ -530,6 +537,66 @@ fn parse_pr_url(s: &str) -> Result<Map, Box<EvalAltResult>> {
     m.insert("url".into(), url.into());
     m.insert("number".into(), number.into());
     Ok(m)
+}
+
+fn run_list_opts_to_args(opts: &Map) -> Result<Vec<String>, Box<EvalAltResult>> {
+    let mut out = Vec::new();
+    for (k, v) in opts {
+        match k.as_str() {
+            "workflow" => {
+                out.push("--workflow".into());
+                out.push(v.clone().into_string().map_err(|_| err("run_list opts: workflow must be a string"))?);
+            }
+            "branch" => {
+                out.push("--branch".into());
+                out.push(v.clone().into_string().map_err(|_| err("run_list opts: branch must be a string"))?);
+            }
+            "status" => {
+                out.push("--status".into());
+                out.push(v.clone().into_string().map_err(|_| err("run_list opts: status must be a string"))?);
+            }
+            "limit" => {
+                let n = v.clone().as_int().map_err(|_| err("run_list opts: limit must be an integer"))?;
+                out.push("--limit".into());
+                out.push(n.to_string());
+            }
+            other => return Err(err(format!("run_list opts: unknown key '{other}'"))),
+        }
+    }
+    Ok(out)
+}
+
+/// Parse the textual output of `gh auth status` (no --json equivalent).
+///
+/// Looks for lines containing:
+///   "Logged in to github.com account codedeviate (keyring)"
+///   "Token scopes: 'admin:public_key', 'gist', 'read:org', 'repo'"
+///
+/// Returns `{ host, account, scopes: [...] }`. Missing fields stay
+/// absent rather than rendering as empty strings.
+fn parse_auth_status(s: &str) -> Map {
+    let mut m = Map::new();
+    let mut scopes = Array::new();
+    for line in s.lines() {
+        if let Some(idx) = line.find("Logged in to ") {
+            let rest = &line[idx + "Logged in to ".len()..];
+            if let Some((host, after)) = rest.split_once(" account ") {
+                m.insert("host".into(), host.to_string().into());
+                let name = after.split_whitespace().next().unwrap_or("").to_string();
+                m.insert("account".into(), name.into());
+            }
+        } else if let Some(idx) = line.find("Token scopes: ") {
+            let rest = &line[idx + "Token scopes: ".len()..];
+            for tok in rest.split(',') {
+                let s = tok.trim().trim_matches('\'').to_string();
+                if !s.is_empty() {
+                    scopes.push(s.into());
+                }
+            }
+        }
+    }
+    m.insert("scopes".into(), scopes.into());
+    m
 }
 
 pub fn register(engine: &mut Engine) {
@@ -775,6 +842,87 @@ pub fn register(engine: &mut Engine) {
             parse_release_url(&stdout)
         },
     );
+
+    engine.register_fn(
+        "repo_view",
+        |h: &mut Gh| -> Result<Map, Box<EvalAltResult>> {
+            let argv = &["repo", "view", "--json", REPO_VIEW_FIELDS];
+            let out = h.run(argv, true)?;
+            let stdout = ok_or_throw(argv, out)?;
+            let v: serde_json::Value = serde_json::from_str(&stdout)
+                .map_err(|e| err(format!("gh.repo_view: {e}")))?;
+            let d = crate::script::bindings::helpers::json_to_dynamic(v);
+            d.try_cast::<Map>().ok_or_else(|| err("gh.repo_view: expected Map"))
+        },
+    );
+    engine.register_fn(
+        "repo_view",
+        |h: &mut Gh, spec: &str| -> Result<Map, Box<EvalAltResult>> {
+            let argv = &["repo", "view", spec, "--json", REPO_VIEW_FIELDS];
+            let out = h.run(argv, true)?;
+            let stdout = ok_or_throw(argv, out)?;
+            let v: serde_json::Value = serde_json::from_str(&stdout)
+                .map_err(|e| err(format!("gh.repo_view: {e}")))?;
+            let d = crate::script::bindings::helpers::json_to_dynamic(v);
+            d.try_cast::<Map>().ok_or_else(|| err("gh.repo_view: expected Map"))
+        },
+    );
+
+    engine.register_fn(
+        "run_list",
+        |h: &mut Gh| -> Result<Array, Box<EvalAltResult>> {
+            let argv = &["run", "list", "--json", RUN_LIST_FIELDS];
+            let out = h.run(argv, true)?;
+            let stdout = ok_or_throw(argv, out)?;
+            let v: serde_json::Value = serde_json::from_str(&stdout)
+                .map_err(|e| err(format!("gh.run_list: {e}")))?;
+            let d = crate::script::bindings::helpers::json_to_dynamic(v);
+            d.try_cast::<Array>().ok_or_else(|| err("gh.run_list: expected Array"))
+        },
+    );
+    engine.register_fn(
+        "run_list",
+        |h: &mut Gh, opts: Map| -> Result<Array, Box<EvalAltResult>> {
+            let mut argv: Vec<String> = vec![
+                "run".into(), "list".into(), "--json".into(), RUN_LIST_FIELDS.into(),
+            ];
+            argv.extend(run_list_opts_to_args(&opts)?);
+            let refs: Vec<&str> = argv.iter().map(|s| s.as_str()).collect();
+            let out = h.run(&refs, true)?;
+            let stdout = ok_or_throw(&refs, out)?;
+            let v: serde_json::Value = serde_json::from_str(&stdout)
+                .map_err(|e| err(format!("gh.run_list: {e}")))?;
+            let d = crate::script::bindings::helpers::json_to_dynamic(v);
+            d.try_cast::<Array>().ok_or_else(|| err("gh.run_list: expected Array"))
+        },
+    );
+
+    engine.register_fn(
+        "run_view",
+        |h: &mut Gh, id: i64| -> Result<Map, Box<EvalAltResult>> {
+            let id_str = id.to_string();
+            let argv = &["run", "view", &id_str, "--json", RUN_VIEW_FIELDS];
+            let out = h.run(argv, true)?;
+            let stdout = ok_or_throw(argv, out)?;
+            let v: serde_json::Value = serde_json::from_str(&stdout)
+                .map_err(|e| err(format!("gh.run_view: {e}")))?;
+            let d = crate::script::bindings::helpers::json_to_dynamic(v);
+            d.try_cast::<Map>().ok_or_else(|| err("gh.run_view: expected Map"))
+        },
+    );
+
+    engine.register_fn(
+        "auth_status",
+        |h: &mut Gh| -> Result<Map, Box<EvalAltResult>> {
+            let argv = &["auth", "status"];
+            // auth_status is the rare gh call that we DON'T want
+            // auto-switch on — we want to report whatever's currently
+            // active, not change it.
+            let out = h.run(argv, false)?;
+            let stdout = ok_or_throw(argv, out)?;
+            Ok(parse_auth_status(&stdout))
+        },
+    );
 }
 
 #[cfg(test)]
@@ -972,5 +1120,37 @@ mod tests {
             m.get("url").unwrap().clone().into_string().unwrap(),
             "https://github.com/owner/repo/releases/tag/v0.89.0"
         );
+    }
+
+    #[test]
+    fn parse_auth_status_extracts_account_and_scopes() {
+        let sample = "github.com\n  ✓ Logged in to github.com account codedeviate (keyring)\n  - Token scopes: 'admin:public_key', 'gist', 'read:org', 'repo'\n";
+        let m = parse_auth_status(sample);
+        assert_eq!(m.get("account").unwrap().clone().into_string().unwrap(), "codedeviate");
+        assert_eq!(m.get("host").unwrap().clone().into_string().unwrap(), "github.com");
+        let scopes: rhai::Array = m.get("scopes").unwrap().clone().cast();
+        assert_eq!(scopes.len(), 4);
+    }
+
+    #[test]
+    fn run_list_opts_to_args_translates_keys() {
+        let mut opts = rhai::Map::new();
+        opts.insert("workflow".into(), "ci.yml".to_string().into());
+        opts.insert("status".into(), "completed".to_string().into());
+        opts.insert("limit".into(), 10i64.into());
+        let args = run_list_opts_to_args(&opts).unwrap();
+        assert!(args.contains(&"--workflow".to_string()));
+        assert!(args.contains(&"--status".to_string()));
+        assert!(args.contains(&"--limit".to_string()));
+        assert!(args.contains(&"10".to_string()));
+    }
+
+    #[test]
+    fn run_list_opts_rejects_unknown_keys() {
+        let mut opts = rhai::Map::new();
+        opts.insert("notakey".into(), "x".to_string().into());
+        let result = run_list_opts_to_args(&opts);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("unknown key"));
     }
 }
