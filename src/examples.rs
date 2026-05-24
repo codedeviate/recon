@@ -2236,6 +2236,38 @@ recon --script /tmp/decode.rhai"#,
     ]);
     note("Strings are not auto-parsed — chain `json_parse(s).jq(filter)` to start from JSON text. Filter parse and runtime errors throw and are catchable with try/catch.");
 
+    section("GIT WRAPPER (0.89.0)");
+
+    example("Run the shipped demo (creates a temp repo)", &[
+        "recon --script script/git.rhai",
+    ]);
+    note("`git()` binds to the current directory; `git(path)` binds to a specific repo. Methods return parsed Maps and Arrays — `.status()` gives porcelain v2 data, `.log(n)` gives commit objects, `.diff()` returns the patch as a String. `.commit()` returns `{ hash, short_hash, subject }` after committing staged changes.");
+
+    example("Quick branch + cleanliness check", &[
+        r#"recon --script - <<< 'let g = git(); print(`${g.branch().current} ${if g.is_clean() {"clean"} else {"dirty"}}`);'"#,
+    ]);
+
+    example("List recent commits with subject", &[
+        r#"recon --script - <<< 'for c in git().log(5) { print(`${c.short_hash} ${c.subject}`); }'"#,
+    ]);
+    note("Escape hatches: `.run(args)` sniffs JSON vs text, `.run_text(args)` and `.run_json(args)` are explicit. Errors throw on non-zero exit — wrap in `try`/`catch` to recover. Composes on top of `std::process::Command` directly rather than going through the shell() binding.");
+
+    section("GH WRAPPER (0.89.0)");
+
+    example("Run the shipped demo (skips when gh not authenticated)", &[
+        "recon --script script/gh.rhai",
+    ]);
+    note("`gh()` resolves the current repo from cwd; `gh(\"owner/name\")` adds --repo to every call. Auto-account-switch: before every gh call, the wrapper reads `git config user.email` and runs `gh auth switch --user <handle>` when needed. Mapping comes from CLAUDE.md.");
+
+    example("List your open PRs", &[
+        r#"recon --script - <<< 'for p in gh().pr_list(#{ state: "open", author: "@me", limit: 10 }) { print(`#${p.number} ${p.title}`); }'"#,
+    ]);
+
+    example("Create a release with auto-generated notes", &[
+        r#"recon --script - <<< 'let r = gh().release_create("v0.89.0", #{ generate_notes: true }); print(r.url);'"#,
+    ]);
+    note("`auth_status()` is the lone method that does NOT trigger auto-switch — useful when querying which account is currently active. All other methods throw on non-zero exit; `pr_view(<id>)` exiting 1 for \"not found\" is the canonical case scripts catch with try/catch.");
+
     section("EDITOR OUTPUT");
 
     example("Open the response in an editor (--editor [EDITOR])", &[
