@@ -20,7 +20,7 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
   coerced via `Dynamic::to_string` so `[1, "two", 3.5].join("-")` works
   the way scripts expect.
 
-## [0.84.1] - 2026-05-22
+## [0.84.1] - 2026-05-23
 
 ### Changed
 
@@ -46,7 +46,7 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
   was `.body` or a `to_string`. Truly-unknown names keep the original
   one-liner.
 
-## [0.84.0] - 2026-05-22
+## [0.84.0] - 2026-05-23
 
 ### Added
 
