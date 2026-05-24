@@ -107,10 +107,14 @@ For each `.rb` file, update two fields:
 - `sha256 "<new-tarball-sha256>"`
 
 Compute the sha256 from the GitHub-generated tarball after the
-release exists:
+release exists. **Always pass `-H "Cache-Control: no-cache"` so the
+fetch bypasses any intermediate caches (your ISP, corporate proxy,
+local resolver) and goes through to GitHub's origin:**
 
 ```sh
-curl -sL https://github.com/codedeviate/recon/archive/refs/tags/vX.Y.Z.tar.gz | shasum -a 256
+curl -sL -H "Cache-Control: no-cache" \
+    https://github.com/codedeviate/recon/archive/refs/tags/vX.Y.Z.tar.gz \
+    | shasum -a 256
 ```
 
 **Important: GitHub's auto-generated tarball CDN can serve a
@@ -121,7 +125,16 @@ differ, wait 30–60 seconds and re-check until the hash stabilises.
 Using an unstable hash is the most common cause of "homebrew reports
 wrong checksum" reports after a release — and it produces a confusing
 failure mode where the formula matches what you computed but doesn't
-match what users fetch later. v0.82.0 hit this exact race.
+match what users fetch later. v0.82.0 hit this exact race; v0.85.0
+hit it again because the recheck without `Cache-Control: no-cache`
+re-read the same cached payload twice (a "stable" but wrong hash) and
+the mismatch surfaced only when users ran `brew install`.
+
+The `Cache-Control: no-cache` rule isn't optional even on a "fresh"
+shell. Network paths cache aggressively; a single `curl` without the
+header is allowed to return whatever was last cached for that URL —
+which can be an early CDN payload that no longer matches what GitHub
+serves to homebrew clients.
 
 Then commit and push the tap repo:
 
