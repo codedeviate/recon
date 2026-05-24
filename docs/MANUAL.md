@@ -3435,6 +3435,51 @@ print(date_format(1700000000, "%Y-%m-%dT%H:%M:%SZ"));    // "2023-11-14T22:13:20
 print(date_format(now_ms() / 1000, "%a %d %b %Y", "local"));
 ```
 
+## jq filter
+
+Apply jq-style filters to any Rhai Map / Array. Backed by the
+[`jaq`](https://crates.io/crates/jaq) crate — full jq grammar
+including pipes, `select(...)`, `map(...)`, alternative `//`,
+arithmetic, and the standard-library functions.
+
+| Function | Description |
+|---|---|
+| `obj.jq(filter)` / `jq(obj, filter)` | First result of the filter, or `()` (Rhai unit) if no result. |
+| `obj.jq_all(filter)` / `jq_all(obj, filter)` | Every result as an Array. Empty Array if nothing matches. |
+
+The split avoids the ambiguity of a single auto-shaping method:
+a filter that "usually returns one match" wouldn't silently flip
+to an Array on the day it finds two.
+
+Strings are NOT auto-parsed — chain `json_parse(s).jq(filter)`
+to start from JSON text. Filter parse errors and runtime errors
+both throw and are catchable with `try` / `catch`.
+
+### Example
+
+```rhai
+let prs = [
+    #{ number: 1, title: "Add foo", state: "open",   author: "alice" },
+    #{ number: 2, title: "Fix bar", state: "closed", author: "bob"   },
+    #{ number: 3, title: "Tweak",   state: "open",   author: "alice" },
+];
+
+// First / all
+prs.jq(".[0].title");                                            // "Add foo"
+prs.jq_all(".[] | select(.state == \"open\") | .number");        // [1, 3]
+
+// From raw JSON text
+let raw = `{"items":[{"k":"a"},{"k":"b"}]}`;
+json_parse(raw).jq_all(".items[].k");                            // ["a", "b"]
+
+// Catch a bad filter
+try {
+    prs.jq("bad syntax (");
+} catch (e) {
+    print(`caught: ${e}`);
+}
+```
+
 ## Whois binding
 
 | Function | Description |
