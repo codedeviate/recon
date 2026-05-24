@@ -115,6 +115,9 @@ tungstenite = { version = "0.29.0", default-features = false, features = ["hands
 ldap3 = { version = "0.12.1", default-features = false, features = ["sync", "tls-rustls-ring"] }
 rhai = { version = "1", features = ["sync", "metadata"] }
 regex = "1"
+urlencoding = "2"
+html-escape = "0.2"
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
 rustyline = "14"
 tempfile = "3"
 encoding_rs = "0.8"
