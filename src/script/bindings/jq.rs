@@ -94,7 +94,6 @@ fn run_filter(
             Some(Err(e)) => Err(err(format!("jq: filter error: {e}"))),
         },
         FirstOnly::No => {
-            // (not yet registered; Task 5)
             let mut out = Array::new();
             for r in results {
                 let v = r.map_err(|e| err(format!("jq: filter error: {e}")))?;
