@@ -8,6 +8,30 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.87.0] - 2026-05-24
+
+### Added
+
+- New `shell(cmd, [opts])` script binding — run an external command,
+  capture stdout/stderr/exit, return a Map. String input runs via
+  `sh -c <s>` on Unix and `cmd /C <s>` on Windows so pipes / globs /
+  redirects / && chains work; Array input is a direct argv with no
+  shell layer.
+- New `shell_stream(cmd, callback, [opts])` — same shapes, but the
+  callback fires once per merged stdout/stderr line as the child
+  writes it. Returns the exit code on child exit. Built for live
+  progress UIs and as the substrate for the upcoming TUI pane
+  primitive.
+- Opts map for both forms: `cwd`, `env` (layered on parent),
+  `env_clear`, `timeout_ms` (kills the child + raises a catchable
+  error on overrun), `merge_stderr` (blocking form only).
+- New help topic `recon --help shell` (aliases: `subprocess`,
+  `shell-stream`, `exec`), a `--examples` section "SHELL SUBPROCESS",
+  and a "Shell binding" section in `docs/MANUAL.md` Part III.
+- Demo script `script/shell.rhai` exercises every shape end-to-end:
+  blocking capture, argv form, cwd+env opts, streaming with line
+  callback, timeout kill via `try`/`catch`.
+
 ## [0.86.0] - 2026-05-24
 
 ### Added

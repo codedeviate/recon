@@ -1383,6 +1383,52 @@ static TOPIC_SCRIPT_THREADS: Topic = Topic {
     ],
 };
 
+static TOPIC_SHELL: Topic = Topic {
+    title: "Shell subprocess binding (`shell` / `shell_stream`)",
+    description: "Run external commands from a script. Two forms:\n\
+                  \n\
+                  `shell(cmd, [opts])` — blocking. Returns a Map with\n\
+                  `stdout`, `stderr`, `exit_code`, `success`. Use this\n\
+                  for the run-one-command-and-parse-output pattern.\n\
+                  \n\
+                  `shell_stream(cmd, callback, [opts])` — streaming.\n\
+                  The callback fires once per stdout / stderr line as\n\
+                  the child writes it (the two streams are merged in\n\
+                  arrival order). Returns the exit code when the child\n\
+                  is done. Built for live progress UIs and the\n\
+                  upcoming TUI pane primitive.\n\
+                  \n\
+                  Command shapes:\n\
+                    - String input runs through the platform shell —\n\
+                      `sh -c <s>` on Unix, `cmd /C <s>` on Windows.\n\
+                      Pipes, globs, redirects, && chains work.\n\
+                    - Array input is a literal argv — `shell([\"git\",\n\
+                      \"log\"])`. No shell layer, no quoting surprises.\n\
+                  \n\
+                  Opts map (all keys optional):\n\
+                    cwd, env, env_clear, timeout_ms, merge_stderr.",
+    flags: &[
+        FlagHelp { flags: "shell(cmd_string)", description: "Run through the platform shell. Returns Map with stdout / stderr / exit_code / success." },
+        FlagHelp { flags: "shell(argv_array)", description: "Direct argv form. No $VAR expansion, no quoting surprises." },
+        FlagHelp { flags: "shell(cmd, opts)", description: "Same forms with an opts map — see the description for keys." },
+        FlagHelp { flags: "shell_stream(cmd, callback)", description: "Streaming form. Callback fires per line as the child writes;\nreturns the exit code on child exit." },
+        FlagHelp { flags: "shell_stream(cmd, callback, opts)", description: "Streaming with opts map. timeout_ms kills the child and raises\na catchable error on overrun." },
+        FlagHelp { flags: "opts.cwd", description: "Working directory (default: inherit from the script process)." },
+        FlagHelp { flags: "opts.env", description: "Map of name→value, layered on top of the parent environment." },
+        FlagHelp { flags: "opts.env_clear", description: "Bool. Drop the parent env entirely before applying `env`." },
+        FlagHelp { flags: "opts.timeout_ms", description: "Kill the child after N ms; raises an error the script can `try`/`catch`." },
+        FlagHelp { flags: "opts.merge_stderr", description: "Blocking form only — fold stderr into stdout. Streaming form\nalways merges." },
+    ],
+    related: &["script", "scripting", "threads"],
+    examples: &[
+        ExampleHelp { description: "Run the shipped demo", command: "recon --script script/shell.rhai" },
+        ExampleHelp { description: "Capture output of a command", command: r#"recon --script - <<< 'let r = shell("git log --oneline -3"); print(r.stdout);'"# },
+        ExampleHelp { description: "Stream lines as they arrive", command: r#"recon --script - <<< 'shell_stream("brew upgrade", |line| print(`[brew] ${line}`));'"# },
+        ExampleHelp { description: "argv form skips the shell layer", command: r#"recon --script - <<< 'let r = shell(["echo", "$HOME"]); print(r.stdout);'"# },
+        ExampleHelp { description: "cwd + env + timeout opts", command: r#"recon --script - <<< 'shell("cargo test", #{ cwd: "/path/to/repo", env: #{ RUST_LOG: "info" }, timeout_ms: 60000 });'"# },
+    ],
+};
+
 static TOPIC_REPL: Topic = Topic {
     title: "Interactive REPL (--repl)",
     description: "Open an interactive Rhai prompt backed by the script engine.\n\
@@ -2612,6 +2658,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "compare" | "diff" => Some(&TOPIC_COMPARE),
         "decode" | "scan" | "barcode-scan" | "decode-image" => Some(&TOPIC_DECODE),
         "threads" | "spawn" | "concurrency" | "thread" => Some(&TOPIC_SCRIPT_THREADS),
+        "shell" | "subprocess" | "shell-stream" | "shell_stream" | "exec" => Some(&TOPIC_SHELL),
         "script-server" | "tcp-server" | "udp-server" | "listen" => Some(&TOPIC_SCRIPT_SERVER),
         "docs" | "markdown" | "md-to-html" | "md-to-pdf" | "html-to-pdf" => Some(&TOPIC_DOCS),
         "pdf" | "pdf-export" | "pdf-page" | "pdf-image" | "export-pdf-page" => Some(&TOPIC_PDF_EXPORT),
@@ -2711,6 +2758,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "client-cert",
         "decode",
         "threads",
+        "shell",
         "script-server",
         "docs",
         "pdf-export",

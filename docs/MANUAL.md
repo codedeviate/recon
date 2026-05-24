@@ -2,7 +2,7 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.86.0</div>
+<div class="version">Version 0.87.0</div>
 <div class="date">2026-05-24</div>
 <div class="meta">
 Repository · https://github.com/codedeviate/recon<br>
@@ -2728,6 +2728,81 @@ let h = thread_spawn(|| {
 let status = join(h);
 print(`completed with status ${status}`);
 ```
+
+## Shell binding
+
+Run external commands from a script. Two forms — `shell()` blocks
+and captures everything, `shell_stream()` fires a callback per line
+as the child writes it. Built for run-and-watch scripts (local
+software updates, multi-step setup, log filtering) and as the
+substrate for the upcoming TUI pane primitive.
+
+| Function | Description |
+|---|---|
+| `shell(cmd_string)` / `shell(cmd_string, opts)` | Run via `sh -c <s>` (Unix) or `cmd /C <s>` (Windows). Pipes / globs / redirects / && chains work. |
+| `shell(argv_array)` / `shell(argv_array, opts)` | Direct argv form. No shell layer, no quoting surprises. |
+| `shell_stream(cmd, callback)` / `shell_stream(cmd, callback, opts)` | Streaming form. Callback fires per merged stdout+stderr line as the child writes; returns the exit code on child exit. |
+
+### Return value (`shell`)
+
+A Map:
+
+| Key | Type | Description |
+|---|---|---|
+| `stdout` | String | Captured stdout (lossy UTF-8). |
+| `stderr` | String | Captured stderr (or empty when `merge_stderr: true`). |
+| `exit_code` | Int | Child's exit code, or `-1` if killed by signal. |
+| `success` | Bool | `exit_code == 0`. |
+
+### Opts map (both forms)
+
+All keys optional.
+
+| Key | Type | Behaviour |
+|---|---|---|
+| `cwd` | String | Working directory (default: inherit). |
+| `env` | Map | Name → value, layered on top of the parent environment. |
+| `env_clear` | Bool | Drop the parent env entirely before applying `env`. |
+| `timeout_ms` | Int | Kill the child after N ms; raises a Rhai error the script can `try`/`catch`. |
+| `merge_stderr` | Bool | `shell` only — fold stderr into stdout. `shell_stream` always merges. |
+
+### Examples
+
+```rhai
+// Blocking — common case.
+let r = shell("git status --short");
+if r.success { print(r.stdout); } else { print(`exit ${r.exit_code}: ${r.stderr}`); }
+
+// argv form skips shell expansion.
+let r = shell(["echo", "$HOME"]);   // stdout: "$HOME\n"
+
+// Opts.
+let r = shell("cargo test", #{
+    cwd: "/path/to/repo",
+    env: #{ RUST_LOG: "info" },
+    timeout_ms: 60000,
+});
+
+// Streaming — callback per line as the child writes.
+let exit = shell_stream("brew upgrade", |line| {
+    print(`[brew] ${line}`);
+});
+print(`brew exit ${exit}`);
+
+// Multi-step update with error isolation.
+for cmd in ["brew upgrade", "npm -g update", "cargo install-update -a"] {
+    try {
+        shell_stream(cmd, |line| print(line));
+    } catch (e) {
+        print(`step '${cmd}' failed: ${e}`);
+    }
+}
+```
+
+A non-zero exit code does NOT raise an error — check `r.success`
+(or compare `exit_code` in the streaming form's return value). A
+timeout DOES raise an error, hence the `try` / `catch` in the
+multi-step example.
 
 ## DNS binding
 

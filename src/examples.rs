@@ -1407,6 +1407,28 @@ recon --rekey \
 
     note("`spawn` is reserved in Rhai; use `thread_spawn` (takes a FnPtr, optional arg or args array). `channel()` returns [sender, receiver]; clone the sender to fan out. `channel_bounded(n)` adds back-pressure. Worker threads build a fresh engine and inherit the parent's ScriptDefaults (so http/tcp/etc. probes see the same CLI-flag defaults). `sync`-feature cost: ~10-15% locking overhead on hot paths, irrelevant for diagnostic workloads.");
 
+    section("SHELL SUBPROCESS (0.87.0)");
+
+    example("Capture a command's output (blocking)", &[
+        r#"recon --script - <<< 'let r = shell("git log --oneline -3"); print(r.stdout); print(`exit: ${r.exit_code}`);'"#,
+    ]);
+    note("Returns Map with `stdout`, `stderr`, `exit_code`, `success`. String input goes through `sh -c` (or `cmd /C` on Windows), so pipes / globs / && chains work. Pass an Array for direct argv form — `shell([\"echo\", \"$HOME\"])` prints the literal `$HOME` with no shell expansion.");
+
+    example("Stream stdout+stderr line by line", &[
+        r#"recon --script - <<< 'shell_stream("brew upgrade", |line| print(`[brew] ${line}`));'"#,
+    ]);
+    note("The callback fires once per merged stdout/stderr line as the child writes it. Returns the exit code. Built for live progress UIs and the upcoming TUI panes; ordering matches the OS-level interleave of the two pipes.");
+
+    example("Opts map — cwd / env / timeout / merge_stderr", &[
+        r#"recon --script - <<< 'let r = shell("cargo test", #{ cwd: "/path/to/repo", env: #{ RUST_LOG: "info" }, timeout_ms: 60000 });'"#,
+    ]);
+    note("All opts keys are optional: cwd, env (layered on parent), env_clear (drop parent env first), timeout_ms (kills the child + raises a catchable error), merge_stderr (blocking form only — streaming always merges).");
+
+    example("Multi-step local update with `try`/`catch`", &[
+        r#"recon --script - <<< 'for cmd in ["brew upgrade", "npm -g update"] { try { shell_stream(cmd, |line| print(line)); } catch (e) { print(`step failed: ${e}`); } }'"#,
+    ]);
+    note("Each shell call is independent — a non-zero exit code does NOT raise an error (the Map's `success` is just `false`). A timeout DOES raise an error, hence the try/catch. This is the run-and-watch pattern the upcoming TUI pane primitive will sit on top of.");
+
     section("DECODING / Aztec / PDF417 / MaxiCode (0.55.0)");
 
     example("Decode a QR / barcode from an image", &[
