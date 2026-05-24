@@ -17,6 +17,31 @@ use std::path::PathBuf;
 use std::process::{Command, Output};
 
 const STDERR_CAP: usize = 2048;
+const LOG_FORMAT: &str = "%H%x09%h%x09%an%x09%ae%x09%aI%x09%s%x09%b%x1e";
+
+fn parse_log(output: &str) -> rhai::Array {
+    let mut arr = rhai::Array::new();
+    for record in output.split('\x1e') {
+        let record = record.trim_start_matches('\n');
+        if record.is_empty() {
+            continue;
+        }
+        let fields: Vec<&str> = record.splitn(7, '\t').collect();
+        if fields.len() < 7 {
+            continue;
+        }
+        let mut m = rhai::Map::new();
+        m.insert("hash".into(), fields[0].to_string().into());
+        m.insert("short_hash".into(), fields[1].to_string().into());
+        m.insert("author".into(), fields[2].to_string().into());
+        m.insert("email".into(), fields[3].to_string().into());
+        m.insert("date".into(), fields[4].to_string().into());
+        m.insert("subject".into(), fields[5].to_string().into());
+        m.insert("body".into(), fields[6].to_string().into());
+        arr.push(Dynamic::from(m));
+    }
+    arr
+}
 
 #[derive(Clone)]
 struct Git {
@@ -257,6 +282,29 @@ pub fn register(engine: &mut Engine) {
         let m = parse_porcelain_v2(&stdout);
         Ok(m.get("clean").and_then(|v| v.as_bool().ok()).unwrap_or(false))
     });
+
+    engine.register_fn(
+        "log",
+        |g: &mut Git, n: i64| -> Result<rhai::Array, Box<EvalAltResult>> {
+            let n_str = n.to_string();
+            let fmt = format!("--format={LOG_FORMAT}");
+            let argv = &["log", "-n", &n_str, &fmt];
+            let out = g.run(argv)?;
+            let stdout = ok_or_throw(argv, out)?;
+            Ok(parse_log(&stdout))
+        },
+    );
+
+    engine.register_fn(
+        "log_range",
+        |g: &mut Git, range: &str| -> Result<rhai::Array, Box<EvalAltResult>> {
+            let fmt = format!("--format={LOG_FORMAT}");
+            let argv = &["log", &fmt, range];
+            let out = g.run(argv)?;
+            let stdout = ok_or_throw(argv, out)?;
+            Ok(parse_log(&stdout))
+        },
+    );
 }
 
 #[cfg(test)]
@@ -357,6 +405,41 @@ mod tests {
         let untracked: rhai::Array = m.get("untracked").unwrap().clone().cast();
         assert_eq!(untracked.len(), 1);
         assert_eq!(untracked[0].clone().into_string().unwrap(), "foo.txt");
+    }
+
+    #[test]
+    fn git_log_returns_commits_in_order() {
+        let dir = make_repo();
+        // Add two more commits for variety.
+        for msg in &["second", "third"] {
+            StdCommand::new("git")
+                .current_dir(dir.path())
+                .args(&["commit", "--allow-empty", "-q", "-m", msg])
+                .output()
+                .unwrap();
+        }
+        let mut e = engine();
+        let path = dir.path().to_string_lossy().to_string();
+        let script = format!(r#"git("{}").log(3)"#, path);
+        let arr: rhai::Array = e.eval(&script).unwrap();
+        assert_eq!(arr.len(), 3);
+        let first: rhai::Map = arr[0].clone().cast();
+        assert_eq!(first.get("subject").unwrap().clone().into_string().unwrap(), "third");
+        let third: rhai::Map = arr[2].clone().cast();
+        assert_eq!(third.get("subject").unwrap().clone().into_string().unwrap(), "initial");
+    }
+
+    #[test]
+    fn git_log_commit_has_expected_fields() {
+        let dir = make_repo();
+        let mut e = engine();
+        let path = dir.path().to_string_lossy().to_string();
+        let script = format!(r#"git("{}").log(1)"#, path);
+        let arr: rhai::Array = e.eval(&script).unwrap();
+        let c: rhai::Map = arr[0].clone().cast();
+        for k in &["hash", "short_hash", "author", "email", "date", "subject", "body"] {
+            assert!(c.contains_key(*k), "missing key: {k}");
+        }
     }
 
     #[test]
