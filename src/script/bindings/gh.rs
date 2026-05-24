@@ -43,7 +43,6 @@ impl Gh {
         }
     }
 
-    #[allow(dead_code)]
     fn run(&self, args: &[&str], auto_switch: bool) -> Result<Output, Box<EvalAltResult>> {
         if auto_switch {
             self.ensure_account()?;
@@ -65,7 +64,6 @@ impl Gh {
         })
     }
 
-    #[allow(dead_code)]
     fn ensure_account(&self) -> Result<(), Box<EvalAltResult>> {
         let email = match read_git_email() {
             Some(e) => e,
@@ -101,7 +99,6 @@ impl Gh {
     }
 }
 
-#[allow(dead_code)]
 fn read_git_email() -> Option<String> {
     let out = Command::new("git")
         .args(["config", "user.email"])
@@ -122,7 +119,6 @@ pub(crate) fn account_handle_for_email(email: &str) -> Option<&'static str> {
     }
 }
 
-#[allow(dead_code)]
 fn ok_or_throw(args: &[&str], output: Output) -> Result<String, Box<EvalAltResult>> {
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).into_owned())
@@ -141,11 +137,89 @@ fn ok_or_throw(args: &[&str], output: Output) -> Result<String, Box<EvalAltResul
     }
 }
 
+/// Local copy of shellwords_split from git.rs — see notes there. The
+/// `_local` suffix avoids name collision with git.rs's helper without
+/// the friction of extracting a shared module.
+fn shellwords_split_local(s: &str) -> Result<Vec<String>, Box<EvalAltResult>> {
+    let mut out = Vec::new();
+    let mut current = String::new();
+    let mut in_single = false;
+    let mut in_double = false;
+    let mut escape = false;
+    for c in s.chars() {
+        if escape {
+            current.push(c);
+            escape = false;
+            continue;
+        }
+        match c {
+            '\\' if !in_single => escape = true,
+            '\'' if !in_double => in_single = !in_single,
+            '"' if !in_single => in_double = !in_double,
+            c if c.is_whitespace() && !in_single && !in_double => {
+                if !current.is_empty() {
+                    out.push(std::mem::take(&mut current));
+                }
+            }
+            _ => current.push(c),
+        }
+    }
+    if in_single || in_double {
+        return Err(err("gh: unterminated quoted argument in args"));
+    }
+    if !current.is_empty() {
+        out.push(current);
+    }
+    Ok(out)
+}
+
+fn parse_json_to_dynamic_local(s: &str) -> Result<Dynamic, Box<EvalAltResult>> {
+    let v: serde_json::Value = serde_json::from_str(s)
+        .map_err(|e| err(format!("gh: run_json: stdout not JSON: {e}")))?;
+    Ok(crate::script::bindings::helpers::json_to_dynamic(v))
+}
+
 pub fn register(engine: &mut Engine) {
     engine.register_type_with_name::<Gh>("Gh");
 
     engine.register_fn("gh", || -> Gh { Gh::new(None) });
     engine.register_fn("gh", |repo: &str| -> Gh { Gh::new(Some(repo.to_string())) });
+
+    engine.register_fn(
+        "run_text",
+        |h: &mut Gh, args: &str| -> Result<String, Box<EvalAltResult>> {
+            let argv = shellwords_split_local(args)?;
+            let refs: Vec<&str> = argv.iter().map(|s| s.as_str()).collect();
+            let out = h.run(&refs, true)?;
+            ok_or_throw(&refs, out)
+        },
+    );
+    engine.register_fn(
+        "run_json",
+        |h: &mut Gh, args: &str| -> Result<Dynamic, Box<EvalAltResult>> {
+            let argv = shellwords_split_local(args)?;
+            let refs: Vec<&str> = argv.iter().map(|s| s.as_str()).collect();
+            let out = h.run(&refs, true)?;
+            let stdout = ok_or_throw(&refs, out)?;
+            parse_json_to_dynamic_local(&stdout)
+        },
+    );
+    engine.register_fn(
+        "run",
+        |h: &mut Gh, args: &str| -> Result<Dynamic, Box<EvalAltResult>> {
+            let argv = shellwords_split_local(args)?;
+            let refs: Vec<&str> = argv.iter().map(|s| s.as_str()).collect();
+            let out = h.run(&refs, true)?;
+            let stdout = ok_or_throw(&refs, out)?;
+            let trimmed = stdout.trim_start();
+            if trimmed.starts_with('{') || trimmed.starts_with('[') {
+                if let Ok(v) = parse_json_to_dynamic_local(&stdout) {
+                    return Ok(v);
+                }
+            }
+            Ok(Dynamic::from(stdout))
+        },
+    );
 }
 
 #[cfg(test)]
@@ -174,5 +248,21 @@ mod tests {
             Some("starweb-thomas"),
         );
         assert_eq!(account_handle_for_email("unknown@example.com"), None);
+    }
+
+    #[test]
+    fn gh_run_text_function_registered() {
+        // We can't actually call `gh` in a unit test (auth requirements).
+        // Confirm registration by checking the engine has the function
+        // and that `gh --version` (works without auth) returns sensibly.
+        // Skip if gh isn't on PATH (CI may not have it).
+        if std::process::Command::new("gh").arg("--version").output().is_err() {
+            return; // gh not available; skip.
+        }
+        let mut e = engine();
+        let s: String = e
+            .eval(r#"gh().run_text("--version")"#)
+            .unwrap();
+        assert!(s.to_lowercase().contains("gh"), "got: {s}");
     }
 }
