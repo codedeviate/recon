@@ -2151,6 +2151,37 @@ recon --script /tmp/decode.rhai"#,
     ]);
     note("Specifiers: d i u o x X b f e E g G s c %%. Flags: - (left-align), 0 (zero-pad), + (force sign), space (space-sign), # (alt form). Rhai has no variadic concept, so multi-arg formats pass `[a, b, c]`.");
 
+    example("URL encode / decode (RFC 3986)", &[
+        r#"recon --script - <<< 'print(urlencode("hello world & friends?")); print(urldecode("name%3DJ%C3%B6rg"));'"#,
+    ]);
+    note("urlencode for query params and form values. urldecode errors on malformed `%xx` sequences.");
+
+    example("Base64 encode / decode (encode accepts string or Blob)", &[
+        r#"recon --script - <<< 'print(base64_encode("hello")); let b = base64_decode("aGVsbG8="); print(text::decode(b, "utf-8"));'"#,
+    ]);
+    note("base64_decode returns a Blob — convert with `text::decode(b, \"utf-8\")` when you want a String. Encoding uses the standard alphabet with `=` padding.");
+
+    example("Decode HTML entities (companion to strip_html)", &[
+        r#"recon --script - <<< 'print(html_entity_decode(strip_html("<p>Tom &amp; Jerry</p>")));'"#,
+    ]);
+    note("strip_html leaves entities alone (matches PHP strip_tags); html_entity_decode is the natural follow-up call when scraping text out of HTML.");
+
+    example("Pad strings for column alignment", &[
+        r#"recon --script - <<< 'print(str_pad("42", 6, "0", "left")); print(rpad("hi", 5, ".")); print(str_pad("hi", 6, "-", "both"));'"#,
+    ]);
+    note("str_pad takes (s, width [, pad [, side]]) with side ∈ left/right/both. lpad / rpad are the bare-name aliases. Multi-char pad strings cycle.");
+
+    example("POSIX dirname / basename (optional suffix trim)", &[
+        r#"recon --script - <<< 'print(dirname("/var/log/recon.log")); print(basename("/var/log/recon.log", ".log"));'"#,
+    ]);
+    note("Trailing slashes are stripped first. basename's optional suffix is trimmed from the result, and is only honoured when it doesn't equal the whole name.");
+
+    example("Format a Unix timestamp", &[
+        r#"recon --script - <<< 'print(date_format(1700000000, "%Y-%m-%dT%H:%M:%SZ"));'"#,
+        r#"recon --script - <<< 'print(date_format(now_ms() / 1000, "%a %d %b %Y", "local"));'"#,
+    ]);
+    note("Format spec is chrono's strftime. Third arg switches between UTC (default) and \"local\" (system timezone).");
+
     section("EDITOR OUTPUT");
 
     example("Open the response in an editor (--editor [EDITOR])", &[

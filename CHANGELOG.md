@@ -8,6 +8,37 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.86.0] - 2026-05-24
+
+### Added
+
+- Eleven more script-engine string helpers, alongside the existing
+  strutil cluster: `urlencode` / `urldecode`, `base64_encode` /
+  `base64_decode`, `html_entity_decode`, `str_pad` / `lpad` / `rpad`,
+  `dirname` / `basename`, and `date_format`.
+
+  - `urlencode` / `urldecode` use the `urlencoding` crate (RFC 3986).
+  - `base64_encode` accepts either a String (encoded as UTF-8 bytes)
+    or a Blob; `base64_decode` returns a Blob — pair with
+    `text::decode(b, "utf-8")` when you want a String back.
+  - `html_entity_decode` is the natural companion to `strip_html`,
+    which deliberately leaves entities alone (matching PHP's
+    `strip_tags`). Backed by the `html-escape` crate.
+  - `str_pad(s, width [, pad [, side]])` with side ∈ `left` / `right`
+    (default) / `both`. `lpad` / `rpad` are the bare-name aliases.
+    Multi-char pad strings cycle.
+  - `dirname` / `basename` follow POSIX semantics — trailing slashes
+    stripped first, `basename`'s optional second arg trims a suffix
+    (only when it doesn't equal the whole name, matching PHP).
+  - `date_format(unix_ts, fmt [, tz])` uses chrono's strftime spec.
+    `tz` defaults to UTC; pass `"local"` for the system timezone.
+
+### Changed
+
+- `urlencoding`, `html-escape`, and `chrono` are now direct deps. The
+  first two were already in the lockfile transitively (via reqwest +
+  markdown rendering); `html-escape` is a new but tiny compile unit.
+
 ## [0.85.1] - 2026-05-24
 
 ### Changed

@@ -2,7 +2,7 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.85.1</div>
+<div class="version">Version 0.86.0</div>
 <div class="date">2026-05-24</div>
 <div class="meta">
 Repository · https://github.com/codedeviate/recon<br>
@@ -3251,6 +3251,15 @@ Rhai's existing String methods (which keep working).
 | `arr.join(sep)` / `join(arr, sep)` | Concatenate an Array's elements with `sep` between them. Non-string elements are stringified via `to_string`. |
 | `sprintf(fmt)` / `sprintf(fmt, arg)` / `sprintf(fmt, [a, b, …])` | Format and return a String. |
 | `printf(fmt)` / `printf(fmt, arg)` / `printf(fmt, [a, b, …])` | Format and write to stdout. Returns the byte count. |
+| `urlencode(s)` / `urldecode(s)` | RFC 3986 percent-encoding for query params and form values. urldecode errors on malformed `%xx` sequences. |
+| `base64_encode(s)` / `base64_encode(blob)` | Standard base64 with `=` padding. String input is encoded as UTF-8 bytes. |
+| `base64_decode(s)` | Decode standard base64 to a Blob. Convert with `text::decode(b, "utf-8")` if you want a String. |
+| `html_entity_decode(s)` | Decode HTML entities (`&amp;`, `&lt;`, `&#x27;`, numeric refs). Natural follow-up after `strip_html`. |
+| `str_pad(s, width)` / `str_pad(s, width, pad)` / `str_pad(s, width, pad, side)` | Pad to `width` characters with `pad` (default space). `side` is `"left"`, `"right"` (default), or `"both"`. Width ≤ length leaves the string alone. |
+| `lpad(s, width [, pad])` / `rpad(s, width [, pad])` | Bare-name aliases for left/right pad with space (or `pad`) as the fill. |
+| `dirname(path)` | POSIX dirname. Strips trailing slashes, returns everything before the last `/`. Returns `"."` for a bare filename, `"/"` for a rooted single-component path. |
+| `basename(path)` / `basename(path, suffix)` | POSIX basename. Optional `suffix` is trimmed from the result (only when it doesn't equal the whole name). |
+| `date_format(ts, fmt)` / `date_format(ts, fmt, tz)` | Format a Unix timestamp via chrono's strftime spec. `tz` defaults to UTC; pass `"local"` for the system timezone. |
 
 Regex patterns accept either raw form (`"foo\\d+"`) or PHP-style
 delimited form (`"/foo\\d+/i"`) with the `i` / `m` / `s` / `x` flags.
@@ -3280,6 +3289,19 @@ print(["a", "b", "c"].join(", "));                // "a, b, c"
 print(sprintf("%-10s %5d", ["alpha", 42]));       // "alpha           42"
 print(sprintf("hex=%#x bin=%08b", [255, 10]));    // "hex=0xff bin=00001010"
 printf("pi=%.4f\n", 3.14159265);                  // writes "pi=3.1416\n"
+
+print(urlencode("hello world & friends?"));       // "hello%20world%20%26%20friends%3F"
+print(base64_encode("hello"));                    // "aGVsbG8="
+print(text::decode(base64_decode("aGVsbG8="), "utf-8"));   // "hello"
+print(html_entity_decode("&lt;b&gt;A &amp; B&lt;/b&gt;")); // "<b>A & B</b>"
+
+print(str_pad("42", 6, "0", "left"));             // "000042"
+print(rpad("hi", 5, "."));                        // "hi..."
+print(dirname("/var/log/recon.log"));             // "/var/log"
+print(basename("/var/log/recon.log", ".log"));    // "recon"
+
+print(date_format(1700000000, "%Y-%m-%dT%H:%M:%SZ"));    // "2023-11-14T22:13:20Z"
+print(date_format(now_ms() / 1000, "%a %d %b %Y", "local"));
 ```
 
 ## Whois binding

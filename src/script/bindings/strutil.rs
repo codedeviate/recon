@@ -1,6 +1,8 @@
 //! PHP-style string helpers exposed as top-level Rhai functions:
 //! `trim` / `ltrim` / `rtrim`, `strrev`, `strip_html`, `nl2br`, `br2nl`,
-//! `preg_match`, `preg_replace`, `printf`, `sprintf`.
+//! `preg_match`, `preg_replace`, `printf`, `sprintf`, `urlencode` /
+//! `urldecode`, `base64_encode` / `base64_decode`, `html_entity_decode`,
+//! `str_pad` / `lpad` / `rpad`, `dirname` / `basename`, `date_format`.
 //!
 //! Free-function rather than method or namespaced shape because the
 //! requested names are recognisable PHP idioms — `trim($s)` reads
@@ -9,8 +11,10 @@
 //! module deliberately co-exists without removing it.
 
 use crate::script::convert::err;
+use base64::Engine as _;
+use chrono::{DateTime, Local, TimeZone, Utc};
 use regex::Regex;
-use rhai::{Array, Dynamic, Engine, EvalAltResult};
+use rhai::{Array, Blob, Dynamic, Engine, EvalAltResult};
 
 pub fn register(engine: &mut Engine) {
     // ---- trim family --------------------------------------------------
@@ -151,6 +155,140 @@ pub fn register(engine: &mut Engine) {
             let s = sprintf_apply(fmt, &args)?;
             print!("{s}");
             Ok(s.len() as i64)
+        },
+    );
+
+    // ---- URL encoding ------------------------------------------------
+
+    // urlencode(s) — RFC 3986 percent-encoding for an arbitrary string.
+    // Matches the encoding browsers use for `application/x-www-form-
+    // urlencoded` values plus a couple of safe ASCII chars; the
+    // `urlencoding` crate uses the same allow-list as Rust's
+    // `serde_urlencoded`.
+    engine.register_fn("urlencode", |s: &str| -> String {
+        urlencoding::encode(s).into_owned()
+    });
+    engine.register_fn(
+        "urldecode",
+        |s: &str| -> Result<String, Box<EvalAltResult>> {
+            urlencoding::decode(s)
+                .map(|c| c.into_owned())
+                .map_err(|e| err(format!("urldecode: {e}")))
+        },
+    );
+
+    // ---- base64 ------------------------------------------------------
+
+    // base64_encode accepts either a string (encoded as UTF-8 bytes) or
+    // a Blob (raw bytes). Output is always standard base64 with `=`
+    // padding; the URL-safe variant lives separately so the default
+    // matches PHP and most APIs.
+    engine.register_fn("base64_encode", |s: &str| -> String {
+        base64::engine::general_purpose::STANDARD.encode(s.as_bytes())
+    });
+    engine.register_fn("base64_encode", |b: Blob| -> String {
+        base64::engine::general_purpose::STANDARD.encode(&b[..])
+    });
+
+    // base64_decode returns a Blob — base64-decoded bytes aren't
+    // guaranteed to be valid UTF-8, so callers convert with
+    // `text::decode(b, "utf-8")` (or similar) when they want a String.
+    engine.register_fn(
+        "base64_decode",
+        |s: &str| -> Result<Blob, Box<EvalAltResult>> {
+            base64::engine::general_purpose::STANDARD
+                .decode(s.trim())
+                .map_err(|e| err(format!("base64_decode: {e}")))
+        },
+    );
+
+    // ---- HTML entity decode ------------------------------------------
+
+    // html_entity_decode(s) — the inverse of HTML entity encoding.
+    // `strip_html` deliberately leaves entities alone (matching PHP's
+    // strip_tags) so this is the natural follow-up call when scraping
+    // textual content out of HTML.
+    engine.register_fn("html_entity_decode", |s: &str| -> String {
+        html_escape::decode_html_entities(s).into_owned()
+    });
+
+    // ---- str_pad / lpad / rpad ---------------------------------------
+
+    // str_pad(s, width)            — pad with spaces on the right (PHP default).
+    // str_pad(s, width, pad)       — custom pad string, right side.
+    // str_pad(s, width, pad, side) — side is "left", "right", or "both".
+    engine.register_fn("str_pad", |s: &str, width: i64| -> String {
+        pad_str(s, width as usize, " ", PadSide::Right)
+    });
+    engine.register_fn(
+        "str_pad",
+        |s: &str, width: i64, pad: &str| -> String {
+            pad_str(s, width as usize, pad, PadSide::Right)
+        },
+    );
+    engine.register_fn(
+        "str_pad",
+        |s: &str, width: i64, pad: &str, side: &str|
+         -> Result<String, Box<EvalAltResult>> {
+            let side = match side.to_ascii_lowercase().as_str() {
+                "left" | "l" | "start" => PadSide::Left,
+                "right" | "r" | "end" => PadSide::Right,
+                "both" | "center" | "centre" => PadSide::Both,
+                other => return Err(err(format!(
+                    "str_pad: unknown side '{other}' (want left / right / both)"
+                ))),
+            };
+            Ok(pad_str(s, width as usize, pad, side))
+        },
+    );
+    // lpad / rpad are the bare-name aliases people reach for from
+    // SQL / Oracle / Python contexts.
+    engine.register_fn("lpad", |s: &str, width: i64| -> String {
+        pad_str(s, width as usize, " ", PadSide::Left)
+    });
+    engine.register_fn("lpad", |s: &str, width: i64, pad: &str| -> String {
+        pad_str(s, width as usize, pad, PadSide::Left)
+    });
+    engine.register_fn("rpad", |s: &str, width: i64| -> String {
+        pad_str(s, width as usize, " ", PadSide::Right)
+    });
+    engine.register_fn("rpad", |s: &str, width: i64, pad: &str| -> String {
+        pad_str(s, width as usize, pad, PadSide::Right)
+    });
+
+    // ---- path helpers ------------------------------------------------
+
+    // dirname / basename — POSIX semantics, applied to the literal
+    // string. Path separators are `/` only (matches PHP and the cross-
+    // platform behaviour scripts usually want — Windows callers should
+    // pre-normalise with `replace`).
+    engine.register_fn("dirname", |path: &str| -> String { dirname(path) });
+    engine.register_fn("basename", |path: &str| -> String {
+        basename(path, "")
+    });
+    engine.register_fn(
+        "basename",
+        |path: &str, suffix: &str| -> String { basename(path, suffix) },
+    );
+
+    // ---- date_format -------------------------------------------------
+
+    // date_format(unix_ts, fmt)             — UTC.
+    // date_format(unix_ts, fmt, "local")    — local timezone.
+    // Format spec is chrono's strftime — see chrono's docs.
+    engine.register_fn(
+        "date_format",
+        |unix_ts: i64, fmt: &str| -> Result<String, Box<EvalAltResult>> {
+            format_date(unix_ts, fmt, false)
+        },
+    );
+    engine.register_fn(
+        "date_format",
+        |unix_ts: i64, fmt: &str, tz: &str|
+         -> Result<String, Box<EvalAltResult>> {
+            let local = matches!(tz.to_ascii_lowercase().as_str(),
+                "local" | "localtime" | "system");
+            format_date(unix_ts, fmt, local)
         },
     );
 }
@@ -728,6 +866,113 @@ fn pad(body: String, f: &FmtFlags) -> String {
 }
 
 // ---------------------------------------------------------------------
+// str_pad / lpad / rpad
+// ---------------------------------------------------------------------
+
+#[derive(Copy, Clone)]
+enum PadSide {
+    Left,
+    Right,
+    Both,
+}
+
+fn pad_str(s: &str, width: usize, pad: &str, side: PadSide) -> String {
+    let s_len = s.chars().count();
+    if width <= s_len || pad.is_empty() {
+        return s.to_string();
+    }
+    let needed = width - s_len;
+    match side {
+        PadSide::Right => format!("{s}{}", repeat_to_width(pad, needed)),
+        PadSide::Left => format!("{}{s}", repeat_to_width(pad, needed)),
+        PadSide::Both => {
+            // PHP gives the extra char to the right when needed is odd.
+            let right = needed / 2 + needed % 2;
+            let left = needed - right;
+            format!(
+                "{}{s}{}",
+                repeat_to_width(pad, left),
+                repeat_to_width(pad, right)
+            )
+        }
+    }
+}
+
+fn repeat_to_width(pad: &str, width: usize) -> String {
+    if pad.is_empty() || width == 0 {
+        return String::new();
+    }
+    let pad_chars: Vec<char> = pad.chars().collect();
+    let pad_len = pad_chars.len();
+    let mut out = String::with_capacity(width);
+    let mut emitted = 0usize;
+    while emitted < width {
+        out.push(pad_chars[emitted % pad_len]);
+        emitted += 1;
+    }
+    out
+}
+
+// ---------------------------------------------------------------------
+// path helpers
+// ---------------------------------------------------------------------
+
+/// POSIX-style dirname. Strips trailing slashes, then returns everything
+/// before the last `/`. Returns `"."` for a bare filename, `"/"` for a
+/// rooted single-component path, `""` for empty input.
+fn dirname(path: &str) -> String {
+    if path.is_empty() {
+        return String::new();
+    }
+    // Strip trailing slashes (but keep the lone root slash).
+    let trimmed = path.trim_end_matches('/');
+    let trimmed = if trimmed.is_empty() { "/" } else { trimmed };
+    match trimmed.rfind('/') {
+        Some(0) => "/".to_string(),
+        Some(i) => trimmed[..i].to_string(),
+        None => ".".to_string(),
+    }
+}
+
+/// POSIX-style basename. Strips trailing slashes, returns everything
+/// after the last `/`, optionally trims a matching suffix.
+fn basename(path: &str, suffix: &str) -> String {
+    let trimmed = path.trim_end_matches('/');
+    if trimmed.is_empty() {
+        return if path.is_empty() { String::new() } else { "/".to_string() };
+    }
+    let name = match trimmed.rfind('/') {
+        Some(i) => &trimmed[i + 1..],
+        None => trimmed,
+    };
+    if !suffix.is_empty() && name.ends_with(suffix) && name.len() > suffix.len() {
+        name[..name.len() - suffix.len()].to_string()
+    } else {
+        name.to_string()
+    }
+}
+
+// ---------------------------------------------------------------------
+// date_format
+// ---------------------------------------------------------------------
+
+fn format_date(unix_ts: i64, fmt: &str, local: bool) -> Result<String, Box<EvalAltResult>> {
+    let utc = match Utc.timestamp_opt(unix_ts, 0).single() {
+        Some(t) => t,
+        None => return Err(err(format!(
+            "date_format: timestamp {unix_ts} is out of range"
+        ))),
+    };
+    let formatted = if local {
+        let local_dt: DateTime<Local> = utc.with_timezone(&Local);
+        local_dt.format(fmt).to_string()
+    } else {
+        utc.format(fmt).to_string()
+    };
+    Ok(formatted)
+}
+
+// ---------------------------------------------------------------------
 // tests
 // ---------------------------------------------------------------------
 
@@ -831,5 +1076,54 @@ mod tests {
         let v: Dynamic = 1234.5f64.into();
         let out = sprintf_apply("%.2e", &[v]).unwrap();
         assert_eq!(out, "1.23e+03");
+    }
+
+    #[test]
+    fn pad_str_left_right_both() {
+        assert_eq!(pad_str("hi", 5, " ", PadSide::Right), "hi   ");
+        assert_eq!(pad_str("hi", 5, " ", PadSide::Left), "   hi");
+        assert_eq!(pad_str("hi", 6, "-", PadSide::Both), "--hi--");
+        // Odd-needed → extra char goes right (PHP convention).
+        assert_eq!(pad_str("hi", 5, "-", PadSide::Both), "-hi--");
+        // Width <= len leaves the string alone.
+        assert_eq!(pad_str("hello", 3, " ", PadSide::Right), "hello");
+        // Multi-char pad cycles.
+        assert_eq!(pad_str("x", 5, "ab", PadSide::Right), "xabab");
+    }
+
+    #[test]
+    fn dirname_basename_posix_semantics() {
+        assert_eq!(dirname("/etc/hosts"), "/etc");
+        assert_eq!(dirname("/etc/"), "/");
+        assert_eq!(dirname("/etc"), "/");
+        assert_eq!(dirname("hosts"), ".");
+        assert_eq!(dirname(""), "");
+        assert_eq!(dirname("a/b/c"), "a/b");
+
+        assert_eq!(basename("/etc/hosts", ""), "hosts");
+        assert_eq!(basename("/etc/hosts/", ""), "hosts");
+        assert_eq!(basename("/", ""), "/");
+        assert_eq!(basename("hosts", ""), "hosts");
+        // Suffix stripping.
+        assert_eq!(basename("/var/log/recon.log", ".log"), "recon");
+        // Suffix that equals the full name is NOT stripped (PHP rule).
+        assert_eq!(basename("/var/log/.log", ".log"), ".log");
+    }
+
+    #[test]
+    fn date_format_utc_and_local() {
+        // Unix epoch — universally agreed on.
+        let s = format_date(0, "%Y-%m-%d %H:%M:%S", false).unwrap();
+        assert_eq!(s, "1970-01-01 00:00:00");
+
+        // A round number that's easy to spot-check by hand:
+        // 1700000000 = 2023-11-14 22:13:20 UTC.
+        let s = format_date(1700000000, "%Y-%m-%dT%H:%M:%SZ", false).unwrap();
+        assert_eq!(s, "2023-11-14T22:13:20Z");
+
+        // Local-tz path just exercises the with_timezone branch — value
+        // depends on host TZ, so just assert the year survives.
+        let s = format_date(1700000000, "%Y", true).unwrap();
+        assert!(s.starts_with("202"));
     }
 }

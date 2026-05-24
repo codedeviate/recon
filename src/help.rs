@@ -2036,6 +2036,13 @@ static TOPIC_STRUTIL: Topic = Topic {
         FlagHelp { flags: "arr.join(sep) / join(arr, sep)", description: "Concatenate an Array's elements with `sep` between them.\nNon-string elements are stringified via Dynamic::to_string." },
         FlagHelp { flags: "sprintf(fmt, args)", description: "Format and return a String. `args` is either a single value or\nan Array for multi-arg formats. Supports flags -, 0, +, space,\n#, plus width and precision." },
         FlagHelp { flags: "printf(fmt, args)", description: "Format and write to stdout. Returns the number of bytes\nwritten (matches C printf)." },
+        FlagHelp { flags: "urlencode(s) / urldecode(s)", description: "RFC 3986 percent-encoding for query params and form values.\nurldecode errors on malformed `%xx` sequences." },
+        FlagHelp { flags: "base64_encode(s | blob) / base64_decode(s)", description: "Standard base64 with `=` padding. Encode accepts either a\nString (encoded as UTF-8) or a Blob. Decode returns a Blob —\nconvert with text::decode(b, \"utf-8\") for a String." },
+        FlagHelp { flags: "html_entity_decode(s)", description: "Decode HTML entities (`&amp;`, `&lt;`, `&#x27;`, numeric refs).\nNatural follow-up call after strip_html, which deliberately\nleaves entities alone." },
+        FlagHelp { flags: "str_pad(s, width [, pad [, side]])", description: "Pad to `width` characters with `pad` (default space). `side` is\n\"left\", \"right\" (default), or \"both\". Width <= length leaves the\nstring alone." },
+        FlagHelp { flags: "lpad(s, width [, pad]) / rpad(s, width [, pad])", description: "Bare-name aliases for the common left/right pad cases." },
+        FlagHelp { flags: "dirname(path) / basename(path [, suffix])", description: "POSIX dirname/basename. Trailing slashes are stripped first.\nbasename's optional `suffix` is trimmed from the result (e.g.\n`basename(\"/var/log/recon.log\", \".log\")` → \"recon\")." },
+        FlagHelp { flags: "date_format(unix_ts, fmt [, tz])", description: "Format a Unix timestamp via chrono's strftime spec. Default tz\nis UTC; pass \"local\" for the system timezone." },
     ],
     related: &["script", "scripting", "text"],
     examples: &[
@@ -2043,7 +2050,12 @@ static TOPIC_STRUTIL: Topic = Topic {
         ExampleHelp { description: "Strip HTML and convert linebreaks", command: r#"recon --script - <<< 'print(strip_html("<p>plain <b>text</b></p>"));'"# },
         ExampleHelp { description: "Regex capture", command: r#"recon --script - <<< 'print(preg_match("/^Host:\\s*(.+)$/i", "Host: example.com"));'"# },
         ExampleHelp { description: "printf with multiple args", command: r#"recon --script - <<< 'printf("%-10s %5d\n", ["alpha", 42]);'"# },
-        ExampleHelp { description: "sprintf hex with alt form", command: r#"recon --script - <<< 'print(sprintf("hex=%#x", 255));'"# },
+        ExampleHelp { description: "URL-encode a query param", command: r#"recon --script - <<< 'print(urlencode("hello world & friends?"));'"# },
+        ExampleHelp { description: "Base64 round-trip via a Blob", command: r#"recon --script - <<< 'let b = base64_decode("aGVsbG8="); print(text::decode(b, "utf-8"));'"# },
+        ExampleHelp { description: "Decode HTML entities after stripping tags", command: r#"recon --script - <<< 'print(html_entity_decode(strip_html("<p>Tom &amp; Jerry</p>")));'"# },
+        ExampleHelp { description: "Pad a number for column alignment", command: r#"recon --script - <<< 'print(str_pad("42", 6, "0", "left"));'"# },
+        ExampleHelp { description: "Dirname / basename with suffix trim", command: r#"recon --script - <<< 'print(dirname("/var/log/recon.log")); print(basename("/var/log/recon.log", ".log"));'"# },
+        ExampleHelp { description: "Format a unix timestamp (UTC + local)", command: r#"recon --script - <<< 'print(date_format(1700000000, "%Y-%m-%dT%H:%M:%SZ"));'"# },
     ],
 };
 
