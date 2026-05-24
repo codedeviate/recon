@@ -2136,6 +2136,11 @@ recon --script /tmp/decode.rhai"#,
     ]);
     note("strrev reverses by Unicode codepoints so accented letters and emoji stay intact. strip_html respects quoted attributes; nl2br ↔ br2nl round-trips cleanly because br2nl preserves the trailing EOL on the original tag.");
 
+    example("Join an Array (method or free-function form)", &[
+        r#"recon --script - <<< 'print(["a", "b", "c"].join(", ")); print(join([1, "two", 3.5], "-"));'"#,
+    ]);
+    note("Rhai 1.24's BasicArrayPackage doesn't ship Array.join — recon registers it so `arr.join(sep)` and `join(arr, sep)` both work. Non-string elements stringify via Dynamic::to_string.");
+
     example("Regex match + replace (PHP-style delimiters optional)", &[
         r#"recon --script - <<< 'print(preg_match("/^Host:\\s*(.+)$/i", "Host: example.com")); print(preg_replace("\\s+", "-", "a  b   c"));'"#,
     ]);

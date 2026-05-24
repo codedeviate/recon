@@ -52,7 +52,81 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
-### 77. PDF-export backend pivot: agent-browser → `pdftoppm` (0.81.2)
+### 79. Script-engine string helpers, error hints, and the metadata feature (0.83.0–0.85.0)
+
+**What:** Three connected additions to the script engine and REPL.
+
+- 0.83.0: REPL meta-commands `:save-tidy` (compiles each history entry
+  through the engine, appends missing `;`, drops entries that don't
+  parse — the resulting file runs as a script) and `:functions` /
+  `:function-list` (enumerates every callable the engine knows about).
+- 0.84.0: a new `bindings/strutil.rs` module exposing eleven PHP-style
+  free functions: `trim` / `ltrim` / `rtrim`, `strrev`, `strip_html`,
+  `nl2br` / `br2nl`, `preg_match` / `preg_replace`, `printf` /
+  `sprintf`. The `regex` crate became a direct dep (already in the
+  lockfile transitively via the markdown/PDF path, so no new compile
+  units).
+- 0.84.1: a new `script/error_hint.rs` module that intercepts Rhai's
+  `EvalAltResult::ErrorFunctionNotFound` and, when the name *is*
+  registered under a different signature, appends an "Available
+  overloads:" list before the error reaches the user.
+- 0.85.0: an `arr.join(sep)` Array binding. Discovered directly via
+  the new error hint — `texttv.nu` JSON's `content.join("\n\n")` hit
+  a confusing overload-mismatch because Rhai 1.24's BasicArrayPackage
+  doesn't ship Array.join in our configuration, and recon's existing
+  `join(&mut ThreadHandle)` was the only registration users saw.
+
+**Why the names are top-level rather than `text::*`-namespaced.**
+The eleven strutil functions are recognisable PHP idioms. Scripts
+ported from PHP read naturally when they look the same; `trim($s)`
+→ `trim(s)`. The alternative — `text::trim(s)` or `strutil::trim(s)`
+— would make every line a few characters longer for no gain, and
+people would still type the bare names by muscle memory. Rhai's
+existing `.trim()` String method keeps working alongside.
+
+**Why `error_hint` rewrites instead of letting Rhai's default
+through.** Rhai surfaces "Function not found: name (argTypes)" for
+two distinct situations: (a) the name is genuinely unknown (typo),
+(b) the name is fine but no overload accepts the runtime types. Case
+(b) used to send users hunting for a missing import when the real
+fix was `.body` or a `to_string`. The hint reads:
+
+```text
+error: Function not found: json_parse (map) (line 1, position 18)
+note: `json_parse` is defined, but no overload accepts (map).
+hint: check that you're passing the expected argument types ...
+Available overloads:
+  json_parse(_: string)
+```
+
+The case-(a) error stays untouched — when no sibling overloads
+exist, the original one-liner is exactly the right message.
+
+**The `metadata` feature side effect.** `error_hint` needs
+`Engine::gen_fn_signatures()`, which lives behind the `metadata`
+feature on the `rhai` crate. Enabling it also unlocked the
+`:functions` REPL command in 0.83.0. But with `metadata` on, Rhai
+parses `///` as a doc comment that must immediately precede a
+function definition — and the shebang rewrite in
+`src/script/engine.rs` was turning `#!/usr/bin/env -S recon
+--script` into `///usr/bin/env -S recon --script`, which then broke
+two pre-existing tests. Fix was a one-character change: `format!("//
+{}", stripped)` instead of `format!("//{}", stripped)` — the space
+keeps it a normal comment while preserving line numbers.
+
+**Why discovering Array.join was a UX validation.** The
+overload-hint feature from 0.84.1 immediately found a real gap in
+the next release: a user's script used `content.join("\n\n")`,
+Rhai's stdlib didn't expose it, and the hint pointed at exactly the
+overload-mismatch rather than sending them hunting. Without the
+hint they'd have seen "Function not found: join (array, string)" —
+which reads like a missing import even though the actual issue was
+a missing binding. With the hint they got "join is defined, but no
+overload accepts (array, string); Available overloads: join(_: &mut
+ThreadHandle)" — which immediately showed the gap. The fix landed
+the same hour.
+
+### 78. Interactive REPL (0.82.0)
 
 **What:** `--export-pdf-page` switched from `agent-browser` (Chromium
 screenshot of `file://*.pdf`) to a shell-out to `pdftoppm` from

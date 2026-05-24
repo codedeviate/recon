@@ -8,6 +8,20 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.85.1] - 2026-05-24
+
+### Changed
+
+- `recon --examples` STRING HELPERS section now includes an
+  `arr.join(sep)` / `join(arr, sep)` example (shipped in 0.85.0 but
+  the example was missed in that release's docs sweep).
+- HISTORY.md gained entry #79 covering 0.83.0–0.85.0: design
+  rationale for the strutil module (top-level names rather than
+  `text::*`-namespaced), error_hint module (rewrites Rhai's
+  ambiguous "Function not found" when overloads exist), the
+  `metadata` feature enablement, and the shebang-rewrite side
+  effect.
+
 ## [0.85.0] - 2026-05-23
 
 ### Added
