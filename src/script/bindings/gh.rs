@@ -16,7 +16,6 @@
 //! `try` / `catch` to recover — especially relevant for `gh pr view`
 //! which exits 1 for "not found".
 
-#[allow(unused_imports)]
 use rhai::{Array, Dynamic, Engine, EvalAltResult, Map};
 use std::process::{Command, Output};
 use std::sync::{Arc, Mutex};
@@ -179,6 +178,164 @@ fn parse_json_to_dynamic_local(s: &str) -> Result<Dynamic, Box<EvalAltResult>> {
     Ok(crate::script::bindings::helpers::json_to_dynamic(v))
 }
 
+const PR_LIST_FIELDS: &str =
+    "number,title,state,author,headRefName,baseRefName,createdAt,url";
+const PR_VIEW_FIELDS: &str =
+    "number,title,state,author,body,labels,reviewDecision,mergeable,headRefName,baseRefName,createdAt,url";
+
+fn pr_list_opts_to_args(opts: &Map) -> Result<Vec<String>, Box<EvalAltResult>> {
+    let mut out = Vec::new();
+    for (k, v) in opts {
+        match k.as_str() {
+            "state" => {
+                out.push("--state".into());
+                out.push(v.clone().into_string().map_err(|_| err("pr_list opts: state must be a string"))?);
+            }
+            "author" => {
+                out.push("--author".into());
+                out.push(v.clone().into_string().map_err(|_| err("pr_list opts: author must be a string"))?);
+            }
+            "label" => {
+                if let Ok(s) = v.clone().into_string() {
+                    out.push("--label".into());
+                    out.push(s);
+                } else if let Some(arr) = v.clone().try_cast::<Array>() {
+                    for l in arr {
+                        out.push("--label".into());
+                        out.push(l.into_string().map_err(|_| err("pr_list opts: label array must contain strings"))?);
+                    }
+                } else {
+                    return Err(err("pr_list opts: label must be string or array of strings"));
+                }
+            }
+            "limit" => {
+                let n = v.clone().as_int().map_err(|_| err("pr_list opts: limit must be an integer"))?;
+                out.push("--limit".into());
+                out.push(n.to_string());
+            }
+            other => return Err(err(format!("pr_list opts: unknown key '{other}'"))),
+        }
+    }
+    Ok(out)
+}
+
+fn pr_create_opts_to_args(opts: &Map) -> Result<Vec<String>, Box<EvalAltResult>> {
+    let mut out = Vec::new();
+    let mut have_title = false;
+    let mut have_body = false;
+    let mut have_body_file = false;
+    for (k, v) in opts {
+        match k.as_str() {
+            "title" => {
+                have_title = true;
+                out.push("--title".into());
+                out.push(v.clone().into_string().map_err(|_| err("pr_create opts: title must be a string"))?);
+            }
+            "body" => {
+                have_body = true;
+                out.push("--body".into());
+                out.push(v.clone().into_string().map_err(|_| err("pr_create opts: body must be a string"))?);
+            }
+            "body_file" => {
+                have_body_file = true;
+                out.push("--body-file".into());
+                out.push(v.clone().into_string().map_err(|_| err("pr_create opts: body_file must be a string"))?);
+            }
+            "base" => {
+                out.push("--base".into());
+                out.push(v.clone().into_string().map_err(|_| err("pr_create opts: base must be a string"))?);
+            }
+            "head" => {
+                out.push("--head".into());
+                out.push(v.clone().into_string().map_err(|_| err("pr_create opts: head must be a string"))?);
+            }
+            "draft" => {
+                if v.clone().as_bool().unwrap_or(false) {
+                    out.push("--draft".into());
+                }
+            }
+            "reviewer" => {
+                if let Ok(s) = v.clone().into_string() {
+                    out.push("--reviewer".into());
+                    out.push(s);
+                } else if let Some(arr) = v.clone().try_cast::<Array>() {
+                    for r in arr {
+                        out.push("--reviewer".into());
+                        out.push(r.into_string().map_err(|_| err("pr_create opts: reviewer array must contain strings"))?);
+                    }
+                } else {
+                    return Err(err("pr_create opts: reviewer must be string or array of strings"));
+                }
+            }
+            "label" => {
+                if let Ok(s) = v.clone().into_string() {
+                    out.push("--label".into());
+                    out.push(s);
+                } else if let Some(arr) = v.clone().try_cast::<Array>() {
+                    for l in arr {
+                        out.push("--label".into());
+                        out.push(l.into_string().map_err(|_| err("pr_create opts: label array must contain strings"))?);
+                    }
+                } else {
+                    return Err(err("pr_create opts: label must be string or array of strings"));
+                }
+            }
+            other => return Err(err(format!("pr_create opts: unknown key '{other}'"))),
+        }
+    }
+    if !have_title {
+        return Err(err("pr_create opts: title is required"));
+    }
+    if have_body && have_body_file {
+        return Err(err("pr_create opts: body and body_file are mutually exclusive"));
+    }
+    Ok(out)
+}
+
+fn pr_merge_opts_to_args(opts: &Map) -> Result<Vec<String>, Box<EvalAltResult>> {
+    let mut out = Vec::new();
+    for (k, v) in opts {
+        match k.as_str() {
+            "method" => {
+                let s = v.clone().into_string().map_err(|_| err("pr_merge opts: method must be string"))?;
+                match s.as_str() {
+                    "merge" => out.push("--merge".into()),
+                    "squash" => out.push("--squash".into()),
+                    "rebase" => out.push("--rebase".into()),
+                    other => return Err(err(format!("pr_merge opts: unknown method '{other}' (want merge/squash/rebase)"))),
+                }
+            }
+            "delete_branch" => {
+                if v.clone().as_bool().unwrap_or(false) {
+                    out.push("--delete-branch".into());
+                }
+            }
+            "auto" => {
+                if v.clone().as_bool().unwrap_or(false) {
+                    out.push("--auto".into());
+                }
+            }
+            other => return Err(err(format!("pr_merge opts: unknown key '{other}'"))),
+        }
+    }
+    Ok(out)
+}
+
+/// Parse the URL line that `gh pr create` emits, returning
+/// `{ number, url }` map.
+fn parse_pr_url(s: &str) -> Result<Map, Box<EvalAltResult>> {
+    let re = regex::Regex::new(r"https://[^\s]+/pull/(\d+)").unwrap();
+    let cap = re.captures(s).ok_or_else(|| {
+        err(format!("gh.pr_create: could not parse URL from output: {s}"))
+    })?;
+    let url = cap.get(0).unwrap().as_str().to_string();
+    let number: i64 = cap[1].parse().unwrap_or(0);
+    let mut m = Map::new();
+    m.insert("url".into(), url.into());
+    m.insert("number".into(), number.into());
+    Ok(m)
+}
+
 pub fn register(engine: &mut Engine) {
     engine.register_type_with_name::<Gh>("Gh");
 
@@ -220,12 +377,110 @@ pub fn register(engine: &mut Engine) {
             Ok(Dynamic::from(stdout))
         },
     );
+
+    engine.register_fn(
+        "pr_list",
+        |h: &mut Gh| -> Result<Array, Box<EvalAltResult>> {
+            let argv = &["pr", "list", "--json", PR_LIST_FIELDS];
+            let out = h.run(argv, true)?;
+            let stdout = ok_or_throw(argv, out)?;
+            let v: serde_json::Value = serde_json::from_str(&stdout)
+                .map_err(|e| err(format!("gh.pr_list: {e}")))?;
+            let d = crate::script::bindings::helpers::json_to_dynamic(v);
+            d.try_cast::<Array>().ok_or_else(|| err("gh.pr_list: expected Array"))
+        },
+    );
+    engine.register_fn(
+        "pr_list",
+        |h: &mut Gh, opts: Map| -> Result<Array, Box<EvalAltResult>> {
+            let mut argv: Vec<String> = vec!["pr".into(), "list".into(), "--json".into(), PR_LIST_FIELDS.into()];
+            argv.extend(pr_list_opts_to_args(&opts)?);
+            let refs: Vec<&str> = argv.iter().map(|s| s.as_str()).collect();
+            let out = h.run(&refs, true)?;
+            let stdout = ok_or_throw(&refs, out)?;
+            let v: serde_json::Value = serde_json::from_str(&stdout)
+                .map_err(|e| err(format!("gh.pr_list: {e}")))?;
+            let d = crate::script::bindings::helpers::json_to_dynamic(v);
+            d.try_cast::<Array>().ok_or_else(|| err("gh.pr_list: expected Array"))
+        },
+    );
+
+    engine.register_fn(
+        "pr_view",
+        |h: &mut Gh, number: i64| -> Result<Map, Box<EvalAltResult>> {
+            let n_str = number.to_string();
+            let argv = &["pr", "view", &n_str, "--json", PR_VIEW_FIELDS];
+            let out = h.run(argv, true)?;
+            let stdout = ok_or_throw(argv, out)?;
+            let v: serde_json::Value = serde_json::from_str(&stdout)
+                .map_err(|e| err(format!("gh.pr_view: {e}")))?;
+            let d = crate::script::bindings::helpers::json_to_dynamic(v);
+            d.try_cast::<Map>().ok_or_else(|| err("gh.pr_view: expected Map"))
+        },
+    );
+
+    engine.register_fn(
+        "pr_create",
+        |h: &mut Gh, opts: Map| -> Result<Map, Box<EvalAltResult>> {
+            let mut argv: Vec<String> = vec!["pr".into(), "create".into()];
+            argv.extend(pr_create_opts_to_args(&opts)?);
+            let refs: Vec<&str> = argv.iter().map(|s| s.as_str()).collect();
+            let out = h.run(&refs, true)?;
+            let stdout = ok_or_throw(&refs, out)?;
+            parse_pr_url(&stdout)
+        },
+    );
+
+    engine.register_fn(
+        "pr_merge",
+        |h: &mut Gh, number: i64| -> Result<(), Box<EvalAltResult>> {
+            let n_str = number.to_string();
+            let argv = &["pr", "merge", &n_str];
+            let out = h.run(argv, true)?;
+            ok_or_throw(argv, out)?;
+            Ok(())
+        },
+    );
+    engine.register_fn(
+        "pr_merge",
+        |h: &mut Gh, number: i64, opts: Map| -> Result<(), Box<EvalAltResult>> {
+            let n_str = number.to_string();
+            let mut argv: Vec<String> = vec!["pr".into(), "merge".into(), n_str];
+            argv.extend(pr_merge_opts_to_args(&opts)?);
+            let refs: Vec<&str> = argv.iter().map(|s| s.as_str()).collect();
+            let out = h.run(&refs, true)?;
+            ok_or_throw(&refs, out)?;
+            Ok(())
+        },
+    );
+
+    engine.register_fn(
+        "pr_close",
+        |h: &mut Gh, number: i64| -> Result<(), Box<EvalAltResult>> {
+            let n_str = number.to_string();
+            let argv = &["pr", "close", &n_str];
+            let out = h.run(argv, true)?;
+            ok_or_throw(argv, out)?;
+            Ok(())
+        },
+    );
+
+    engine.register_fn(
+        "pr_comment",
+        |h: &mut Gh, number: i64, body: &str| -> Result<(), Box<EvalAltResult>> {
+            let n_str = number.to_string();
+            let argv = &["pr", "comment", &n_str, "--body", body];
+            let out = h.run(argv, true)?;
+            ok_or_throw(argv, out)?;
+            Ok(())
+        },
+    );
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rhai::{Dynamic, Engine};
+    use rhai::{Dynamic, Engine, Array};
 
     fn engine() -> Engine {
         let mut e = Engine::new();
@@ -264,5 +519,69 @@ mod tests {
             .eval(r#"gh().run_text("--version")"#)
             .unwrap();
         assert!(s.to_lowercase().contains("gh"), "got: {s}");
+    }
+
+    #[test]
+    fn pr_list_opts_to_args_translates_all_keys() {
+        let mut opts = rhai::Map::new();
+        opts.insert("state".into(), "open".to_string().into());
+        opts.insert("author".into(), "@me".to_string().into());
+        opts.insert("label".into(), "bug".to_string().into());
+        opts.insert("limit".into(), 50i64.into());
+        let args = pr_list_opts_to_args(&opts).unwrap();
+        assert!(args.contains(&"--state".to_string()));
+        assert!(args.contains(&"open".to_string()));
+        assert!(args.contains(&"--author".to_string()));
+        assert!(args.contains(&"--label".to_string()));
+        assert!(args.contains(&"50".to_string()));
+    }
+
+    #[test]
+    fn pr_list_opts_to_args_accepts_label_array() {
+        let mut opts = rhai::Map::new();
+        let mut labels = rhai::Array::new();
+        labels.push("bug".to_string().into());
+        labels.push("urgent".to_string().into());
+        opts.insert("label".into(), labels.into());
+        let args = pr_list_opts_to_args(&opts).unwrap();
+        // Two --label args, one per element.
+        let label_count = args.iter().filter(|s| s.as_str() == "--label").count();
+        assert_eq!(label_count, 2);
+    }
+
+    #[test]
+    fn pr_list_opts_rejects_unknown_keys() {
+        let mut opts = rhai::Map::new();
+        opts.insert("unknownkey".into(), "x".to_string().into());
+        let result = pr_list_opts_to_args(&opts);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("unknown key"));
+    }
+
+    #[test]
+    fn pr_create_opts_to_args_handles_body_vs_body_file() {
+        let mut opts = rhai::Map::new();
+        opts.insert("title".into(), "T".to_string().into());
+        opts.insert("body_file".into(), "/path/body.md".to_string().into());
+        let args = pr_create_opts_to_args(&opts).unwrap();
+        assert!(args.contains(&"--body-file".to_string()));
+        assert!(args.contains(&"/path/body.md".to_string()));
+
+        let mut opts = rhai::Map::new();
+        opts.insert("title".into(), "T".to_string().into());
+        opts.insert("body".into(), "Hello".to_string().into());
+        let args = pr_create_opts_to_args(&opts).unwrap();
+        assert!(args.contains(&"--body".to_string()));
+        assert!(args.contains(&"Hello".to_string()));
+    }
+
+    #[test]
+    fn parse_pr_url_extracts_number_and_url() {
+        let m = parse_pr_url("https://github.com/owner/repo/pull/123\n").unwrap();
+        assert_eq!(m.get("number").unwrap().as_int().unwrap(), 123);
+        assert_eq!(
+            m.get("url").unwrap().clone().into_string().unwrap(),
+            "https://github.com/owner/repo/pull/123"
+        );
     }
 }
