@@ -154,6 +154,7 @@ pub fn build_engine(defaults: &ScriptDefaults) -> rhai::Engine {
     super::bindings::tcp::register(&mut engine, defaults.clone());
     super::bindings::tcp_server::register(&mut engine);
     super::bindings::text::register(&mut engine);
+    super::bindings::tui::register(&mut engine);
     super::bindings::tftp::register(&mut engine, defaults.clone());
     super::bindings::tls::register(&mut engine);
     super::bindings::udp::register(&mut engine);

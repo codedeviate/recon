@@ -46,6 +46,7 @@ pub mod tcp_server;
 pub mod text;
 pub mod tftp;
 pub mod thread;
+pub mod tui;
 pub mod udp;
 pub mod tls;
 pub mod whois;
