@@ -27,6 +27,7 @@ pub mod netstatus;
 pub mod output;
 pub mod pdf;
 pub mod sample;
+pub mod shell;
 pub mod http;
 pub mod ldap;
 pub mod memcached;
