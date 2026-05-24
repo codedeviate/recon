@@ -17,6 +17,7 @@ pub mod encode;
 pub mod encrypt;
 pub mod file;
 pub mod ftp;
+pub mod git;
 pub mod gopher;
 pub mod hash;
 pub mod helpers;

@@ -136,6 +136,7 @@ pub fn build_engine(defaults: &ScriptDefaults) -> rhai::Engine {
     super::bindings::docs::register(&mut engine);
     super::bindings::file::register(&mut engine);
     super::bindings::ftp::register(&mut engine, defaults.clone());
+    super::bindings::git::register(&mut engine);
     super::bindings::gopher::register(&mut engine, defaults.clone());
     super::bindings::hash::register(&mut engine);
     super::bindings::http::register(&mut engine, defaults.clone());
