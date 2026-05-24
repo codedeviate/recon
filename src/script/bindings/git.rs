@@ -386,6 +386,76 @@ pub fn register(engine: &mut Engine) {
             Ok(parse_diff_stat(&stdout))
         },
     );
+
+    engine.register_fn(
+        "branch",
+        |g: &mut Git| -> Result<rhai::Map, Box<EvalAltResult>> {
+            // Current branch.
+            let cur_argv = &["branch", "--show-current"];
+            let cur_out = ok_or_throw(cur_argv, g.run(cur_argv)?)?;
+            let current = cur_out.trim().to_string();
+
+            // All branches.
+            let all_argv = &["branch", "-a", "--format=%(refname:short)"];
+            let all_out = ok_or_throw(all_argv, g.run(all_argv)?)?;
+            let all: rhai::Array = all_out
+                .lines()
+                .map(|l| Dynamic::from(l.trim().to_string()))
+                .filter(|d| !d.clone().into_string().unwrap_or_default().is_empty())
+                .collect();
+
+            // Upstream (optional, may fail when no upstream is set).
+            let up_argv = &["rev-parse", "--abbrev-ref", "@{upstream}"];
+            let upstream = match g.run(up_argv) {
+                Ok(out) if out.status.success() => {
+                    let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                    if s.is_empty() {
+                        Dynamic::UNIT
+                    } else {
+                        Dynamic::from(s)
+                    }
+                }
+                _ => Dynamic::UNIT,
+            };
+
+            let mut m = rhai::Map::new();
+            m.insert("current".into(), current.into());
+            m.insert("all".into(), all.into());
+            m.insert("upstream".into(), upstream);
+            Ok(m)
+        },
+    );
+
+    engine.register_fn(
+        "rev_parse",
+        |g: &mut Git, name: &str| -> Result<String, Box<EvalAltResult>> {
+            let argv = &["rev-parse", name];
+            let out = g.run(argv)?;
+            let s = ok_or_throw(argv, out)?;
+            Ok(s.trim().to_string())
+        },
+    );
+
+    engine.register_fn(
+        "remote",
+        |g: &mut Git| -> Result<rhai::Map, Box<EvalAltResult>> {
+            let argv = &["remote", "-v"];
+            let out = g.run(argv)?;
+            let stdout = ok_or_throw(argv, out)?;
+            let mut m = rhai::Map::new();
+            for line in stdout.lines() {
+                // Each line: "<name>\t<url> (fetch|push)"
+                let mut parts = line.split('\t');
+                let name = parts.next().unwrap_or("").trim();
+                let rest = parts.next().unwrap_or("");
+                let url = rest.split_whitespace().next().unwrap_or("");
+                if !name.is_empty() && !m.contains_key(name) {
+                    m.insert(name.into(), url.to_string().into());
+                }
+            }
+            Ok(m)
+        },
+    );
 }
 
 #[cfg(test)]
@@ -572,6 +642,48 @@ mod tests {
         assert_eq!(per_file.len(), 1);
         let f0: rhai::Map = per_file[0].clone().cast();
         assert_eq!(f0.get("path").unwrap().clone().into_string().unwrap(), "foo.txt");
+    }
+
+    #[test]
+    fn git_branch_returns_current_and_all() {
+        let dir = make_repo();
+        let mut e = engine();
+        let path = dir.path().to_string_lossy().to_string();
+        let m: rhai::Map = e
+            .eval(&format!(r#"git("{}").branch()"#, path))
+            .unwrap();
+        assert_eq!(m.get("current").unwrap().clone().into_string().unwrap(), "master");
+        let all: rhai::Array = m.get("all").unwrap().clone().cast();
+        assert!(all.iter().any(|d| d.clone().into_string().map(|s| s == "master").unwrap_or(false)));
+    }
+
+    #[test]
+    fn git_rev_parse_returns_full_sha() {
+        let dir = make_repo();
+        let mut e = engine();
+        let path = dir.path().to_string_lossy().to_string();
+        let s: String = e
+            .eval(&format!(r#"git("{}").rev_parse("HEAD")"#, path))
+            .unwrap();
+        assert_eq!(s.trim().len(), 40, "expected 40-char SHA, got: {s}");
+    }
+
+    #[test]
+    fn git_remote_returns_map_of_name_to_url() {
+        let dir = make_repo();
+        // Add a fake remote.
+        StdCommand::new("git")
+            .current_dir(dir.path())
+            .args(&["remote", "add", "origin", "https://example.com/repo.git"])
+            .output()
+            .unwrap();
+        let mut e = engine();
+        let path = dir.path().to_string_lossy().to_string();
+        let m: rhai::Map = e
+            .eval(&format!(r#"git("{}").remote()"#, path))
+            .unwrap();
+        let origin = m.get("origin").unwrap().clone().into_string().unwrap();
+        assert_eq!(origin, "https://example.com/repo.git");
     }
 
     #[test]
