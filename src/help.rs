@@ -2145,6 +2145,39 @@ static TOPIC_STRUTIL: Topic = Topic {
     ],
 };
 
+static TOPIC_JQ: Topic = Topic {
+    title: "jq filter (`jq` / `jq_all`)",
+    description: "Apply a jq-style filter to any Rhai Map or Array.\n\
+                  Backed by the `jaq` crate — full jq grammar including\n\
+                  pipes, `select(...)`, `map(...)`, alternative `//`,\n\
+                  arithmetic, and the standard-library functions.\n\
+                  \n\
+                  Two methods, differing only in shape:\n\
+                  \n\
+                    `obj.jq(filter)` — first result, or `()` if the\n\
+                      filter yields nothing.\n\
+                    `obj.jq_all(filter)` — every result as an Array.\n\
+                  \n\
+                  Both also callable as free functions: `jq(obj, f)`\n\
+                  and `jq_all(obj, f)`.\n\
+                  \n\
+                  Strings are NOT auto-parsed — chain\n\
+                  `json_parse(s).jq(filter)` when starting from JSON\n\
+                  text. Filter parse and runtime errors throw and are\n\
+                  catchable with `try` / `catch`.",
+    flags: &[
+        FlagHelp { flags: "obj.jq(filter) / jq(obj, filter)", description: "Returns the first result, or `()` if the filter yields no results." },
+        FlagHelp { flags: "obj.jq_all(filter) / jq_all(obj, filter)", description: "Returns every result as an Array. Empty Array if nothing matches." },
+    ],
+    related: &["script", "scripting"],
+    examples: &[
+        ExampleHelp { description: "Run the shipped demo", command: "recon --script script/jq.rhai" },
+        ExampleHelp { description: "First match", command: r#"recon --script - <<< 'print([#{n: 1}, #{n: 2}].jq(".[] | select(.n > 1) | .n"));'"# },
+        ExampleHelp { description: "All matches", command: r#"recon --script - <<< 'print([1, 2, 3, 4].jq_all(".[] | select(. % 2 == 0)"));'"# },
+        ExampleHelp { description: "From raw JSON text", command: r#"recon --script - <<< 'print(json_parse("{\"a\":[1,2,3]}").jq(".a[1]"));'"# },
+    ],
+};
+
 static TOPIC_FLAGS: Topic = Topic {
     title: "Flag listing (`--flags`)",
     description: "A curl-style alphabetical listing of every flag.\n\
@@ -2683,6 +2716,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "browser" | "session" | "browser-session" => Some(&TOPIC_BROWSER),
         "charset" | "encoding-text" | "text-encoding" | "iconv" | "text" => Some(&TOPIC_TEXT_ENCODING),
         "strutil" | "string-helpers" | "trim" | "sprintf" | "printf" | "preg" | "strip-html" | "nl2br" | "strrev" => Some(&TOPIC_STRUTIL),
+        "jq" | "filter" | "jaq" => Some(&TOPIC_JQ),
         "smtp" | "smtps" | "mail" | "email-send" => Some(&TOPIC_SMTP),
         "ftp" | "ftps" => Some(&TOPIC_FTP),
         "sftp" => Some(&TOPIC_SFTP),
@@ -2784,6 +2818,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "archive",
         "charset",
         "strutil",
+        "jq",
         "smtp",
         "ftp",
         "sftp",

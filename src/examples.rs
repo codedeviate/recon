@@ -2224,6 +2224,18 @@ recon --script /tmp/decode.rhai"#,
     ]);
     note("Format spec is chrono's strftime. Third arg switches between UTC (default) and \"local\" (system timezone).");
 
+    section("JQ FILTER (0.89.0)");
+
+    example("First match vs. all matches", &[
+        r#"recon --script - <<< 'let a = [1, 2, 3, 4]; print(a.jq(".[] | select(. > 2)")); print(a.jq_all(".[] | select(. > 2)"));'"#,
+    ]);
+    note("`jq(filter)` returns the first result (or `()` if no match); `jq_all(filter)` returns every result as an Array. Both forms also callable as free functions: `jq(obj, f)` / `jq_all(obj, f)`. Backed by `jaq` — full jq grammar including pipes, `select`, `map`, `//`.");
+
+    example("Pipe + select + project", &[
+        r#"recon --script - <<< 'let prs = [#{n: 1, on: true}, #{n: 2, on: false}, #{n: 3, on: true}]; print(prs.jq_all(".[] | select(.on) | .n"));'"#,
+    ]);
+    note("Strings are not auto-parsed — chain `json_parse(s).jq(filter)` to start from JSON text. Filter parse and runtime errors throw and are catchable with try/catch.");
+
     section("EDITOR OUTPUT");
 
     example("Open the response in an editor (--editor [EDITOR])", &[
