@@ -321,6 +321,135 @@ fn pr_merge_opts_to_args(opts: &Map) -> Result<Vec<String>, Box<EvalAltResult>> 
     Ok(out)
 }
 
+const ISSUE_LIST_FIELDS: &str =
+    "number,title,state,author,labels,assignees,createdAt,url";
+const ISSUE_VIEW_FIELDS: &str =
+    "number,title,state,author,body,labels,assignees,createdAt,closedAt,url";
+
+fn issue_list_opts_to_args(opts: &Map) -> Result<Vec<String>, Box<EvalAltResult>> {
+    let mut out = Vec::new();
+    for (k, v) in opts {
+        match k.as_str() {
+            "state" => {
+                out.push("--state".into());
+                out.push(v.clone().into_string().map_err(|_| err("issue_list opts: state must be a string"))?);
+            }
+            "author" => {
+                out.push("--author".into());
+                out.push(v.clone().into_string().map_err(|_| err("issue_list opts: author must be a string"))?);
+            }
+            "label" => {
+                if let Ok(s) = v.clone().into_string() {
+                    out.push("--label".into());
+                    out.push(s);
+                } else if let Some(arr) = v.clone().try_cast::<Array>() {
+                    for l in arr {
+                        out.push("--label".into());
+                        out.push(l.into_string().map_err(|_| err("issue_list opts: label array must contain strings"))?);
+                    }
+                } else {
+                    return Err(err("issue_list opts: label must be string or array of strings"));
+                }
+            }
+            "assignee" => {
+                if let Ok(s) = v.clone().into_string() {
+                    out.push("--assignee".into());
+                    out.push(s);
+                } else if let Some(arr) = v.clone().try_cast::<Array>() {
+                    for a in arr {
+                        out.push("--assignee".into());
+                        out.push(a.into_string().map_err(|_| err("issue_list opts: assignee array must contain strings"))?);
+                    }
+                } else {
+                    return Err(err("issue_list opts: assignee must be string or array of strings"));
+                }
+            }
+            "limit" => {
+                let n = v.clone().as_int().map_err(|_| err("issue_list opts: limit must be an integer"))?;
+                out.push("--limit".into());
+                out.push(n.to_string());
+            }
+            other => return Err(err(format!("issue_list opts: unknown key '{other}'"))),
+        }
+    }
+    Ok(out)
+}
+
+fn issue_create_opts_to_args(opts: &Map) -> Result<Vec<String>, Box<EvalAltResult>> {
+    let mut out = Vec::new();
+    let mut have_title = false;
+    let mut have_body = false;
+    let mut have_body_file = false;
+    for (k, v) in opts {
+        match k.as_str() {
+            "title" => {
+                have_title = true;
+                out.push("--title".into());
+                out.push(v.clone().into_string().map_err(|_| err("issue_create opts: title must be a string"))?);
+            }
+            "body" => {
+                have_body = true;
+                out.push("--body".into());
+                out.push(v.clone().into_string().map_err(|_| err("issue_create opts: body must be a string"))?);
+            }
+            "body_file" => {
+                have_body_file = true;
+                out.push("--body-file".into());
+                out.push(v.clone().into_string().map_err(|_| err("issue_create opts: body_file must be a string"))?);
+            }
+            "label" => {
+                if let Ok(s) = v.clone().into_string() {
+                    out.push("--label".into());
+                    out.push(s);
+                } else if let Some(arr) = v.clone().try_cast::<Array>() {
+                    for l in arr {
+                        out.push("--label".into());
+                        out.push(l.into_string().map_err(|_| err("issue_create opts: label array must contain strings"))?);
+                    }
+                } else {
+                    return Err(err("issue_create opts: label must be string or array of strings"));
+                }
+            }
+            "assignee" => {
+                if let Ok(s) = v.clone().into_string() {
+                    out.push("--assignee".into());
+                    out.push(s);
+                } else if let Some(arr) = v.clone().try_cast::<Array>() {
+                    for a in arr {
+                        out.push("--assignee".into());
+                        out.push(a.into_string().map_err(|_| err("issue_create opts: assignee array must contain strings"))?);
+                    }
+                } else {
+                    return Err(err("issue_create opts: assignee must be string or array of strings"));
+                }
+            }
+            other => return Err(err(format!("issue_create opts: unknown key '{other}'"))),
+        }
+    }
+    if !have_title {
+        return Err(err("issue_create opts: title is required"));
+    }
+    if have_body && have_body_file {
+        return Err(err("issue_create opts: body and body_file are mutually exclusive"));
+    }
+    Ok(out)
+}
+
+/// Parse the URL line that `gh issue create` emits, returning
+/// `{ number, url }` map.
+fn parse_issue_url(s: &str) -> Result<Map, Box<EvalAltResult>> {
+    let re = regex::Regex::new(r"https://[^\s]+/issues/(\d+)").unwrap();
+    let cap = re.captures(s).ok_or_else(|| {
+        err(format!("gh.issue_create: could not parse URL from output: {s}"))
+    })?;
+    let url = cap.get(0).unwrap().as_str().to_string();
+    let number: i64 = cap[1].parse().unwrap_or(0);
+    let mut m = Map::new();
+    m.insert("url".into(), url.into());
+    m.insert("number".into(), number.into());
+    Ok(m)
+}
+
 /// Parse the URL line that `gh pr create` emits, returning
 /// `{ number, url }` map.
 fn parse_pr_url(s: &str) -> Result<Map, Box<EvalAltResult>> {
@@ -475,6 +604,72 @@ pub fn register(engine: &mut Engine) {
             Ok(())
         },
     );
+
+    engine.register_fn(
+        "issue_list",
+        |h: &mut Gh| -> Result<Array, Box<EvalAltResult>> {
+            let argv = &["issue", "list", "--json", ISSUE_LIST_FIELDS];
+            let out = h.run(argv, true)?;
+            let stdout = ok_or_throw(argv, out)?;
+            let v: serde_json::Value = serde_json::from_str(&stdout)
+                .map_err(|e| err(format!("gh.issue_list: {e}")))?;
+            let d = crate::script::bindings::helpers::json_to_dynamic(v);
+            d.try_cast::<Array>().ok_or_else(|| err("gh.issue_list: expected Array"))
+        },
+    );
+    engine.register_fn(
+        "issue_list",
+        |h: &mut Gh, opts: Map| -> Result<Array, Box<EvalAltResult>> {
+            let mut argv: Vec<String> = vec![
+                "issue".into(), "list".into(), "--json".into(), ISSUE_LIST_FIELDS.into(),
+            ];
+            argv.extend(issue_list_opts_to_args(&opts)?);
+            let refs: Vec<&str> = argv.iter().map(|s| s.as_str()).collect();
+            let out = h.run(&refs, true)?;
+            let stdout = ok_or_throw(&refs, out)?;
+            let v: serde_json::Value = serde_json::from_str(&stdout)
+                .map_err(|e| err(format!("gh.issue_list: {e}")))?;
+            let d = crate::script::bindings::helpers::json_to_dynamic(v);
+            d.try_cast::<Array>().ok_or_else(|| err("gh.issue_list: expected Array"))
+        },
+    );
+
+    engine.register_fn(
+        "issue_view",
+        |h: &mut Gh, number: i64| -> Result<Map, Box<EvalAltResult>> {
+            let n_str = number.to_string();
+            let argv = &["issue", "view", &n_str, "--json", ISSUE_VIEW_FIELDS];
+            let out = h.run(argv, true)?;
+            let stdout = ok_or_throw(argv, out)?;
+            let v: serde_json::Value = serde_json::from_str(&stdout)
+                .map_err(|e| err(format!("gh.issue_view: {e}")))?;
+            let d = crate::script::bindings::helpers::json_to_dynamic(v);
+            d.try_cast::<Map>().ok_or_else(|| err("gh.issue_view: expected Map"))
+        },
+    );
+
+    engine.register_fn(
+        "issue_create",
+        |h: &mut Gh, opts: Map| -> Result<Map, Box<EvalAltResult>> {
+            let mut argv: Vec<String> = vec!["issue".into(), "create".into()];
+            argv.extend(issue_create_opts_to_args(&opts)?);
+            let refs: Vec<&str> = argv.iter().map(|s| s.as_str()).collect();
+            let out = h.run(&refs, true)?;
+            let stdout = ok_or_throw(&refs, out)?;
+            parse_issue_url(&stdout)
+        },
+    );
+
+    engine.register_fn(
+        "issue_comment",
+        |h: &mut Gh, number: i64, body: &str| -> Result<(), Box<EvalAltResult>> {
+            let n_str = number.to_string();
+            let argv = &["issue", "comment", &n_str, "--body", body];
+            let out = h.run(argv, true)?;
+            ok_or_throw(argv, out)?;
+            Ok(())
+        },
+    );
 }
 
 #[cfg(test)]
@@ -606,6 +801,36 @@ mod tests {
         assert_eq!(
             m.get("url").unwrap().clone().into_string().unwrap(),
             "https://github.com/owner/repo/pull/123"
+        );
+    }
+
+    #[test]
+    fn issue_list_opts_to_args_translates_keys() {
+        let mut opts = rhai::Map::new();
+        opts.insert("state".into(), "closed".to_string().into());
+        opts.insert("label".into(), "bug".to_string().into());
+        opts.insert("limit".into(), 25i64.into());
+        let args = issue_list_opts_to_args(&opts).unwrap();
+        assert!(args.contains(&"--state".to_string()) && args.contains(&"closed".to_string()));
+        assert!(args.contains(&"--label".to_string()) && args.contains(&"bug".to_string()));
+        assert!(args.contains(&"--limit".to_string()) && args.contains(&"25".to_string()));
+    }
+
+    #[test]
+    fn issue_create_opts_rejects_missing_title() {
+        let opts = rhai::Map::new();
+        let result = issue_create_opts_to_args(&opts);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("title is required"));
+    }
+
+    #[test]
+    fn parse_issue_url_extracts_number_and_url() {
+        let m = parse_issue_url("https://github.com/owner/repo/issues/42\n").unwrap();
+        assert_eq!(m.get("number").unwrap().as_int().unwrap(), 42);
+        assert_eq!(
+            m.get("url").unwrap().clone().into_string().unwrap(),
+            "https://github.com/owner/repo/issues/42"
         );
     }
 }
