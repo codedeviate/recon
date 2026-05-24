@@ -437,6 +437,107 @@ pub fn register(engine: &mut Engine) {
     );
 
     engine.register_fn(
+        "add",
+        |g: &mut Git, path: &str| -> Result<(), Box<EvalAltResult>> {
+            let argv = &["add", path];
+            let out = g.run(argv)?;
+            ok_or_throw(argv, out)?;
+            Ok(())
+        },
+    );
+    engine.register_fn(
+        "add",
+        |g: &mut Git, paths: rhai::Array| -> Result<(), Box<EvalAltResult>> {
+            let mut args: Vec<String> = vec!["add".to_string()];
+            for p in paths {
+                args.push(p.into_string().map_err(|_| err("git.add: array must contain strings"))?);
+            }
+            let refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+            let out = g.run(&refs)?;
+            ok_or_throw(&refs, out)?;
+            Ok(())
+        },
+    );
+
+    engine.register_fn(
+        "commit",
+        |g: &mut Git, message: &str| -> Result<rhai::Map, Box<EvalAltResult>> {
+            let commit_argv = &["commit", "-m", message];
+            let out = g.run(commit_argv)?;
+            ok_or_throw(commit_argv, out)?;
+
+            // Re-fetch the new commit's info.
+            let log_argv = &["log", "-n", "1", "--format=%H%x09%h%x09%s"];
+            let log_out = ok_or_throw(log_argv, g.run(log_argv)?)?;
+            let parts: Vec<&str> = log_out.trim().splitn(3, '\t').collect();
+            let mut m = rhai::Map::new();
+            if parts.len() == 3 {
+                m.insert("hash".into(), parts[0].to_string().into());
+                m.insert("short_hash".into(), parts[1].to_string().into());
+                m.insert("subject".into(), parts[2].to_string().into());
+            }
+            Ok(m)
+        },
+    );
+
+    engine.register_fn(
+        "push",
+        |g: &mut Git| -> Result<(), Box<EvalAltResult>> {
+            let argv = &["push"];
+            let out = g.run(argv)?;
+            ok_or_throw(argv, out)?;
+            Ok(())
+        },
+    );
+    engine.register_fn(
+        "push",
+        |g: &mut Git, remote: &str| -> Result<(), Box<EvalAltResult>> {
+            let argv = &["push", remote];
+            let out = g.run(argv)?;
+            ok_or_throw(argv, out)?;
+            Ok(())
+        },
+    );
+    engine.register_fn(
+        "push",
+        |g: &mut Git, remote: &str, branch: &str| -> Result<(), Box<EvalAltResult>> {
+            let argv = &["push", remote, branch];
+            let out = g.run(argv)?;
+            ok_or_throw(argv, out)?;
+            Ok(())
+        },
+    );
+
+    engine.register_fn(
+        "pull",
+        |g: &mut Git| -> Result<(), Box<EvalAltResult>> {
+            let argv = &["pull"];
+            let out = g.run(argv)?;
+            ok_or_throw(argv, out)?;
+            Ok(())
+        },
+    );
+    engine.register_fn(
+        "pull",
+        |g: &mut Git, remote: &str, branch: &str| -> Result<(), Box<EvalAltResult>> {
+            let argv = &["pull", remote, branch];
+            let out = g.run(argv)?;
+            ok_or_throw(argv, out)?;
+            Ok(())
+        },
+    );
+
+    engine.register_fn(
+        "checkout",
+        |g: &mut Git, name: &str| -> Result<(), Box<EvalAltResult>> {
+            let argv = &["checkout", name];
+            let out = g.run(argv)?;
+            ok_or_throw(argv, out)?;
+            Ok(())
+        },
+    );
+
+    engine.register_fn(
         "remote",
         |g: &mut Git| -> Result<rhai::Map, Box<EvalAltResult>> {
             let argv = &["remote", "-v"];
@@ -684,6 +785,35 @@ mod tests {
             .unwrap();
         let origin = m.get("origin").unwrap().clone().into_string().unwrap();
         assert_eq!(origin, "https://example.com/repo.git");
+    }
+
+    #[test]
+    fn git_add_then_commit_returns_new_commit_map() {
+        let dir = make_repo();
+        std::fs::write(dir.path().join("foo.txt"), "hi").unwrap();
+        let mut e = engine();
+        let path = dir.path().to_string_lossy().to_string();
+        e.eval::<Dynamic>(&format!(r#"git("{}").add("foo.txt")"#, path)).unwrap();
+        let m: rhai::Map = e
+            .eval(&format!(r#"git("{}").commit("add foo")"#, path))
+            .unwrap();
+        assert_eq!(m.get("subject").unwrap().clone().into_string().unwrap(), "add foo");
+        assert_eq!(m.get("hash").unwrap().clone().into_string().unwrap().len(), 40);
+    }
+
+    #[test]
+    fn git_add_accepts_array_of_paths() {
+        let dir = make_repo();
+        std::fs::write(dir.path().join("a.txt"), "1").unwrap();
+        std::fs::write(dir.path().join("b.txt"), "2").unwrap();
+        let mut e = engine();
+        let path = dir.path().to_string_lossy().to_string();
+        e.eval::<Dynamic>(&format!(r#"git("{}").add(["a.txt", "b.txt"])"#, path)).unwrap();
+        let m: rhai::Map = e
+            .eval(&format!(r#"git("{}").status()"#, path))
+            .unwrap();
+        let staged: rhai::Array = m.get("staged").unwrap().clone().cast();
+        assert_eq!(staged.len(), 2);
     }
 
     #[test]
