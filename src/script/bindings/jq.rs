@@ -14,7 +14,7 @@ use crate::script::convert::err;
 use jaq_core::{
     data,
     load::{Arena, File, Loader},
-    Compiler, Ctx, Vars,
+    unwrap_valr, Compiler, Ctx, Vars,
 };
 use jaq_json::Val;
 use rhai::{Array, Dynamic, Engine, EvalAltResult, Map};
@@ -56,30 +56,36 @@ fn run_filter(
     // 1. Compile the filter.
     let filter = compile_filter(filter_src)?;
 
-    // 2. Convert the Rhai input to a serde_json::Value, then serialize to
-    //    a JSON string and parse it into jaq's Val via hifijson.
+    // 2. Convert the Rhai input to a serde_json::Value, then produce compact
+    //    JSON text and parse it into jaq's Val via hifijson.
+    //
+    // TODO: enable `jaq-json/serde` feature to use `serde_json::from_value::<Val>`
+    // here instead of stringify-then-parse. Output path is unavoidable
+    // (Val implements Deserialize but not Serialize in jaq-json 2.x).
     let json_val = helpers::dynamic_to_json(&input)
         .map_err(|e| err(format!("jq: input not JSON-compatible: {e}")))?;
-    let json_str = json_val.to_string();
-    let val_in: Val = jaq_json::read::parse_single(json_str.as_bytes())
+    let json_bytes = json_val.to_string();
+    let val_in: Val = jaq_json::read::parse_single(json_bytes.as_bytes())
         .map_err(|e| err(format!("jq: input serialise error: {e}")))?;
 
     // 3. Build execution context. For `JustLut<Val>`, `Data<'a>` is
     //    `&'a Lut<Native<JustLut<Val>>>`, i.e. a reference to the filter's
     //    own lookup table.
     let ctx = Ctx::<data::JustLut<Val>>::new(&filter.lut, Vars::new([]));
-    let mut results = filter.id.run((ctx, val_in));
+    // `unwrap_valr` converts Exn → Error<Val>; Error<Val> implements Display.
+    let mut results = filter.id.run((ctx, val_in)).map(unwrap_valr);
 
     match mode {
         FirstOnly::Yes => match results.next() {
             None => Ok(Dynamic::UNIT),
             Some(Ok(v)) => val_to_dynamic(v),
-            Some(Err(e)) => Err(err(format!("jq: filter error: {e:?}"))),
+            Some(Err(e)) => Err(err(format!("jq: filter error: {e}"))),
         },
         FirstOnly::No => {
+            // (not yet registered; Task 5)
             let mut out = Array::new();
             for r in results {
-                let v = r.map_err(|e| err(format!("jq: filter error: {e:?}")))?;
+                let v = r.map_err(|e| err(format!("jq: filter error: {e}")))?;
                 out.push(val_to_dynamic(v)?);
             }
             Ok(Dynamic::from(out))
@@ -128,9 +134,21 @@ fn compile_filter(src: &str) -> Result<JaqFilter, Box<EvalAltResult>> {
 }
 
 fn val_to_dynamic(v: Val) -> Result<Dynamic, Box<EvalAltResult>> {
-    // Val doesn't implement serde::Serialize, so use Display (which
-    // outputs compact JSON) then re-parse with serde_json into Dynamic.
-    let json_str = format!("{v}");
+    // Val::BStr (byte string) renders as b"..." via Display, which is not
+    // valid JSON. The `tobytes` builtin and byte-manipulation filters can
+    // produce BStr at runtime. Guard here so the caller gets a clear message
+    // rather than a confusing serde parse error downstream.
+    if matches!(&v, Val::BStr(_)) {
+        return Err(err(
+            "jq: output is a byte string (BStr); use a text-producing filter",
+        ));
+    }
+
+    // Val doesn't implement serde::Serialize; use Display (compact JSON text)
+    // then re-parse with serde_json into Dynamic. This round-trip is
+    // unavoidable: Val implements Deserialize but not Serialize in jaq-json 2.x,
+    // so there is no cheaper conversion for the output path.
+    let json_str = v.to_string();
     let json_val: serde_json::Value = serde_json::from_str(&json_str)
         .map_err(|e| err(format!("jq: output deserialise error: {e}")))?;
     Ok(helpers::json_to_dynamic(json_val))
@@ -181,5 +199,42 @@ mod tests {
             .eval::<Dynamic>(r#"[1, 2].jq("invalid syntax (")"#)
             .unwrap_err();
         assert!(err.to_string().to_lowercase().contains("filter"));
+    }
+
+    #[test]
+    fn jq_filter_runtime_error_message_is_human_readable() {
+        // `true | length` is a valid filter (parses OK) but fails at runtime
+        // because jaq rejects `length` on booleans. The error message must be
+        // human-readable, not a Rust debug dump containing "Exn(".
+        let e = engine();
+        let result = e
+            .eval::<Dynamic>(r#"[true].jq(".[0] | length")"#)
+            .unwrap_err();
+        let msg = result.to_string();
+        assert!(
+            !msg.contains("Exn("),
+            "error message must not be a Rust debug blob: {msg}"
+        );
+        // jaq-json renders this as "true has no length"
+        assert!(
+            msg.contains("true") || msg.contains("length") || msg.contains("no"),
+            "expected a jq-style error message, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn jq_bstr_output_gives_clear_error() {
+        // `tobytes` converts an array of byte values into a Val::BStr.
+        // That cannot be rendered as JSON, so val_to_dynamic must return
+        // a clear "byte string" error rather than a confusing serde parse fail.
+        let e = engine();
+        let result = e
+            .eval::<Dynamic>(r#"[72, 101, 108, 108, 111].jq("tobytes")"#)
+            .unwrap_err();
+        let msg = result.to_string();
+        assert!(
+            msg.contains("byte string"),
+            "expected 'byte string' in error, got: {msg}"
+        );
     }
 }
