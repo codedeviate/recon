@@ -199,6 +199,13 @@ surprise failures.
 | `ai-context.rhai` | `.context(...)` accumulation; classify a synthetic HTTP response. |
 | `ai-multiturn.rhai` | Manual multi-turn replay using `.assistant()` + `.user()`. |
 
+### External CLIs
+
+| Script | What it does |
+|---|---|
+| `git.rhai` | Drive the `git` CLI — `g.status()` / `g.log()` / `g.diff()` / `g.commit()` and more, all returning parsed Maps/Arrays |
+| `gh.rhai` | Drive the GitHub `gh` CLI — `h.pr_list()` / `h.pr_create()` / `h.release_create()` etc, with auto-account-switch driven by `git config user.email` |
+
 Every script starts with a usage comment showing args and a one-line
 description. Scripts that take positional args support a sensible
 default so `recon --script NAME` alone does something useful.

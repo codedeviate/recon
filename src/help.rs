@@ -2178,6 +2178,108 @@ static TOPIC_JQ: Topic = Topic {
     ],
 };
 
+static TOPIC_GIT: Topic = Topic {
+    title: "git wrapper (`git()` / `git(path)`)",
+    description: "First-class methods over the `git` CLI. Each method\n\
+                  picks the right `--porcelain` / `--format` flags\n\
+                  internally and parses the output into Rhai data.\n\
+                  \n\
+                  Constructors: `git()` binds to the current working\n\
+                  directory; `git(path)` binds to a specific repo path.\n\
+                  Methods return parsed Maps and Arrays for inspection,\n\
+                  `()` for mutating ops, and a `{ hash, short_hash,\n\
+                  subject }` Map for `.commit()`.\n\
+                  \n\
+                  Escape hatches: `.run(args)` sniffs the output (JSON\n\
+                  shape returns a Map/Array, otherwise String).\n\
+                  `.run_text(args)` and `.run_json(args)` are the\n\
+                  explicit forms.\n\
+                  \n\
+                  Errors throw on non-zero exit with stderr truncated\n\
+                  to ~2KB. Scripts use `try` / `catch` to recover.\n\
+                  Composes on top of `std::process::Command` directly\n\
+                  rather than going through the shell() binding.",
+    flags: &[
+        FlagHelp { flags: "git() / git(path)", description: "Construct a Git handle bound to cwd (no-arg) or a specific\nrepo path. The handle is Clone+Send+Sync." },
+        FlagHelp { flags: "g.status()", description: "Returns Map { branch, upstream, ahead, behind, clean,\nstaged, unstaged, untracked }. Uses --porcelain=v2 --branch." },
+        FlagHelp { flags: "g.is_clean()", description: "Convenience: g.status().clean." },
+        FlagHelp { flags: "g.log(n) / g.log_range(rev_range)", description: "Returns Array<Map { hash, short_hash, author, email, date,\nsubject, body }>. ISO 8601 dates." },
+        FlagHelp { flags: "g.diff() / g.diff(rev)", description: "Returns the patch as a String. Pair with rev for diff against\na specific commit." },
+        FlagHelp { flags: "g.diff_stat() / g.diff_stat(rev)", description: "Returns Map { files, insertions, deletions, per_file:\n[{path, insertions, deletions}, ...] }." },
+        FlagHelp { flags: "g.branch()", description: "Returns Map { current, upstream, all: Array<String> }.\nupstream is () when no upstream is set." },
+        FlagHelp { flags: "g.rev_parse(name)", description: "Resolve a ref to its full 40-char SHA." },
+        FlagHelp { flags: "g.remote()", description: "Returns Map of remote-name → URL (parsed from `git remote -v`)." },
+        FlagHelp { flags: "g.add(path) / g.add([paths])", description: "Stage one path or an Array of paths." },
+        FlagHelp { flags: "g.commit(message)", description: "Commit staged changes. Returns the new commit's\n{ hash, short_hash, subject } Map. Throws on empty index\nor pre-commit hook failure." },
+        FlagHelp { flags: "g.push() / g.push(remote) / g.push(remote, branch)", description: "Push to upstream (no args), to remote, or to remote+branch." },
+        FlagHelp { flags: "g.pull() / g.pull(remote, branch)", description: "Pull from upstream or remote+branch." },
+        FlagHelp { flags: "g.checkout(name)", description: "Switch to a branch or commit." },
+        FlagHelp { flags: ".run(args) / .run_text(args) / .run_json(args)", description: "Escape hatches. `.run()` sniffs JSON vs text; `.run_text()`\nand `.run_json()` are explicit. Args are a single string,\nshell-style quoted." },
+    ],
+    related: &["script", "scripting", "gh", "shell"],
+    examples: &[
+        ExampleHelp { description: "Run the shipped demo", command: "recon --script script/git.rhai" },
+        ExampleHelp { description: "Quick branch check", command: r#"recon --script - <<< 'print(git().branch().current);'"# },
+        ExampleHelp { description: "Last 5 commits", command: r#"recon --script - <<< 'for c in git().log(5) { print(`${c.short_hash} ${c.subject}`); }'"# },
+        ExampleHelp { description: "Staging area summary", command: r#"recon --script - <<< 'let s = git().status(); print(`staged: ${s.staged.len()}, unstaged: ${s.unstaged.len()}, untracked: ${s.untracked.len()}`);'"# },
+        ExampleHelp { description: "Custom git command via escape hatch", command: r#"recon --script - <<< 'print(git().run_text("log --oneline -3"));'"# },
+    ],
+};
+
+static TOPIC_GH: Topic = Topic {
+    title: "GitHub CLI wrapper (`gh()` / `gh(repo)`)",
+    description: "First-class methods over the `gh` CLI. Each method\n\
+                  picks the right `--json <fields>` flag and parses the\n\
+                  output into Rhai Maps and Arrays.\n\
+                  \n\
+                  Constructors: `gh()` resolves the current repo from\n\
+                  cwd; `gh(\"owner/name\")` targets a specific repo via\n\
+                  `--repo`.\n\
+                  \n\
+                  Auto-account-switch: before every `gh` call, the\n\
+                  wrapper reads `git config user.email` and runs\n\
+                  `gh auth switch --user <handle>` when the active\n\
+                  account doesn't match. The email-to-handle mapping\n\
+                  is loaded from `$XDG_CONFIG_HOME/recon/gh-accounts.toml`\n\
+                  (or set `$RECON_GH_ACCOUNTS_FILE` to override).\n\
+                  Without the file, no switch happens. `auth_status()`\n\
+                  is the lone exception — it queries whichever account\n\
+                  is currently active without triggering a switch.\n\
+                  \n\
+                  Errors throw on non-zero exit. `gh pr view <id>`\n\
+                  exiting 1 for \"not found\" is the canonical case\n\
+                  scripts catch with `try` / `catch`.",
+    flags: &[
+        FlagHelp { flags: "gh() / gh(repo)", description: "Construct a Gh handle. `gh()` uses the cwd's repo;\n`gh(\"owner/name\")` adds --repo to every call." },
+        FlagHelp { flags: "h.pr_list() / h.pr_list(opts)", description: "Returns Array<PR Map>. opts: state, author, label\n(string or Array), limit." },
+        FlagHelp { flags: "h.pr_view(number)", description: "Returns Map with PR detail. Throws if not found." },
+        FlagHelp { flags: "h.pr_create(opts)", description: "Returns { number, url }. opts: title (required), body OR\nbody_file (mutually exclusive), base, head, draft, reviewer,\nlabel." },
+        FlagHelp { flags: "h.pr_merge(number) / h.pr_merge(number, opts)", description: "opts: method (merge/squash/rebase), delete_branch, auto." },
+        FlagHelp { flags: "h.pr_close(number)", description: "Close a PR without merging." },
+        FlagHelp { flags: "h.pr_comment(number, body)", description: "Post a comment on a PR." },
+        FlagHelp { flags: "h.issue_list() / h.issue_list(opts)", description: "Returns Array<Issue Map>. opts: state, author, label\n(string or Array), assignee (string or Array), limit." },
+        FlagHelp { flags: "h.issue_view(number)", description: "Returns Map with issue detail." },
+        FlagHelp { flags: "h.issue_create(opts)", description: "Returns { number, url }. opts: title (required), body OR\nbody_file, label, assignee." },
+        FlagHelp { flags: "h.issue_comment(number, body)", description: "Post a comment on an issue." },
+        FlagHelp { flags: "h.release_list()", description: "Returns Array of release Maps." },
+        FlagHelp { flags: "h.release_view(tag)", description: "Returns Map with release detail (assets included)." },
+        FlagHelp { flags: "h.release_create(tag, opts)", description: "Returns { url, tag }. opts: title, notes OR notes_file,\ngenerate_notes, draft, prerelease, target." },
+        FlagHelp { flags: "h.repo_view() / h.repo_view(spec)", description: "Returns Map with repo metadata." },
+        FlagHelp { flags: "h.run_list() / h.run_list(opts)", description: "Workflow runs. opts: workflow, branch, status, limit." },
+        FlagHelp { flags: "h.run_view(id)", description: "Single workflow run, including jobs." },
+        FlagHelp { flags: "h.auth_status()", description: "Returns { host, account, scopes }. Does NOT trigger\nauto-switch (the only method that doesn't)." },
+        FlagHelp { flags: ".run(args) / .run_text(args) / .run_json(args)", description: "Escape hatches. Same shape as the git wrapper." },
+    ],
+    related: &["script", "scripting", "git", "shell"],
+    examples: &[
+        ExampleHelp { description: "Run the shipped demo", command: "recon --script script/gh.rhai" },
+        ExampleHelp { description: "Open PRs by an author", command: r#"recon --script - <<< 'for p in gh().pr_list(#{ state: "open", author: "@me" }) { print(`#${p.number} ${p.title}`); }'"# },
+        ExampleHelp { description: "Create a release with auto-generated notes", command: r#"recon --script - <<< 'gh().release_create("v0.89.0", #{ generate_notes: true });'"# },
+        ExampleHelp { description: "Check the active gh account", command: r#"recon --script - <<< 'print(gh().auth_status().account);'"# },
+        ExampleHelp { description: "Raw gh call (escape hatch)", command: r#"recon --script - <<< 'print(gh().run_text("api repos/codedeviate/recon"));'"# },
+    ],
+};
+
 static TOPIC_FLAGS: Topic = Topic {
     title: "Flag listing (`--flags`)",
     description: "A curl-style alphabetical listing of every flag.\n\
@@ -2717,6 +2819,8 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "charset" | "encoding-text" | "text-encoding" | "iconv" | "text" => Some(&TOPIC_TEXT_ENCODING),
         "strutil" | "string-helpers" | "trim" | "sprintf" | "printf" | "preg" | "strip-html" | "nl2br" | "strrev" => Some(&TOPIC_STRUTIL),
         "jq" | "filter" | "jaq" => Some(&TOPIC_JQ),
+        "git" | "git-wrapper" => Some(&TOPIC_GIT),
+        "gh" | "github" | "github-cli" => Some(&TOPIC_GH),
         "smtp" | "smtps" | "mail" | "email-send" => Some(&TOPIC_SMTP),
         "ftp" | "ftps" => Some(&TOPIC_FTP),
         "sftp" => Some(&TOPIC_SFTP),
@@ -2819,6 +2923,8 @@ pub fn topic_keys() -> Vec<&'static str> {
         "charset",
         "strutil",
         "jq",
+        "git",
+        "gh",
         "smtp",
         "ftp",
         "sftp",

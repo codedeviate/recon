@@ -8,6 +8,8 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.89.0] - 2026-05-25
+
 ### Added
 
 - New `obj.jq(filter)` / `obj.jq_all(filter)` script binding (also
@@ -25,6 +27,31 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 - New help topic `recon --help jq` (aliases: `filter`, `jaq`),
   a `--examples` section "JQ FILTER", a "jq filter" section in
   `docs/MANUAL.md` Part III, and demo script `script/jq.rhai`.
+- New `git()` script binding — first-class methods over the `git`
+  CLI returning parsed Maps and Arrays. `g.status()` (porcelain v2),
+  `g.log(n)` / `g.log_range(range)`, `g.diff()` / `g.diff_stat()`,
+  `g.branch()` / `g.remote()` / `g.rev_parse()`, `g.commit()` /
+  `g.add()` / `g.push()` / `g.pull()` / `g.checkout()`, `g.is_clean()`,
+  plus `.run()` / `.run_text()` / `.run_json()` escape hatches with
+  auto-sniffing.
+- New `gh()` script binding over the GitHub CLI. PR / issue /
+  release / repo / workflow-run methods, each using `--json` with a
+  sensible field set and parsing the result into Maps/Arrays.
+  Constructor takes an optional `OWNER/NAME` for cross-repo work.
+  Auto-account-switch: reads `git config user.email` before each
+  call and runs `gh auth switch --user <handle>` when needed, with
+  per-instance caching. The email-to-handle mapping is loaded from
+  `$XDG_CONFIG_HOME/recon/gh-accounts.toml` (or
+  `$RECON_GH_ACCOUNTS_FILE` if set); without the file no switch
+  happens and the call uses whichever account `gh` has active.
+  `auth_status()` is the one method that doesn't trigger
+  auto-switch.
+- New help topics `recon --help git` and `recon --help gh` (aliases:
+  `git-wrapper`, `github`, `github-cli`), `--examples` sections
+  "GIT WRAPPER" and "GH WRAPPER", and `## git wrapper` / `## gh
+  wrapper` sections in `docs/MANUAL.md` Part III. Demo scripts
+  `script/git.rhai` (creates a temp repo, exercises every method)
+  and `script/gh.rhai` (skips gracefully when gh isn't authenticated).
 
 ## [0.88.0] - 2026-05-24
 

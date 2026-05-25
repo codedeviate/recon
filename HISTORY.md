@@ -52,6 +52,85 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 82. Local-dev scripting: jq filter + git/gh CLI wrappers (0.89.0)
+
+**What:** Three layered script-engine additions, shipped as one
+release because each magnifies the others.
+
+- **jq filter** — `obj.jq(filter)` and `obj.jq_all(filter)` on any
+  Rhai Map or Array (also callable as `jq(obj, f)` / `jq_all(obj,
+  f)`). Backed by the `jaq` 3.x crate family — full jq grammar
+  including pipes, `select`, `map`, alternative `//`, arithmetic,
+  jq stdlib. `jq()` returns the first result (or `()` if none);
+  `jq_all()` returns every result as an Array. The split avoids
+  the shape ambiguity a single auto-shaping method would have.
+- **git wrapper** — `git()` / `git(path)` Rhai handle that composes
+  `git` CLI invocations. First-class methods (`status`, `log`,
+  `diff`, `branch`, `commit`, `add`, `push`, etc.) pick the right
+  `--porcelain` / `--format` flags internally and return parsed
+  Maps/Arrays. `.run()` / `.run_text()` / `.run_json()` are the
+  escape hatches.
+- **gh wrapper** — `gh()` / `gh(repo)` over the GitHub CLI. PR,
+  issue, release, repo, and workflow-run methods each use
+  `--json <fields>` with sensible defaults. Auto-account-switch:
+  reads `git config user.email` before every call and runs
+  `gh auth switch --user <handle>` based on an email-to-handle
+  mapping loaded from `$XDG_CONFIG_HOME/recon/gh-accounts.toml`
+  (or `$RECON_GH_ACCOUNTS_FILE`). Without the config file, no
+  switch happens. `auth_status()` is the only method that
+  doesn't trigger auto-switch.
+
+**Why ship the three together.** The originating use case was
+"write scripts that drive local dev workflows" — release
+helpers, repo surveys, PR triage. Each layer becomes useful in
+isolation but disproportionately useful when chained:
+`gh().pr_list().jq_all(".[] | select(.author.login == \"me\") | .number")`
+is the natural shape these scripts want. Splitting the release
+would have made the first two phases feel incomplete.
+
+**Why `std::process::Command` directly rather than `shell()`.**
+The git and gh wrappers spawn subprocesses to compose CLI
+invocations. The obvious option was to route through the
+`shell()` binding shipped in 0.87.0 — but doing that means
+re-entering the Rhai engine to call a binding from another
+Rust binding (argument marshalling, error wrapping, scope
+concerns). The wrappers instead use `std::process::Command`
+directly. Keeps them thin Rust shims rather than
+Rhai-meta-Rhai constructs. The blocking-subprocess pattern is
+straightforward enough that one helper per module is fine.
+
+**Why auto-account-switch caches per-Gh-instance.** Switching
+gh accounts is fast (~50ms) but not free, and most scripts run
+many gh calls. Caching the last-switched handle inside the
+`Gh` value's `Arc<Mutex<Option<String>>>` avoids redundant
+switches within a session. The cache is checked against the
+current `git config user.email` on every call — a change to
+the email in the middle of a script does trigger a fresh
+switch, but that's rare in practice.
+
+**Why the jq+jaq API drift mattered.** The plan drafted
+against jaq 1.x's programmatic API; jaq 3.x rearranged things
+substantially (`Native<Val>` → `data::JustLut<Val>`, `RcIter`
+→ `Vars`, no Display on Exn). The TDD smoke-test step in the
+plan (compile a hello-world filter before building the
+binding) caught this immediately and the implementation worked
+through the actual 3.x surface. Without the smoke step the
+binding would have hit cargo-build errors deeper into the
+work. Recommendation for future bindings against fast-moving
+crates: always smoke-test the API first.
+
+**What stays deferred.** Cross-cutting per-method opts maps
+(`cwd` / `env` / `timeout_ms` on every git/gh method) — the
+constructors handle the common case (cwd via `git(path)`);
+scripts wanting env override use the `.run_text()` escape
+hatch. Per-call `auto_switch: false` opt-out on gh methods
+beyond `auth_status` — scripts that need to drive auth
+themselves can set `GH_HOST` / `GH_TOKEN`. Streaming variants
+of long-running commands (`shell_stream("git log …", cb)`
+covers it). Destructive git ops (`init`, `clone`, `merge`,
+`rebase`, `reset`) — reachable via `.run()`; promoting them
+would require careful safety thinking.
+
 ### 81. TUI dashboard binding — `tui::run` with split panes (0.88.0)
 
 **What:** A minimal multi-pane text dashboard for scripts. `tui::run(|d|

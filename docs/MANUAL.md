@@ -2,8 +2,8 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.88.0</div>
-<div class="date">2026-05-24</div>
+<div class="version">Version 0.89.0</div>
+<div class="date">2026-05-25</div>
 <div class="meta">
 Repository · https://github.com/codedeviate/recon<br>
 License · MIT
@@ -3479,6 +3479,138 @@ try {
     print(`caught: ${e}`);
 }
 ```
+
+## git wrapper
+
+First-class methods over the `git` CLI. Each method picks the right
+`--porcelain` / `--format` flag internally and parses the output into
+Rhai data. The `.run()` / `.run_text()` / `.run_json()` escape hatches
+expose anything not promoted to a method.
+
+| Function | Description |
+|---|---|
+| `git()` / `git(path)` | Construct a `Git` handle bound to the current working directory or an explicit repo path. |
+| `g.status()` | `Map { branch, upstream, ahead, behind, clean, staged, unstaged, untracked }` from `git status --porcelain=v2 --branch`. `staged` / `unstaged` are arrays of `{ path, x_y }` (renames also include `original`). |
+| `g.is_clean()` | Convenience for `g.status().clean`. |
+| `g.log(n)` / `g.log_range(rev_range)` | `Array<Map { hash, short_hash, author, email, date, subject, body }>`. ISO 8601 dates. |
+| `g.diff()` / `g.diff(rev)` | Patch as a `String`. |
+| `g.diff_stat()` / `g.diff_stat(rev)` | `Map { files, insertions, deletions, per_file: [...] }`. |
+| `g.branch()` | `Map { current, upstream, all }`. `upstream` is `()` when no upstream is set. |
+| `g.rev_parse(name)` | Resolve a ref to its full 40-char SHA. |
+| `g.remote()` | `Map` of remote name → URL. |
+| `g.add(path)` / `g.add([paths])` | Stage a path or an array of paths. Returns `()`. |
+| `g.commit(message)` | Commit staged changes; returns `{ hash, short_hash, subject }`. Throws on empty index or pre-commit hook failure. |
+| `g.push()` / `g.push(remote)` / `g.push(remote, branch)` | Push. Returns `()`. |
+| `g.pull()` / `g.pull(remote, branch)` | Pull. Returns `()`. |
+| `g.checkout(name)` | Switch to a branch or commit. Returns `()`. |
+| `g.run(args)` | Run any git args; sniffs JSON vs text. |
+| `g.run_text(args)` / `g.run_json(args)` | Explicit text/JSON return forms. |
+
+### Example
+
+```rhai
+let g = git();
+
+// Inspection.
+print(g.branch().current);
+print(g.is_clean());
+for c in g.log(5) { print(`${c.short_hash} ${c.subject}`); }
+
+// Mutation.
+g.add("src/foo.rs");
+let c = g.commit("fix: tighten the foo path");
+print(`new commit ${c.short_hash}`);
+g.push();
+
+// Escape hatch.
+let log = g.run_text("log --oneline -3");
+```
+
+Errors throw on non-zero exit; scripts use `try` / `catch` to recover.
+Composes on top of `std::process::Command` directly rather than going
+through the shell() binding.
+
+## gh wrapper
+
+First-class methods over the GitHub CLI. Each method picks the right
+`--json <fields>` flag and parses the output into Rhai Maps and
+Arrays.
+
+### Auto-account-switch
+
+Before every `gh` call, the wrapper reads `git config user.email`
+and runs `gh auth switch --user <handle>` when the active gh
+account doesn't match. The email-to-handle mapping is loaded from
+a TOML config file — first match wins:
+
+1. `$RECON_GH_ACCOUNTS_FILE` (explicit override).
+2. `$XDG_CONFIG_HOME/recon/gh-accounts.toml`.
+3. `$HOME/.config/recon/gh-accounts.toml`.
+
+Config format:
+
+```toml
+[accounts]
+"you@example.com" = "your-gh-handle"
+"work@company.com" = "work-gh-handle"
+```
+
+If no config file is found, or the current `git config user.email`
+isn't listed, no switch happens — the call uses whichever account
+`gh` has active. The switch is cached per `Gh` value (atomic check
+on every call, no redundant switches). `auth_status()` is the lone
+method that does NOT trigger auto-switch — useful when querying
+which account is active.
+
+### Methods
+
+| Function | Description |
+|---|---|
+| `gh()` / `gh("owner/name")` | Construct a `Gh` handle. The owner/name form adds `--repo <s>` to every call. |
+| `h.pr_list()` / `h.pr_list(opts)` | `Array<PR Map>`. `opts`: `state` / `author` / `label` / `limit`. `label` accepts string or array. |
+| `h.pr_view(number)` | PR detail Map (body, labels, reviewDecision, mergeable, …). |
+| `h.pr_create(opts)` | Returns `{ number, url }`. `opts`: `title` (required), `body` OR `body_file` (mutex), `base`, `head`, `draft`, `reviewer`, `label`. |
+| `h.pr_merge(number)` / `h.pr_merge(number, opts)` | `opts`: `method` (`merge`/`squash`/`rebase`), `delete_branch`, `auto`. |
+| `h.pr_close(number)` / `h.pr_comment(number, body)` | Close or comment. |
+| `h.issue_list()` / `h.issue_list(opts)` / `h.issue_view(number)` / `h.issue_create(opts)` / `h.issue_comment(number, body)` | Same shape as PR methods, scoped to issues. `issue_create` opts: `title` (required), `body` OR `body_file`, `label`, `assignee`. |
+| `h.release_list()` / `h.release_view(tag)` | List or detail. |
+| `h.release_create(tag, opts)` | Returns `{ url, tag }`. `opts`: `title`, `notes` OR `notes_file` (mutex), `generate_notes`, `draft`, `prerelease`, `target`. |
+| `h.repo_view()` / `h.repo_view(spec)` | Repo metadata Map. |
+| `h.run_list()` / `h.run_list(opts)` / `h.run_view(id)` | Workflow runs. `run_list` opts: `workflow`, `branch`, `status`, `limit`. |
+| `h.auth_status()` | `Map { host, account, scopes }`. Does NOT trigger auto-switch. |
+| `h.run(args)` / `h.run_text(args)` / `h.run_json(args)` | Escape hatches, same shape as the git wrapper. |
+
+### Example
+
+```rhai
+let h = gh();
+
+// Guard.
+let auth = ();
+try { auth = h.auth_status(); } catch (e) { print(`gh not configured: ${e}`); return; }
+print(`active: ${auth.account}`);
+
+// PR list + view.
+for p in h.pr_list(#{ state: "open", limit: 5 }) {
+    print(`#${p.number} ${p.title} by ${p.author.login}`);
+}
+
+// Create a release.
+let r = h.release_create("v0.89.0", #{
+    generate_notes: true,
+    title: "0.89.0 — jq + git + gh",
+});
+print(`released at ${r.url}`);
+
+// Catch "not found".
+try {
+    h.pr_view(999999);
+} catch (e) {
+    print(`pr not found: ${e}`);
+}
+```
+
+Errors throw on non-zero exit with stderr truncated to ~2KB.
 
 ## Whois binding
 
