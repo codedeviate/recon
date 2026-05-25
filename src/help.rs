@@ -547,7 +547,7 @@ static TOPIC_NETSTATUS: Topic = Topic {
                           Useful in shell scripts: recon --netstatus --silent && deploy.sh",
         },
     ],
-    related: &["--ping", "--dns", "--cert"],
+    related: &["--ping", "--dns", "--cert", "configuration"],
     examples: &[
         ExampleHelp {
             description: "Check connectivity and show full report",
@@ -560,6 +560,98 @@ static TOPIC_NETSTATUS: Topic = Topic {
         ExampleHelp {
             description: "Check with DNS hijack detection in config",
             command: "recon --netstatus  # requires [[netstatus.dns_hijack_checks]] in config",
+        },
+    ],
+};
+
+static TOPIC_CONFIGURATION: Topic = Topic {
+    title: "Configuration Files — layered config model",
+    description: "recon loads configuration from two layers that are deep-merged at startup:\n\
+                  \n\
+                  Layer 1 — system config (admin-supplied defaults)\n\
+                  -----------------------------------------------\n\
+                  Default search order:\n\
+                    /etc/recon/config.toml         (Linux / generic)\n\
+                    $HOMEBREW_PREFIX/etc/recon/config.toml  (macOS Homebrew install)\n\
+                  Override with env var: RECON_SYSTEM_CONFIG=/path/to/system.toml\n\
+                  Skip entirely:        --no-system-config\n\
+                  \n\
+                  Layer 2 — user config (personal overrides)\n\
+                  ------------------------------------------\n\
+                  Default path: ~/.recon/config.toml\n\
+                  Override with env var: RECON_CONFIG=/path/to/user.toml\n\
+                  Skip entirely:        --no-user-config\n\
+                  \n\
+                  Skip BOTH layers: --disable / -q (also disables other startup logic)\n\
+                  \n\
+                  Deep-merge rules\n\
+                  ----------------\n\
+                  Tables (TOML [sections]) are merged key-by-key; user wins on conflict.\n\
+                  Arrays and leaf values are replaced — the user value wins wholesale.\n\
+                  \n\
+                  Example: if system config sets\n\
+                    [netstatus]\n\
+                    timeout = 5\n\
+                    [[netstatus.probes]]\n\
+                    url = \"https://example.com\"\n\
+                  and user config sets\n\
+                    [netstatus]\n\
+                    timeout = 10\n\
+                  then the merged result has timeout=10 (user wins) and the probes array\n\
+                  from the system config is REPLACED — not extended — because arrays replace.\n\
+                  \n\
+                  Config sections used by recon\n\
+                  ------------------------------\n\
+                  [netstatus]         — probes for --netstatus\n\
+                  [editor]            — default editor and aliases\n\
+                  [sampledata.<name>] — custom sample data endpoints\n\
+                  [gh.accounts]       — email→gh-handle mapping for auto-account-switch\n\
+                  [ai.backends.<name>]— custom AI backend commands",
+    flags: &[
+        FlagHelp {
+            flags: "--no-system-config",
+            description: "Skip the system config layer (/etc/recon/config.toml or\n\
+                          $RECON_SYSTEM_CONFIG). Useful for one-off invocations that\n\
+                          should ignore admin-shipped defaults.",
+        },
+        FlagHelp {
+            flags: "--no-user-config",
+            description: "Skip the user config layer (~/.recon/config.toml or\n\
+                          $RECON_CONFIG). Useful for testing with system defaults only.",
+        },
+        FlagHelp {
+            flags: "--show-config-paths",
+            description: "Print the resolved paths for both config layers (system and\n\
+                          user) that recon would load, then exit. Shows which file\n\
+                          would be read, even if it does not exist yet.",
+        },
+        FlagHelp {
+            flags: "--disable / -q",
+            description: "Skip ALL startup logic including both config layers.\n\
+                          Use --no-system-config / --no-user-config for finer control.",
+        },
+    ],
+    related: &["netstatus", "editor", "sample", "gh", "ai"],
+    examples: &[
+        ExampleHelp {
+            description: "Show which config files the resolver picked",
+            command: "recon --show-config-paths",
+        },
+        ExampleHelp {
+            description: "Override user config path via env var",
+            command: "RECON_CONFIG=~/my-work.toml recon --netstatus",
+        },
+        ExampleHelp {
+            description: "Use system config only (skip user config)",
+            command: "recon --no-user-config --netstatus",
+        },
+        ExampleHelp {
+            description: "Override system config path via env var",
+            command: "RECON_SYSTEM_CONFIG=/etc/recon/prod.toml recon --netstatus",
+        },
+        ExampleHelp {
+            description: "Skip both layers for a clean one-off request",
+            command: "recon --no-system-config --no-user-config https://example.com",
         },
     ],
 };
@@ -642,7 +734,7 @@ static TOPIC_SAMPLE: Topic = Topic {
                           any non-lorem sample is an error.",
         },
     ],
-    related: &["--editor", "-o / --output", "-p / --prettify", "-i / --include"],
+    related: &["--editor", "-o / --output", "-p / --prettify", "-i / --include", "configuration"],
     examples: &[
         ExampleHelp { description: "10 customers to stdout", command: "recon --sample customer" },
         ExampleHelp { description: "25 products, prettified", command: "recon --sample product --sample-count 25 -p" },
@@ -919,7 +1011,7 @@ static TOPIC_EDITOR: Topic = Topic {
                           By default stdout is silent when --editor is active.",
         },
     ],
-    related: &["-o / --output", "-p / --prettify", "-i / --include", "--full"],
+    related: &["-o / --output", "-p / --prettify", "-i / --include", "--full", "configuration"],
     examples: &[
         ExampleHelp {
             description: "Open a JSON response in Zed",
@@ -2270,7 +2362,7 @@ static TOPIC_GH: Topic = Topic {
         FlagHelp { flags: "h.auth_status()", description: "Returns { host, account, scopes }. Does NOT trigger\nauto-switch (the only method that doesn't)." },
         FlagHelp { flags: ".run(args) / .run_text(args) / .run_json(args)", description: "Escape hatches. Same shape as the git wrapper." },
     ],
-    related: &["script", "scripting", "git", "shell"],
+    related: &["script", "scripting", "git", "shell", "configuration"],
     examples: &[
         ExampleHelp { description: "Run the shipped demo", command: "recon --script script/gh.rhai" },
         ExampleHelp { description: "Open PRs by an author", command: r#"recon --script - <<< 'for p in gh().pr_list(#{ state: "open", author: "@me" }) { print(`#${p.number} ${p.title}`); }'"# },
@@ -2759,7 +2851,7 @@ static TOPIC_AI: Topic = Topic {
                           .exit_code.",
         },
     ],
-    related: &["script"],
+    related: &["script", "configuration"],
     examples: &[
         ExampleHelp {
             description: "One-shot ask",
@@ -2804,6 +2896,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "telnet" => Some(&TOPIC_TELNET),
         "jwt" | "jwt-token" | "token" => Some(&TOPIC_JWT),
         "netstatus" => Some(&TOPIC_NETSTATUS),
+        "configuration" | "config" | "config-files" => Some(&TOPIC_CONFIGURATION),
         "hash" | "hashing" => Some(&TOPIC_HASH),
         "compress" | "compression" | "decompress" => Some(&TOPIC_COMPRESSION),
         "sample" | "sampledata" | "sample-data" => Some(&TOPIC_SAMPLE),
@@ -2890,6 +2983,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "whois",
         "ping",
         "netstatus",
+        "configuration",
         "traceroute",
         "spf",
         "dmarc",
