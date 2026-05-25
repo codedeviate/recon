@@ -15,6 +15,7 @@ mod docs_pdf;
 mod flaglist;
 mod config;
 mod config_file;
+mod config_resolver;
 mod cookiejar;
 mod dict_probe;
 mod dns;
