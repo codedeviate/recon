@@ -150,6 +150,7 @@ fn any_no_url_mode_flag(args: &cli::Args) -> bool {
         || args.export_pdf_page.is_some()
         || args.input_file.is_some()
         || args.repl
+        || args.show_config_paths
 }
 
 fn resolve_clipboard(args: &cli::Args) -> Option<ClipboardDir> {
@@ -995,6 +996,32 @@ fn main() {
         let opts = crate::config_resolver::LayerOpts::from_env()
             .merge_cli_flags(args.disable_default_config, args.no_system_config, args.no_user_config);
         crate::config_resolver::init_global(opts);
+    }
+
+    // ── Show which config files the resolver picked ───────────────────────────
+    if args.show_config_paths {
+        let opts = crate::config_resolver::global();
+        let resolved = crate::config_resolver::resolve_paths("config.toml", &opts);
+
+        fn show(label: &str, p: &Option<std::path::PathBuf>, skipped: bool, why_none: &str) {
+            match (skipped, p) {
+                (true, _) => println!("{label}: (skipped)"),
+                (_, Some(p)) => println!("{label}: {}", p.display()),
+                (_, None) => println!("{label}: (none — {why_none})"),
+            }
+        }
+
+        show("system", &resolved.system, opts.skip_system,
+             "no candidate in [/opt/homebrew/etc/recon, /usr/local/etc/recon, /etc/recon] exists");
+        show("user",   &resolved.user,   opts.skip_user,
+             "$HOME unset or ~/.recon/config.toml does not exist");
+
+        let env = |k: &str| std::env::var(k).unwrap_or_else(|_| "(unset)".to_string());
+        println!("$RECON_SYSTEM_CONFIG: {}", env("RECON_SYSTEM_CONFIG"));
+        println!("$RECON_CONFIG:        {}", env("RECON_CONFIG"));
+        println!("$HOMEBREW_PREFIX:     {}", env("HOMEBREW_PREFIX"));
+
+        return;
     }
 
     // ── Network status ───────────────────────────────────────────────────────
