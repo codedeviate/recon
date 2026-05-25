@@ -69,6 +69,50 @@ fn user_path_with_home(home: Option<&str>, name: &str) -> Option<PathBuf> {
     Some(PathBuf::from(home?).join(".recon").join(name))
 }
 
+/// Resolve which system+user paths actually exist for the given config
+/// name. Returns `None` for layers that are skipped or have no match.
+/// `--*-config` flags always beat env-var overrides.
+pub fn resolve_paths(name: &str, opts: &LayerOpts) -> Resolved {
+    let system_candidates = system_candidates_for(name);
+    let user_candidate = user_path_with_home(
+        std::env::var("HOME").ok().as_deref(),
+        name,
+    );
+    resolve_paths_with(name, opts, &system_candidates, user_candidate)
+}
+
+fn resolve_paths_with(
+    name: &str,
+    opts: &LayerOpts,
+    system_candidates: &[PathBuf],
+    user_candidate: Option<PathBuf>,
+) -> Resolved {
+    let _ = name; // accepted for symmetry with the public API
+    let system = if opts.skip_system {
+        None
+    } else if let Some(p) = &opts.system_override {
+        Some(resolve_override(p, "config.toml"))
+    } else {
+        system_candidates.iter().find(|p| p.is_file()).cloned()
+    };
+    let user = if opts.skip_user {
+        None
+    } else if let Some(p) = &opts.user_override {
+        Some(resolve_override(p, "config.toml"))
+    } else {
+        user_candidate.filter(|p| p.is_file())
+    };
+    Resolved { system, user }
+}
+
+fn resolve_override(p: &std::path::Path, default_name: &str) -> PathBuf {
+    if p.is_dir() {
+        p.join(default_name)
+    } else {
+        p.to_path_buf()
+    }
+}
+
 /// Deep-merge `overlay` onto `base`. Tables merge recursively; arrays
 /// and leaves are replaced by overlay. Type clashes (table vs. leaf)
 /// resolve with overlay winning silently — schema enforcement happens
@@ -236,5 +280,117 @@ mod user_path_tests {
     fn user_path_without_home_returns_none() {
         let p = user_path_with_home(None, "config.toml");
         assert_eq!(p, None);
+    }
+}
+
+#[cfg(test)]
+mod resolve_paths_tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    fn touch(path: &std::path::Path) {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+        std::fs::write(path, b"").unwrap();
+    }
+
+    #[test]
+    fn default_opts_with_env_overrides_picks_those() {
+        let dir = TempDir::new().unwrap();
+        let sys = dir.path().join("sys.toml");
+        let usr = dir.path().join("usr.toml");
+        touch(&sys);
+        touch(&usr);
+        let opts = LayerOpts {
+            system_override: Some(sys.clone()),
+            user_override:   Some(usr.clone()),
+            ..LayerOpts::default()
+        };
+        let r = resolve_paths_with("config.toml", &opts, &[], None);
+        assert_eq!(r.system, Some(sys));
+        assert_eq!(r.user,   Some(usr));
+    }
+
+    #[test]
+    fn skip_flags_yield_none() {
+        let dir = TempDir::new().unwrap();
+        let sys = dir.path().join("sys.toml");
+        let usr = dir.path().join("usr.toml");
+        touch(&sys);
+        touch(&usr);
+        let opts = LayerOpts {
+            skip_system:     true,
+            skip_user:       true,
+            system_override: Some(sys),
+            user_override:   Some(usr),
+        };
+        let r = resolve_paths_with("config.toml", &opts, &[], None);
+        assert_eq!(r.system, None);
+        assert_eq!(r.user,   None);
+    }
+
+    #[test]
+    fn picks_first_existing_system_candidate() {
+        let dir = TempDir::new().unwrap();
+        let a = dir.path().join("a.toml");
+        let b = dir.path().join("b.toml");
+        let c = dir.path().join("c.toml");
+        touch(&b);
+        touch(&c);
+        // Only b and c exist; a doesn't. Candidate order is [a, b, c].
+        let opts = LayerOpts::default();
+        let r = resolve_paths_with("config.toml", &opts, &[a, b.clone(), c], None);
+        assert_eq!(r.system, Some(b));
+    }
+
+    #[test]
+    fn returns_none_when_no_candidate_exists() {
+        let dir = TempDir::new().unwrap();
+        let a = dir.path().join("does-not-exist.toml");
+        let opts = LayerOpts::default();
+        let r = resolve_paths_with("config.toml", &opts, &[a], None);
+        assert_eq!(r.system, None);
+    }
+
+    #[test]
+    fn env_var_pointing_at_directory_appends_name() {
+        let dir = TempDir::new().unwrap();
+        let cfg = dir.path().join("config.toml");
+        touch(&cfg);
+        let opts = LayerOpts {
+            system_override: Some(dir.path().to_path_buf()),
+            ..LayerOpts::default()
+        };
+        let r = resolve_paths_with("config.toml", &opts, &[], None);
+        assert_eq!(r.system, Some(cfg));
+    }
+
+    #[test]
+    fn env_var_pointing_at_missing_file_returns_error_path() {
+        let dir = TempDir::new().unwrap();
+        let missing = dir.path().join("nope.toml");
+        let opts = LayerOpts {
+            system_override: Some(missing.clone()),
+            ..LayerOpts::default()
+        };
+        // resolve_paths_with returns the (missing) path; load_layered is
+        // the layer that turns this into a hard error.
+        let r = resolve_paths_with("config.toml", &opts, &[], None);
+        assert_eq!(r.system, Some(missing));
+    }
+
+    #[test]
+    fn skip_flag_wins_over_env_var_override() {
+        let dir = TempDir::new().unwrap();
+        let sys = dir.path().join("sys.toml");
+        touch(&sys);
+        let opts = LayerOpts {
+            skip_system:     true,
+            system_override: Some(sys),
+            ..LayerOpts::default()
+        };
+        let r = resolve_paths_with("config.toml", &opts, &[], None);
+        assert_eq!(r.system, None);
     }
 }
