@@ -990,6 +990,13 @@ fn main() {
         return;
     }
 
+    // ── Layered config resolver: wire CLI flags into the global OnceLock ────
+    {
+        let opts = crate::config_resolver::LayerOpts::from_env()
+            .merge_cli_flags(args.disable_default_config, args.no_system_config, args.no_user_config);
+        crate::config_resolver::init_global(opts);
+    }
+
     // ── Network status ───────────────────────────────────────────────────────
     if args.netstatus {
         let cfg = config::load();
