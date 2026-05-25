@@ -9,6 +9,7 @@
 
 use anyhow::{anyhow, Context, Result};
 use std::path::PathBuf;
+use std::sync::OnceLock;
 
 #[derive(Debug, Clone, Default)]
 pub struct LayerOpts {
@@ -22,6 +23,60 @@ pub struct LayerOpts {
 pub struct Resolved {
     pub system: Option<PathBuf>,
     pub user:   Option<PathBuf>,
+}
+
+static GLOBAL_OPTS: OnceLock<LayerOpts> = OnceLock::new();
+
+impl LayerOpts {
+    /// Build options purely from env vars; the CLI-flag overlay
+    /// (`merge_cli_flags`) is applied separately in main.rs.
+    pub fn from_env() -> Self {
+        Self::from_env_with(|k| std::env::var(k).ok())
+    }
+
+    fn from_env_with(read: impl Fn(&str) -> Option<String>) -> Self {
+        LayerOpts {
+            skip_system:     false,
+            skip_user:       false,
+            system_override: read("RECON_SYSTEM_CONFIG").map(PathBuf::from),
+            user_override:   read("RECON_CONFIG").map(PathBuf::from),
+        }
+    }
+
+    /// Apply the three CLI flags onto an existing LayerOpts. Flag wins
+    /// over env-var override (see spec §"Path resolution").
+    pub fn merge_cli_flags(
+        mut self,
+        no_config: bool,
+        no_system_config: bool,
+        no_user_config: bool,
+    ) -> Self {
+        if no_config || no_system_config {
+            self.skip_system = true;
+        }
+        if no_config || no_user_config {
+            self.skip_user = true;
+        }
+        self
+    }
+}
+
+/// Set the process-wide `LayerOpts` once. Subsequent calls are
+/// silently ignored — the first call wins, matching `OnceLock`
+/// semantics. Returns the stored opts.
+pub fn init_global(opts: LayerOpts) -> &'static LayerOpts {
+    let _ = GLOBAL_OPTS.set(opts.clone());
+    GLOBAL_OPTS.get().unwrap_or_else(|| {
+        // Unreachable in practice (we just set it), but cope if a
+        // concurrent caller raced us.
+        Box::leak(Box::new(opts))
+    })
+}
+
+/// Return the process-wide `LayerOpts`, or a default if `init_global`
+/// was never called (test paths, REPL).
+pub fn global() -> LayerOpts {
+    GLOBAL_OPTS.get().cloned().unwrap_or_default()
 }
 
 /// Return the candidate paths for the system layer in priority order
@@ -553,5 +608,37 @@ cmd = "claude"
         let opts = LayerOpts { skip_user: true, ..opts };
         let err = load_layered("config.toml", &opts).unwrap_err().to_string();
         assert!(err.contains("does not exist") || err.contains("cannot read"), "got: {err}");
+    }
+}
+
+#[cfg(test)]
+mod layer_opts_tests {
+    use super::*;
+
+    #[test]
+    fn from_env_with_no_vars_set_yields_empty_overrides() {
+        let opts = LayerOpts::from_env_with(|_| None);
+        assert!(opts.system_override.is_none());
+        assert!(opts.user_override.is_none());
+    }
+
+    #[test]
+    fn from_env_picks_up_recon_system_config() {
+        let opts = LayerOpts::from_env_with(|k| match k {
+            "RECON_SYSTEM_CONFIG" => Some("/tmp/sys.toml".into()),
+            _ => None,
+        });
+        assert_eq!(opts.system_override, Some(PathBuf::from("/tmp/sys.toml")));
+        assert!(opts.user_override.is_none());
+    }
+
+    #[test]
+    fn from_env_picks_up_recon_config() {
+        let opts = LayerOpts::from_env_with(|k| match k {
+            "RECON_CONFIG" => Some("/tmp/usr.toml".into()),
+            _ => None,
+        });
+        assert_eq!(opts.user_override, Some(PathBuf::from("/tmp/usr.toml")));
+        assert!(opts.system_override.is_none());
     }
 }
