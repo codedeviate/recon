@@ -18,6 +18,7 @@
 // under `src/script/bindings/ai/`.
 
 pub mod config;
+pub mod config_resolver;
 
 // The real `ai/` module tree, pointed at the actual source files via
 // `#[path]`. Compiled independently of the binary's module tree.

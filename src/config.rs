@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use serde::Deserialize;
 use std::collections::HashMap;
 
@@ -96,24 +96,17 @@ impl NetstatusConfig {
     }
 }
 
-/// Loads ~/.recon/config.toml. Returns an error if the file is missing or invalid.
+/// Loads the layered config (`/etc/recon/config.toml` + `~/.recon/config.toml`).
+/// Both layers are optional; an empty config is the default. Returns an error
+/// only when a file that exists fails to read or parse.
 pub fn load() -> Result<ReconConfig> {
-    let path = config_path();
-    let text = std::fs::read_to_string(&path).with_context(|| {
-        format!(
-            "Cannot read config file: {}\n\
-             Create it with a [netstatus] section — see: recon --help netstatus",
-            path.display()
-        )
-    })?;
-    let config: ReconConfig =
-        toml::from_str(&text).map_err(|e| anyhow!("Failed to parse config file: {}", e))?;
+    let opts = crate::config_resolver::global();
+    let value = crate::config_resolver::load_layered("config.toml", &opts)
+        .map_err(|e| anyhow!("{e}"))?;
+    let config: ReconConfig = value
+        .try_into()
+        .map_err(|e| anyhow!("Failed to parse merged config: {e}"))?;
     Ok(config)
-}
-
-fn config_path() -> std::path::PathBuf {
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    std::path::PathBuf::from(home).join(".recon").join("config.toml")
 }
 
 #[cfg(test)]

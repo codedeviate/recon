@@ -37,6 +37,23 @@ const SKELETON: &str = r#"# recon — ~/.recon/config.toml
 #
 # [sampledata.my_feed.urls]
 # json = "https://example.com/data.json"
+
+# ── Layered configuration ─────────────────────────────────────────────
+# recon reads two layers, system then user (this file), and deep-merges
+# them with user winning. The system layer is optional and lives at:
+#   /etc/recon/config.toml                  (Linux, last resort on macOS)
+#   /opt/homebrew/etc/recon/config.toml     (macOS, Apple Silicon brew)
+#   /usr/local/etc/recon/config.toml        (macOS, Intel brew)
+# Override either layer with $RECON_SYSTEM_CONFIG or $RECON_CONFIG.
+# Disable layers with --no-system-config / --no-user-config / --disable.
+# Inspect the resolver's pick with `recon --show-config-paths`.
+
+# ── gh script binding: email → gh handle mapping ──────────────────────
+# Used by the gh() script binding to auto-switch GitHub accounts
+# before each gh CLI call. Add your own email/handle pairs:
+#
+# [gh.accounts]
+# "you@example.com" = "your-gh-handle"
 "#;
 
 pub fn run() -> Result<()> {

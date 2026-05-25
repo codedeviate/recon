@@ -136,6 +136,16 @@ recon --help <topic>              # long-form reference (e.g. tls, proxy, mqtt, 
 recon --flags                     # alphabetical curl-style flag index
 ```
 
+### Configuration
+
+recon reads a layered TOML config: an optional system layer
+(`/etc/recon/config.toml`, or `$HOMEBREW_PREFIX/etc/recon/config.toml`
+on macOS) and an optional user layer (`~/.recon/config.toml`). The
+layers are deep-merged with user winning. Bootstrap your user layer
+with `recon --init`; see `recon --help configuration` or the
+[Configuration files section of the manual](docs/MANUAL.md#configuration-files)
+for details.
+
 ## Browser fingerprint impersonation
 
 recon 0.77.0 added an opt-in Cargo feature `impersonate` that pulls in

@@ -1494,10 +1494,31 @@ pub struct Args {
     #[arg(short = 'K', long = "config", value_name = "FILE", help_heading = "Meta")]
     pub config: Option<PathBuf>,
 
-    /// Don't read `~/.recon/config.toml` or `$RECON_CONFIG` on startup.
-    /// Equivalent to curl's `-q` behaviour.
+    /// Skip both config layers (system + user) on startup.
+    /// Equivalent to curl's `-q` behaviour; use --no-system-config /
+    /// --no-user-config for finer control.
     #[arg(short = 'q', long = "disable", help_heading = "Meta")]
     pub disable_default_config: bool,
+
+    /// Skip the system config layer.
+    /// Don't read /etc/recon/config.toml (or the system-config path
+    /// pointed at by $RECON_SYSTEM_CONFIG) on startup. Works alongside
+    /// --no-user-config to selectively disable one layer.
+    #[arg(long = "no-system-config", action = clap::ArgAction::SetTrue, help_heading = "Configuration")]
+    pub no_system_config: bool,
+
+    /// Skip the user config layer.
+    /// Don't read ~/.recon/config.toml (or the user-config path pointed
+    /// at by $RECON_CONFIG) on startup. Works alongside
+    /// --no-system-config to selectively disable one layer.
+    #[arg(long = "no-user-config", action = clap::ArgAction::SetTrue, help_heading = "Configuration")]
+    pub no_user_config: bool,
+
+    /// Print resolved config paths and exit.
+    /// Shows the system path, the user path, and the env vars that
+    /// influenced the decision. Read-only — never writes.
+    #[arg(long = "show-config-paths", action = clap::ArgAction::SetTrue, help_heading = "Configuration")]
+    pub show_config_paths: bool,
 
     // ── Mail Retrieval ───────────────────────────────────────────────────────
 
