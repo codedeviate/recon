@@ -59,6 +59,16 @@ fn system_candidates_with_env(name: &str, brew_prefix: Option<&str>) -> Vec<Path
     out
 }
 
+/// Return the user-layer path for `config.toml` (no existence check). Returns
+/// None when $HOME is unset.
+pub fn user_path() -> Option<PathBuf> {
+    user_path_with_home(std::env::var("HOME").ok().as_deref(), "config.toml")
+}
+
+fn user_path_with_home(home: Option<&str>, name: &str) -> Option<PathBuf> {
+    Some(PathBuf::from(home?).join(".recon").join(name))
+}
+
 /// Deep-merge `overlay` onto `base`. Tables merge recursively; arrays
 /// and leaves are replaced by overlay. Type clashes (table vs. leaf)
 /// resolve with overlay winning silently — schema enforcement happens
@@ -209,5 +219,22 @@ mod system_candidates_tests {
     fn linux_only_etc_recon() {
         let paths = system_candidates_for("config.toml");
         assert_eq!(paths, vec![PathBuf::from("/etc/recon/config.toml")]);
+    }
+}
+
+#[cfg(test)]
+mod user_path_tests {
+    use super::*;
+
+    #[test]
+    fn user_path_with_home_returns_dot_recon() {
+        let p = user_path_with_home(Some("/home/test"), "config.toml");
+        assert_eq!(p, Some(PathBuf::from("/home/test/.recon/config.toml")));
+    }
+
+    #[test]
+    fn user_path_without_home_returns_none() {
+        let p = user_path_with_home(None, "config.toml");
+        assert_eq!(p, None);
     }
 }
