@@ -693,6 +693,109 @@ recon https://example.com --cert --cert-chain
 recon https://example.com --cert --sni alt.example.com        # request cert for alt via SNI
 ```
 
+## Configuration files
+
+recon reads two TOML configuration layers at startup and deep-merges them:
+
+| Layer | Default path |
+|---|---|
+| **System** (optional, admin-supplied) | `/etc/recon/config.toml` (Linux). On macOS, the resolver searches `$HOMEBREW_PREFIX/etc/recon/config.toml`, `/opt/homebrew/etc/recon/config.toml`, `/usr/local/etc/recon/config.toml`, `/etc/recon/config.toml` — first existing match wins. |
+| **User** (per-user overrides) | `~/.recon/config.toml` |
+
+Both layers are optional. If neither exists, recon runs with default settings.
+
+### Environment overrides
+
+| Env var | Effect |
+|---|---|
+| `$RECON_SYSTEM_CONFIG` | Override the system-layer path. Accepts a file path or a directory (the directory form appends `config.toml`). |
+| `$RECON_CONFIG` | Override the user-layer path. Same file-or-directory rule. |
+
+### CLI flags
+
+| Flag | Behavior |
+|---|---|
+| `--disable` / `-q` | Skip both config layers entirely. |
+| `--no-system-config` | Skip only the system layer. |
+| `--no-user-config` | Skip only the user layer. |
+| `--show-config-paths` | Print which file each layer resolved to plus the env vars that influenced the decision, then exit. |
+
+Skip flags always win over env-var overrides — passing `--no-system-config` with `$RECON_SYSTEM_CONFIG` set silently skips the system layer.
+
+### Deep-merge rules
+
+When both layers are present, the user layer is merged onto the system layer:
+
+- Tables merge recursively.
+- Leaves (strings, integers, booleans, datetimes) are replaced by the overlay.
+- Arrays are replaced by the overlay (no concatenation — replicating systemd / sshd drop-in behavior).
+- Type clashes (table vs. leaf) resolve with the overlay winning silently; downstream serde catches schema errors.
+
+### Worked example
+
+```toml
+# /etc/recon/config.toml (system)
+[editor]
+default = "vim"
+[editor.aliases]
+v  = "vim"
+nv = "nvim"
+
+[gh.accounts]
+"shared@example.com" = "shared-gh"
+
+[ai.backends.work]
+cmd = "/opt/claude"
+
+[netstatus]
+probes = ["dns://example.com", "tcp://example.com:443"]
+```
+
+```toml
+# ~/.recon/config.toml (user)
+[editor]
+default = "zed"
+[editor.aliases]
+v = "vimnoremap"
+
+[gh.accounts]
+"me@home" = "personal-gh"
+
+[ai.backends.scratch]
+cmd = "claude"
+```
+
+```toml
+# Effective config after merge
+[editor]
+default = "zed"                  # leaf replaced
+[editor.aliases]
+v  = "vimnoremap"                # leaf replaced
+nv = "nvim"                      # base retained
+
+[gh.accounts]
+"shared@example.com" = "shared-gh"   # base retained
+"me@home"            = "personal-gh" # overlay added
+
+[ai.backends.work]
+cmd = "/opt/claude"
+[ai.backends.scratch]
+cmd = "claude"
+
+[netstatus]
+probes = ["dns://example.com", "tcp://example.com:443"]
+```
+
+### Sections
+
+The same `config.toml` carries several feature configurations:
+
+- `[netstatus]` — see [Ping, traceroute, netstatus](#ping-traceroute-netstatus)
+- `[editor]`, `[editor.aliases]` — see [Meta flags](#meta-flags)
+- `[sampledata.*]` — see [Sample data](#sample-data)
+- `[ai]`, `[ai.backends.*]` — see [ai backends](#ai-backends)
+- `[gh.accounts]` — used by the `gh()` script binding for auto-account-switch (see [gh wrapper](#gh-wrapper))
+
 ## Ping, traceroute, netstatus
 
 Stand-alone modes.
@@ -704,7 +807,7 @@ Stand-alone modes.
 | `--ping-count <N>` | Packets (default 4). |
 | `--traceroute <HOST>` | Same as `--ping HOST --traceroute`. |
 | `--max-hops <N>` | Hop limit (default 30). |
-| `--netstatus` | Run the probe bundle defined in `~/.recon/config.toml [netstatus]`. |
+| `--netstatus` | Run the probe bundle defined in `~/.recon/config.toml` (layered — see [Configuration files](#configuration-files)) `[netstatus]`. |
 
 ### Examples
 
@@ -3332,7 +3435,7 @@ print(dk.record);
 
 | Function | Description |
 |---|---|
-| `netstatus::run()` | Execute the probe bundle defined in `~/.recon/config.toml [netstatus]`. |
+| `netstatus::run()` | Execute the probe bundle defined in `~/.recon/config.toml` (layered — see [Configuration files](#configuration-files)) `[netstatus]`. |
 
 ```rhai
 let r = netstatus::run();
@@ -3538,29 +3641,16 @@ Arrays.
 
 ### Auto-account-switch
 
-Before every `gh` call, the wrapper reads `git config user.email`
-and runs `gh auth switch --user <handle>` when the active gh
-account doesn't match. The email-to-handle mapping is loaded from
-a TOML config file — first match wins:
+The email-to-handle mapping is loaded from the `[gh.accounts]` table of
+the layered `config.toml` (see [Configuration files](#configuration-files)).
+System and user layers are deep-merged with user winning per-entry.
+Removing the standalone `gh-accounts.toml` (shipped briefly in 0.89.0)
+was a breaking change in 0.90.0; any 0.89.0 users with a populated file
+need to copy the entries into `~/.recon/config.toml` under `[gh.accounts]`.
 
-1. `$RECON_GH_ACCOUNTS_FILE` (explicit override).
-2. `$XDG_CONFIG_HOME/recon/gh-accounts.toml`.
-3. `$HOME/.config/recon/gh-accounts.toml`.
-
-Config format:
-
-```toml
-[accounts]
-"you@example.com" = "your-gh-handle"
-"work@company.com" = "work-gh-handle"
-```
-
-If no config file is found, or the current `git config user.email`
-isn't listed, no switch happens — the call uses whichever account
-`gh` has active. The switch is cached per `Gh` value (atomic check
-on every call, no redundant switches). `auth_status()` is the lone
-method that does NOT trigger auto-switch — useful when querying
-which account is active.
+The switch is cached per `Gh` value (atomic check on every call, no
+redundant switches). `auth_status()` is the lone method that does NOT
+trigger auto-switch — useful when querying which account is active.
 
 ### Methods
 
@@ -3925,7 +4015,7 @@ Three-layer precedence per `.send()`:
 
 1. Per-request `.backend(name)` / `.model(name)` / `.timeout(secs)`.
 2. Env vars: `RECON_AI_BACKEND`, `RECON_AI_MODEL`, `RECON_AI_TIMEOUT`.
-3. `~/.recon/config.toml` `[ai]` section.
+3. `~/.recon/config.toml` (layered — see [Configuration files](#configuration-files)) `[ai]` section.
 
 No PATH fallback. If nothing selects a backend the request errors.
 
@@ -4027,7 +4117,7 @@ Script-mode exit codes:
 
 ## Configuration file
 
-`~/.recon/config.toml` — commented skeleton created by `recon --init`.
+`~/.recon/config.toml` (layered — see [Configuration files](#configuration-files)) — commented skeleton created by `recon --init`.
 
 ### Structure
 
