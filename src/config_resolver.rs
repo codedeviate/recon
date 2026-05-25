@@ -7,7 +7,6 @@
 //! see `~/Development/Starweb/superpowers/recon/specs/2026-05-25-layered-config-design.md`
 //! for design rationale.
 
-#[allow(unused_imports)]
 use anyhow::{anyhow, Context, Result};
 use std::path::PathBuf;
 
@@ -111,6 +110,52 @@ fn resolve_override(p: &std::path::Path, default_name: &str) -> PathBuf {
     } else {
         p.to_path_buf()
     }
+}
+
+/// Load both layers for `name`, deep-merge them (user wins), and return
+/// the effective `toml::Value`. Missing files at default paths are
+/// silent (returns empty table); missing files at env-var override
+/// paths are a hard error.
+pub fn load_layered(name: &str, opts: &LayerOpts) -> Result<toml::Value> {
+    // If an override is set and points at a nonexistent path, error
+    // before consulting resolve_paths (which silently filters non-existent).
+    if let Some(p) = opts.system_override.as_ref().filter(|_| !opts.skip_system) {
+        let resolved = resolve_override(p, "config.toml");
+        if !resolved.exists() {
+            return Err(anyhow!(
+                "$RECON_SYSTEM_CONFIG points at {} but the file/dir does not exist",
+                p.display(),
+            ));
+        }
+    }
+    if let Some(p) = opts.user_override.as_ref().filter(|_| !opts.skip_user) {
+        let resolved = resolve_override(p, "config.toml");
+        if !resolved.exists() {
+            return Err(anyhow!(
+                "$RECON_CONFIG points at {} but the file/dir does not exist",
+                p.display(),
+            ));
+        }
+    }
+
+    let r = resolve_paths(name, opts);
+    let mut effective = toml::Value::Table(Default::default());
+    if let Some(p) = r.system {
+        let v = read_and_parse(&p)?;
+        deep_merge(&mut effective, v);
+    }
+    if let Some(p) = r.user {
+        let v = read_and_parse(&p)?;
+        deep_merge(&mut effective, v);
+    }
+    Ok(effective)
+}
+
+fn read_and_parse(path: &std::path::Path) -> Result<toml::Value> {
+    let text = std::fs::read_to_string(path)
+        .with_context(|| format!("config_resolver: cannot read {}", path.display()))?;
+    text.parse::<toml::Value>()
+        .map_err(|e| anyhow!("config_resolver: invalid TOML in {}: {e}", path.display()))
 }
 
 /// Deep-merge `overlay` onto `base`. Tables merge recursively; arrays
@@ -392,5 +437,121 @@ mod resolve_paths_tests {
         };
         let r = resolve_paths_with("config.toml", &opts, &[], None);
         assert_eq!(r.system, None);
+    }
+}
+
+#[cfg(test)]
+mod load_layered_tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    fn write(path: &std::path::Path, body: &str) {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+        std::fs::write(path, body).unwrap();
+    }
+
+    fn opts_for(sys: Option<&std::path::Path>, usr: Option<&std::path::Path>) -> LayerOpts {
+        LayerOpts {
+            system_override: sys.map(|p| p.to_path_buf()),
+            user_override:   usr.map(|p| p.to_path_buf()),
+            ..LayerOpts::default()
+        }
+    }
+
+    #[test]
+    fn both_layers_missing_yields_empty_table() {
+        let opts = LayerOpts {
+            skip_system: true,
+            skip_user:   true,
+            ..LayerOpts::default()
+        };
+        let v = load_layered("config.toml", &opts).unwrap();
+        assert_eq!(v, toml::Value::Table(Default::default()));
+    }
+
+    #[test]
+    fn system_only_loads_cleanly() {
+        let dir = TempDir::new().unwrap();
+        let sys = dir.path().join("sys.toml");
+        write(&sys, r#"[a]
+x = 1
+"#);
+        let opts = opts_for(Some(&sys), None);
+        let opts = LayerOpts { skip_user: true, ..opts };
+        let v = load_layered("config.toml", &opts).unwrap();
+        assert_eq!(v.get("a").and_then(|t| t.get("x")).and_then(|x| x.as_integer()), Some(1));
+    }
+
+    #[test]
+    fn user_only_loads_cleanly() {
+        let dir = TempDir::new().unwrap();
+        let usr = dir.path().join("usr.toml");
+        write(&usr, r#"[a]
+y = 2
+"#);
+        let opts = opts_for(None, Some(&usr));
+        let opts = LayerOpts { skip_system: true, ..opts };
+        let v = load_layered("config.toml", &opts).unwrap();
+        assert_eq!(v.get("a").and_then(|t| t.get("y")).and_then(|y| y.as_integer()), Some(2));
+    }
+
+    #[test]
+    fn both_layers_merge_with_user_winning() {
+        let dir = TempDir::new().unwrap();
+        let sys = dir.path().join("sys.toml");
+        let usr = dir.path().join("usr.toml");
+        write(&sys, r#"[editor]
+default = "vim"
+[ai.backends.work]
+cmd = "/opt/claude"
+"#);
+        write(&usr, r#"[editor]
+default = "zed"
+[ai.backends.scratch]
+cmd = "claude"
+"#);
+        let opts = opts_for(Some(&sys), Some(&usr));
+        let v = load_layered("config.toml", &opts).unwrap();
+        assert_eq!(
+            v.get("editor").and_then(|t| t.get("default")).and_then(|d| d.as_str()),
+            Some("zed"),
+        );
+        assert_eq!(
+            v.get("ai").and_then(|t| t.get("backends"))
+                .and_then(|t| t.get("work")).and_then(|t| t.get("cmd"))
+                .and_then(|c| c.as_str()),
+            Some("/opt/claude"),
+        );
+        assert_eq!(
+            v.get("ai").and_then(|t| t.get("backends"))
+                .and_then(|t| t.get("scratch")).and_then(|t| t.get("cmd"))
+                .and_then(|c| c.as_str()),
+            Some("claude"),
+        );
+    }
+
+    #[test]
+    fn malformed_toml_errors_with_path() {
+        let dir = TempDir::new().unwrap();
+        let usr = dir.path().join("usr.toml");
+        write(&usr, "this is = not valid = toml\n");
+        let opts = opts_for(None, Some(&usr));
+        let opts = LayerOpts { skip_system: true, ..opts };
+        let err = load_layered("config.toml", &opts).unwrap_err().to_string();
+        assert!(err.contains("invalid TOML"), "got: {err}");
+        assert!(err.contains(usr.display().to_string().as_str()), "got: {err}");
+    }
+
+    #[test]
+    fn env_override_missing_file_errors_loudly() {
+        let opts = LayerOpts {
+            system_override: Some(PathBuf::from("/nonexistent/path/here.toml")),
+            ..LayerOpts::default()
+        };
+        let opts = LayerOpts { skip_user: true, ..opts };
+        let err = load_layered("config.toml", &opts).unwrap_err().to_string();
+        assert!(err.contains("does not exist") || err.contains("cannot read"), "got: {err}");
     }
 }
