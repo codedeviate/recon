@@ -2236,6 +2236,37 @@ recon --script /tmp/decode.rhai"#,
     ]);
     note("Strings are not auto-parsed — chain `json_parse(s).jq(filter)` to start from JSON text. Filter parse and runtime errors throw and are catchable with try/catch.");
 
+    section("CONFIGURATION FILES");
+
+    example("Show which config files the layered resolver picked", &[
+        "recon --show-config-paths",
+    ]);
+
+    example("Override the user-config path", &[
+        "RECON_CONFIG=/path/to/my-config.toml recon --netstatus",
+    ]);
+
+    example("Skip the system layer for this invocation", &[
+        "recon --no-system-config --netstatus",
+    ]);
+
+    example("Worked-example minimal layered setup", &[
+        "# /etc/recon/config.toml  (admin-shipped)",
+        "# [editor]",
+        "# default = \"vim\"",
+        "# [gh.accounts]",
+        "# \"shared@example.com\" = \"shared-gh\"",
+        "",
+        "# ~/.recon/config.toml    (user override)",
+        "# [editor]",
+        "# default = \"zed\"",
+        "# [gh.accounts]",
+        "# \"me@home\" = \"my-personal-gh\"",
+    ]);
+
+    note("System layer search order on macOS: $HOMEBREW_PREFIX/etc/recon, /opt/homebrew/etc/recon, /usr/local/etc/recon, /etc/recon (first existing match wins, no merging across system candidates). Linux: /etc/recon only.");
+    note("--disable / -q skips both layers. --no-system-config / --no-user-config skip just one. Skip flags always win over $RECON_SYSTEM_CONFIG / $RECON_CONFIG env vars.");
+
     section("GIT WRAPPER (0.89.0)");
 
     example("Run the shipped demo (creates a temp repo)", &[
@@ -2266,6 +2297,15 @@ recon --script /tmp/decode.rhai"#,
     example("Create a release with auto-generated notes", &[
         r#"recon --script - <<< 'let r = gh().release_create("v0.89.0", #{ generate_notes: true }); print(r.url);'"#,
     ]);
+
+    example("Configure gh auto-account-switch via ~/.recon/config.toml", &[
+        "cat > ~/.recon/config.toml <<'EOF'",
+        "[gh.accounts]",
+        "\"you@example.com\" = \"your-gh-handle\"",
+        "EOF",
+        "recon --script - <<< 'gh().pr_list();'   # auto-switches based on git config user.email",
+    ]);
+
     note("`auth_status()` is the lone method that does NOT trigger auto-switch — useful when querying which account is currently active. All other methods throw on non-zero exit; `pr_view(<id>)` exiting 1 for \"not found\" is the canonical case scripts catch with try/catch.");
 
     section("EDITOR OUTPUT");
