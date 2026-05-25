@@ -1494,8 +1494,9 @@ pub struct Args {
     #[arg(short = 'K', long = "config", value_name = "FILE", help_heading = "Meta")]
     pub config: Option<PathBuf>,
 
-    /// Don't read `~/.recon/config.toml` or `$RECON_CONFIG` on startup.
-    /// Equivalent to curl's `-q` behaviour.
+    /// Skip both config layers (system + user) on startup.
+    /// Equivalent to curl's `-q` behaviour; use --no-system-config /
+    /// --no-user-config for finer control.
     #[arg(short = 'q', long = "disable", help_heading = "Meta")]
     pub disable_default_config: bool,
 

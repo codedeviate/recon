@@ -141,18 +141,17 @@ fn resolve_paths_with(
     system_candidates: &[PathBuf],
     user_candidate: Option<PathBuf>,
 ) -> Resolved {
-    let _ = name; // accepted for symmetry with the public API
     let system = if opts.skip_system {
         None
     } else if let Some(p) = &opts.system_override {
-        Some(resolve_override(p, "config.toml"))
+        Some(resolve_override(p, name))
     } else {
         system_candidates.iter().find(|p| p.is_file()).cloned()
     };
     let user = if opts.skip_user {
         None
     } else if let Some(p) = &opts.user_override {
-        Some(resolve_override(p, "config.toml"))
+        Some(resolve_override(p, name))
     } else {
         user_candidate.filter(|p| p.is_file())
     };

@@ -1011,8 +1011,12 @@ fn main() {
             }
         }
 
-        show("system", &resolved.system, opts.skip_system,
-             "no candidate in [/opt/homebrew/etc/recon, /usr/local/etc/recon, /etc/recon] exists");
+        #[cfg(target_os = "macos")]
+        let system_why = "no candidate in [$HOMEBREW_PREFIX/etc/recon, /opt/homebrew/etc/recon, /usr/local/etc/recon, /etc/recon] exists";
+        #[cfg(not(target_os = "macos"))]
+        let system_why = "/etc/recon/config.toml does not exist";
+
+        show("system", &resolved.system, opts.skip_system, system_why);
         show("user",   &resolved.user,   opts.skip_user,
              "$HOME unset or ~/.recon/config.toml does not exist");
 
