@@ -25,6 +25,40 @@ pub struct Resolved {
     pub user:   Option<PathBuf>,
 }
 
+/// Return the candidate paths for the system layer in priority order
+/// (first match wins). Uses real env vars; for tests, see
+/// `system_candidates_with_env`.
+pub fn system_candidates() -> Vec<PathBuf> {
+    system_candidates_for("config.toml")
+}
+
+fn system_candidates_for(name: &str) -> Vec<PathBuf> {
+    let brew_prefix = std::env::var("HOMEBREW_PREFIX").ok();
+    system_candidates_with_env(name, brew_prefix.as_deref())
+}
+
+fn system_candidates_with_env(name: &str, brew_prefix: Option<&str>) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(p) = brew_prefix {
+            out.push(PathBuf::from(p).join("etc/recon").join(name));
+        }
+        out.push(PathBuf::from("/opt/homebrew/etc/recon").join(name));
+        out.push(PathBuf::from("/usr/local/etc/recon").join(name));
+        out.push(PathBuf::from("/etc/recon").join(name));
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = brew_prefix; // silence unused on non-mac
+        out.push(PathBuf::from("/etc/recon").join(name));
+    }
+
+    out
+}
+
 /// Deep-merge `overlay` onto `base`. Tables merge recursively; arrays
 /// and leaves are replaced by overlay. Type clashes (table vs. leaf)
 /// resolve with overlay winning silently — schema enforcement happens
@@ -139,5 +173,41 @@ mod merge_tests {
                 new = "table"
             "#)
         );
+    }
+}
+
+#[cfg(test)]
+mod system_candidates_tests {
+    use super::*;
+
+    #[test]
+    fn includes_etc_recon_on_every_platform() {
+        let paths = system_candidates_for("config.toml");
+        assert!(
+            paths.iter().any(|p| p == &PathBuf::from("/etc/recon/config.toml")),
+            "missing /etc/recon/config.toml in {paths:?}",
+        );
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn macos_includes_homebrew_paths() {
+        let paths = system_candidates_for("config.toml");
+        assert!(paths.iter().any(|p| p == &PathBuf::from("/opt/homebrew/etc/recon/config.toml")));
+        assert!(paths.iter().any(|p| p == &PathBuf::from("/usr/local/etc/recon/config.toml")));
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn macos_homebrew_prefix_env_var_wins_when_set() {
+        let paths = system_candidates_with_env("config.toml", Some("/tmp/brewy"));
+        assert_eq!(paths.first(), Some(&PathBuf::from("/tmp/brewy/etc/recon/config.toml")));
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn linux_only_etc_recon() {
+        let paths = system_candidates_for("config.toml");
+        assert_eq!(paths, vec![PathBuf::from("/etc/recon/config.toml")]);
     }
 }
