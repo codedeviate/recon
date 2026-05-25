@@ -8,7 +8,7 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
-## [0.90.0] - <implementation-date>
+## [0.90.0] - 2026-05-25
 
 ### Added
 
