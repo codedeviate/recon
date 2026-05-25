@@ -8,16 +8,14 @@
 //!
 //! Auto-account-switch: before every `gh` call, the wrapper checks
 //! `git config user.email` against an email-to-gh-handle mapping loaded
-//! from a config file (`$RECON_GH_ACCOUNTS_FILE`, or
-//! `$XDG_CONFIG_HOME/recon/gh-accounts.toml`, falling back to
-//! `~/.config/recon/gh-accounts.toml`). If the file is missing or
-//! has no entry for the current email, no switch happens and the
-//! call uses whichever `gh` account is currently active.
+//! from the `[gh.accounts]` table in the layered `config.toml`. If the
+//! config file is missing or has no entry for the current email, no switch
+//! happens and the call uses whichever `gh` account is currently active.
 //!
-//! Config format:
+//! Config format (in `config.toml`):
 //!
 //! ```toml
-//! [accounts]
+//! [gh.accounts]
 //! "you@example.com" = "your-gh-handle"
 //! ```
 //!
@@ -26,8 +24,6 @@
 //! which exits 1 for "not found".
 
 use rhai::{Array, Dynamic, Engine, EvalAltResult, Map};
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::{Arc, Mutex};
 
@@ -121,40 +117,18 @@ fn read_git_email() -> Option<String> {
     if s.is_empty() { None } else { Some(s) }
 }
 
-/// Load the email → gh-handle mapping from the user's config file
-/// and look up `email`. Returns `None` when no config file exists,
-/// the file can't be parsed, or the email isn't listed.
+/// Look up the gh handle for `email` in `[gh.accounts]` of the layered
+/// `config.toml`. Returns `None` when no config file exists, no match
+/// is found, or the lookup fails. Never panics, never throws — the gh
+/// binding falls back to the active gh account.
 pub(crate) fn account_handle_for_email(email: &str) -> Option<String> {
-    let path = account_config_path()?;
-    load_account_map(&path).remove(email)
-}
-
-/// Resolve the path of the gh-accounts config file. Honours the
-/// `RECON_GH_ACCOUNTS_FILE` override; otherwise prefers
-/// `$XDG_CONFIG_HOME/recon/gh-accounts.toml`, falling back to
-/// `$HOME/.config/recon/gh-accounts.toml`.
-fn account_config_path() -> Option<PathBuf> {
-    if let Some(p) = std::env::var_os("RECON_GH_ACCOUNTS_FILE") {
-        return Some(PathBuf::from(p));
-    }
-    let base = std::env::var_os("XDG_CONFIG_HOME")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))?;
-    Some(base.join("recon").join("gh-accounts.toml"))
-}
-
-fn load_account_map(path: &Path) -> HashMap<String, String> {
-    #[derive(serde::Deserialize, Default)]
-    struct Cfg {
-        #[serde(default)]
-        accounts: HashMap<String, String>,
-    }
-    let Ok(text) = std::fs::read_to_string(path) else {
-        return HashMap::new();
-    };
-    toml::from_str::<Cfg>(&text)
-        .map(|c| c.accounts)
-        .unwrap_or_default()
+    let opts = crate::config_resolver::global();
+    let value = crate::config_resolver::load_layered("config.toml", &opts).ok()?;
+    value.get("gh")?
+        .get("accounts")?
+        .get(email)?
+        .as_str()
+        .map(str::to_string)
 }
 
 fn ok_or_throw(args: &[&str], output: Output) -> Result<String, Box<EvalAltResult>> {
@@ -983,35 +957,34 @@ mod tests {
     }
 
     #[test]
-    fn load_account_map_reads_toml_file() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("gh-accounts.toml");
+    fn account_handle_for_email_reads_layered_gh_accounts() {
+        use tempfile::TempDir;
+        let dir = TempDir::new().unwrap();
+        let cfg = dir.path().join("config.toml");
         std::fs::write(
-            &path,
-            "[accounts]\n\
-             \"alice@example.com\" = \"alice-gh\"\n\
-             \"bob@example.org\" = \"bob-gh\"\n",
+            &cfg,
+            r#"[gh.accounts]
+"alice@example.com" = "alice-gh"
+"#,
         )
         .unwrap();
-        let m = load_account_map(&path);
-        assert_eq!(m.get("alice@example.com").map(String::as_str), Some("alice-gh"));
-        assert_eq!(m.get("bob@example.org").map(String::as_str), Some("bob-gh"));
-        assert_eq!(m.get("missing@example.com"), None);
-    }
 
-    #[test]
-    fn load_account_map_missing_file_is_empty() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("does-not-exist.toml");
-        assert!(load_account_map(&path).is_empty());
-    }
-
-    #[test]
-    fn load_account_map_malformed_file_is_empty() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("bad.toml");
-        std::fs::write(&path, "this = is = not valid toml\n").unwrap();
-        assert!(load_account_map(&path).is_empty());
+        // We can't reliably set the OnceLock-backed global in a test
+        // (other tests may have already set it). Instead exercise the
+        // data path: call load_layered with an explicit LayerOpts and
+        // confirm [gh.accounts] is reachable.
+        let opts = crate::config_resolver::LayerOpts {
+            skip_system:   true,
+            user_override: Some(cfg),
+            ..crate::config_resolver::LayerOpts::default()
+        };
+        let v = crate::config_resolver::load_layered("config.toml", &opts).unwrap();
+        let handle = v.get("gh")
+            .and_then(|t| t.get("accounts"))
+            .and_then(|t| t.get("alice@example.com"))
+            .and_then(|s| s.as_str())
+            .map(str::to_string);
+        assert_eq!(handle, Some("alice-gh".to_string()));
     }
 
     #[test]

@@ -2240,9 +2240,9 @@ static TOPIC_GH: Topic = Topic {
                   wrapper reads `git config user.email` and runs\n\
                   `gh auth switch --user <handle>` when the active\n\
                   account doesn't match. The email-to-handle mapping\n\
-                  is loaded from `$XDG_CONFIG_HOME/recon/gh-accounts.toml`\n\
-                  (or set `$RECON_GH_ACCOUNTS_FILE` to override).\n\
-                  Without the file, no switch happens. `auth_status()`\n\
+                  is read from the `[gh.accounts]` table in the layered\n\
+                  `config.toml`. Without a matching entry, no switch\n\
+                  happens. `auth_status()`\n\
                   is the lone exception — it queries whichever account\n\
                   is currently active without triggering a switch.\n\
                   \n\
