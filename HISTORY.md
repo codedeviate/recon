@@ -2081,6 +2081,54 @@ extra entry per `:set` is negligible for REPL session length.
 
 ---
 
+### 83. Layered TOML config resolver (0.90.0)
+
+**Why a dedicated resolver module.** Before 0.90.0, every config-touching
+code path hardcoded `~/.recon/config.toml` (or, in the 0.89.0 gh binding,
+an inconsistent `$XDG_CONFIG_HOME/recon/gh-accounts.toml`). With the
+codebase trending toward multiple config-shaped features (netstatus,
+editor, sampledata, ai backends, gh accounts), there was no single place
+to introduce admin-shippable system defaults. `src/config_resolver.rs`
+owns path resolution, deep-merge, and the layered-load entry point as a
+leaf module; everything else just calls `load_layered("config.toml", &opts)`.
+
+**Deep-merge over `toml::Value`, not a typed struct.** The resolver
+returns a raw `toml::Value`; each caller deserializes the slice it cares
+about (`[gh.accounts]` for the gh binding, the whole `ReconConfig` for
+netstatus). This decouples the resolver from any one schema; future
+features can read their own table out of the same merged value without
+touching the resolver.
+
+**Arrays replace, not concatenate.** Following the convention used by
+systemd drop-ins and sshd_config — if a user redeclares `probes = […]`,
+they meant to replace, not append. Concatenation is almost never what
+admins intend when shipping a default list.
+
+**Platform-aware system path.** On Linux, only `/etc/recon/`. On macOS,
+the search order is `$HOMEBREW_PREFIX/etc/recon`, `/opt/homebrew/etc/recon`
+(Apple Silicon brew default), `/usr/local/etc/recon` (Intel brew default),
+then `/etc/recon`. First existing match wins; layers don't combine across
+system candidates.
+
+**Skip flags beat env vars.** `--no-system-config` with
+`$RECON_SYSTEM_CONFIG` set produces `skip_system = true`; the env var is
+silently ignored. The flag is the user's *current* "no" intent; the env
+var is ambient shell state.
+
+**OnceLock-backed global.** `config::load()` keeps its no-arg signature
+(4 call sites across the codebase would otherwise need refactoring); the
+process-level `LayerOpts` lives in a `OnceLock` initialized from main.rs
+before the first `config::load()` call. Callers that don't have access
+to `&Args` (Rhai bindings, editor helpers) read from the global.
+
+**gh-accounts.toml ripped out cleanly.** 0.89.0 was one day old; the
+breakage affects at most a handful of users. CHANGELOG `### Changed`
+calls it out as a breaking change to that specific binding; the
+migration is "move your entries into `[gh.accounts]` of
+`~/.recon/config.toml`".
+
+---
+
 ## Naming History
 
 The project started as **curlclone** — an accurate but uninspiring name given how much the tool grew beyond simple HTTP requests.

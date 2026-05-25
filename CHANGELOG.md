@@ -8,6 +8,50 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.90.0] - <implementation-date>
+
+### Added
+
+- Layered TOML config resolver — `recon` now reads two layers:
+  a system layer (`/etc/recon/config.toml`, or
+  `$HOMEBREW_PREFIX/etc/recon/config.toml` /
+  `/opt/homebrew/etc/recon/config.toml` / `/usr/local/etc/recon/config.toml`
+  on macOS) and the existing user layer (`~/.recon/config.toml`). The
+  two are deep-merged with user winning per key; arrays replace, leaves
+  replace, tables merge recursively. Missing files are silent.
+- Three new CLI flags: `--no-system-config`, `--no-user-config`, and
+  `--show-config-paths`. The first two disable one layer each;
+  `--disable` / `-q` (existing flag) now disables both. `--show-config-paths`
+  is a read-only mode that prints which file each layer resolved to plus
+  the env vars that influenced the decision.
+- Two new env vars: `$RECON_SYSTEM_CONFIG` (system-layer override) and
+  `$RECON_CONFIG` (user-layer override). Each accepts a file path or
+  a directory containing `config.toml`. CLI skip flags always beat env
+  vars.
+- New help topic `recon --help configuration` (aliases: `config`,
+  `config-files`), a new `--examples` section "CONFIGURATION FILES",
+  and a new "Configuration files" section in `docs/MANUAL.md` Part II.
+
+### Changed
+
+- The gh script binding's email → gh-handle mapping has moved from
+  the standalone `$XDG_CONFIG_HOME/recon/gh-accounts.toml` (shipped in
+  0.89.0) to the `[gh.accounts]` table of the layered `config.toml`.
+  This is a breaking change to a one-day-old binding; users with a
+  populated 0.89.0 file should copy the entries into
+  `~/.recon/config.toml` under `[gh.accounts]`.
+- The `--disable` / `-q` flag (previously: "Don't read
+  `~/.recon/config.toml` on startup") now means "skip both config
+  layers". Same flag name, broader effect — the broader effect was
+  forced by the new system layer.
+
+### Removed
+
+- The 0.89.0 `gh-accounts.toml` separate-file loader (the
+  `account_config_path` and `load_account_map` functions in
+  `src/script/bindings/gh.rs`) is gone. The `account_handle_for_email`
+  function name remains; it now reads from the layered `config.toml`.
+
 ## [0.89.0] - 2026-05-25
 
 ### Added
