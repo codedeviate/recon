@@ -6,7 +6,41 @@ All notable changes to recon are recorded here. Format based on
 
 For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.md).
 
+## Curl short-flag audit — 0.91.0 → 0.92.1 (2026-05-28)
+
+A three-release arc audited every recon short flag against curl's and
+closed every behavioural mismatch. The audit was prompted by `recon
+-sS <url>` returning a 4-byte `200\n` status line where `curl -sS
+<url>` returned the response body — `-S` had been bound to recon's
+`--status` instead of curl's `--show-error`. A wider sweep turned
+up the same pattern at `-p`.
+
+| Release | Short | Was (recon) | Now (curl-aligned) |
+|---|---|---|---|
+| 0.91.0 | `-S` | `--status` | `--show-error` |
+| 0.92.0 | `-p` | `--prettify` | `--proxytunnel` |
+| 0.92.1 | `-E` | (unchanged) | (long alias `--client-cert` documented as intentional — `--cert` is reserved for recon's server cert inspection mode) |
+
+After this arc, every short flag recon defines means the same thing
+as the equivalent curl flag. The long-form alias for `-E` is the
+only remaining asymmetry, and it is intentional — see 0.92.1's
+"Changed" section. Long-form `--status` and `--prettify` continue to
+work unchanged; only the short aliases moved.
+
+**Breaking** for anyone scripting against `recon -S` (status-only)
+or `recon -p` (prettify) — both now do something else. Switch to
+`--status` / `--prettify`. See per-release notes below for the
+companion doc/example/test changes.
+
 ## [Unreleased]
+
+## [0.92.2] - 2026-05-28
+
+### Changed
+
+- Added a summary block to the top of this changelog tying together
+  the three-release curl short-flag audit (0.91.0 → 0.92.0 → 0.92.1)
+  so the arc reads as a single story. No code or behaviour changes.
 
 ## [0.92.1] - 2026-05-28
 
