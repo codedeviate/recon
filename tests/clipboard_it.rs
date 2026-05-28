@@ -92,7 +92,7 @@ fn clipboard_bare_with_input_resolves_to_out() {
     // --stdin provides input → --clipboard alone should resolve to "out".
     // Validation passes either way; clipboard write may fail in headless env (exit 1, NOT 2).
     let (code, _stdout, stderr) = run_with_stdin(
-        &["--stdin", "--clipboard", "-p"],
+        &["--stdin", "--clipboard", "--prettify"],
         r#"{"a":1}"#,
     );
     assert_ne!(code, 2, "validation should pass; got exit 2 with stderr: {stderr}");
@@ -101,7 +101,7 @@ fn clipboard_bare_with_input_resolves_to_out() {
 #[test]
 fn stdin_and_from_clipboard_are_mutually_exclusive() {
     let (code, _stdout, stderr) = run_with_stdin(
-        &["--stdin", "--from-clipboard", "-p"],
+        &["--stdin", "--from-clipboard", "--prettify"],
         "{}",
     );
     assert_eq!(code, 2);
@@ -123,7 +123,7 @@ fn from_clipboard_with_url_is_mutually_exclusive() {
 #[test]
 fn to_clipboard_and_output_are_mutually_exclusive() {
     let (code, _stdout, stderr) = run_with_stdin(
-        &["--stdin", "--to-clipboard", "-o", "/tmp/recon-x.json", "-p"],
+        &["--stdin", "--to-clipboard", "-o", "/tmp/recon-x.json", "--prettify"],
         "{}",
     );
     assert_eq!(code, 2);
@@ -134,7 +134,7 @@ fn to_clipboard_and_output_are_mutually_exclusive() {
 #[test]
 fn unknown_clipboard_dir_errors() {
     let (code, _stdout, stderr) = run_with_stdin(
-        &["--clipboard", "bogus", "-p"],
+        &["--clipboard", "bogus", "--prettify"],
         "{}",
     );
     assert_eq!(code, 2);

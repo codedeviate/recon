@@ -61,7 +61,7 @@ static TOPIC_HTTP: Topic = Topic {
         FlagHelp { flags: "--compressed", description: "Request gzip / deflate / brotli / zstd encoding and auto-decompress the response body." },
         FlagHelp { flags: "--max-time <SECS>", description: "Total operation timeout (DNS + TLS + request + body) in seconds.\nAccepts fractional values (e.g. 0.5). Exit code 28 on timeout." },
     ],
-    related: &["--cert", "--cookiejar", "-p / --prettify"],
+    related: &["--cert", "--cookiejar", "--prettify"],
     examples: &[
         ExampleHelp { description: "Simple GET request", command: "recon https://httpbin.org/get" },
         ExampleHelp { description: "POST a JSON body", command: "recon https://httpbin.org/post -d '{\"name\": \"alice\"}' -H \"Content-Type: application/json\"" },
@@ -86,8 +86,8 @@ static TOPIC_OUTPUT: Topic = Topic {
         FlagHelp { flags: "--full", description: "Print the status line, all response headers, and the body." },
         FlagHelp { flags: "--status", description: "Print only the HTTP status code (e.g. 200, 404)." },
         FlagHelp { flags: "-S, --show-error", description: "Show error messages even when -s/--silent is set.\nMatches curl's convention of surfacing errors but not diagnostics." },
-        FlagHelp { flags: "-p, --prettify", description: "Prettify the response body. Auto-detects JSON, XML, HTML, YAML, CSV, and TSV.\nCombines with -i and --full." },
-        FlagHelp { flags: "--prettify-as <FORMAT>", description: "Force prettify format (json|xml|html|yaml|csv|tsv|auto).\nImplies -p. Use when auto-detection guesses wrong\nor when the input lacks a Content-Type header." },
+        FlagHelp { flags: "--prettify", description: "Prettify the response body. Auto-detects JSON, XML, HTML, YAML, CSV, and TSV.\nCombines with -i and --full." },
+        FlagHelp { flags: "--prettify-as <FORMAT>", description: "Force prettify format (json|xml|html|yaml|csv|tsv|auto).\nImplies --prettify. Use when auto-detection guesses wrong\nor when the input lacks a Content-Type header." },
         FlagHelp { flags: "--stdin", description: "Read body from stdin instead of making an HTTP request.\nRuns the post-fetch pipeline (prettify, --output-charset, -o) over\nthe piped input. Mutually exclusive with a URL.\nExample: pbpaste | recon --stdin --prettify-as json" },
         FlagHelp { flags: "--from-clipboard", description: "Read body from system clipboard (no HTTP request).\nMutex with --stdin and a URL. macOS uses pasteboard;\nLinux uses X11 (with optional Wayland data-control)." },
         FlagHelp { flags: "--to-clipboard", description: "Write output to system clipboard. Mutex with -o and --editor.\nText only — non-UTF-8 output errors out." },
@@ -110,12 +110,12 @@ static TOPIC_OUTPUT: Topic = Topic {
     examples: &[
         ExampleHelp { description: "Print just the status code", command: "recon https://httpbin.org/get -S" },
         ExampleHelp { description: "Include response headers", command: "recon https://httpbin.org/get -i" },
-        ExampleHelp { description: "Prettify JSON output", command: "recon https://httpbin.org/get -p" },
+        ExampleHelp { description: "Prettify JSON output", command: "recon https://httpbin.org/get --prettify" },
         ExampleHelp { description: "Prettify a JSON payload from clipboard", command: "pbpaste | recon --stdin --prettify-as json" },
         ExampleHelp { description: "Prettify clipboard contents", command: "recon --clipboard --prettify-as json" },
         ExampleHelp { description: "Prettify clipboard in place", command: "recon --clipboard both --prettify-as json" },
         ExampleHelp { description: "Fetch URL, copy result to clipboard", command: "recon https://api.example.com/data --to-clipboard" },
-        ExampleHelp { description: "Auto-detect piped stdin (no --stdin needed)", command: "cat raw.json | recon -p" },
+        ExampleHelp { description: "Auto-detect piped stdin (no --stdin needed)", command: "cat raw.json | recon --prettify" },
         ExampleHelp { description: "Save to file with a progress meter", command: "recon https://example.com/large.zip -o large.zip --progress" },
         ExampleHelp { description: "Verbose mode with full headers", command: "recon https://httpbin.org/get -vv" },
     ],
@@ -735,10 +735,10 @@ static TOPIC_SAMPLE: Topic = Topic {
                           any non-lorem sample is an error.",
         },
     ],
-    related: &["--editor", "-o / --output", "-p / --prettify", "-i / --include", "configuration"],
+    related: &["--editor", "-o / --output", "--prettify", "-i / --include", "configuration"],
     examples: &[
         ExampleHelp { description: "10 customers to stdout", command: "recon --sample customer" },
-        ExampleHelp { description: "25 products, prettified", command: "recon --sample product --sample-count 25 -p" },
+        ExampleHelp { description: "25 products, prettified", command: "recon --sample product --sample-count 25 --prettify" },
         ExampleHelp { description: "Colon shortcut: 25 customers as JSON", command: "recon --sample customer:json:25" },
         ExampleHelp { description: "Open products in Zed", command: "recon --sample product --editor zed" },
         ExampleHelp { description: "3 random images saved to files", command: "recon --sample image --sample-count 3 --sample-file img-{{n}}.jpg" },
@@ -1012,7 +1012,7 @@ static TOPIC_EDITOR: Topic = Topic {
                           By default stdout is silent when --editor is active.",
         },
     ],
-    related: &["-o / --output", "-p / --prettify", "-i / --include", "--full", "configuration"],
+    related: &["-o / --output", "--prettify", "-i / --include", "--full", "configuration"],
     examples: &[
         ExampleHelp {
             description: "Open a JSON response in Zed",
@@ -1020,7 +1020,7 @@ static TOPIC_EDITOR: Topic = Topic {
         },
         ExampleHelp {
             description: "Open prettified HTML in VS Code",
-            command: "recon --editor code -p https://example.com",
+            command: "recon --editor code --prettify https://example.com",
         },
         ExampleHelp {
             description: "Use a raw command (passes through sh -c)",
@@ -1831,7 +1831,7 @@ static TOPIC_UNIX_SOCKET: Topic = Topic {
     related: &["-X", "-H", "-d", "--json", "-T", "-o", "protocols"],
     examples: &[
         ExampleHelp { description: "Docker API: ping + version", command: "recon --unix-socket /var/run/docker.sock http://localhost/_ping" },
-        ExampleHelp { description: "Docker API: list containers", command: "recon --unix-socket /var/run/docker.sock -p http://localhost/v1.40/containers/json" },
+        ExampleHelp { description: "Docker API: list containers", command: "recon --unix-socket /var/run/docker.sock --prettify http://localhost/v1.40/containers/json" },
         ExampleHelp { description: "Query by path only (Host defaults to `localhost`)", command: "recon --unix-socket /var/run/docker.sock /v1.40/version" },
         ExampleHelp { description: "POST to a systemd-activated service", command: r#"recon --unix-socket /run/my-service.sock -X POST --json '{"ok":true}' http://svc/submit"# },
         ExampleHelp { description: "Script-side", command: r#"recon --script - <<< 'http("http://localhost/_ping", #{ unix_socket: "/var/run/docker.sock" });'"# },
@@ -2169,10 +2169,10 @@ static TOPIC_TEXT_ENCODING: Topic = Topic {
 
         FlagHelp { flags: "r.body_bytes / r.charset (in http() + browser() responses)", description: "Script bindings' response Map gains raw bytes and the resolved\ncharset alongside the existing lossy `r.body` String." },
     ],
-    related: &["--output-charset", "--source-charset", "--request-charset", "--iconv", "-p"],
+    related: &["--output-charset", "--source-charset", "--request-charset", "--iconv", "--prettify"],
     examples: &[
         ExampleHelp { description: "Convert a Latin-1 response to UTF-8", command: "recon --to-utf8 https://legacy.example.com/api" },
-        ExampleHelp { description: "Prettify a Shift_JIS page (forces UTF-8 before prettify)", command: "recon -p --output-charset utf-8 https://legacy.jp/index.html" },
+        ExampleHelp { description: "Prettify a Shift_JIS page (forces UTF-8 before prettify)", command: "recon --prettify --output-charset utf-8 https://legacy.jp/index.html" },
         ExampleHelp { description: "POST UTF-8 form data to a Perl service that expects ISO-8859-1", command: r#"recon -X POST -H 'Content-Type: application/x-www-form-urlencoded; charset=iso-8859-1' -d 'name=Jörg' https://perl.example.com/submit"# },
         ExampleHelp { description: "Standalone file conversion", command: "recon --iconv iso-8859-1:utf-8 input.txt -o output.txt" },
         ExampleHelp { description: "Auto-detect source + convert to UTF-8 via stdin", command: "cat legacy.txt | recon --iconv :utf-8 > utf8.txt" },

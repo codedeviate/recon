@@ -8,6 +8,29 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.92.0] - 2026-05-28
+
+### Changed
+
+- **Curl-compat fix for `-p`.** The `-p` short form is now bound to
+  `--proxytunnel` (matching curl), not to `--prettify` as it was
+  through 0.91.0. `--prettify` becomes long-form only — the comment
+  in `src/cli.rs` previously acknowledged the clash as an accepted
+  compromise, but it leaves `recon -p` doing something completely
+  different from `curl -p` in practice. With this release, the two
+  agree.
+
+  All bundled examples (`recon --help`, `recon --examples`, the
+  manual) have been updated to use `--prettify`. Existing user
+  scripts that pass `-p` for prettification will silently become
+  no-ops — please switch to `--prettify`.
+
+  **Breaking** for anyone using `recon -p` to request prettified
+  output. With both `-S` (0.91.0) and `-p` (this release) fixed,
+  every short flag recon now defines means the same thing it does in
+  curl, except `-E` (recon `--client-cert` vs curl `--cert` — same
+  semantic, alias differs).
+
 ## [0.91.0] - 2026-05-28
 
 ### Changed

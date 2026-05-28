@@ -2,7 +2,7 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.91.0</div>
+<div class="version">Version 0.92.0</div>
 <div class="date">2026-05-28</div>
 <div class="meta">
 Repository · https://github.com/codedeviate/recon<br>
@@ -197,8 +197,9 @@ stand-alone.
   `--fail-with-body` prints the body but still exits non-zero.
 - **`-k`, `--insecure`** disables TLS cert verification. Use for self-signed
   tests; never in production scripts.
-- **`-p`, `--prettify`** pretty-prints JSON / XML / YAML bodies.
+- **`--prettify`** pretty-prints JSON / XML / YAML bodies.
   Auto-detection by Content-Type; can be disabled with `--no-prettify`.
+  Long form only — `-p` is reserved for curl's `--proxytunnel`.
 - **`-L`, `--location`** follows HTTP redirects. `--max-redirs N` caps the
   chain (default 10). `--LHEAD` follows and prints each hop's headers.
 - **`-A "..."`** sets the User-Agent. Default is `recon/<version>`.
@@ -349,8 +350,8 @@ recon https://example.com/big.iso -o big.iso --continue
 | `-v, --verbose` | Verbose. Repeatable: `-v`, `-vv`, `-vvv`. |
 | `--progress` | Show a progress meter when saving to a file (opt-in). |
 | `-#, --progress-bar` | `#`-character progress bar style (curl `-#` parity). Also activates the progress meter. |
-| `-p, --prettify` | Pretty-print JSON / XML / YAML bodies. |
-| `--prettify-as <FORMAT>` | Force prettify format (json/xml/html/yaml/csv/tsv/auto). Implies `-p`. Use when auto-detect picks the wrong format or there is no Content-Type. |
+| `--prettify` | Pretty-print JSON / XML / YAML bodies. |
+| `--prettify-as <FORMAT>` | Force prettify format (json/xml/html/yaml/csv/tsv/auto). Implies `--prettify`. Use when auto-detect picks the wrong format or there is no Content-Type. |
 | `--stdin` | Read body from stdin instead of making an HTTP request. Runs the post-fetch pipeline (prettify, `--output-charset`, `-o`) over the piped input. Mutually exclusive with a URL. |
 | `--from-clipboard` | Read body from system clipboard (no HTTP request). Mutex with `--stdin` and URL. |
 | `--to-clipboard` | Write output to system clipboard. Mutex with `-o` and `--editor`. UTF-8 text only. |
@@ -358,7 +359,7 @@ recon https://example.com/big.iso -o big.iso --continue
 | `--no-prettify` | Disable auto-pretty (even when content-type suggests it). |
 | `-w, --write-out <FORMAT>` | Print a curl-compatible summary after the body. See [Write-out format](#write-out-format). |
 | `--editor [<CMD>]` | Open response body in `$EDITOR` after the request. URL-shaped next token (contains `://`) is treated as the positional URL — `recon --editor https://example.com` works without the `=` form. |
-| `--json` (output-side inferred) | Combined with `-p`, forces JSON pretty-printing regardless of content-type. |
+| `--json` (output-side inferred) | Combined with `--prettify`, forces JSON pretty-printing regardless of content-type. |
 
 ### Examples
 
@@ -382,17 +383,17 @@ recon -i https://api.example.com/v1/status                     # headers + body
 recon -i -I https://example.com/                               # forced HEAD with body suppressed
 
 # Pretty-print
-recon https://api.example.com/large.json -p
-recon https://api.example.com/feed.xml -p                      # XML also supported
-curl -s https://api.example.com/blob.yaml | recon -p           # stdin auto-detected
+recon https://api.example.com/large.json --prettify
+recon https://api.example.com/feed.xml --prettify                      # XML also supported
+curl -s https://api.example.com/blob.yaml | recon --prettify           # stdin auto-detected
 
 # --stdin: prettify a payload without making any HTTP request
-recon --stdin -p                                  # auto-detect format from body
+recon --stdin --prettify                                  # auto-detect format from body
 recon --stdin --prettify-as json                  # force JSON
-recon --stdin -p --prettify-as xml -o pretty.xml < raw.xml   # write to file
+recon --stdin --prettify --prettify-as xml -o pretty.xml < raw.xml   # write to file
 
 # Auto-detected stdin: --stdin is optional when piping
-echo '{"a":1}' | recon -p
+echo '{"a":1}' | recon --prettify
 cat data.json | recon --prettify-as json -o pretty.json
 
 # Clipboard I/O — native clipboard read/write without shell pipes
@@ -402,7 +403,7 @@ recon https://api.example.com/data --to-clipboard     # fetch URL, copy result t
 recon --from-clipboard --editor vim                   # open clipboard body in editor
 
 # --prettify-as: force the format on a real HTTP response
-recon https://api.example.com/data --prettify-as json   # implies -p
+recon https://api.example.com/data --prettify-as json   # implies --prettify
 recon https://example.com/feed --prettify-as xml        # for servers that lie about Content-Type
 
 # Verbose progression
@@ -535,6 +536,7 @@ See also: `recon --help impersonate`.
 |------|-------------|
 | `-x, --proxy <URL>` | Proxy URL. Falls back to `$HTTPS_PROXY` / `$HTTP_PROXY` / `$ALL_PROXY`. |
 | `-U, --proxy-user <USER:PASS>` | Basic auth for the proxy. |
+| `-p, --proxytunnel` | Force tunneling via CONNECT even for `http://` origins (curl-compat). HTTPS already auto-tunnels via reqwest. |
 | `--noproxy <LIST>` | Comma-separated bypass list (matches `$NO_PROXY` semantics; `*` means bypass all). |
 | `--proxy-insecure` | Skip cert verification on the TLS-to-proxy connection. |
 | `--proxy-cacert <PATH>` | Extra CA for the proxy connection. |
@@ -578,7 +580,7 @@ and path are preserved; only the transport changes.
 ```sh
 # Docker API
 recon --unix-socket /var/run/docker.sock http://localhost/_ping
-recon --unix-socket /var/run/docker.sock -p http://localhost/v1.40/version
+recon --unix-socket /var/run/docker.sock --prettify http://localhost/v1.40/version
 recon --unix-socket /var/run/docker.sock http://localhost/v1.40/containers/json
 
 # systemd-activated service
@@ -646,7 +648,7 @@ The `.db` format is SQLite; inspect with `sqlite3` or any sqlite viewer.
 ```sh
 # Login, save cookies, browse with them
 recon https://example.com/login -d 'user=alice&pass=secret' --cookiejar ~/jar.db
-recon https://example.com/dashboard --cookiejar ~/jar.db -p
+recon https://example.com/dashboard --cookiejar ~/jar.db --prettify
 
 # Inspect
 recon --cookiejar ~/jar.db --cookies

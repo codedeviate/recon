@@ -32,7 +32,7 @@ fn run_with_stdin(args: &[&str], stdin_input: &str) -> (i32, String, String) {
 #[test]
 fn stdin_prettify_auto_detects_json() {
     let (code, stdout, stderr) = run_with_stdin(
-        &["--stdin", "-p"],
+        &["--stdin", "--prettify"],
         r#"{"a":1,"b":[2,3]}"#,
     );
     assert_eq!(code, 0, "stderr: {stderr}");
@@ -99,7 +99,7 @@ fn stdin_with_url_is_mutually_exclusive() {
 
 #[test]
 fn empty_stdin_exits_zero_with_empty_output() {
-    let (code, stdout, _stderr) = run_with_stdin(&["--stdin", "-p"], "");
+    let (code, stdout, _stderr) = run_with_stdin(&["--stdin", "--prettify"], "");
     assert_eq!(code, 0);
     assert!(stdout.is_empty() || stdout.trim().is_empty());
 }
@@ -127,7 +127,7 @@ fn stdin_passthrough_without_prettify() {
 fn stdin_auto_detect_when_piped_without_explicit_flag() {
     // No --stdin flag passed. Stdin is piped (Stdio::piped). Should auto-detect.
     let (code, stdout, stderr) = run_with_stdin(
-        &["-p"],
+        &["--prettify"],
         r#"{"auto":true}"#,
     );
     assert_eq!(code, 0, "stderr: {stderr}");

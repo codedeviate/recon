@@ -754,7 +754,7 @@ pub struct Args {
     pub lhead: bool,
 
     /// Prettify response body: auto-detects JSON, XML, HTML, YAML, CSV, TSV
-    #[arg(short = 'p', long = "prettify", help_heading = "Output")]
+    #[arg(long = "prettify", help_heading = "Output")]
     pub prettify: bool,
 
     /// Force prettify format (overrides -p auto-detect)
@@ -1386,9 +1386,8 @@ pub struct Args {
     pub proxy_http2: bool,
 
     /// Force tunneling via CONNECT even for http:// origins. Accepted;
-    /// reqwest auto-tunnels for https:// already. `-p` is used by
-    /// `--prettify` in recon, so only the long form is accepted.
-    #[arg(long = "proxytunnel", help_heading = "Proxy")]
+    /// reqwest auto-tunnels for https:// already. Matches curl's `-p`.
+    #[arg(short = 'p', long = "proxytunnel", help_heading = "Proxy")]
     pub proxytunnel: bool,
 
     /// CA directory for the proxy connection. Accepted.

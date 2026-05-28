@@ -50,7 +50,7 @@ pub fn print() {
     ]);
     example("HTTP Basic authentication (-u / --user)", &[
         r#"recon https://httpbin.org/basic-auth/alice/s3cr3t -u alice:s3cr3t"#,
-        r#"recon https://api.example.com/private -u admin:password -p"#,
+        r#"recon https://api.example.com/private -u admin:password --prettify"#,
         r#"recon https://intranet.corp/api -u alice:s3cr3t -H "Accept: application/json""#,
     ]);
     example("Send a Referer header (-e / --referer)", &[
@@ -169,47 +169,47 @@ pub fn print() {
     ]);
     example("Print status line, all headers, and body (--full)", &[
         "recon https://httpbin.org/get --full",
-        "recon https://api.example.com/data --full -p",
+        "recon https://api.example.com/data --full --prettify",
     ]);
-    example("Prettify response body — auto-detects JSON, XML, HTML, YAML, CSV, TSV (-p / --prettify)", &[
-        "recon https://httpbin.org/get -p",
-        "recon https://httpbin.org/xml -p",
-        "recon https://api.example.com/report.csv -p",
-        "recon https://httpbin.org/get -i -p",
+    example("Prettify response body — auto-detects JSON, XML, HTML, YAML, CSV, TSV (--prettify)", &[
+        "recon https://httpbin.org/get --prettify",
+        "recon https://httpbin.org/xml --prettify",
+        "recon https://api.example.com/report.csv --prettify",
+        "recon https://httpbin.org/get -i --prettify",
     ]);
     example("Prettify a payload from stdin / clipboard (--stdin)", &[
-        "pbpaste | recon --stdin -p",
+        "pbpaste | recon --stdin --prettify",
         "pbpaste | recon --stdin --prettify-as json",
-        "recon --stdin -p --prettify-as json -o pretty.json < raw.json",
+        "recon --stdin --prettify --prettify-as json -o pretty.json < raw.json",
     ]);
     note("--stdin reads the body from stdin and runs the same post-fetch pipeline (prettify, --output-charset, -o) without making an HTTP request. Pairs with --prettify-as to force the format when the input has no Content-Type to hint from.");
 
     example("Force prettify format with --prettify-as", &[
-        "recon https://example.com/api -p --prettify-as json",
-        "recon https://example.com/feed -p --prettify-as xml",
+        "recon https://example.com/api --prettify --prettify-as json",
+        "recon https://example.com/feed --prettify --prettify-as xml",
     ]);
-    note("--prettify-as overrides auto-detection. Useful when the server returns the wrong Content-Type (e.g. text/plain for JSON) or when -p's body sniff guesses wrong. Implies -p so you can drop the explicit -p when using it.");
+    note("--prettify-as overrides auto-detection. Useful when the server returns the wrong Content-Type (e.g. text/plain for JSON) or when --prettify's body sniff guesses wrong. Implies --prettify so you can drop the explicit --prettify when using it.");
 
     example("Clipboard input/output (--clipboard, --from-clipboard, --to-clipboard)", &[
         "recon --clipboard --prettify-as json",
         "recon --clipboard both --prettify-as json",
-        "recon --from-clipboard -p",
+        "recon --from-clipboard --prettify",
         "recon https://api.example.com/data --to-clipboard",
         "cat data.json | recon --to-clipboard",
     ]);
     note("--clipboard alone auto-resolves direction: 'out' when there's already an input source (URL, --stdin, --from-clipboard), 'in' otherwise. The 'both' value is the explicit in-place form. Native cross-platform via the arboard crate — no need to pipe through pbpaste/pbcopy/xclip.");
 
     example("Auto-detected stdin (drop --stdin when piped)", &[
-        "echo '{\"a\":1}' | recon -p",
+        "echo '{\"a\":1}' | recon --prettify",
         "cat raw.json | recon --prettify-as json",
-        "curl -s https://api.example.com/data | recon -p --to-clipboard",
+        "curl -s https://api.example.com/data | recon --prettify --to-clipboard",
     ]);
     note("When stdin is piped (not a TTY) and no URL or input flag is given, recon implicitly enters --stdin mode. Interactive invocation (TTY stdin) without a URL still produces a usage error — the auto-detect only fires for actual pipes.");
 
     example("Save response body to a file (-o / --output)", &[
         "recon https://example.com/image.png -o image.png",
         "recon https://api.example.com/export.csv -o export.csv -s",
-        "recon https://api.example.com/data -p -o pretty.json",
+        "recon https://api.example.com/data --prettify -o pretty.json",
     ]);
     example("Show a progress meter when saving to a file (--progress)", &[
         "recon https://example.com/large-file.zip -o large-file.zip --progress",
@@ -243,7 +243,7 @@ pub fn print() {
     example("Skip TLS certificate verification (-k / --insecure)", &[
         "recon https://self-signed.example.com -k",
         "recon https://expired.badssl.com -k",
-        "recon https://internal.corp:8443 -k -p",
+        "recon https://internal.corp:8443 -k --prettify",
         "recon https://staging.example.com -k -i",
     ]);
     note("Disables hostname, expiry, and chain verification. Use only on hosts you control or trust.");
@@ -416,7 +416,7 @@ pub fn print() {
     example("Full login flow — save cookies then use them", &[
         r#"recon https://example.com/login -X POST -d "user=alice&pass=s3cr3t" --cookiejar mysession"#,
         "recon https://example.com/dashboard --cookiejar mysession",
-        "recon https://example.com/dashboard --cookiejar mysession -p",
+        "recon https://example.com/dashboard --cookiejar mysession --prettify",
     ]);
 
     section("SCP DOWNLOAD");
@@ -581,25 +581,25 @@ pub fn print() {
     section("COMBINING FLAGS");
 
     example("POST JSON, follow redirects, prettify response", &[
-        r#"recon https://api.example.com/users -d '{"name":"alice"}' -H "Content-Type: application/json" -L -p"#,
+        r#"recon https://api.example.com/users -d '{"name":"alice"}' -H "Content-Type: application/json" -L --prettify"#,
     ]);
     example("Show full headers and prettify", &[
-        "recon https://httpbin.org/get -i -p",
+        "recon https://httpbin.org/get -i --prettify",
     ]);
     example("Save prettified JSON to file silently", &[
-        "recon https://api.example.com/data -p -s -o result.json",
+        "recon https://api.example.com/data --prettify -s -o result.json",
     ]);
     example("Check if an endpoint is up (exit code only)", &[
         "recon https://api.example.com/health -f -s",
     ]);
     example("Inspect the redirect chain and then see final body prettified", &[
-        "recon http://github.com --LHEAD -p",
+        "recon http://github.com --LHEAD --prettify",
     ]);
     example("Auth + insecure + prettify (self-signed staging server)", &[
-        r#"recon https://staging.internal/api/data -u alice:s3cr3t -k -p"#,
+        r#"recon https://staging.internal/api/data -u alice:s3cr3t -k --prettify"#,
     ]);
     example("Search with query params using GET, prettify the response", &[
-        "recon https://api.example.com/search -G -d 'q=rust' -p",
+        "recon https://api.example.com/search -G -d 'q=rust' --prettify",
     ]);
     example("Download a file with progress, silencing other output", &[
         "recon https://example.com/release.tar.gz -o release.tar.gz --progress -s",
@@ -1592,7 +1592,7 @@ recon --rekey \
 
     example("Docker API over /var/run/docker.sock", &[
         "recon --unix-socket /var/run/docker.sock http://localhost/_ping",
-        "recon --unix-socket /var/run/docker.sock -p http://localhost/v1.40/version",
+        "recon --unix-socket /var/run/docker.sock --prettify http://localhost/v1.40/version",
         "recon --unix-socket /var/run/docker.sock http://localhost/v1.40/containers/json",
     ]);
 
@@ -2141,7 +2141,7 @@ recon --script /tmp/myscript.rhai      # API_HOST = myscript-prod.example.com"#,
     note("Source charset detection: `--source-charset NAME` → Content-Type `charset=` → BOM sniff → chardetng heuristic → windows-1252 fallback. Unmappable characters are substituted with `?` and a warning is written to stderr (suppress with `-s`).");
 
     example("Prettify a Shift_JIS page (forces UTF-8 before prettify)", &[
-        "recon -p --output-charset utf-8 https://legacy.jp/index.html",
+        "recon --prettify --output-charset utf-8 https://legacy.jp/index.html",
     ]);
 
     example("POST UTF-8 input to a Perl / legacy service that expects ISO-8859-1", &[
@@ -2318,7 +2318,7 @@ recon --script /tmp/decode.rhai"#,
     example("Open the response in an editor (--editor [EDITOR])", &[
         "recon --editor zed https://httpbin.org/get",
         "recon --editor code https://example.com",
-        "recon --editor vim -p https://api.github.com",
+        "recon --editor vim --prettify https://api.github.com",
     ]);
     example("Use a raw command passed through sh -c", &[
         r#"recon --editor "code --new-window" https://example.com"#,
