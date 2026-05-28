@@ -8,6 +8,27 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.91.0] - 2026-05-28
+
+### Changed
+
+- **Curl-compat fix for `-S`.** The `-S` short form is now bound to
+  `--show-error` (matching curl), not to `--status` as it was through
+  0.90.0. This restores the canonical curl idiom `recon -sS <url>` —
+  silent mode plus error diagnostics — which previously printed only
+  the HTTP status code because `-S` was misrouted. The long form
+  `--status` continues to work unchanged; only the short alias moved.
+  The companion `--show-error` flag (previously long-only) gains
+  `-S` as its short form. Discovered when piping `recon -sS ... |
+  iconv` returned a 4-byte status line instead of the response body
+  that curl would have produced.
+
+  **Breaking** for anyone using `recon -S` to request status-only
+  output — switch to `--status`. Audit of all other recon short flags
+  against curl turned up one further clash (`-p` maps to `--prettify`
+  in recon, `--proxytunnel` in curl) which is deferred to a separate
+  release.
+
 ## [0.90.0] - 2026-05-25
 
 ### Added

@@ -152,11 +152,16 @@ pub fn print() {
         r#"recon https://httpbin.org/basic-auth/alice/s3cr3t -u alice:s3cr3t -vv"#,
     ]);
     note("-vv makes a second TLS connection to retrieve the certificate summary (debug mode).");
-    example("Print only the HTTP status code (-S / --status)", &[
-        "recon https://httpbin.org/get -S",
-        "recon https://httpbin.org/status/404 -S",
-        "recon https://api.example.com/health -S -L",
+    example("Print only the HTTP status code (--status)", &[
+        "recon https://httpbin.org/get --status",
+        "recon https://httpbin.org/status/404 --status",
+        "recon https://api.example.com/health --status -L",
     ]);
+    example("Show errors even when silenced (-S / --show-error, curl-compat)", &[
+        "recon https://httpbin.org/status/500 -sS",
+        "recon https://api.example.com/data -s --show-error",
+    ]);
+    note("-S / --show-error matches curl: re-enables error diagnostics that -s suppressed.");
     example("Print only the response headers, no body (-I / --head)", &[
         "recon https://httpbin.org/get --head",
         "recon https://httpbin.org/get -I",

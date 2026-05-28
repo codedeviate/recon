@@ -714,7 +714,7 @@ pub struct Args {
 
     /// Show error messages even when -s/--silent is set. Matches
     /// curl's convention of surfacing errors but not diagnostics.
-    #[arg(long = "show-error", help_heading = "Output")]
+    #[arg(short = 'S', long = "show-error", help_heading = "Output")]
     pub show_error: bool,
 
     /// Silent mode: suppress progress and informational output
@@ -738,7 +738,7 @@ pub struct Args {
     pub fail_with_body: bool,
 
     /// Print only the HTTP status code
-    #[arg(short = 'S', long = "status", help_heading = "Output")]
+    #[arg(long = "status", help_heading = "Output")]
     pub status_only: bool,
 
     /// Output only the response headers, suppress body

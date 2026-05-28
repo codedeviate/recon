@@ -2,8 +2,8 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.90.0</div>
-<div class="date">2026-05-25</div>
+<div class="version">Version 0.91.0</div>
+<div class="date">2026-05-28</div>
 <div class="meta">
 Repository · https://github.com/codedeviate/recon<br>
 License · MIT
@@ -187,8 +187,9 @@ stand-alone.
   `--version-short` prints just the version number.
 - **`-v`** increases verbosity. Repeat (`-vv`, `-vvv`) for more detail. At
   default, connection lines and protocol handshakes are suppressed.
-- **`-s`, `--silent`** suppresses progress + verbose output. `--show-error`
-  re-enables error output when `-s` is set.
+- **`-s`, `--silent`** suppresses progress + verbose output. `-S`,
+  `--show-error` re-enables error output when `-s` is set (curl-compat).
+  Use `--status` (long form only) to print just the HTTP status code.
 - **`-o <FILE>`** writes the response body to a file instead of stdout.
   `-O` / `--remote-name` derives the filename from the URL's path.
   `-J` / `--remote-header-name` respects Content-Disposition.
@@ -344,7 +345,7 @@ recon https://example.com/big.iso -o big.iso --continue
 | `-i, --include` | Print response headers before body. |
 | `-I, --head` | Print headers only; no body. Implies `-X HEAD`. |
 | `-s, --silent` | Suppress progress + verbose output. |
-| `--show-error` | Re-enable error output even when `-s` is set. |
+| `-S`, `--show-error` | Re-enable error output even when `-s` is set (curl-compat). |
 | `-v, --verbose` | Verbose. Repeatable: `-v`, `-vv`, `-vvv`. |
 | `--progress` | Show a progress meter when saving to a file (opt-in). |
 | `-#, --progress-bar` | `#`-character progress bar style (curl `-#` parity). Also activates the progress meter. |
