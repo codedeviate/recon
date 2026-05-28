@@ -8,6 +8,19 @@ For pre-0.4.1 design context and architectural notes, see [HISTORY.md](HISTORY.m
 
 ## [Unreleased]
 
+## [0.92.1] - 2026-05-28
+
+### Changed
+
+- Documented the one remaining curl-compat asymmetry: recon's `-E`
+  short form matches curl's `-E`, but the long alias is
+  `--client-cert` (curl uses `--cert`). The recon `--cert` slot is
+  taken by the server certificate inspection feature, which predates
+  the mTLS work, so a rename isn't worth the breakage. The note now
+  appears in `recon --help client-cert` and in `docs/MANUAL.md`'s
+  "Client certificates (mTLS)" section. No code changes; `-E
+  /path/to/cert.pem` already works identically in both tools.
+
 ## [0.92.0] - 2026-05-28
 
 ### Changed

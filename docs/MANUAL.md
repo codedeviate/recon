@@ -2,7 +2,7 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.92.0</div>
+<div class="version">Version 0.92.1</div>
 <div class="date">2026-05-28</div>
 <div class="meta">
 Repository · https://github.com/codedeviate/recon<br>
@@ -448,6 +448,12 @@ recon --interface 10.0.0.5 https://example.com/     # use a specific source IP
 
 Shipped in 0.54.0. Present a client certificate during the TLS handshake for
 mutual TLS.
+
+> **Curl-compat note.** The short form `-E` matches curl. The long form is
+> `--client-cert` in recon (curl spells it `--cert`) — `--cert` is already
+> taken by recon's server certificate inspection mode, see
+> [TLS certificate inspection](#tls-certificate-inspection). `-E /path/to/cert.pem`
+> works identically in both tools.
 
 | Flag | Description |
 |------|-------------|

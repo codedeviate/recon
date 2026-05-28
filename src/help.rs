@@ -1713,7 +1713,12 @@ static TOPIC_CLIENT_CERT: Topic = Topic {
                   detected at load time and rejected with a clear\n\
                   message pointing to a `openssl` conversion recipe.\n\
                   Rustls has no crypto-engine concept, so --key-type ENG\n\
-                  errors immediately.",
+                  errors immediately.\n\
+                  \n\
+                  Curl users: the short form `-E` matches curl. The long\n\
+                  form is `--client-cert` in recon (curl uses `--cert`)\n\
+                  because `--cert` is already taken by recon's server\n\
+                  certificate inspection mode (see `--help cert`).",
     flags: &[
         FlagHelp { flags: "-E, --client-cert <PATH>", description: "PEM-encoded client certificate. May contain the key inline." },
         FlagHelp { flags: "--client-key <PATH>", description: "PEM-encoded private key. Only needed when --client-cert is cert-only." },
