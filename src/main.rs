@@ -62,21 +62,26 @@ mod rtsp_probe;
 mod writeout;
 mod sampledata;
 mod script;
+#[cfg(feature = "ssh")]
 mod scp;
 mod serve;
 mod source;
+#[cfg(feature = "ssh")]
 mod ssh;
+#[cfg(feature = "ssh")]
 mod ssh_auth;
 mod ftp_probe;
 mod gopher_probe;
 mod imap_probe;
 mod ipfs;
 mod pop3_probe;
+#[cfg(feature = "ssh")]
 mod sftp_probe;
 mod smtp_probe;
 mod tcp_probe;
 mod tftp_probe;
 mod telnet;
+mod termkey;
 mod text_encoding;
 mod iconv;
 mod tls_probe;
@@ -1258,7 +1263,18 @@ fn main() {
         };
         ftp_probe::run(args.target_url(), &fargs, args.output.as_deref())
     } else if args.target_url().starts_with("sftp://") {
-        sftp_probe::run(args.target_url(), &args)
+        #[cfg(feature = "ssh")]
+        {
+            sftp_probe::run(args.target_url(), &args)
+        }
+        #[cfg(not(feature = "ssh"))]
+        {
+            Err(anyhow::anyhow!(
+                "sftp:// is not available in this build — it requires the `ssh` feature, \
+                 which is disabled in the impersonate variant (see GitHub issue #1). \
+                 Use the default `recon` build for SFTP."
+            ))
+        }
     } else if args.target_url().starts_with("tftp://") {
         if args.tftp_no_options && args.verbose >= 1 {
             eprintln!("* TFTP: vanilla RFC 1350 mode (no RFC 2347 options) — --tftp-no-options confirmed");
@@ -1290,9 +1306,31 @@ fn main() {
         };
         imap_probe::run(args.target_url(), &iargs)
     } else if args.target_url().starts_with("scp://") {
-        scp::download(args.target_url(), &args)
+        #[cfg(feature = "ssh")]
+        {
+            scp::download(args.target_url(), &args)
+        }
+        #[cfg(not(feature = "ssh"))]
+        {
+            Err(anyhow::anyhow!(
+                "scp:// is not available in this build — it requires the `ssh` feature, \
+                 which is disabled in the impersonate variant (see GitHub issue #1). \
+                 Use the default `recon` build for SCP."
+            ))
+        }
     } else if args.target_url().starts_with("ssh://") {
-        ssh::connect(args.target_url(), &args)
+        #[cfg(feature = "ssh")]
+        {
+            ssh::connect(args.target_url(), &args)
+        }
+        #[cfg(not(feature = "ssh"))]
+        {
+            Err(anyhow::anyhow!(
+                "ssh:// is not available in this build — it requires the `ssh` feature, \
+                 which is disabled in the impersonate variant (see GitHub issue #1). \
+                 Use the default `recon` build for SSH."
+            ))
+        }
     } else if args.target_url().starts_with("tcp://") {
         tcp_probe::run(args.target_url(), args.timeout)
     } else if args.target_url().starts_with("telnet://") {

@@ -34,6 +34,34 @@ companion doc/example/test changes.
 
 ## [Unreleased]
 
+## [0.95.0] - 2026-05-29
+
+### Fixed
+
+- **`recon-impersonate` now links under `brew install`** (GitHub
+  issue #1). The `impersonate` feature pulls BoringSSL via `wreq`,
+  which collided at link time with `libssh2-sys` (built against
+  OpenSSL for scp/sftp/ssh) — `OSSL_PARAM_*` symbols went
+  unresolved on macOS/arm64. The two SSL backends can't coexist in
+  one binary.
+
+### Changed
+
+- **`ssh2` is now behind a default-on `ssh` cargo feature.** scp://,
+  sftp://, ssh://, and the `sftp()` script binding require it. Plain
+  `recon` keeps them (default features include `ssh`). The
+  impersonate variant is now built with `--no-default-features
+  --features impersonate`, which drops `ssh` and lets BoringSSL link
+  cleanly — so **`recon-impersonate` has no scp/sftp/ssh support**,
+  by design. In a no-ssh build those schemes return a clear "not
+  available in this build" error, and `recon --version` omits
+  `scp`/`sftp`/`ssh` from Protocols and `ssh-pinning`/`ssh-compress`
+  from Features.
+- Moved the terminal key→bytes helper (`key_event_to_bytes`, shared
+  by the ssh and telnet interactive clients) out of `ssh.rs` into a
+  new ungated `termkey` module, so the `telnet://` client keeps
+  working when `ssh` is compiled out.
+
 ## [0.94.1] - 2026-05-29
 
 ### Fixed

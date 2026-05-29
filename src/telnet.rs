@@ -6,7 +6,7 @@ use anyhow::{anyhow, Context, Result};
 use crossterm::event::{Event, KeyCode, KeyModifiers};
 
 use crate::cli::Args;
-use crate::ssh::key_event_to_bytes;
+use crate::termkey::key_event_to_bytes;
 
 // Telnet protocol constants (RFC 854)
 const IAC: u8 = 0xFF;

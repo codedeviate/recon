@@ -40,6 +40,7 @@ pub mod ping;
 pub mod pop3;
 pub mod redis;
 pub mod rtsp;
+#[cfg(feature = "ssh")]
 pub mod sftp;
 pub mod smtp;
 pub mod sqlite;

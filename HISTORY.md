@@ -52,6 +52,42 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 85. `ssh` feature gate — fixing the impersonate link collision (0.95.0)
+
+**What:** `ssh2` / `libssh2-sys` moved behind a default-on `ssh` cargo
+feature. The `recon-impersonate` build now passes `--no-default-features
+--features impersonate`, dropping `ssh` so BoringSSL (from `wreq`) is the
+only SSL backend in the binary.
+
+**Why this required a HISTORY entry:** it's a build-architecture change
+driven by a real link failure (GitHub issue #1), and it permanently
+diverges the two release variants' protocol support.
+
+- **The collision.** `wreq`'s `impersonate` feature statically links
+  BoringSSL. `libssh2-sys` (pulled by `ssh2`, with `vendored-openssl`)
+  is compiled against homebrew `openssl@3`. In a single binary, BoringSSL
+  displaces openssl@3 at link time, leaving libssh2's `OSSL_PARAM_*`
+  references unresolved. macOS/arm64 `ld` fails. Plain `recon` was
+  unaffected because without `impersonate` there's only one SSL backend.
+  The homebrew formula had never been end-to-end-built (`brew audit`
+  passes without a source build), so the failure hid until issue #1.
+- **Why feature-gating over the alternatives.** Considered: (a) switch
+  libssh2-sys to its mbedtls backend — keeps ssh in impersonate but adds
+  a `[patch.crates-io]` + a fragile mbedtls vendoring step on arm64;
+  (b) ship recon-impersonate as a pre-built bottle — breaks the tap's
+  source-only policy. Feature-gating is the lowest-risk: plain `recon`
+  is unchanged, and the impersonate variant simply loses scp/sftp/ssh,
+  which is orthogonal to its purpose (browser HTTP fingerprinting).
+- **`termkey` extraction.** `key_event_to_bytes` (crossterm KeyEvent →
+  terminal bytes) lived in `ssh.rs` but was also used by the ungated
+  `telnet://` client. Gating `ssh.rs` out would have broken telnet, so
+  the helper moved to a new transport-neutral `termkey` module. Pure
+  refactor, no behaviour change — the 6 unit tests moved with it.
+- **Banner honesty.** `recon --version` builds its Protocols and Features
+  lists at runtime; scp/sftp/ssh and the ssh-pinning/ssh-compress tokens
+  are now appended only under `#[cfg(feature = "ssh")]`, so the banner
+  tells the truth about what each variant can actually do.
+
 ### 84. CLI aliases / compatibility modes (0.94.0)
 
 **What:** A pre-clap argv preprocessor that rewrites short flags into

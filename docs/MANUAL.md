@@ -2,7 +2,7 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.94.1</div>
+<div class="version">Version 0.95.0</div>
 <div class="date">2026-05-29</div>
 <div class="meta">
 Repository · https://github.com/codedeviate/recon<br>
@@ -490,8 +490,19 @@ after the upstream rename; recon-cli migrated in 0.80.7.)
 
 The default `recon` binary is built without this feature so the binary stays
 small and skips the BoringSSL build dependency. Build with
-`cargo build --features impersonate`, or download the `recon-impersonate`
-release artifact.
+`cargo build --release --no-default-features --features impersonate`, or
+download the `recon-impersonate` release artifact.
+
+> **`--no-default-features` is required.** BoringSSL (from `wreq`) and
+> `libssh2` (from the default-on `ssh` feature, built against OpenSSL)
+> cannot coexist in one binary — they collide at link time. Dropping
+> default features removes `ssh`, so the impersonate variant links a
+> single SSL backend. The trade-off: **`recon-impersonate` has no
+> `scp://` / `sftp://` / `ssh://` support** (those schemes return a
+> clear "not available in this build" error, and the protocol is absent
+> from `recon --version`). SSH probing and browser-fingerprint
+> impersonation are orthogonal use cases, so this split is by design.
+> See GitHub issue #1.
 
 | Flag | Description |
 |------|-------------|
@@ -509,8 +520,8 @@ fingerprint.
 ### Examples
 
 ```sh
-# Build with the impersonate feature
-cargo build --release --features impersonate
+# Build with the impersonate feature (drops ssh — see note above)
+cargo build --release --no-default-features --features impersonate
 
 # Impersonate Chrome 131 against an HTTPS endpoint
 recon --impersonate chrome_131 https://httpbin.org/headers

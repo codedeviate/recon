@@ -4,7 +4,7 @@
 # binary is still `recon` — `cargo install recon-cli` produces a `recon`
 # executable thanks to the [[bin]] block below.
 name = "recon-cli"
-version = "0.94.1"
+version = "0.95.0"
 edition = "2021"
 rust-version = "1.85"
 license = "MIT"
@@ -63,7 +63,7 @@ rusqlite = "0.32"
 serde_json = "1"
 serde_yaml = "0.9"
 quick-xml = "0.37"
-ssh2 = { version = "0.9", features = ["vendored-openssl"] }
+ssh2 = { version = "0.9", features = ["vendored-openssl"], optional = true }
 crossterm = "0.28"
 rustls = { version = "0.23", features = ["ring"] }
 base64 = "0.22"
@@ -139,7 +139,14 @@ wreq-util = { version = "2.2", optional = true, default-features = false, featur
 http = "1"
 
 [features]
-default = []
+default = ["ssh"]
+# SSH-family probes (scp://, sftp://, ssh://) + the sftp script binding.
+# Pulls ssh2 / libssh2-sys (vendored, built against OpenSSL). Default-on,
+# but MUST be dropped for the `impersonate` build: that variant links
+# BoringSSL (via wreq), which collides with libssh2's OpenSSL symbols at
+# link time. Build impersonate with `--no-default-features --features
+# impersonate`. See GitHub issue #1.
+ssh = ["dep:ssh2"]
 impersonate = ["dep:wreq", "dep:wreq-util"]
 
 [dev-dependencies]

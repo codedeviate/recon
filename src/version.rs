@@ -17,11 +17,14 @@ const RUSTLS_VERSION: &str = "0.23";
 /// `file://`). When adding or removing protocol support, update this list
 /// so `recon --version | grep <proto>` stays accurate. Rendered sorted
 /// case-insensitively in `print_full`.
+// scp / sftp / ssh are gated behind the `ssh` feature (default-on, dropped
+// in the impersonate variant — see GitHub issue #1). They are appended
+// conditionally in `print_full` rather than listed here.
 const PROTOCOLS: &[&str] = &[
     "dict", "dig", "dns", "drill", "file", "ftp", "ftps", "gopher", "gophers",
     "http", "https", "imap", "imaps", "ipfs", "ipns", "ldap", "ldaps", "memcached",
     "mqtt", "mqtts", "ntp", "ping", "pop3", "pop3s", "redis", "rtsp", "rtsps",
-    "scp", "sftp", "smtp", "smtps", "ssh", "tcp", "telnet", "tftp", "tls",
+    "smtp", "smtps", "tcp", "telnet", "tftp", "tls",
     "traceroute", "udp", "whois", "ws", "wss",
 ];
 
@@ -58,8 +61,6 @@ const FEATURES: &[&str] = &[
     "proto-filter",
     "input-file",
     "resume",
-    "ssh-pinning",
-    "ssh-compress",
     "config-file",
     "DKIM-signing",
     "email-dns",
@@ -97,8 +98,15 @@ const FEATURES: &[&str] = &[
 
 pub fn print_full() {
     let mut protocols: Vec<&str> = PROTOCOLS.to_vec();
+    #[cfg(feature = "ssh")]
+    protocols.extend_from_slice(&["scp", "sftp", "ssh"]);
     protocols.sort_by_key(|s| s.to_ascii_lowercase());
+
+    // ssh-pinning / ssh-compress are libssh2 transport capabilities;
+    // only present when the `ssh` feature is compiled in.
     let mut features: Vec<&str> = FEATURES.to_vec();
+    #[cfg(feature = "ssh")]
+    features.extend_from_slice(&["ssh-pinning", "ssh-compress"]);
     #[cfg(feature = "impersonate")]
     features.push("TLS-impersonation");
     features.sort_by_key(|s| s.to_ascii_lowercase());

@@ -4428,7 +4428,7 @@ dependencies = [
 
 [[package]]
 name = "recon-cli"
-version = "0.94.1"
+version = "0.95.0"
 dependencies = [
  "ab_glyph",
  "age",

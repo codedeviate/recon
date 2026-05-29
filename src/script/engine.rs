@@ -149,6 +149,7 @@ pub fn build_engine(defaults: &ScriptDefaults) -> rhai::Engine {
     super::bindings::pop3::register(&mut engine, defaults.clone());
     super::bindings::redis::register(&mut engine, defaults.clone());
     super::bindings::rtsp::register(&mut engine, defaults.clone());
+    #[cfg(feature = "ssh")]
     super::bindings::sftp::register(&mut engine, defaults.clone());
     super::bindings::smtp::register(&mut engine, defaults.clone());
     super::bindings::shell::register(&mut engine);
