@@ -193,11 +193,23 @@ pub fn apply(argv: Vec<String>, map: &AliasMap) -> Result<Vec<String>> {
         }
         // Multi-character cluster. If the lead letter takes a value,
         // the remainder is the embedded value: `-l3` → `--level 3`.
+        // Exception: if the remainder itself starts with a mapped
+        // value-taker letter, fall through to the mixed-cluster loop
+        // so it can detect the "combines two value-takers" error.
         if let Some(entry) = &lead_entry {
             if entry.takes_value {
-                out.push(entry.long.clone());
-                out.push(cluster[1..].iter().collect::<String>());
-                continue;
+                let remainder_starts_with_value_taker = cluster
+                    .get(1)
+                    .and_then(|c| map.entries.get(c))
+                    .map(|e| e.takes_value)
+                    .unwrap_or(false);
+                if !remainder_starts_with_value_taker {
+                    out.push(entry.long.clone());
+                    out.push(cluster[1..].iter().collect::<String>());
+                    continue;
+                }
+                // Fall through to mixed-cluster logic, which will
+                // fire the "combines value-taking flags" error.
             }
         }
         // No leading-letter value-taker. Try combined-bool expansion:
@@ -214,9 +226,95 @@ pub fn apply(argv: Vec<String>, map: &AliasMap) -> Result<Vec<String>> {
             }
             continue;
         }
-        // Mixed cluster (some mapped, some not, or value-takers in
-        // non-trailing position). Trailing-value handling lands in
-        // Task 8; for now, pass through unchanged.
+        // Mixed cluster. Allowed shape: zero or more bool letters
+        // followed by exactly one value-taker as the last position,
+        // optionally with the value embedded right after it.
+        //
+        // We walk the cluster looking for a value-taker; once found,
+        // everything after it is the embedded value (may be empty,
+        // meaning the value is the next argv token).
+        let mut bools_seen: Vec<char> = Vec::new();
+        let mut value_taker_long: Option<String> = None;
+        let mut embedded_value: String = String::new();
+        let mut passthrough = false;
+        let mut earlier_value_taker_long: Option<String> = None;
+        for (i, c) in cluster.iter().enumerate() {
+            match map.entries.get(c) {
+                Some(entry) if entry.takes_value => {
+                    if let Some(prev) = &earlier_value_taker_long {
+                        bail!(
+                            "alias '{tok}' combines value-taking flags \
+                             '{prev}' and '{}'; pass them separately",
+                            entry.long
+                        );
+                    }
+                    // Check if the very next character is also a
+                    // mapped value-taker — that's an error even though
+                    // we haven't seen a prior value-taker yet.
+                    if let Some(next_c) = cluster.get(i + 1) {
+                        if let Some(next_e) = map.entries.get(next_c) {
+                            if next_e.takes_value {
+                                bail!(
+                                    "alias '{tok}' combines value-taking flags \
+                                     '{}' and '{}'; pass them separately",
+                                    entry.long,
+                                    next_e.long
+                                );
+                            }
+                        }
+                    }
+                    value_taker_long = Some(entry.long.clone());
+                    embedded_value = cluster[i + 1..].iter().collect();
+                    earlier_value_taker_long = Some(entry.long.clone());
+                    break;
+                }
+                Some(_entry_bool) => {
+                    bools_seen.push(*c);
+                }
+                None => {
+                    if !bools_seen.is_empty() {
+                        // The cluster started with mapped bool(s)
+                        // followed by an unmapped letter/digit — this
+                        // is the "bool with trailing junk" case from
+                        // Task 6. The user almost certainly meant the
+                        // junk as a value, but the alias is bool.
+                        let last_bool_long = map
+                            .entries
+                            .get(bools_seen.last().unwrap())
+                            .unwrap()
+                            .long
+                            .clone();
+                        bail!(
+                            "alias '{tok}' has trailing value but \
+                             '{last_bool_long}' takes no value"
+                        );
+                    }
+                    // Unmapped from the start: passthrough.
+                    passthrough = true;
+                    break;
+                }
+            }
+        }
+        if passthrough {
+            out.push(tok);
+            continue;
+        }
+        if let Some(long) = value_taker_long {
+            for c in &bools_seen {
+                out.push(map.entries.get(c).unwrap().long.clone());
+            }
+            out.push(long);
+            if !embedded_value.is_empty() {
+                out.push(embedded_value);
+            }
+            // If embedded value is empty, the value is the next argv
+            // token; the main loop's iterator will surface it as a
+            // standalone passthrough.
+            continue;
+        }
+        // All letters were bools but somehow the earlier "all-bool"
+        // branch didn't fire (shouldn't happen). Defensive
+        // passthrough.
         out.push(tok);
     }
     Ok(out)
@@ -404,5 +502,42 @@ mod tests {
         let map = two_bools(('r', "--recursive"), ('k', "--convert-links"));
         let out = apply(argv(&["recon", "-rk", "url"]), &map).unwrap();
         assert_eq!(out, vec!["recon", "--recursive", "--convert-links", "url"]);
+    }
+
+    fn three_mixed() -> AliasMap {
+        let mut entries = BTreeMap::new();
+        entries.insert('r', AliasEntry { long: "--recursive".into(), takes_value: false });
+        entries.insert('k', AliasEntry { long: "--convert-links".into(), takes_value: false });
+        entries.insert('l', AliasEntry { long: "--level".into(), takes_value: true });
+        AliasMap { entries }
+    }
+
+    #[test]
+    fn combined_trailing_value() {
+        let map = three_mixed();
+        let out = apply(argv(&["recon", "-rkl3"]), &map).unwrap();
+        assert_eq!(out, vec!["recon", "--recursive", "--convert-links", "--level", "3"]);
+    }
+
+    #[test]
+    fn combined_trailing_value_no_embedded() {
+        // -rkl (no value attached) → followed by separate arg "3"
+        let map = three_mixed();
+        let out = apply(argv(&["recon", "-rkl", "3"]), &map).unwrap();
+        assert_eq!(out, vec!["recon", "--recursive", "--convert-links", "--level", "3"]);
+    }
+
+    #[test]
+    fn combined_with_inner_value_taker_errors() {
+        // -DT (D value-taker is not trailing; T is value-taker too)
+        let mut entries = BTreeMap::new();
+        entries.insert('D', AliasEntry { long: "--domains".into(), takes_value: true });
+        entries.insert('T', AliasEntry { long: "--timeout".into(), takes_value: true });
+        let map = AliasMap { entries };
+        let err = apply(argv(&["recon", "-DT", "5"]), &map).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("-DT"), "msg: {msg}");
+        assert!(msg.contains("--domains"), "msg: {msg}");
+        assert!(msg.contains("--timeout"), "msg: {msg}");
     }
 }
