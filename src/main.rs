@@ -16,6 +16,7 @@ mod flaglist;
 mod config;
 mod config_file;
 mod config_resolver;
+mod aliases;
 mod cookiejar;
 mod dict_probe;
 mod dns;
