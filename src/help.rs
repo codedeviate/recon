@@ -632,7 +632,7 @@ static TOPIC_CONFIGURATION: Topic = Topic {
                           Use --no-system-config / --no-user-config for finer control.",
         },
     ],
-    related: &["netstatus", "editor", "sample", "gh", "ai"],
+    related: &["netstatus", "editor", "sample", "gh", "ai", "aliases"],
     examples: &[
         ExampleHelp {
             description: "Show which config files the resolver picked",
@@ -654,6 +654,40 @@ static TOPIC_CONFIGURATION: Topic = Topic {
             description: "Skip both layers for a clean one-off request",
             command: "recon --no-system-config --no-user-config https://example.com",
         },
+    ],
+};
+
+static TOPIC_ALIASES: Topic = Topic {
+    title: "Aliases / compatibility modes",
+    description: "Rewrite short flags into long forms via a named section of\n\
+                  ~/.recon/config.toml. Built-in sections: `curl` (no-op,\n\
+                  since recon's short flags already match curl by policy)\n\
+                  and `wget` (~11 letters where wget and curl disagree —\n\
+                  `-r` → `--recursive`, `-l` → `--level`, etc.).\n\
+                  \n\
+                  Select an alias for one invocation via `--alias <name>`,\n\
+                  or set a session-wide default with `[aliases] default =\n\
+                  \"<name>\"` in config.toml. Custom user sections work\n\
+                  identically — `[aliases.mine] \"-J\" = \"--json\"` adds a\n\
+                  personal shortcut.\n\
+                  \n\
+                  Aliases are namespace plumbing, not feature plumbing.\n\
+                  `--alias wget -r` rewrites to `--recursive`; if recon\n\
+                  doesn't implement `--recursive` yet, clap errors with\n\
+                  'unknown flag'. That's the intended failure mode.\n\
+                  \n\
+                  Skip rules: `-q/--disable` and the two `--no-*-config`\n\
+                  flags suppress alias resolution alongside the rest of\n\
+                  the config system.",
+    flags: &[
+        FlagHelp { flags: "--alias <NAME>", description: "Select an alias section from config.toml's [aliases.*]\ntables. Names `curl` and `wget` ship bundled." },
+    ],
+    related: &["configuration", "--show-config-paths"],
+    examples: &[
+        ExampleHelp { description: "Use wget-style -r (errors until --recursive exists)", command: "recon --alias wget -r https://example.com/" },
+        ExampleHelp { description: "Curl alias is a no-op (recon is curl-compat by default)", command: "recon --alias curl -sS https://example.com/" },
+        ExampleHelp { description: "Set wget as the default in config.toml", command: "echo '[aliases]\\ndefault = \"wget\"' >> ~/.recon/config.toml" },
+        ExampleHelp { description: "Show which alias is active", command: "recon --show-config-paths" },
     ],
 };
 
@@ -2946,6 +2980,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "flags" | "flag-list" | "list-flags" => Some(&TOPIC_FLAGS),
         "wget" | "wait" | "tries" | "accept" | "reject" | "input-file" | "spider" | "timestamping" | "batch" => Some(&TOPIC_WGET),
         "ai" | "llm" | "chat" => Some(&TOPIC_AI),
+        "alias" | "aliases" | "compat" | "compatibility" => Some(&TOPIC_ALIASES),
         _ => None,
     }
 }
@@ -3050,6 +3085,10 @@ pub fn topic_keys() -> Vec<&'static str> {
         "wget",
         "impersonate",
         "ai",
+        "alias",
+        "aliases",
+        "compat",
+        "compatibility",
     ]
 }
 
