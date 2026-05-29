@@ -5,7 +5,6 @@
 //! at build time. User entries in `~/.recon/config.toml` deep-merge
 //! on top, per key.
 
-#![allow(dead_code, unused_imports)]   // ← removed in later tasks
 
 use std::collections::BTreeMap;
 use std::sync::OnceLock;
@@ -237,17 +236,9 @@ pub fn apply(argv: Vec<String>, map: &AliasMap) -> Result<Vec<String>> {
         let mut value_taker_long: Option<String> = None;
         let mut embedded_value: String = String::new();
         let mut passthrough = false;
-        let mut earlier_value_taker_long: Option<String> = None;
         for (i, c) in cluster.iter().enumerate() {
             match map.entries.get(c) {
                 Some(entry) if entry.takes_value => {
-                    if let Some(prev) = &earlier_value_taker_long {
-                        bail!(
-                            "alias '{tok}' combines value-taking flags \
-                             '{prev}' and '{}'; pass them separately",
-                            entry.long
-                        );
-                    }
                     // Check if the very next character is also a
                     // mapped value-taker — that's an error even though
                     // we haven't seen a prior value-taker yet.
@@ -265,7 +256,6 @@ pub fn apply(argv: Vec<String>, map: &AliasMap) -> Result<Vec<String>> {
                     }
                     value_taker_long = Some(entry.long.clone());
                     embedded_value = cluster[i + 1..].iter().collect();
-                    earlier_value_taker_long = Some(entry.long.clone());
                     break;
                 }
                 Some(_entry_bool) => {

@@ -268,6 +268,36 @@ fn main() {
         }
     };
 
+    // Pre-clap pass: load the layered config (without yet honoring
+    // CLI skip flags — those land via init_global later) so we can
+    // resolve `--alias <name>` or `[aliases] default` against it and
+    // rewrite short flags in argv before clap parses. If the user
+    // disabled all config via `-q/--disable` or skipped both layers,
+    // an empty TOML table is used; the alias step then becomes a
+    // no-op unless `--alias` is explicit.
+    let expanded_argv = {
+        let disable_all = expanded_argv.iter().any(|t| t == "-q" || t == "--disable");
+        let no_sys = expanded_argv.iter().any(|t| t == "--no-system-config");
+        let no_usr = expanded_argv.iter().any(|t| t == "--no-user-config");
+        let layered = if disable_all || (no_sys && no_usr) {
+            toml::Value::Table(toml::value::Table::new())
+        } else {
+            let opts = config_resolver::LayerOpts::from_env()
+                .merge_cli_flags(disable_all, no_sys, no_usr);
+            match config_resolver::load_layered("config.toml", &opts) {
+                Ok(v) => v,
+                Err(_) => toml::Value::Table(toml::value::Table::new()),
+            }
+        };
+        match aliases::apply_from_argv(expanded_argv, &layered) {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("error: {e:#}");
+                std::process::exit(2);
+            }
+        }
+    };
+
     let mut args = match Args::parse_with_script_split(expanded_argv) {
         Ok(a) => a,
         Err(e) => {
