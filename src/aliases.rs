@@ -157,6 +157,45 @@ fn resolve_with(
     AliasMap::from_toml(&toml::Value::Table(merged))
 }
 
+/// Rewrite `argv` letter-by-letter according to `map`. Stops
+/// processing at `--`. Long forms and unmapped shorts pass through
+/// unchanged.
+pub fn apply(argv: Vec<String>, map: &AliasMap) -> Result<Vec<String>> {
+    if map.is_empty() {
+        return Ok(argv);
+    }
+    let mut out: Vec<String> = Vec::with_capacity(argv.len());
+    let mut iter = argv.into_iter();
+    while let Some(tok) = iter.next() {
+        if tok == "--" {
+            out.push(tok);
+            out.extend(iter);
+            return Ok(out);
+        }
+        // Long forms (`--foo`) and non-flag tokens pass through.
+        if tok.starts_with("--") || !tok.starts_with('-') || tok.len() < 2 {
+            out.push(tok);
+            continue;
+        }
+        // Short-flag cluster: `-x`, `-xy`, `-x VAL`, `-xVAL`.
+        // Multi-letter handling is added in later tasks; for now,
+        // single-letter only.
+        let cluster: Vec<char> = tok[1..].chars().collect();
+        if cluster.len() == 1 {
+            let ch = cluster[0];
+            if let Some(entry) = map.entries.get(&ch) {
+                out.push(entry.long.clone());
+            } else {
+                out.push(tok);
+            }
+        } else {
+            // Combined / embedded — handled in later tasks. For now pass through.
+            out.push(tok);
+        }
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -256,5 +295,50 @@ mod tests {
         let msg = err.to_string();
         assert!(msg.contains("nonesuch"), "msg: {msg}");
         assert!(msg.contains("not defined"), "msg: {msg}");
+    }
+
+    fn one_entry(ch: char, long: &str, takes_value: bool) -> AliasMap {
+        let mut entries = BTreeMap::new();
+        entries.insert(ch, AliasEntry { long: long.into(), takes_value });
+        AliasMap { entries }
+    }
+
+    fn argv(s: &[&str]) -> Vec<String> {
+        s.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn empty_map_passes_argv_through() {
+        let map = AliasMap::default();
+        let out = apply(argv(&["recon", "-r", "url"]), &map).unwrap();
+        assert_eq!(out, vec!["recon", "-r", "url"]);
+    }
+
+    #[test]
+    fn simple_short_to_long() {
+        let map = one_entry('r', "--recursive", false);
+        let out = apply(argv(&["recon", "-r", "url"]), &map).unwrap();
+        assert_eq!(out, vec!["recon", "--recursive", "url"]);
+    }
+
+    #[test]
+    fn double_dash_terminator_stops_rewrite() {
+        let map = one_entry('r', "--recursive", false);
+        let out = apply(argv(&["recon", "-r", "--", "-r"]), &map).unwrap();
+        assert_eq!(out, vec!["recon", "--recursive", "--", "-r"]);
+    }
+
+    #[test]
+    fn long_forms_untouched() {
+        let map = one_entry('r', "--recursive", false);
+        let out = apply(argv(&["recon", "--anything", "url"]), &map).unwrap();
+        assert_eq!(out, vec!["recon", "--anything", "url"]);
+    }
+
+    #[test]
+    fn unknown_short_passes_through() {
+        let map = one_entry('r', "--recursive", false);
+        let out = apply(argv(&["recon", "-z", "url"]), &map).unwrap();
+        assert_eq!(out, vec!["recon", "-z", "url"]);
     }
 }
