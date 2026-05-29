@@ -320,6 +320,47 @@ pub fn apply(argv: Vec<String>, map: &AliasMap) -> Result<Vec<String>> {
     Ok(out)
 }
 
+/// Top-level helper called from main.rs. Pre-scans argv for `--alias <name>`,
+/// falls back to `[aliases] default`, resolves the alias, and rewrites argv.
+pub fn apply_from_argv(
+    argv: Vec<String>,
+    config: &toml::Value,
+) -> Result<Vec<String>> {
+    let explicit = find_alias_flag(&argv);
+    let alias_name: Option<String> = match explicit {
+        Some(n) => Some(n),
+        None => config
+            .get("aliases")
+            .and_then(|v| v.get("default"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
+    };
+    let Some(name) = alias_name else {
+        return Ok(argv);
+    };
+    let map = resolve(&name, config)?;
+    apply(argv, &map)
+}
+
+/// Walks argv for `--alias <name>` and returns the name if found.
+/// Honours `--` terminator (anything after `--` is positional and
+/// not scanned). Supports both `--alias NAME` and `--alias=NAME`.
+fn find_alias_flag(argv: &[String]) -> Option<String> {
+    let mut iter = argv.iter();
+    while let Some(tok) = iter.next() {
+        if tok == "--" {
+            return None;
+        }
+        if tok == "--alias" {
+            return iter.next().cloned();
+        }
+        if let Some(rest) = tok.strip_prefix("--alias=") {
+            return Some(rest.to_string());
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -539,5 +580,55 @@ mod tests {
         assert!(msg.contains("-DT"), "msg: {msg}");
         assert!(msg.contains("--domains"), "msg: {msg}");
         assert!(msg.contains("--timeout"), "msg: {msg}");
+    }
+
+    #[test]
+    fn apply_from_argv_no_alias_returns_unchanged() {
+        let cfg: toml::Value = toml::from_str("").unwrap();
+        let out = super::apply_from_argv(
+            argv(&["recon", "-r", "url"]),
+            &cfg,
+        ).unwrap();
+        assert_eq!(out, vec!["recon", "-r", "url"]);
+    }
+
+    #[test]
+    fn apply_from_argv_explicit_alias_wins() {
+        let cfg: toml::Value = toml::from_str(r#"
+            [aliases]
+            default = "wget"
+            [aliases.wget]
+            "-r" = "--recursive"
+        "#).unwrap();
+        let out = super::apply_from_argv(
+            argv(&["recon", "--alias", "wget", "-r", "url"]),
+            &cfg,
+        ).unwrap();
+        assert_eq!(out, vec!["recon", "--alias", "wget", "--recursive", "url"]);
+    }
+
+    #[test]
+    fn apply_from_argv_default_from_config() {
+        let cfg: toml::Value = toml::from_str(r#"
+            [aliases]
+            default = "wget"
+            [aliases.wget]
+            "-r" = "--recursive"
+        "#).unwrap();
+        let out = super::apply_from_argv(
+            argv(&["recon", "-r", "url"]),
+            &cfg,
+        ).unwrap();
+        assert_eq!(out, vec!["recon", "--recursive", "url"]);
+    }
+
+    #[test]
+    fn apply_from_argv_bad_alias_errors() {
+        let cfg: toml::Value = toml::from_str("").unwrap();
+        let err = super::apply_from_argv(
+            argv(&["recon", "--alias", "bogus", "-r"]),
+            &cfg,
+        ).unwrap_err();
+        assert!(err.to_string().contains("bogus"));
     }
 }
