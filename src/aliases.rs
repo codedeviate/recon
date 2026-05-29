@@ -102,6 +102,61 @@ fn parse_short_key(key: &str) -> Result<char> {
     Ok(ch)
 }
 
+/// Public entry point. Reads the bundled aliases and the resolved
+/// user-config layered TOML, deep-merges the requested `[aliases.<name>]`
+/// section, and returns the merged `AliasMap`.
+pub fn resolve(name: &str, user_layers: &toml::Value) -> Result<AliasMap> {
+    resolve_with(name, bundled(), user_layers)
+}
+
+/// Same as `resolve` but with an injectable bundled value, for tests.
+fn resolve_with(
+    name: &str,
+    bundled: &toml::Value,
+    user_layers: &toml::Value,
+) -> Result<AliasMap> {
+    let bundled_section = bundled.get(name);
+    let user_section = user_layers
+        .get("aliases")
+        .and_then(|v| v.get(name));
+
+    if bundled_section.is_none() && user_section.is_none() {
+        let mut known: Vec<&str> = bundled
+            .as_table()
+            .map(|t| t.keys().map(String::as_str).collect())
+            .unwrap_or_default();
+        if let Some(t) = user_layers.get("aliases").and_then(|v| v.as_table()) {
+            for k in t.keys() {
+                known.push(k);
+            }
+        }
+        known.sort_unstable();
+        known.dedup();
+        let known_list = if known.is_empty() {
+            "(none)".to_string()
+        } else {
+            known.join(", ")
+        };
+        bail!(
+            "alias '{name}' is not defined in config.toml or bundled aliases. \
+             Known: {known_list}"
+        );
+    }
+
+    let mut merged = toml::value::Table::new();
+    if let Some(t) = bundled_section.and_then(|v| v.as_table()) {
+        for (k, v) in t {
+            merged.insert(k.clone(), v.clone());
+        }
+    }
+    if let Some(t) = user_section.and_then(|v| v.as_table()) {
+        for (k, v) in t {
+            merged.insert(k.clone(), v.clone());
+        }
+    }
+    AliasMap::from_toml(&toml::Value::Table(merged))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -149,5 +204,57 @@ mod tests {
         let v: toml::Value = toml::from_str(r#""-rr" = "--recursive""#).unwrap();
         let err = AliasMap::from_toml(&v).unwrap_err();
         assert!(err.to_string().contains("expected key like '-x'"));
+    }
+
+    fn merge(bundled: &str, user: &str, name: &str) -> AliasMap {
+        let bundled_v: toml::Value = toml::from_str(bundled).unwrap();
+        let user_v: toml::Value = toml::from_str(user).unwrap();
+        resolve_with(name, &bundled_v, &user_v).unwrap()
+    }
+
+    #[test]
+    fn user_overrides_bundled_per_key() {
+        let m = merge(
+            r#"[wget]
+                "-r" = "--recursive""#,
+            r#"[aliases.wget]
+                "-r" = "--range""#,
+            "wget",
+        );
+        assert_eq!(m.entries.get(&'r').unwrap().long, "--range");
+    }
+
+    #[test]
+    fn user_adds_new_letter_to_bundled() {
+        let m = merge(
+            r#"[wget]
+                "-r" = "--recursive""#,
+            r#"[aliases.wget]
+                "-J" = "--json""#,
+            "wget",
+        );
+        assert_eq!(m.entries.get(&'r').unwrap().long, "--recursive");
+        assert_eq!(m.entries.get(&'J').unwrap().long, "--json");
+    }
+
+    #[test]
+    fn user_only_alias_resolves_without_bundled() {
+        let m = merge(
+            "",  // no bundled
+            r#"[aliases.mine]
+                "-x" = "--foo""#,
+            "mine",
+        );
+        assert_eq!(m.entries.get(&'x').unwrap().long, "--foo");
+    }
+
+    #[test]
+    fn unknown_alias_name_errors() {
+        let bundled_v: toml::Value = toml::from_str("").unwrap();
+        let user_v: toml::Value = toml::from_str("").unwrap();
+        let err = resolve_with("nonesuch", &bundled_v, &user_v).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("nonesuch"), "msg: {msg}");
+        assert!(msg.contains("not defined"), "msg: {msg}");
     }
 }
