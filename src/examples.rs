@@ -2274,6 +2274,25 @@ recon --script /tmp/decode.rhai"#,
     note("System layer search order on macOS: $HOMEBREW_PREFIX/etc/recon, /opt/homebrew/etc/recon, /usr/local/etc/recon, /etc/recon (first existing match wins, no merging across system candidates). Linux: /etc/recon only.");
     note("--disable / -q skips both layers. --no-system-config / --no-user-config skip just one. Skip flags always win over $RECON_SYSTEM_CONFIG / $RECON_CONFIG env vars.");
 
+    section("ALIASES / COMPATIBILITY MODES");
+
+    example("Use a bundled alias (wget short flags)", &[
+        "recon --alias wget -r https://example.com/",
+        "recon --alias wget -k -l 3 https://example.com/",
+    ]);
+    note("`--alias wget` rewrites short flags before clap parses. If recon doesn't yet implement the long-form (e.g. --recursive), clap errors with 'unknown flag' — namespace plumbing, not feature plumbing.");
+
+    example("Set a session-wide default in ~/.recon/config.toml", &[
+        "echo '[aliases]\\ndefault = \"wget\"' >> ~/.recon/config.toml",
+        "recon -r https://example.com/   # now interprets -r as --recursive",
+    ]);
+
+    example("Custom user alias section", &[
+        "# In ~/.recon/config.toml:\\n[aliases.mine]\\n\"-J\" = \"--json\"",
+        "recon --alias mine -J https://api.example.com/",
+    ]);
+    note("Built-in `curl` is empty (recon's short flags already match curl). Built-in `wget` maps the 11 letters where wget and curl disagree. User entries deep-merge on top per key.");
+
     section("GIT WRAPPER (0.89.0)");
 
     example("Run the shipped demo (creates a temp repo)", &[

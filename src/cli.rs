@@ -1499,6 +1499,15 @@ pub struct Args {
     #[arg(short = 'q', long = "disable", help_heading = "Meta")]
     pub disable_default_config: bool,
 
+    /// Select an alias section from config.toml.
+    ///
+    /// Short flags get rewritten to their alias mapping before
+    /// parsing. Bundled names: `curl` (no-op) and `wget`.
+    /// Users can define their own `[aliases.<name>]` table in
+    /// `~/.recon/config.toml`. See `recon --help aliases`.
+    #[arg(long = "alias", value_name = "NAME", help_heading = "Meta")]
+    pub alias: Option<String>,
+
     /// Skip the system config layer.
     /// Don't read /etc/recon/config.toml (or the system-config path
     /// pointed at by $RECON_SYSTEM_CONFIG) on startup. Works alongside

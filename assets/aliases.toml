@@ -1,0 +1,19 @@
+# Bundled alias sections. Selected at runtime via `recon --alias <name>`
+# or `[aliases] default = "<name>"` in ~/.recon/config.toml. User entries
+# in [aliases.<name>] inside config.toml deep-merge on top of these.
+
+[curl]
+# Empty: recon's short flags already match curl by policy (audit 0.91.0–0.92.2).
+
+[wget]
+"-r" = "--recursive"
+"-l" = { long = "--level", takes_value = true }
+"-m" = "--mirror"
+"-p" = "--page-requisites"
+"-k" = "--convert-links"
+"-N" = "--timestamping"
+"-D" = { long = "--domains", takes_value = true }
+"-H" = "--span-hosts"
+"-Q" = { long = "--quota", takes_value = true }
+"-S" = "--server-response"
+"-T" = { long = "--timeout", takes_value = true }

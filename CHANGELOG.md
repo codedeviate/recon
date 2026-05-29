@@ -34,6 +34,27 @@ companion doc/example/test changes.
 
 ## [Unreleased]
 
+## [0.94.0] - 2026-05-29
+
+### Added
+
+- **CLI aliases / compatibility modes.** A new `--alias <name>` flag
+  selects a named section of `[aliases.<name>]` tables in
+  `~/.recon/config.toml`; short flags in argv are rewritten to their
+  long-form equivalents before clap parses. Two bundled sections
+  ship: `curl` (empty no-op, since recon's short flags already match
+  curl) and `wget` (the 11 letters where wget and curl disagree).
+  User entries deep-merge on top of bundled entries per key. A
+  `[aliases] default = "<name>"` knob in config.toml sets the
+  session-wide default; explicit `--alias` on the command line wins.
+  `-q/--disable` suppresses alias resolution alongside the rest of
+  the config system.
+
+  Aliases are namespace plumbing, not feature plumbing. Mapping
+  `-r` → `--recursive` works today; the wget recursive engine remains
+  unimplemented. Clap reports "unknown flag" for un-implemented
+  long-forms — the intended failure mode.
+
 ## [0.93.0] - 2026-05-29
 
 ### Added

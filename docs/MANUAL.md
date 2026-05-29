@@ -2,7 +2,7 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.93.0</div>
+<div class="version">Version 0.94.0</div>
 <div class="date">2026-05-29</div>
 <div class="meta">
 Repository · https://github.com/codedeviate/recon<br>
@@ -804,6 +804,42 @@ The same `config.toml` carries several feature configurations:
 - `[sampledata.*]` — see [Sample data](#sample-data)
 - `[ai]`, `[ai.backends.*]` — see [ai backends](#ai-backends)
 - `[gh.accounts]` — used by the `gh()` script binding for auto-account-switch (see [gh wrapper](#gh-wrapper))
+
+## Aliases / compatibility modes
+
+Aliases are named groups of short→long flag rewrites stored in
+`~/.recon/config.toml` under `[aliases.<name>]` tables. Selected via
+`--alias <name>` on the command line, or via a session-wide default:
+
+```toml
+[aliases]
+default = "wget"
+
+[aliases.wget]
+"-r" = "--recursive"
+"-l" = { long = "--level", takes_value = true }
+
+[aliases.mine]
+"-J" = "--json"
+```
+
+| Flag | Description |
+|------|-------------|
+| `--alias <NAME>` | Select an alias section. Bundled names: `curl` (no-op), `wget`. |
+
+Two bundled sections ship with recon: `curl` (empty, since recon's
+short flags already match curl by policy) and `wget` (the ~11 letters
+where wget and curl disagree). User entries deep-merge on top of
+bundled entries per key — defining `[aliases.wget] "-J" = "--json"`
+adds `-J` without touching the rest of the wget map.
+
+Aliases are namespace plumbing, not feature plumbing. `--alias wget
+-r` rewrites to `--recursive`; if recon doesn't yet implement
+`--recursive`, clap reports "unknown flag" — exactly the right
+failure mode.
+
+`-q/--disable` (skip all config) suppresses alias resolution along
+with the rest of the config system.
 
 ## Ping, traceroute, netstatus
 
