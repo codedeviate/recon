@@ -67,6 +67,39 @@ impl AliasMap {
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
+
+    /// Parse a `toml::Value` representing one alias section (the
+    /// inner table of `[aliases.<name>]`) into an `AliasMap`. Keys
+    /// must match `-x` (single dash + single ASCII char).
+    pub fn from_toml(value: &toml::Value) -> Result<Self> {
+        let table = value
+            .as_table()
+            .ok_or_else(|| anyhow!("alias section must be a table"))?;
+        let mut entries = BTreeMap::new();
+        for (key, val) in table {
+            let ch = parse_short_key(key)?;
+            let shape: AliasEntryShape = val
+                .clone()
+                .try_into()
+                .map_err(|e| anyhow!("alias '{key}': {e}"))?;
+            entries.insert(ch, shape.into());
+        }
+        Ok(AliasMap { entries })
+    }
+}
+
+fn parse_short_key(key: &str) -> Result<char> {
+    let rest = key
+        .strip_prefix('-')
+        .ok_or_else(|| anyhow!("alias key '{key}': expected key like '-x'"))?;
+    let mut chars = rest.chars();
+    let ch = chars
+        .next()
+        .ok_or_else(|| anyhow!("alias key '{key}': expected key like '-x'"))?;
+    if chars.next().is_some() {
+        bail!("alias key '{key}': expected key like '-x' (single character)");
+    }
+    Ok(ch)
 }
 
 #[cfg(test)]
@@ -79,5 +112,42 @@ mod tests {
         // Two top-level tables.
         assert!(v.get("curl").is_some(), "curl section missing");
         assert!(v.get("wget").is_some(), "wget section missing");
+    }
+
+    fn parse_section(toml_text: &str) -> AliasMap {
+        let v: toml::Value = toml::from_str(toml_text).unwrap();
+        AliasMap::from_toml(&v).unwrap()
+    }
+
+    #[test]
+    fn untagged_serde_accepts_flat_string() {
+        let m = parse_section(r#""-r" = "--recursive""#);
+        assert_eq!(
+            m.entries.get(&'r'),
+            Some(&AliasEntry { long: "--recursive".into(), takes_value: false })
+        );
+    }
+
+    #[test]
+    fn untagged_serde_accepts_table_form() {
+        let m = parse_section(r#""-l" = { long = "--level", takes_value = true }"#);
+        assert_eq!(
+            m.entries.get(&'l'),
+            Some(&AliasEntry { long: "--level".into(), takes_value: true })
+        );
+    }
+
+    #[test]
+    fn rejects_short_with_no_dash() {
+        let v: toml::Value = toml::from_str(r#""r" = "--recursive""#).unwrap();
+        let err = AliasMap::from_toml(&v).unwrap_err();
+        assert!(err.to_string().contains("expected key like '-x'"));
+    }
+
+    #[test]
+    fn rejects_short_with_more_than_one_letter() {
+        let v: toml::Value = toml::from_str(r#""-rr" = "--recursive""#).unwrap();
+        let err = AliasMap::from_toml(&v).unwrap_err();
+        assert!(err.to_string().contains("expected key like '-x'"));
     }
 }
