@@ -2,8 +2,8 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.92.2</div>
-<div class="date">2026-05-28</div>
+<div class="version">Version 0.93.0</div>
+<div class="date">2026-05-29</div>
 <div class="meta">
 Repository · https://github.com/codedeviate/recon<br>
 License · MIT
@@ -1167,7 +1167,7 @@ recon --export-pdf-page 1 doc.pdf -o cover.webp --pdf-viewport 1920x2715
 | `--encode-list` | List all supported formats. |
 | `--qr-level <L\|M\|Q\|H>` | QR error-correction level (default M). |
 | `--encode-hints <KEY=VAL>` | rxing encoder hint (repeatable). Applies to aztec / pdf417. Keys: `charset`, `eclevel`, `aztec-layers`, `pdf417-compact`, `pdf417-compaction`, `pdf417-auto-eci`, `margin`. |
-| `--hrt` / `--no-hrt` | Human-readable text under 1D barcodes. Default on for EAN/UPC, off for Code128/39. SVG + ASCII only (PNG HRT deferred). |
+| `--hrt` / `--no-hrt` | Human-readable text under 1D barcodes. Default on for EAN/UPC, off for Code128/39. Renders to ASCII, SVG, and PNG (PNG uses the bundled DejaVu Sans Mono font). |
 | `--decode <IMAGE>` | Scan a PNG/JPEG/WebP for any supported format. `-` for stdin. |
 | `--decode-hints <LIST>` | Comma-separated format restriction. |
 | `--decode-all <IMAGE>` | Scan for every barcode in the image; one line per detection. |
@@ -1227,13 +1227,18 @@ recon --encode aztec --encode-hints charset=Shift_JIS '日本'
 ### HRT (human-readable text under 1D barcodes)
 
 EAN-13 and UPC-A get HRT by default; Code128 and Code39 don't unless you
-pass `--hrt`. Implemented for ASCII and SVG output. PNG output ignores
-the flag — PNG HRT is deferred pending bundled-font work.
+pass `--hrt`. Implemented for ASCII, SVG, and PNG output. PNG
+rasterization uses a bundled DejaVu Sans Mono font (Bitstream Vera +
+DejaVu license; see `assets/fonts/LICENSE-DejaVu.txt`). The PNG HRT
+band is floored at 22 pixels tall so the text stays legible even at
+1D's 2-pixel-per-module bar width.
 
 ```sh
 recon --encode ean13 --encode-format svg '4006381333931' -o retail.svg
 recon --encode code128 --hrt --encode-format svg 'SHIP-4711' -o box.svg
 recon --encode ean13 --no-hrt '4006381333931' -o bare.svg
+recon --encode ean13 '4006381333931' -o retail.png        # PNG HRT (0.93.0+)
+recon --encode code128 --hrt 'SHIP-4711' -o box.png
 ```
 
 ## Hashing

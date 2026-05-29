@@ -883,7 +883,8 @@ static TOPIC_ENCODE: Topic = Topic {
             flags: "--hrt / --no-hrt",
             description: "Show human-readable text under 1D barcodes. Default on for\n\
                           EAN-13 / UPC-A, off for Code128 / Code39. Implemented for\n\
-                          ASCII and SVG output; PNG HRT is deferred pending font bundling.",
+                          all output formats — ASCII, SVG, and PNG (rasterized via\n\
+                          bundled DejaVu Sans Mono).",
         },
         FlagHelp {
             flags: "--decode-all <IMAGE>",

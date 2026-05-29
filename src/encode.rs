@@ -661,6 +661,21 @@ pub fn render_svg_with_hrt(matrix: &BitMatrix, hrt: Option<&str>) -> String {
 
 /// Render to a PNG byte stream. Grayscale 8-bit (0 = black, 255 = white).
 pub fn render_png(matrix: &BitMatrix) -> Result<Vec<u8>> {
+    render_png_with_hrt(matrix, None)
+}
+
+/// Bundled DejaVu Sans Mono. Bitstream Vera + DejaVu license; see
+/// `assets/fonts/LICENSE-DejaVu.txt`. Used to rasterize PNG HRT;
+/// SVG output leaves font selection to the renderer.
+const HRT_FONT_TTF: &[u8] = include_bytes!("../assets/fonts/DejaVuSansMono.ttf");
+
+/// Minimum HRT band height in pixels for PNG output. Picked so a 14 px
+/// glyph stays readable even at 1D's 2-pixel-per-module bar scale.
+const HRT_PNG_MIN_BAND_PX: u32 = 22;
+
+/// Like `render_png`, but optionally rasterizes an HRT line below the
+/// barcode body using the bundled DejaVu Sans Mono font.
+pub fn render_png_with_hrt(matrix: &BitMatrix, hrt: Option<&str>) -> Result<Vec<u8>> {
     let (scale, height_mul) = match matrix.kind {
         MatrixKind::TwoD => (TWOD_PIXEL_SCALE, 1),
         MatrixKind::OneD => (ONED_PIXEL_WIDTH, ONED_BAR_HEIGHT),
@@ -669,7 +684,17 @@ pub fn render_png(matrix: &BitMatrix) -> Result<Vec<u8>> {
     let module_w = matrix.width + 2 * qz;
     let module_h = (matrix.height * height_mul) + 2 * qz;
     let px_w = module_w * scale;
-    let px_h = module_h * scale;
+    // Pick an HRT band tall enough to fit a legible monospace glyph
+    // at any per-module scale. The SVG impl can lean on the renderer
+    // to upscale; PNG is raw pixels, so we floor the band height at
+    // ~22 px so 14 px glyphs (with room for descenders) stay readable
+    // even when 1D `scale = 2` would otherwise give a 3 px band.
+    let hrt_px = if hrt.is_some() {
+        ((scale as f32 * 1.6) as u32).max(HRT_PNG_MIN_BAND_PX)
+    } else {
+        0
+    };
+    let px_h = module_h * scale + hrt_px;
 
     // One byte per pixel grayscale (0 = black, 255 = white).
     let mut pixels: Vec<u8> = vec![255u8; (px_w * px_h) as usize];
@@ -710,6 +735,10 @@ pub fn render_png(matrix: &BitMatrix) -> Result<Vec<u8>> {
         }
     }
 
+    if let Some(text) = hrt {
+        rasterize_hrt(&mut pixels, px_w, px_h, module_h * scale, hrt_px, text)?;
+    }
+
     let mut out = Vec::new();
     {
         let mut encoder = png::Encoder::new(&mut out, px_w, px_h);
@@ -719,6 +748,78 @@ pub fn render_png(matrix: &BitMatrix) -> Result<Vec<u8>> {
         writer.write_image_data(&pixels).map_err(|e| anyhow!("png: {e}"))?;
     }
     Ok(out)
+}
+
+/// Rasterize `text` centered horizontally in the HRT band below the
+/// barcode. Pixel band runs from y=barcode_px_h to y=barcode_px_h+hrt_px.
+fn rasterize_hrt(
+    pixels: &mut [u8],
+    px_w: u32,
+    _px_h: u32,
+    barcode_px_h: u32,
+    hrt_px: u32,
+    text: &str,
+) -> Result<()> {
+    use ab_glyph::{Font, FontRef, PxScale, ScaleFont};
+
+    let font = FontRef::try_from_slice(HRT_FONT_TTF)
+        .map_err(|e| anyhow!("hrt: failed to load bundled font: {e}"))?;
+
+    // Match the SVG font sizing convention: the HRT band is ~1.6x
+    // the per-module scale; rendering at ~75% of the band gives a
+    // comfortable line.
+    let font_size = (hrt_px as f32) * 0.75;
+    let scaled = font.as_scaled(PxScale::from(font_size));
+
+    // First pass: measure total advance to centre the string.
+    let mut advance = 0.0_f32;
+    let mut prev = None::<char>;
+    for c in text.chars() {
+        let glyph_id = scaled.glyph_id(c);
+        if let Some(p) = prev {
+            advance += scaled.kern(scaled.glyph_id(p), glyph_id);
+        }
+        advance += scaled.h_advance(glyph_id);
+        prev = Some(c);
+    }
+
+    let start_x = ((px_w as f32) - advance) / 2.0;
+    // Vertical: place the baseline ~80% down the HRT band so
+    // descenders fit without clipping.
+    let baseline_y = barcode_px_h as f32 + (hrt_px as f32) * 0.80;
+
+    let mut cursor_x = start_x;
+    let mut prev = None::<char>;
+    for c in text.chars() {
+        let glyph_id = scaled.glyph_id(c);
+        if let Some(p) = prev {
+            cursor_x += scaled.kern(scaled.glyph_id(p), glyph_id);
+        }
+        let glyph = glyph_id.with_scale_and_position(
+            PxScale::from(font_size),
+            ab_glyph::point(cursor_x, baseline_y),
+        );
+        if let Some(outlined) = font.outline_glyph(glyph) {
+            let bounds = outlined.px_bounds();
+            outlined.draw(|gx, gy, coverage| {
+                let px = bounds.min.x as i32 + gx as i32;
+                let py = bounds.min.y as i32 + gy as i32;
+                if px < 0 || py < 0 || (px as u32) >= px_w {
+                    return;
+                }
+                let idx = (py as u32 * px_w + px as u32) as usize;
+                if let Some(slot) = pixels.get_mut(idx) {
+                    // Blend toward black by the glyph coverage (0..1).
+                    let bg = *slot as f32;
+                    let blended = bg * (1.0 - coverage);
+                    *slot = blended as u8;
+                }
+            });
+        }
+        cursor_x += scaled.h_advance(glyph_id);
+        prev = Some(c);
+    }
+    Ok(())
 }
 
 /// Print `--encode-list` to the given writer.
@@ -825,11 +926,7 @@ pub fn run(args: &Args) -> Result<()> {
     let bytes: Vec<u8> = match out_format {
         OutputFormat::Ascii => render_ascii_with_hrt(&matrix, hrt_text).into_bytes(),
         OutputFormat::Svg => render_svg_with_hrt(&matrix, hrt_text).into_bytes(),
-        OutputFormat::Png => {
-            // PNG HRT rendering is deferred pending font bundling.
-            // Fall back to the plain bar image.
-            render_png(&matrix)?
-        }
+        OutputFormat::Png => render_png_with_hrt(&matrix, hrt_text)?,
     };
 
     match &args.output {

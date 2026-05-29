@@ -34,6 +34,30 @@ companion doc/example/test changes.
 
 ## [Unreleased]
 
+## [0.93.0] - 2026-05-29
+
+### Added
+
+- **PNG HRT** — human-readable text now renders below 1D barcodes in
+  PNG output, not just ASCII and SVG. Rasterized via the `ab_glyph`
+  crate against a bundled DejaVu Sans Mono TTF (`assets/fonts/`,
+  Bitstream Vera + DejaVu license, see
+  `assets/fonts/LICENSE-DejaVu.txt`). The HRT band height is floored
+  at 22 px so the text remains legible at 1D's narrow 2-pixel-per-module
+  bar width. Closes the long-standing "PNG HRT deferred pending font
+  bundling" entry from OUT-OF-SCOPE.md.
+
+### Removed
+
+- **`Waiting` bucket** retired from OUT-OF-SCOPE.md. The two items it
+  housed were PNG HRT (shipped this release) and "ASEAN / African /
+  Middle Eastern tax IDs" (relocated to Deferred, with the
+  open-endedness made explicit — many African tax IDs are not
+  algorithmic at all, so a regional batch isn't well-defined; add
+  per concrete country request). The remaining three buckets
+  (Deferred / Not yet supported / Out of scope) cover every real
+  category cleanly.
+
 ## [0.92.2] - 2026-05-28
 
 ### Changed

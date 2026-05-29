@@ -52,6 +52,44 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 83. PNG HRT rasterization (0.93.0)
+
+**What:** Human-readable text under 1D barcodes now renders to PNG
+output, not just ASCII and SVG. Closes the longest-standing entry in
+the Waiting bucket of OUT-OF-SCOPE.md.
+
+**Why this required a HISTORY entry:** the change brings a new crate
+(`ab_glyph` 0.2) and a new ~333 KB binary asset (DejaVu Sans Mono TTF
+under `assets/fonts/`) into the default build. Both decisions deserve
+the design-rationale paper trail.
+
+- **Font choice — DejaVu Sans Mono.** Bitstream Vera + DejaVu license
+  is unambiguously permissive for redistribution. Monospace
+  simplifies horizontal centering and gives barcode HRT a
+  conventional "label printer" look. The full TTF (~333 KB) is
+  embedded via `include_bytes!()` rather than a stripped ASCII
+  subset; subsetting would have shaved ~250 KB but added a
+  fonttools pipeline to the build for a binary that's already
+  several MB. Not worth the operational complexity at this size.
+- **Crate choice — `ab_glyph` 0.2.** Pure-Rust glyph rasterizer; no
+  fontconfig / freetype dependency, so it works identically on every
+  platform recon supports. The alternative `fontdue` is similar in
+  feature surface but pulls in more transitive deps. `ab_glyph` won
+  on smallest-surface-area grounds.
+- **HRT band sizing.** SVG output computes the HRT row height as
+  `scale * 1.6`, which works because SVG renderers upscale. PNG is
+  raw pixels, and 1D barcodes use `ONED_PIXEL_WIDTH = 2`, so
+  `2 * 1.6 = 3 px` would have produced an illegible 2.25 px font.
+  Floored the PNG HRT band at 22 px (constant
+  `HRT_PNG_MIN_BAND_PX`), independent of bar scale, so a 14 px
+  glyph with descender room stays readable for both 1D and 2D codes.
+- **Scope reductions during implementation.** Considered
+  feature-gating the font + ab_glyph behind a `--features png-hrt`
+  flag to avoid the binary-size hit for users who don't use PNG
+  encoding. Rejected because (a) the `png` crate itself is already
+  unconditional and (b) feature-flag arithmetic over an unconditional
+  dep is more confusing than a one-time +333 KB.
+
 ### 82. Local-dev scripting: jq filter + git/gh CLI wrappers (0.89.0)
 
 **What:** Three layered script-engine additions, shipped as one

@@ -1279,9 +1279,11 @@ recon --rekey \
     example("Human-readable text under 1D barcodes (--hrt)", &[
         "recon --encode ean13 --encode-format svg '4006381333931' -o product.svg   # HRT default-on for EAN/UPC",
         "recon --encode code128 --encode-format svg --hrt 'SHIP-4711' -o ship.svg  # explicit opt-in",
-        "recon --encode ean13 --no-hrt '4006381333931' -o bare.svg                  # suppress HRT",
+        "recon --encode ean13 --no-hrt '4006381333931' -o bare.svg                 # suppress HRT",
+        "recon --encode ean13 '4006381333931' -o product.png                       # PNG HRT (0.93.0+)",
+        "recon --encode code128 --hrt 'SHIP-4711' -o ship.png                      # PNG HRT explicit",
     ]);
-    note("HRT is rendered for ASCII and SVG output in 0.61.0. PNG HRT is deferred (needs bundled font); PNG output ignores --hrt with no warning.");
+    note("HRT is rendered for ASCII, SVG, and PNG output. PNG rasterization uses the bundled DejaVu Sans Mono font and floors the text band at 22 px so it stays legible even at 1D's narrow per-module pixel scale.");
 
     example("Scan every barcode in an image (--decode-all)", &[
         "recon --decode-all sheet.png          # one line per detected code",

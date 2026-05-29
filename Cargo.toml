@@ -4,7 +4,7 @@
 # binary is still `recon` — `cargo install recon-cli` produces a `recon`
 # executable thanks to the [[bin]] block below.
 name = "recon-cli"
-version = "0.92.2"
+version = "0.93.0"
 edition = "2021"
 rust-version = "1.85"
 license = "MIT"
@@ -99,6 +99,7 @@ qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 datamatrix = "0.3"
 barcoders = { version = "1", default-features = false, features = ["ascii", "svg"] }
 png = "0.17"
+ab_glyph = "0.2"
 age = { version = "0.11", default-features = false, features = ["armor"] }
 rpassword = "7"
 secrecy = "0.8"

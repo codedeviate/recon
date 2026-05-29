@@ -2,15 +2,13 @@
 
 A living list of items raised during design, implementation, or feature sweeps
 that are either explicitly deferred, decided against, or noted as "maybe
-later". Also doubles as a wishlist — items under "Waiting" are things worth
-building once someone explicitly asks. Kept here so ideas don't disappear
-into the black hole of spec files after each release.
+later". Kept here so ideas don't disappear into the black hole of spec files
+after each release.
 
-Organized into four buckets by reason for non-inclusion. When an item ships,
+Organized into three buckets by reason for non-inclusion. When an item ships,
 remove it from this file and note the shipping version in the CHANGELOG
 entry rather than leaving a crossed-out line here.
 
-- **Waiting** — can be done; nobody's asked for it.
 - **Deferred** — possible to implement; actively put off (scope/complexity
   trade-off or waiting on a concrete use case).
 - **Not yet supported** — blocked by upstream / ecosystem maturity; may ship
@@ -18,22 +16,11 @@ entry rather than leaving a crossed-out line here.
 - **Out of scope** — fundamentally can't be implemented, architecturally
   mismatched, or intentionally declined by policy.
 
----
-
-## Waiting — can be done, not asked for
-
-### Check digits
-
-- **ASEAN / African / Middle Eastern tax IDs** — beyond the
-  Latin-American + Australian + Mexican set shipped in 0.61.0. Add per
-  concrete request.
-
-### Encoding
-
-- **PNG HRT** — 0.61.0 shipped HRT for ASCII + SVG output; PNG HRT is
-  deferred pending font bundling. `ab_glyph` + a permissive TTF
-  (~50–100 KB compiled) is the path; picking a font + rasterization
-  positioning wasn't worth it in the original release.
+A historical "Waiting — can be done, nobody's asked for it" bucket was
+retired in 0.93.0; in practice items either get a concrete request (move
+to Deferred with the use-case noted) or stay invisible. Wishlist items
+that don't fit any of the three buckets above belong in the design notes
+rather than this file.
 
 ---
 
@@ -164,6 +151,13 @@ intent is honest.
 
 ### Check digits
 
+- **ASEAN / African / Middle Eastern tax IDs** — beyond the
+  Latin-American + Australian + Mexican set shipped in 0.61.0.
+  Implementable in principle (each country = a 2–17 KB Rust module
+  mirroring `src/checkdigit/vat/*.rs`), but blocked on a concrete
+  country list. African tax IDs especially are not all algorithmic —
+  many use opaque registration numbers with no published checksum.
+  Add per concrete country request, not as a regional batch.
 - **Partial / prefix verification** — "is this a plausible
   IIN / EDRPOU prefix?" for inputs shorter than the full length. UX
   pattern rather than an algorithm; no clear flag-shape design.
