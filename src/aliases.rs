@@ -200,19 +200,23 @@ pub fn apply(argv: Vec<String>, map: &AliasMap) -> Result<Vec<String>> {
                 continue;
             }
         }
-        // Otherwise this is either a combined-bool cluster (handled
-        // in Task 7) or a passthrough (no leading-letter mapping at
-        // all). For now, error explicitly if the leading letter is
-        // a bool alias with junk attached.
-        if let Some(entry) = &lead_entry {
-            if !entry.takes_value {
-                bail!(
-                    "alias '{tok}' has trailing value but '{}' takes no value",
-                    entry.long
-                );
+        // No leading-letter value-taker. Try combined-bool expansion:
+        // every letter in the cluster (including the lead) must map
+        // to a bool alias, OR pass through unchanged.
+        if cluster.iter().all(|c| {
+            map.entries
+                .get(c)
+                .map(|e| !e.takes_value)
+                .unwrap_or(false)
+        }) {
+            for c in &cluster {
+                out.push(map.entries.get(c).unwrap().long.clone());
             }
+            continue;
         }
-        // No leading-letter mapping → passthrough.
+        // Mixed cluster (some mapped, some not, or value-takers in
+        // non-trailing position). Trailing-value handling lands in
+        // Task 8; for now, pass through unchanged.
         out.push(tok);
     }
     Ok(out)
@@ -386,5 +390,19 @@ mod tests {
         assert!(msg.contains("-r3"), "msg: {msg}");
         assert!(msg.contains("--recursive"), "msg: {msg}");
         assert!(msg.contains("takes no value"), "msg: {msg}");
+    }
+
+    fn two_bools(a: (char, &str), b: (char, &str)) -> AliasMap {
+        let mut entries = BTreeMap::new();
+        entries.insert(a.0, AliasEntry { long: a.1.into(), takes_value: false });
+        entries.insert(b.0, AliasEntry { long: b.1.into(), takes_value: false });
+        AliasMap { entries }
+    }
+
+    #[test]
+    fn combined_bool_shorts() {
+        let map = two_bools(('r', "--recursive"), ('k', "--convert-links"));
+        let out = apply(argv(&["recon", "-rk", "url"]), &map).unwrap();
+        assert_eq!(out, vec!["recon", "--recursive", "--convert-links", "url"]);
     }
 }
