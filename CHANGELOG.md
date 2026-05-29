@@ -34,6 +34,20 @@ companion doc/example/test changes.
 
 ## [Unreleased]
 
+## [0.94.1] - 2026-05-29
+
+### Fixed
+
+- **`-q/--disable` now suppresses alias resolution entirely**, not
+  just the `[aliases] default` config layer. The 0.94.0 release left
+  explicit `--alias <name>` still applying under `-q` (because the
+  bundled defaults aren't in config), which contradicted the spec's
+  framing of `-q` as "skip-all-config means no alias resolution".
+  Behaviour now matches the spec: `recon -q --alias wget -r ...` no
+  longer rewrites `-r` to `--recursive`. Users who want an alias but
+  not the rest of their config should drop `-q` and rely on explicit
+  `--alias`.
+
 ## [0.94.0] - 2026-05-29
 
 ### Added

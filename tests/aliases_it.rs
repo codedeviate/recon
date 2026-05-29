@@ -103,6 +103,24 @@ default = "wget"
 }
 
 #[test]
+fn disable_skips_even_explicit_alias() {
+    // Stricter than `disable_skips_alias_resolution`: even an
+    // explicit `--alias wget` on the command line is suppressed
+    // when -q is set. `-q` opts out of alias resolution entirely,
+    // including bundled. The user who wants no config but still
+    // wants an alias can drop -q and use --alias by itself.
+    let out = recon()
+        .args(["-q", "--alias", "wget", "-r", "0-100", "https://invalid.example.localhost.test"])
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        !stderr.contains("--recursive"),
+        "explicit --alias should be skipped under -q; stderr: {stderr}"
+    );
+}
+
+#[test]
 fn alias_to_unimplemented_long_form_errors_via_clap() {
     let out = recon()
         .args(["--alias", "wget", "-r", "https://example.com"])
