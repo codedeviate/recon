@@ -9,9 +9,7 @@
 use std::collections::BTreeMap;
 use std::sync::OnceLock;
 
-#[allow(unused_imports)]
 use anyhow::{anyhow, bail, Result};
-#[allow(unused_imports)]
 use serde::Deserialize;
 
 /// Bundled aliases TOML text. Linked in at compile time.
