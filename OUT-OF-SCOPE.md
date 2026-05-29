@@ -278,6 +278,13 @@ recursive-engine pieces below remain deferred.
 recursive variant (filters applied to discovered links during a
 crawl) is the part that's still deferred.
 
+The 0.94.0 alias system (`[aliases.wget]` in `~/.recon/config.toml`,
+`recon --alias wget ...`) unlocks the short-flag namespace — `-r`
+can be aliased to `--recursive` today without breaking curl's `-r
+--range`. The recursive engine itself remains the actual blocker;
+once it ships, the bundled alias makes the wget-style invocations
+work end-to-end.
+
 ### REPL enhancements
 
 - **REPL tab completion** — rustyline supports a `Completer` trait,

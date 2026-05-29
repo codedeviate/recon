@@ -52,6 +52,58 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 84. CLI aliases / compatibility modes (0.94.0)
+
+**What:** A pre-clap argv preprocessor that rewrites short flags into
+long forms per a named `[aliases.<name>]` section in the layered
+`config.toml`. Bundled sections `curl` (no-op) and `wget` (the 11
+conflicting letters) ship with the binary; user entries deep-merge on
+top per key.
+
+**Why this required a HISTORY entry:** the change introduces a new
+TOML namespace (`[aliases.*]`), a new bundled asset
+(`assets/aliases.toml`), and a pre-clap rewriting pass — three
+architectural primitives recon didn't have before. The "why this
+instead of a full --curl / --wget mode flag" design conversation is
+worth a paper trail.
+
+- **Mode-switching rejected first.** A `--curl` / `--wget` runtime
+  mode flag was the initial proposal. Rejected because clap's derive
+  API binds short flags at compile time, mode-switching them
+  requires either two parsers + dispatch (every flag duplicated) or
+  a custom argv preprocessor that breaks down for value-takers.
+  Cognitive load on users also grows: "what does -r mean today?"
+  becomes context-dependent. The aliases-as-config approach lifts
+  all of that out of the parser: users opt in per-invocation or
+  per-machine, the namespace contract from the curl audit
+  (0.91.0–0.92.2) stays intact for default users, and there's no
+  parser refactor.
+- **TOML schema — arity-aware via `serde(untagged)`.** Flat form
+  `"-r" = "--recursive"` deserializes for bool flags; detailed form
+  `"-l" = { long = "--level", takes_value = true }` for
+  value-takers. This was picked over a "let the preprocessor
+  introspect clap at runtime" approach because the runtime
+  introspection pass would need to run before clap parses,
+  complicating the boundary. Explicit metadata in the TOML is small
+  user-side cost (one extra map field) for clear preprocessor logic.
+- **Bundled defaults via `include_str!()`.** No runtime file-system
+  reach, no fontconfig-style discovery. Bundled curl is empty
+  (no-op); bundled wget maps the 11 letters and ships even though
+  the recursive engine doesn't exist yet — alias maps are namespace
+  plumbing, not feature plumbing. If recon ever ships
+  `--recursive`, the existing `[aliases.wget] "-r" = "--recursive"`
+  starts doing something. If it never does, `recon --alias wget
+  -r` errors with clap's standard "unknown flag", which is the
+  honest answer.
+- **Deletion of bundled mappings deferred.** v1 has no syntax for
+  "remove bundled `-N`". Workaround documented: define a new alias
+  name (`my-wget`) that omits the unwanted letter. Demand will tell
+  us whether a `_remove = [...]` sentinel is worth adding.
+- **`-q/--disable` skips alias resolution.** Symmetric with how the
+  flag skips the rest of the layered config. Pre-scan in main.rs
+  reads `-q` from argv before clap to honour it during the alias
+  resolution pass.
+
 ### 83. PNG HRT rasterization (0.93.0)
 
 **What:** Human-readable text under 1D barcodes now renders to PNG
