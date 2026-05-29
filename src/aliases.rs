@@ -181,17 +181,39 @@ pub fn apply(argv: Vec<String>, map: &AliasMap) -> Result<Vec<String>> {
         // Multi-letter handling is added in later tasks; for now,
         // single-letter only.
         let cluster: Vec<char> = tok[1..].chars().collect();
+        // Lookup the leading letter.
+        let lead = cluster[0];
+        let lead_entry = map.entries.get(&lead).cloned();
         if cluster.len() == 1 {
-            let ch = cluster[0];
-            if let Some(entry) = map.entries.get(&ch) {
-                out.push(entry.long.clone());
-            } else {
-                out.push(tok);
+            match lead_entry {
+                Some(entry) => out.push(entry.long),
+                None => out.push(tok),
             }
-        } else {
-            // Combined / embedded — handled in later tasks. For now pass through.
-            out.push(tok);
+            continue;
         }
+        // Multi-character cluster. If the lead letter takes a value,
+        // the remainder is the embedded value: `-l3` → `--level 3`.
+        if let Some(entry) = &lead_entry {
+            if entry.takes_value {
+                out.push(entry.long.clone());
+                out.push(cluster[1..].iter().collect::<String>());
+                continue;
+            }
+        }
+        // Otherwise this is either a combined-bool cluster (handled
+        // in Task 7) or a passthrough (no leading-letter mapping at
+        // all). For now, error explicitly if the leading letter is
+        // a bool alias with junk attached.
+        if let Some(entry) = &lead_entry {
+            if !entry.takes_value {
+                bail!(
+                    "alias '{tok}' has trailing value but '{}' takes no value",
+                    entry.long
+                );
+            }
+        }
+        // No leading-letter mapping → passthrough.
+        out.push(tok);
     }
     Ok(out)
 }
@@ -340,5 +362,29 @@ mod tests {
         let map = one_entry('r', "--recursive", false);
         let out = apply(argv(&["recon", "-z", "url"]), &map).unwrap();
         assert_eq!(out, vec!["recon", "-z", "url"]);
+    }
+
+    #[test]
+    fn value_taker_with_space() {
+        let map = one_entry('l', "--level", true);
+        let out = apply(argv(&["recon", "-l", "3", "url"]), &map).unwrap();
+        assert_eq!(out, vec!["recon", "--level", "3", "url"]);
+    }
+
+    #[test]
+    fn value_taker_with_embedded_value() {
+        let map = one_entry('l', "--level", true);
+        let out = apply(argv(&["recon", "-l3", "url"]), &map).unwrap();
+        assert_eq!(out, vec!["recon", "--level", "3", "url"]);
+    }
+
+    #[test]
+    fn embedded_value_on_bool_errors() {
+        let map = one_entry('r', "--recursive", false);
+        let err = apply(argv(&["recon", "-r3"]), &map).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("-r3"), "msg: {msg}");
+        assert!(msg.contains("--recursive"), "msg: {msg}");
+        assert!(msg.contains("takes no value"), "msg: {msg}");
     }
 }
