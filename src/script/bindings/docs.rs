@@ -100,6 +100,42 @@ pub fn register(engine: &mut Engine) {
         },
     );
 
+    // html_to_text(html) — render HTML to text with safe defaults
+    // (no ANSI styling, terminal/80-column width). Deterministic by
+    // default so script output is stable in pipelines and tests.
+    engine.register_fn(
+        "html_to_text",
+        |html: &str| -> Result<String, Box<EvalAltResult>> {
+            let opts = crate::render::RenderOpts {
+                width: None,
+                color: crate::cli::ColorWhen::Never,
+            };
+            crate::render::render_html(html, &opts).map_err(|e| err(e.to_string()))
+        },
+    );
+    // html_to_text(html, #{ width, color }) — `width` is a number,
+    // `color` is one of "always" / "auto" / "never" (default "never").
+    engine.register_fn(
+        "html_to_text",
+        |html: &str, opts: Map| -> Result<String, Box<EvalAltResult>> {
+            let width = opts
+                .get("width")
+                .and_then(|v| v.as_int().ok())
+                .map(|n| n.max(0) as usize);
+            let color = match opts
+                .get("color")
+                .and_then(|v| v.clone().into_string().ok())
+                .as_deref()
+            {
+                Some("always") => crate::cli::ColorWhen::Always,
+                Some("auto") => crate::cli::ColorWhen::Auto,
+                _ => crate::cli::ColorWhen::Never,
+            };
+            let ropts = crate::render::RenderOpts { width, color };
+            crate::render::render_html(html, &ropts).map_err(|e| err(e.to_string()))
+        },
+    );
+
     // html_to_pdf(html_str, dest_path)
     engine.register_fn(
         "html_to_pdf",

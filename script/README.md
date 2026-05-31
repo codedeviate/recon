@@ -115,6 +115,7 @@ surprise failures.
 | Script | What it does |
 |---|---|
 | `doc-convert.rhai` | Markdown → HTML (+ TOC) → PDF pipeline demo |
+| `render.rhai` | HTML → text via `html_to_text()` and `http(.., #{render:true})` |
 | `pdf.rhai` | Export a single PDF page to PNG / JPEG / WEBP via `pdf_export_page` |
 
 ### Comparison
