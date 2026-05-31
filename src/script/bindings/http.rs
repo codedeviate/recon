@@ -563,6 +563,21 @@ pub(crate) fn build_args(
         if let Some(s) = opts_get_str(o, "proxy_pass") {
             args.proxy_pass = Some(s);
         }
+
+        // ── 0.96.0 — HTML-to-text render ──────────────────────────────
+        if let Some(b) = opts_get_bool(o, "render") {
+            args.render = b;
+        }
+        if let Some(n) = opts_get_u64(o, "width") {
+            args.width = Some(n as usize);
+        }
+        if let Some(s) = opts_get_str(o, "render_color") {
+            args.render_color = match s.as_str() {
+                "always" => crate::cli::ColorWhen::Always,
+                "auto" => crate::cli::ColorWhen::Auto,
+                _ => crate::cli::ColorWhen::Never,
+            };
+        }
     }
     Ok(args)
 }
