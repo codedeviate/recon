@@ -72,8 +72,27 @@ fn render_plain(html: &str, width: usize) -> Result<String> {
 }
 
 fn render_coloured(html: &str, width: usize) -> Result<String> {
-    // Filled in Task 2.
-    render_plain(html, width)
+    use html2text::render::RichAnnotation;
+
+    html2text::from_read_coloured(html.as_bytes(), width, |anns: &[RichAnnotation], text: &str| {
+        let mut prefix = String::new();
+        for ann in anns {
+            match ann {
+                RichAnnotation::Strong => prefix.push_str("\u{1b}[1m"),
+                RichAnnotation::Emphasis => prefix.push_str("\u{1b}[3m"),
+                RichAnnotation::Strikeout => prefix.push_str("\u{1b}[9m"),
+                RichAnnotation::Code | RichAnnotation::Preformat(_) => prefix.push_str("\u{1b}[2m"),
+                RichAnnotation::Link(_) => prefix.push_str("\u{1b}[4;34m"),
+                _ => {}
+            }
+        }
+        if prefix.is_empty() {
+            text.to_string()
+        } else {
+            format!("{prefix}{text}\u{1b}[0m")
+        }
+    })
+    .map_err(|e| anyhow::anyhow!("html render (coloured): {e}"))
 }
 
 #[cfg(test)]
@@ -168,5 +187,22 @@ mod tests {
     fn color_always_and_never_are_literal() {
         assert!(use_color(&RenderOpts { width: None, color: ColorWhen::Always }));
         assert!(!use_color(&RenderOpts { width: None, color: ColorWhen::Never }));
+    }
+
+    fn coloured(html: &str) -> String {
+        render_html(html, &RenderOpts { width: Some(60), color: ColorWhen::Always }).unwrap()
+    }
+
+    #[test]
+    fn colour_mode_emits_ansi() {
+        let out = coloured("<p><strong>bold</strong> and <em>italic</em></p>");
+        assert!(out.contains('\u{1b}'), "expected ANSI escapes, got: {out:?}");
+        assert!(out.contains("bold") && out.contains("italic"), "text missing: {out:?}");
+    }
+
+    #[test]
+    fn plain_mode_emits_no_ansi() {
+        let out = plain("<p><strong>bold</strong></p>");
+        assert!(!out.contains('\u{1b}'), "unexpected ANSI escapes: {out:?}");
     }
 }
