@@ -107,3 +107,36 @@ async fn render_passes_non_html_through_unchanged() {
     assert!(out.status.success());
     assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), r#"{"k":"v"}"#);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn script_http_render_opt_renders_body() {
+    let server = wiremock::MockServer::start().await;
+    wiremock::Mock::given(wiremock::matchers::method("GET"))
+        .respond_with(
+            wiremock::ResponseTemplate::new(200)
+                .set_body_raw(
+                    r#"<h1>Scripted</h1><p>Visit <a href="https://ex.com/z">z</a>.</p>"#,
+                    "text/html; charset=utf-8",
+                ),
+        )
+        .mount(&server)
+        .await;
+
+    let script = format!(
+        "let r = http(\"{}\", #{{ render: true, width: 70 }});\nprint(r.body);\n",
+        server.uri()
+    );
+    let dir = std::env::temp_dir();
+    let path = dir.join(format!("recon_script_render_{}.rhai", std::process::id()));
+    std::fs::write(&path, script).unwrap();
+
+    let out = Command::new(BIN).arg("--script").arg(&path).output().unwrap();
+    let _ = std::fs::remove_file(&path);
+
+    assert!(out.status.success(), "stderr: {}", String::from_utf8_lossy(&out.stderr));
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.contains("Scripted"), "heading missing: {text}");
+    assert!(text.contains("https://ex.com/z"), "footnote url missing: {text}");
+    assert!(!text.contains("<h1>"), "raw HTML leaked — render opt not applied: {text}");
+    assert!(!text.contains('\u{1b}'), "unexpected ANSI in scripted body (should default Never): {text}");
+}

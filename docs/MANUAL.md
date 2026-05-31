@@ -2636,7 +2636,7 @@ Every key is optional.
 | `prettify` | bool | Pretty-print response body (auto-detect format). |
 | `prettify_as` | string | Force prettify format (json/xml/html/yaml/csv/tsv/auto). Implies `prettify: true`. |
 | `render` | bool | (0.96.0) Render `text/html` response bodies to text; non-HTML passes through. `resp.body` becomes the rendered text. |
-| `width` | int | (0.96.0) Wrap column for rendered output (default 80 in scripts). |
+| `width` | int | (0.96.0) Wrap column for rendered output (default: terminal width on a TTY, else 80). |
 | `render_color` | string | (0.96.0) ANSI styling of rendered text: `"auto"` / `"always"` / `"never"` (default `"never"` in scripts). |
 | `impersonate` | string | (0.77.0) Browser TLS+H2 fingerprint profile name (e.g. `"chrome_131"`, `"firefox_128"`, `"safari_17.5"`). Requires a build with `--features impersonate`; rejected with a rebuild hint otherwise. Hyphens accepted (`"chrome-131"` ≡ `"chrome_131"`). See `recon --help impersonate`. |
 | `ja3` | string | (0.77.0, **deferred**) Reserved for raw JA3 ClientHello override. Errors at runtime as not-yet-implemented; use `impersonate` instead. |
