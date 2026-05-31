@@ -77,6 +77,7 @@ const FEATURES: &[&str] = &[
     "Largefile",
     "libz",
     "markdown",
+    "html-render",
     "maxicode-decode",
     "MQTT5",
     "pdf-cover-page",
