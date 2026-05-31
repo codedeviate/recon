@@ -53,6 +53,7 @@ mod pdf_export;
 mod ping;
 mod prettify;
 mod proto_filter;
+mod render;
 mod proxy;
 mod redis_probe;
 mod repl;

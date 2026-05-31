@@ -118,6 +118,7 @@ rhai = { version = "1", features = ["sync", "metadata"] }
 regex = "1"
 urlencoding = "2"
 html-escape = "0.2"
+html2text = "0.17"
 chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
 jaq-core = "3"
 jaq-std = "3"
