@@ -52,6 +52,36 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 86. HTML → text rendering — a text-browser view (0.96.0)
+
+recon could fetch any URL but had no way to read the result: its only
+HTML-adjacent features were outbound (`--md-to-html`, `--*-to-pdf`). 0.96.0
+adds an inbound renderer.
+
+**Crate choice:** `html2text` (0.17, MIT), built on `html5ever` — the same
+production HTML5 tokenizer Servo uses. It provides width-wrapping, ASCII
+tables, link footnotes, and a rich-annotation stream for ANSI out of the box.
+Rejected: hand-rolling on `scraper`/`html5ever` (reimplements wrapping, tables,
+footnotes — a week to match the crate; YAGNI) and shelling out to
+`agent-browser` like `--html-to-pdf` (external binary, no offline/stdin, runs
+JavaScript — the opposite of a lightweight deterministic text view).
+
+**Shape:** one pure core, `render::render_html(html, opts) -> String`, reused by
+three callers — the `--html-to-text` transform mode, the `--render` response
+hook in `output::write_processed_body`, and the `html_to_text()` Rhai binding.
+Links render as `[N]` footnotes + a reference list in plain mode (the URLs are
+the point for a recon tool); in colour mode (auto-on TTY) links are styled
+inline instead. `--render` is HTML-only-else-passthrough, so it is safe to
+leave on. Colour auto-detects the TTY: piped output is canonical footnoted
+plain text; interactive output is ANSI-styled.
+
+**No feature gate:** pure Rust with no SSL backend, so it ships in both the
+default and the impersonate variant — the impersonate build, which gave up
+scp/sftp/ssh per issue #1, gains HTML rendering.
+
+**Deferred:** JavaScript/CSS/images (use `--html-to-pdf`), a `--render-no-links`
+toggle, and image-mode controls.
+
 ### 85. `ssh` feature gate — fixing the impersonate link collision (0.95.0)
 
 **What:** `ssh2` / `libssh2-sys` moved behind a default-on `ssh` cargo

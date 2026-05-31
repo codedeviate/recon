@@ -2,8 +2,8 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.95.0</div>
-<div class="date">2026-05-29</div>
+<div class="version">Version 0.96.0</div>
+<div class="date">2026-05-31</div>
 <div class="meta">
 Repository · https://github.com/codedeviate/recon<br>
 License · MIT
@@ -1094,6 +1094,10 @@ recon --compare a.json b.json --compare-context 5
 | `--md-to-html <SRC>` | Markdown → HTML via comrak. Output `-o PATH` or stdout. |
 | `--md-to-pdf <SRC>` | Markdown → PDF (via agent-browser). `-o PATH` required. |
 | `--html-to-pdf <SRC>` | HTML → PDF (via agent-browser). |
+| `--html-to-text <SRC>` | HTML → readable wrapped text (file / URL / stdin); lynx/w3m-style view. |
+| `--render` | Render `text/html` HTTP responses as text inline; non-HTML passes through. |
+| `--render-color <auto\|always\|never>` | ANSI styling of rendered text (auto-on when stdout is a TTY). |
+| `--width <N>` | Wrap column for rendered output (default: terminal width on a TTY, else 80). |
 | `--toc` | Inject a linkable TOC. |
 | `--toc-depth <N>` | Include headings up to H`N` (default 3). |
 | `--toc-title <STR>` | TOC heading (default "Contents"). |
@@ -1130,6 +1134,21 @@ recon --md-to-pdf report.md \
       -o report.pdf
 # pdfinfo report.pdf | grep -E '(Title|Author|Subject|Keywords)'
 ```
+
+#### Rendering HTML as text
+
+```sh
+# Read a page as text (lynx/w3m style)
+recon --render https://example.com
+
+# Convert a local file, wrap to 60 columns
+recon --html-to-text page.html --width 60 -o page.txt
+```
+
+`--render` only transforms `text/html` responses; other content types pass
+through unchanged. `<a href>` links become `[N]` footnotes with a reference
+list (plain mode); in colour mode on a TTY, links are styled inline. ANSI
+styling auto-enables on a TTY — control it with `--render-color`.
 
 ### Cover pages
 
@@ -2616,6 +2635,9 @@ Every key is optional.
 | `reject` | string | (0.67.0) Comma-separated filename-suffix reject list. |
 | `prettify` | bool | Pretty-print response body (auto-detect format). |
 | `prettify_as` | string | Force prettify format (json/xml/html/yaml/csv/tsv/auto). Implies `prettify: true`. |
+| `render` | bool | (0.96.0) Render `text/html` response bodies to text; non-HTML passes through. `resp.body` becomes the rendered text. |
+| `width` | int | (0.96.0) Wrap column for rendered output (default 80 in scripts). |
+| `render_color` | string | (0.96.0) ANSI styling of rendered text: `"auto"` / `"always"` / `"never"` (default `"never"` in scripts). |
 | `impersonate` | string | (0.77.0) Browser TLS+H2 fingerprint profile name (e.g. `"chrome_131"`, `"firefox_128"`, `"safari_17.5"`). Requires a build with `--features impersonate`; rejected with a rebuild hint otherwise. Hyphens accepted (`"chrome-131"` ≡ `"chrome_131"`). See `recon --help impersonate`. |
 | `ja3` | string | (0.77.0, **deferred**) Reserved for raw JA3 ClientHello override. Errors at runtime as not-yet-implemented; use `impersonate` instead. |
 | `ja4` | string | (0.77.0, **deferred**) Reserved for raw JA4 fingerprint override. Errors at runtime as not-yet-implemented. |
@@ -3963,6 +3985,7 @@ print(`total: ${count}`);
 | `md_to_html(md)` / `md_to_html(md, opts)` | Markdown (string or Blob) → HTML string. |
 | `md_to_pdf(md, dest)` / `md_to_pdf(md, dest, opts)` | Markdown → PDF at `dest`. Needs agent-browser. |
 | `html_to_pdf(html, dest)` | HTML → PDF at `dest`. Needs agent-browser. |
+| `html_to_text(html)` / `html_to_text(html, #{width, color})` | Render an HTML string to text. `color` is `"auto"`/`"always"`/`"never"` (default `"never"` in scripts). |
 
 ### Opts map
 
@@ -3999,6 +4022,10 @@ md_to_pdf(md, "/tmp/styled.pdf", #{
     toc: true,
     toc_title: "Table of Contents",
 });
+
+// html → text (lynx/w3m-style)
+let text = html_to_text(page_html, #{ width: 100 });
+let resp = http("https://example.com", #{ render: true });  // resp.body is text
 ```
 
 ### `pdf_export_page`

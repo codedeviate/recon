@@ -235,6 +235,9 @@ reference.
 - **Custom page sizes / margins / orientations** — agent-browser's
   `pdf` subcommand's flag surface dictates what's feasible. Punt
   until real demand shapes the knobs.
+- **`--render-no-links` toggle** — suppress the footnote reference
+  list in rendered HTML. Footnotes are always on for 0.96.0 since the
+  URLs are usually the point.
 
 ### Script engine
 
@@ -484,6 +487,14 @@ rather than an upstream block — tracked under Deferred.)
 ---
 
 ## Out of scope — can't / won't
+
+### Document conversions
+
+- **Image rendering in `--html-to-text`** — `<img>` renders as `alt`
+  text only; no terminal-graphics output.
+- **JavaScript / CSS layout in `--html-to-text`** — this is a static
+  semantic-text view, not a browser. Use `--html-to-pdf`
+  (agent-browser) when a real engine is required.
 
 ### Security boundary
 
