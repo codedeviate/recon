@@ -5,11 +5,6 @@
 //! `render_html`, is reused by the `--html-to-text` CLI mode, the `--render`
 //! response hook, and the `html_to_text(...)` script binding.
 
-// Call sites for these items land in later tasks (--html-to-text, --render,
-// the html_to_text script binding). Suppress dead-code warnings until then;
-// this attribute is removed once the call sites exist (Task 5).
-#![allow(dead_code)]
-
 use anyhow::Context;
 use anyhow::Result;
 use std::io::IsTerminal;

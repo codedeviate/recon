@@ -60,3 +60,50 @@ fn html_to_text_writes_to_output_file() {
 
     let _ = std::fs::remove_file(&path);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn render_turns_html_response_into_text() {
+    let server = wiremock::MockServer::start().await;
+    wiremock::Mock::given(wiremock::matchers::method("GET"))
+        .respond_with(
+            wiremock::ResponseTemplate::new(200).set_body_raw(
+                r#"<h1>Page</h1><p>Visit <a href="https://ex.com/a">link</a>.</p>"#,
+                "text/html; charset=utf-8",
+            ),
+        )
+        .mount(&server)
+        .await;
+
+    let out = Command::new(BIN)
+        .arg("--render").arg("--width").arg("70")
+        .arg(server.uri())
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "stderr: {}", String::from_utf8_lossy(&out.stderr));
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.contains("Page"), "heading missing: {text}");
+    assert!(text.contains("link"), "anchor missing: {text}");
+    assert!(text.contains("https://ex.com/a"), "footnote url missing: {text}");
+    assert!(!text.contains("<h1>"), "raw HTML leaked: {text}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn render_passes_non_html_through_unchanged() {
+    let server = wiremock::MockServer::start().await;
+    wiremock::Mock::given(wiremock::matchers::method("GET"))
+        .respond_with(
+            wiremock::ResponseTemplate::new(200)
+                .insert_header("Content-Type", "application/json")
+                .set_body_string(r#"{"k":"v"}"#),
+        )
+        .mount(&server)
+        .await;
+
+    let out = Command::new(BIN)
+        .arg("--render")
+        .arg(server.uri())
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), r#"{"k":"v"}"#);
+}
