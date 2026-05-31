@@ -8,6 +8,18 @@ const HELP_STYLES: Styles = Styles::styled()
     .literal(AnsiColor::Cyan.on_default())
     .placeholder(AnsiColor::Green.on_default());
 
+/// When to emit ANSI styling for rendered HTML text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub enum ColorWhen {
+    /// Style only when stdout is a terminal.
+    #[default]
+    Auto,
+    /// Always emit ANSI styling.
+    Always,
+    /// Never emit ANSI styling.
+    Never,
+}
+
 #[derive(Parser, Debug, Clone)]
 #[command(
     name = "recon",
@@ -1612,6 +1624,27 @@ pub struct Args {
     /// agent-browser.
     #[arg(long = "html-to-pdf", value_name = "SRC", help_heading = "Docs")]
     pub html_to_pdf: Option<String>,
+
+    /// Render HTML → plain text (file, URL, or -). SRC = path /
+    /// http(s):// URL / `-` (stdin). Output via -o or stdout.
+    /// lynx/w3m-style: headings, lists, tables, link footnotes.
+    #[arg(long = "html-to-text", value_name = "SRC", help_heading = "Docs")]
+    pub html_to_text: Option<String>,
+
+    /// Render text/html responses as readable text. Non-HTML
+    /// bodies pass through unchanged. Safe to leave on.
+    #[arg(long = "render", help_heading = "Docs")]
+    pub render: bool,
+
+    /// When to ANSI-style rendered text output.
+    #[arg(long = "render-color", value_name = "WHEN", value_enum,
+          default_value_t = ColorWhen::Auto, help_heading = "Docs")]
+    pub render_color: ColorWhen,
+
+    /// Wrap column for rendered text output. Default: terminal
+    /// width on a TTY, else 80.
+    #[arg(long = "width", value_name = "N", help_heading = "Docs")]
+    pub width: Option<usize>,
 
     /// Inject a linkable table of contents at the top of the
     /// generated HTML (md-to-html and md-to-pdf only).
