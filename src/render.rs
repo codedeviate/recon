@@ -10,10 +10,11 @@
 // this attribute is removed once the call sites exist (Task 5).
 #![allow(dead_code)]
 
+use anyhow::Context;
 use anyhow::Result;
 use std::io::IsTerminal;
 
-use crate::cli::ColorWhen;
+use crate::cli::{Args, ColorWhen};
 
 /// Per-call rendering options.
 pub struct RenderOpts {
@@ -93,6 +94,38 @@ fn render_coloured(html: &str, width: usize) -> Result<String> {
         }
     })
     .map_err(|e| anyhow::anyhow!("html render (coloured): {e}"))
+}
+
+/// CLI entry point for `--html-to-text`. Loads SRC (path / URL / `-`),
+/// renders it, and writes to `-o PATH` or stdout.
+pub fn run_html_to_text(args: &Args) -> Result<()> {
+    use std::io::Write;
+
+    let src = args
+        .html_to_text
+        .as_ref()
+        .context("--html-to-text requires a source (path / URL / -)")?;
+
+    // Reuse recon's universal source loader (file / http(s) / stdin).
+    let mut call_args = args.clone();
+    call_args.html_to_text = None;
+    call_args.url = Some(src.to_string());
+    call_args.url_flag = None;
+    let bytes = crate::source::read_all(&call_args)?;
+
+    let html = String::from_utf8_lossy(&bytes);
+    let opts = RenderOpts { width: args.width, color: args.render_color };
+    let text = render_html(&html, &opts)?;
+
+    match args.output.as_ref() {
+        Some(path) => std::fs::write(path, text.as_bytes())
+            .with_context(|| format!("write output '{}'", path.display()))?,
+        None => std::io::stdout()
+            .lock()
+            .write_all(text.as_bytes())
+            .context("write stdout")?,
+    }
+    Ok(())
 }
 
 #[cfg(test)]

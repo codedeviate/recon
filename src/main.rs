@@ -154,6 +154,7 @@ fn any_no_url_mode_flag(args: &cli::Args) -> bool {
         || args.md_to_html.is_some()
         || args.md_to_pdf.is_some()
         || args.html_to_pdf.is_some()
+        || args.html_to_text.is_some()
         || args.export_pdf_page.is_some()
         || args.input_file.is_some()
         || args.repl
@@ -645,6 +646,13 @@ fn main() {
     }
     if args.html_to_pdf.is_some() {
         if let Err(e) = docs::run_html_to_pdf(&args) {
+            eprintln!("error: {e:#}");
+            std::process::exit(1);
+        }
+        return;
+    }
+    if args.html_to_text.is_some() {
+        if let Err(e) = render::run_html_to_text(&args) {
             eprintln!("error: {e:#}");
             std::process::exit(1);
         }
