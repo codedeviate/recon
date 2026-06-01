@@ -118,8 +118,8 @@ examples: release ## Print recon --examples
 clean: ## Remove the entire target/ directory (use this to reclaim disk)
 	$(CARGO) clean
 
-clean-all: clean ## clean + remove generated rustdoc and stray artefacts
-	rm -rf target/doc dump.rdb
+clean-all: clean ## clean + remove generated rustdoc, dist/, and stray artefacts
+	rm -rf target/doc dump.rdb $(DIST)
 
 distclean: clean-all ## clean-all + drop Cargo.lock (rarely needed)
 	rm -f Cargo.lock
