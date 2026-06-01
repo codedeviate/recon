@@ -149,6 +149,35 @@ default = ["ssh"]
 # impersonate`. See GitHub issue #1.
 ssh = ["dep:ssh2"]
 impersonate = ["dep:wreq", "dep:wreq-util"]
+# Vendor sqlite3 (compile from source) instead of linking the system
+# libsqlite3. Enabled for Linux cross-builds (zig has no libsqlite3 in its
+# sysroot) and keeps the .deb free of a libsqlite3 dependency. Off by default;
+# the normal build links system sqlite unchanged.
+bundled-sqlite = ["rusqlite/bundled"]
 
 [dev-dependencies]
 wiremock = "0.6"
+
+[package.metadata.deb]
+# The crate is `recon-cli` on crates.io, but the Debian package — like the
+# binary — is named `recon`. Override the default (which would be recon-cli).
+name = "recon"
+# Self-distributed package (not in the Debian archive), so no downstream
+# packaging revision — keep filenames clean: recon_<version>_<arch>.deb.
+revision = ""
+maintainer = "Thomas Björk <codedv8@gmail.com>"
+copyright = "2026, Thomas Björk"
+license-file = ["LICENSE", "0"]
+section = "utils"
+priority = "optional"
+# ssh2's OpenSSL and (for Linux) sqlite are vendored/static, so the only
+# runtime dep is glibc. dpkg-shlibdeps can't run during a macOS cross-build,
+# so depends is set manually instead of cargo-deb's "$auto".
+depends = "libc6"
+extended-description = "Network reconnaissance CLI with HTTP/TLS/DNS probes, multi-protocol clients (scp/sftp/ssh, ftp, smtp, ...), and a Rhai scripting engine."
+assets = [
+    ["target/release/recon", "usr/bin/", "755"],
+    ["LICENSE", "usr/share/doc/recon/copyright", "644"],
+    ["README.md", "usr/share/doc/recon/README.md", "644"],
+    ["docs/MANUAL.pdf", "usr/share/doc/recon/MANUAL.pdf", "644"],
+]
