@@ -220,6 +220,11 @@ The `.deb` installs `recon` to `/usr/bin/recon` and depends only on `libc6`
 (OpenSSL and sqlite are statically vendored for the Linux build). Inspect one
 with `dpkg-deb --info <file>.deb`.
 
+`make dist` also builds **fully-static musl** artifacts (zero runtime deps —
+run on Alpine, scratch containers, any distro): `recon-<ver>-{x86_64,aarch64}-linux-musl.tar.gz`
+and a `recon-musl_<ver>_{amd64,arm64}.deb` (package `recon-musl`, no `libc6`
+dependency). Pick `recon` (glibc) **or** `recon-musl` — both install `/usr/bin/recon`.
+
 ## License
 
 MIT. Repository at https://github.com/codedeviate/recon.
