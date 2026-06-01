@@ -181,3 +181,12 @@ assets = [
     ["README.md", "usr/share/doc/recon/README.md", "644"],
     ["docs/MANUAL.pdf", "usr/share/doc/recon/MANUAL.pdf", "644"],
 ]
+
+[package.metadata.deb.variants.musl]
+# Fully-static musl build — no runtime dependencies (not even libc6).
+# Explicit name = "recon-musl" so the package is distinct from the glibc
+# `recon` package (filename recon-musl_<ver>_<arch>.deb). The bare variant
+# does NOT append the variant name to the package, so without this the
+# musl deb would be named `recon_…` and collide with the glibc one.
+name = "recon-musl"
+depends = ""
