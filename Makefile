@@ -134,6 +134,8 @@ distclean: clean-all ## clean-all + drop Cargo.lock (rarely needed)
 DIST        := dist
 LINUX_AMD64 := x86_64-unknown-linux-gnu
 LINUX_ARM64 := aarch64-unknown-linux-gnu
+LINUX_AMD64_MUSL := x86_64-unknown-linux-musl
+LINUX_ARM64_MUSL := aarch64-unknown-linux-musl
 GLIBC       := 2.28
 VERSION     := $(shell grep -m1 '^version' Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')
 
@@ -143,21 +145,29 @@ linux-deps: ## Check Linux cross-build prerequisites; print install hints if mis
 	@command -v cargo-deb >/dev/null 2>&1 || { echo "missing: cargo-deb      — cargo install cargo-deb"; exit 1; }
 	@rustup target list --installed | grep -q '^$(LINUX_AMD64)$$' || { echo "missing rustup target: $(LINUX_AMD64) — rustup target add $(LINUX_AMD64)"; exit 1; }
 	@rustup target list --installed | grep -q '^$(LINUX_ARM64)$$' || { echo "missing rustup target: $(LINUX_ARM64) — rustup target add $(LINUX_ARM64)"; exit 1; }
+	@rustup target list --installed | grep -q '^$(LINUX_AMD64_MUSL)$$' || { echo "missing rustup target: $(LINUX_AMD64_MUSL) — rustup target add $(LINUX_AMD64_MUSL)"; exit 1; }
+	@rustup target list --installed | grep -q '^$(LINUX_ARM64_MUSL)$$' || { echo "missing rustup target: $(LINUX_ARM64_MUSL) — rustup target add $(LINUX_ARM64_MUSL)"; exit 1; }
 	@echo "linux cross-build prerequisites OK"
 
-linux: linux-deps ## Cross-build the release binary for amd64 + arm64 (default + bundled sqlite)
+linux: linux-deps ## Cross-build the release binary for amd64 + arm64, glibc + musl
 	$(CARGO) zigbuild --release --features bundled-sqlite --target $(LINUX_AMD64).$(GLIBC)
 	$(CARGO) zigbuild --release --features bundled-sqlite --target $(LINUX_ARM64).$(GLIBC)
+	$(CARGO) zigbuild --release --features bundled-sqlite --target $(LINUX_AMD64_MUSL)
+	$(CARGO) zigbuild --release --features bundled-sqlite --target $(LINUX_ARM64_MUSL)
 
 tarball: linux ## Package each Linux binary + LICENSE + README into dist/*.tar.gz
 	mkdir -p $(DIST)
 	tar -czf $(DIST)/recon-$(VERSION)-x86_64-linux.tar.gz  -C target/$(LINUX_AMD64)/release recon -C $(CURDIR) LICENSE README.md
 	tar -czf $(DIST)/recon-$(VERSION)-aarch64-linux.tar.gz -C target/$(LINUX_ARM64)/release recon -C $(CURDIR) LICENSE README.md
+	tar -czf $(DIST)/recon-$(VERSION)-x86_64-linux-musl.tar.gz  -C target/$(LINUX_AMD64_MUSL)/release recon -C $(CURDIR) LICENSE README.md
+	tar -czf $(DIST)/recon-$(VERSION)-aarch64-linux-musl.tar.gz -C target/$(LINUX_ARM64_MUSL)/release recon -C $(CURDIR) LICENSE README.md
 
 deb: linux ## Build .deb packages for amd64 + arm64 into dist/
 	mkdir -p $(DIST)
 	$(CARGO) deb --no-build --no-strip --target $(LINUX_AMD64) --output $(DIST)/
 	$(CARGO) deb --no-build --no-strip --target $(LINUX_ARM64) --output $(DIST)/
+	$(CARGO) deb --no-build --no-strip --variant musl --target $(LINUX_AMD64_MUSL) --output $(DIST)/
+	$(CARGO) deb --no-build --no-strip --variant musl --target $(LINUX_ARM64_MUSL) --output $(DIST)/
 
 dist: linux tarball deb ## Build all Linux artifacts (binaries, tarballs, .debs) into dist/
 	@echo "── dist/ ──"; ls -1 $(DIST)
