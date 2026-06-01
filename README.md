@@ -193,6 +193,33 @@ make ci-impersonate    # ci + a parallel build/test pass with the
                        # impersonate feature (BoringSSL)
 ```
 
+## Building Debian packages
+
+Cross-build Linux `recon` binaries and `.deb` packages (amd64 + arm64) from
+macOS — no Docker. Default build only (the impersonate variant is not packaged).
+
+One-time prerequisites:
+
+```sh
+brew install zig
+cargo install cargo-zigbuild cargo-deb
+rustup target add x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu
+make linux-deps        # verifies the above
+```
+
+Then:
+
+```sh
+make dist              # → dist/recon_<ver>_{amd64,arm64}.deb + recon-<ver>-{x86_64,aarch64}-linux.tar.gz
+make deb               # just the .deb packages
+make tarball           # just the binary tarballs
+make dist-clean-deb    # remove dist/
+```
+
+The `.deb` installs `recon` to `/usr/bin/recon` and depends only on `libc6`
+(OpenSSL and sqlite are statically vendored for the Linux build). Inspect one
+with `dpkg-deb --info <file>.deb`.
+
 ## License
 
 MIT. Repository at https://github.com/codedeviate/recon.
