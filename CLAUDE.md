@@ -44,7 +44,7 @@ After every change, bump the version according to these rules:
 - **MINOR** (`0.N+1.0`): new flag or feature added, existing flag removed or significantly changed.
 - **MAJOR** (`N+1.0.0`): breaking changes to existing behaviour (reserved, rare).
 
-### The version number lives in five files — touch ALL of them
+### The version number lives in four files — touch ALL of them
 
 A version bump is incomplete if any of these is missing. They must
 agree exactly: same `X.Y.Z`, same `YYYY-MM-DD`.
@@ -55,7 +55,11 @@ agree exactly: same `X.Y.Z`, same `YYYY-MM-DD`.
 | `src/version.rs` | `const RELEASE_DATE: &str = "YYYY-MM-DD"` |
 | `CHANGELOG.md` | New `## [X.Y.Z] - YYYY-MM-DD` heading at the top, above older versions, under `## [Unreleased]` if present |
 | `docs/MANUAL.md` cover (top of file) | `<div class="version">Version X.Y.Z</div>` and `<div class="date">YYYY-MM-DD</div>` |
-| `README.md` badges header (top of file) | `release-v<X.Y.Z>-blue` in the "Latest release" badge URL |
+
+`README.md` is **not** in this list: its "Latest release" badge is the
+dynamic `img.shields.io/github/v/release/codedeviate/recon` form, which
+auto-tracks the latest GitHub release. There is no hardcoded version
+string in any README badge, so a version bump needs no README edit.
 
 Group CHANGELOG entries into the keep-a-changelog subsections:
 `### Added`, `### Changed`, `### Fixed`, `### Removed`, `### Deprecated`,
@@ -165,15 +169,16 @@ like the existing `recon 0.81.3 — fix sha256` precedent.
 
 ### README.md badges — keep in sync with reality
 
-The `README.md` header carries six shields.io badges. The release-version
-badge changes every bump (covered by the table above); the others are
-mostly static but need a sync sweep whenever the underlying fact changes.
-The hard rule: **if any of these underlying facts changes, update the
-matching badge in the same commit.**
+The `README.md` header carries six shields.io badges. The "Latest release"
+badge is **dynamic** — it auto-tracks the latest GitHub release, so it
+never needs a manual bump. The others are mostly static but need a sync
+sweep whenever the underlying fact changes. The hard rule: **if any of
+these underlying facts changes, update the matching badge in the same
+commit.**
 
 | Badge | Underlying fact | When to update |
 |---|---|---|
-| `release-vX.Y.Z-blue` | `Cargo.toml` `version` | Every version bump. |
+| `github/v/release/...` ("Latest release") | Latest GitHub release | Never — dynamic, auto-tracks. |
 | `github-codedeviate%2Frecon` | Repo location | Only on repo rename / org change. |
 | `crates.io` | Published crate name (`recon-cli`) | Only if the crate is republished under a new name. |
 | `homebrew-codedeviate%2Fcli%2Frecon` | Tap formula path | Only if the tap or formula is renamed. |
