@@ -34,6 +34,11 @@ companion doc/example/test changes.
 
 ## [Unreleased]
 
+## [0.96.1] - 2026-06-01
+
+### Added
+- Debian packaging: `make dist` cross-builds Linux `recon` binaries, tarballs, and `.deb` packages (amd64 + arm64) from macOS via `cargo-zigbuild` + `cargo-deb`. New Makefile targets: `linux-deps`, `linux`, `tarball`, `deb`, `dist`, `dist-clean-deb`. Default build only (no impersonate variant); a `bundled-sqlite` feature vendors sqlite for the Linux build. See README "Building Debian packages".
+
 ## [0.96.0] - 2026-05-31
 
 ### Added
