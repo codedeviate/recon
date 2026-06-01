@@ -1,0 +1,142 @@
+//! End-to-end tests for HTML → text rendering: the `--html-to-text`
+//! transform mode (file + stdin) and the `--render` response hook.
+
+use std::process::{Command, Stdio};
+
+const BIN: &str = env!("CARGO_BIN_EXE_recon");
+
+#[test]
+fn html_to_text_from_file() {
+    let out = Command::new(BIN)
+        .arg("--html-to-text")
+        .arg("tests/fixtures/render_sample.html")
+        .arg("--width").arg("70")
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "stderr: {}", String::from_utf8_lossy(&out.stderr));
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.contains("Greeting"), "heading missing: {text}");
+    assert!(text.contains("the docs"), "anchor text missing: {text}");
+    assert!(text.contains("https://example.com/docs"), "footnote url missing: {text}");
+    assert!(text.contains("first") && text.contains("second"), "list missing: {text}");
+}
+
+#[test]
+fn html_to_text_from_stdin() {
+    use std::io::Write;
+    let mut child = Command::new(BIN)
+        .arg("--html-to-text").arg("-")
+        .arg("--width").arg("70")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child.stdin.as_mut().unwrap()
+        .write_all(b"<h1>Piped</h1><p>body text</p>").unwrap();
+    let out = child.wait_with_output().unwrap();
+    assert!(out.status.success(), "stderr: {}", String::from_utf8_lossy(&out.stderr));
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.contains("Piped") && text.contains("body text"), "out: {text}");
+}
+
+#[test]
+fn html_to_text_writes_to_output_file() {
+    let dir = std::env::temp_dir();
+    let path = dir.join(format!("recon_render_test_{}.txt", std::process::id()));
+    let _ = std::fs::remove_file(&path);
+
+    let out = Command::new(BIN)
+        .arg("--html-to-text")
+        .arg("tests/fixtures/render_sample.html")
+        .arg("--width").arg("70")
+        .arg("-o").arg(&path)
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "stderr: {}", String::from_utf8_lossy(&out.stderr));
+
+    let written = std::fs::read_to_string(&path).expect("output file should exist");
+    assert!(written.contains("Greeting"), "file content missing heading: {written}");
+    assert!(written.contains("https://example.com/docs"), "file content missing footnote url: {written}");
+
+    let _ = std::fs::remove_file(&path);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn render_turns_html_response_into_text() {
+    let server = wiremock::MockServer::start().await;
+    wiremock::Mock::given(wiremock::matchers::method("GET"))
+        .respond_with(
+            wiremock::ResponseTemplate::new(200).set_body_raw(
+                r#"<h1>Page</h1><p>Visit <a href="https://ex.com/a">link</a>.</p>"#,
+                "text/html; charset=utf-8",
+            ),
+        )
+        .mount(&server)
+        .await;
+
+    let out = Command::new(BIN)
+        .arg("--render").arg("--width").arg("70")
+        .arg(server.uri())
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "stderr: {}", String::from_utf8_lossy(&out.stderr));
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.contains("Page"), "heading missing: {text}");
+    assert!(text.contains("link"), "anchor missing: {text}");
+    assert!(text.contains("https://ex.com/a"), "footnote url missing: {text}");
+    assert!(!text.contains("<h1>"), "raw HTML leaked: {text}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn render_passes_non_html_through_unchanged() {
+    let server = wiremock::MockServer::start().await;
+    wiremock::Mock::given(wiremock::matchers::method("GET"))
+        .respond_with(
+            wiremock::ResponseTemplate::new(200)
+                .insert_header("Content-Type", "application/json")
+                .set_body_string(r#"{"k":"v"}"#),
+        )
+        .mount(&server)
+        .await;
+
+    let out = Command::new(BIN)
+        .arg("--render")
+        .arg(server.uri())
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), r#"{"k":"v"}"#);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn script_http_render_opt_renders_body() {
+    let server = wiremock::MockServer::start().await;
+    wiremock::Mock::given(wiremock::matchers::method("GET"))
+        .respond_with(
+            wiremock::ResponseTemplate::new(200)
+                .set_body_raw(
+                    r#"<h1>Scripted</h1><p>Visit <a href="https://ex.com/z">z</a>.</p>"#,
+                    "text/html; charset=utf-8",
+                ),
+        )
+        .mount(&server)
+        .await;
+
+    let script = format!(
+        "let r = http(\"{}\", #{{ render: true, width: 70 }});\nprint(r.body);\n",
+        server.uri()
+    );
+    let dir = std::env::temp_dir();
+    let path = dir.join(format!("recon_script_render_{}.rhai", std::process::id()));
+    std::fs::write(&path, script).unwrap();
+
+    let out = Command::new(BIN).arg("--script").arg(&path).output().unwrap();
+    let _ = std::fs::remove_file(&path);
+
+    assert!(out.status.success(), "stderr: {}", String::from_utf8_lossy(&out.stderr));
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.contains("Scripted"), "heading missing: {text}");
+    assert!(text.contains("https://ex.com/z"), "footnote url missing: {text}");
+    assert!(!text.contains("<h1>"), "raw HTML leaked — render opt not applied: {text}");
+    assert!(!text.contains('\u{1b}'), "unexpected ANSI in scripted body (should default Never): {text}");
+}

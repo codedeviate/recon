@@ -1354,6 +1354,22 @@ recon --rekey \
 
     note("HTML backend is `comrak` (CommonMark + GFM, pure Rust). PDF backend is `agent-browser pdf` (wraps Chrome's printToPDF, preserving anchor links so the TOC stays clickable). --md-to-html is pure-Rust / no external deps. --md-to-pdf and --html-to-pdf require agent-browser on PATH (`brew install agent-browser`). URL sources flow through the normal request pipeline and honor every HTTP flag.");
 
+    section("RENDERING HTML AS TEXT (0.96.0)");
+    example(
+        "Read a web page as readable text (text-browser view)",
+        &["recon --render https://example.com"],
+    );
+    example(
+        "Convert a local HTML file to text",
+        &["recon --html-to-text page.html -o page.txt"],
+    );
+    example(
+        "Pipe HTML in and wrap to 60 columns",
+        &["cat page.html | recon --html-to-text - --width 60"],
+    );
+    note("--render only transforms text/html responses; JSON/text/binary bodies pass through unchanged, so it is safe to leave on.");
+    note("ANSI styling is auto-on when stdout is a terminal; force it with --render-color always|never. Links become [N] footnotes with a reference list.");
+
     section("PDF PAGE EXPORT");
 
     example("Render PDF page 1 to PNG (default)", &[

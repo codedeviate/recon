@@ -34,6 +34,22 @@ companion doc/example/test changes.
 
 ## [Unreleased]
 
+## [0.96.0] - 2026-05-31
+
+### Added
+- `--html-to-text <SRC>`: render HTML (file / URL / stdin) to readable, wrapped text — a lynx/w3m-style text-browser view. Headings, lists, blockquotes, `<pre>`, and tables render structurally; `<a href>` links become `[N]` footnote markers with a reference list.
+- `--render`: render `text/html` HTTP responses as text inline. HTML-only — JSON/text/binary bodies pass through unchanged, so it is safe to leave on.
+- `--render-color <auto|always|never>`: control ANSI styling of rendered text (auto-on when stdout is a TTY).
+- `--width <N>`: wrap column for rendered output (default: terminal width on a TTY, else 80).
+- Script engine: `html_to_text(html, #{width, color})` binding and `render` / `width` / `render_color` opts keys on `http()`.
+
+### Changed
+- The impersonate build variant (no scp/sftp/ssh) gains HTML→text rendering: `html2text` is pure Rust and compiles into both build variants.
+
+### Notes
+- In colour mode (TTY), links are styled inline (underline) rather than rendered as footnotes; the `[N]` footnote reference list is the plain-mode (piped/redirected) behavior.
+- `--render` output is always UTF-8 text, so `--output-charset` is not meaningfully applied alongside `--render`. For HTML, `--render` also supersedes `--prettify` (the rendered text replaces the prettified markup).
+
 ## [0.95.0] - 2026-05-29
 
 ### Fixed

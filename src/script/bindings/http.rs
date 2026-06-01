@@ -102,7 +102,31 @@ fn do_request(
         .bytes()
         .map_err(|e| err(format!("http: read body: {e}")))?;
     let duration_ms = t0.elapsed().as_millis() as i64;
-    let body_str = String::from_utf8_lossy(&body_bytes).to_string();
+
+    // `body` is the textual view; `body_bytes` stays raw. When the
+    // `render` opt is set and the response is HTML, decode the raw bytes
+    // using the response charset (Content-Type charset first, else sniff)
+    // and run the HTML→text renderer — mirroring the CLI `--render` path
+    // in `src/output.rs::write_processed_body`.
+    let content_type = response_headers
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+
+    let body_str = if args.render && crate::render::is_html(&content_type) {
+        let label = crate::text_encoding::parse_content_type_charset(&content_type)
+            .unwrap_or_else(|| crate::text_encoding::detect(&body_bytes).charset.to_string());
+        let enc = crate::text_encoding::resolve(&label).unwrap_or(encoding_rs::UTF_8);
+        let (decoded, _, _) = enc.decode(&body_bytes);
+        let ropts = crate::render::RenderOpts {
+            width: args.width,
+            color: args.render_color,
+        };
+        crate::render::render_html(&decoded, &ropts).map_err(anyhow_to_rhai)?
+    } else {
+        String::from_utf8_lossy(&body_bytes).to_string()
+    };
     let charset_dyn = response_charset_dynamic(&response_headers, &body_bytes);
 
     let mut result = Map::new();
@@ -187,6 +211,12 @@ pub(crate) fn build_args(
     args.dns_ipv4_addr = defaults.dns_ipv4_addr.clone();
     args.dns_ipv6_addr = defaults.dns_ipv6_addr.clone();
     args.dns_interface = defaults.dns_interface.clone();
+
+    // Script render colour defaults to Never for deterministic output
+    // (no ANSI baked into resp.body). The CLI inherits clap's Auto here;
+    // the script path overrides to Never unless an explicit `render_color`
+    // opts key is provided below.
+    args.render_color = crate::cli::ColorWhen::Never;
 
     if let Some(o) = opts {
         if let Some(m) = opts_get_str(o, "method") {
@@ -562,6 +592,21 @@ pub(crate) fn build_args(
         }
         if let Some(s) = opts_get_str(o, "proxy_pass") {
             args.proxy_pass = Some(s);
+        }
+
+        // ── 0.96.0 — HTML-to-text render ──────────────────────────────
+        if let Some(b) = opts_get_bool(o, "render") {
+            args.render = b;
+        }
+        if let Some(n) = opts_get_u64(o, "width") {
+            args.width = Some(n as usize);
+        }
+        if let Some(s) = opts_get_str(o, "render_color") {
+            args.render_color = match s.as_str() {
+                "always" => crate::cli::ColorWhen::Always,
+                "auto" => crate::cli::ColorWhen::Auto,
+                _ => crate::cli::ColorWhen::Never,
+            };
         }
     }
     Ok(args)

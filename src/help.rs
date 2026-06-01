@@ -1422,7 +1422,7 @@ static TOPIC_DOCS: Topic = Topic {
         FlagHelp { flags: "md_to_pdf(src, dest, opts)", description: "Script binding. src literal, dest path. Needs agent-browser." },
         FlagHelp { flags: "html_to_pdf(src, dest)", description: "Script binding. Needs agent-browser." },
     ],
-    related: &["script", "agent-browser", "http"],
+    related: &["script", "agent-browser", "http", "render"],
     examples: &[
         ExampleHelp { description: "Markdown → HTML with TOC + GFM", command: "recon --md-to-html README.md --toc --gfm -o README.html" },
         ExampleHelp { description: "Fetch live markdown over HTTP, render local", command: "recon --md-to-html https://example.com/doc.md --toc -o doc.html" },
@@ -1433,6 +1433,37 @@ static TOPIC_DOCS: Topic = Topic {
         ExampleHelp { description: "Replace the bundled CSS entirely", command: "recon --md-to-pdf notes.md --no-default-css --doc-css print.css -o notes.pdf" },
         ExampleHelp { description: "Cover page + chapter breaks", command: "recon --md-to-pdf book.md --toc --gfm --unsafe-html --page-break-on-h1 --doc-title Book -o book.pdf" },
         ExampleHelp { description: "Explicit page break in markdown (with --unsafe-html)", command: r#"printf '# A\n\nFirst.\n\n<div class="page-break"></div>\n\n# B\n\nSecond.\n' > tmp.md && recon --md-to-pdf tmp.md --unsafe-html -o tmp.pdf"# },
+    ],
+};
+
+static TOPIC_RENDER: Topic = Topic {
+    title: "HTML → text rendering (text-browser view)",
+    description: "Render HTML as readable, wrapped text — lynx/w3m style.\n\
+                  No JavaScript, no CSS layout, no images (alt text only).\n\
+                  \n\
+                    --html-to-text SRC   convert a file / URL / stdin\n\
+                    --render             render text/html HTTP responses\n\
+                  \n\
+                  Headings, lists, blockquotes, <pre>, and tables render\n\
+                  structurally; <a href> links become [N] footnote markers\n\
+                  with a reference list so the URLs survive.\n\
+                  \n\
+                  --render is HTML-only: non-HTML bodies (JSON, text,\n\
+                  binary) pass through unchanged, so it is safe to leave\n\
+                  on. ANSI styling is auto-on when stdout is a TTY\n\
+                  (override with --render-color always|auto|never).\n\
+                  Wrap width is the terminal width, or --width N.",
+    flags: &[
+        FlagHelp { flags: "--html-to-text <SRC>", description: "Render HTML → plain text. SRC = path / URL / `-`.\nOutput via -o <PATH> or stdout." },
+        FlagHelp { flags: "--render", description: "Render text/html responses as text. Non-HTML\nbodies pass through unchanged." },
+        FlagHelp { flags: "--render-color <WHEN>", description: "ANSI styling: auto (TTY only), always, or never.\nDefault auto." },
+        FlagHelp { flags: "--width <N>", description: "Wrap column. Default: terminal width on a TTY,\nelse 80." },
+    ],
+    related: &["docs", "http"],
+    examples: &[
+        ExampleHelp { description: "Read a page as text", command: "recon --render https://example.com" },
+        ExampleHelp { description: "Convert a local HTML file", command: "recon --html-to-text page.html -o page.txt" },
+        ExampleHelp { description: "Pipe HTML in, narrow width", command: "cat page.html | recon --html-to-text - --width 60" },
     ],
 };
 
@@ -2974,6 +3005,7 @@ fn resolve_topic(key: &str) -> Option<&'static Topic> {
         "tui" | "dashboard" | "pane" | "panes" | "split" => Some(&TOPIC_TUI),
         "script-server" | "tcp-server" | "udp-server" | "listen" => Some(&TOPIC_SCRIPT_SERVER),
         "docs" | "markdown" | "md-to-html" | "md-to-pdf" | "html-to-pdf" => Some(&TOPIC_DOCS),
+        "render" | "html-to-text" | "text-browser" | "dump" => Some(&TOPIC_RENDER),
         "pdf" | "pdf-export" | "pdf-page" | "pdf-image" | "export-pdf-page" => Some(&TOPIC_PDF_EXPORT),
         "client-cert" | "mtls" | "client-certificate" => Some(&TOPIC_CLIENT_CERT),
         "archive" | "zip" | "tar" | "extract" => Some(&TOPIC_ARCHIVE),
@@ -3080,6 +3112,7 @@ pub fn topic_keys() -> Vec<&'static str> {
         "tui",
         "script-server",
         "docs",
+        "render",
         "pdf-export",
         "flags",
         "wget",

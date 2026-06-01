@@ -339,7 +339,7 @@ pub fn write_response_to(
             .to_string();
 
         if args.prettify || output_charset_label.is_some()
-            || args.editor.is_some() || args.to_clipboard {
+            || args.editor.is_some() || args.to_clipboard || args.render {
             // Buffer + transcode path. Used when the user asked for
             // prettification (which needs a String anyway), explicit charset
             // conversion, editor dispatch, or clipboard output.
@@ -620,6 +620,32 @@ pub fn write_processed_body(
         out_text.into_bytes()
     } else {
         body_bytes
+    };
+
+    // 2.5 Optional --render: HTML → text. HTML-only; other types pass through.
+    let processed_bytes: Vec<u8> = if args.render {
+        if crate::render::is_html(content_type) {
+            // Decode to UTF-8 using recon's source-charset detection so
+            // ISO-8859/etc. pages render correctly (the original iconv case).
+            let src_label = resolve_source_charset(args, content_type, &processed_bytes);
+            let src = crate::text_encoding::resolve(&src_label).unwrap_or(encoding_rs::UTF_8);
+            let (decoded, _, _) = src.decode(&processed_bytes);
+            let opts = crate::render::RenderOpts {
+                width: args.width,
+                color: args.render_color,
+            };
+            crate::render::render_html(&decoded, &opts)?.into_bytes()
+        } else {
+            if !args.silent {
+                eprintln!(
+                    "! --render: response is '{}', not HTML — passing body through unchanged",
+                    content_type
+                );
+            }
+            processed_bytes
+        }
+    } else {
+        processed_bytes
     };
 
     // 3. Dispatch to sink
