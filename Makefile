@@ -25,7 +25,8 @@ FEATURES     ?=
         flags examples bump-check ci \
         build-impersonate release-impersonate all-impersonate \
         check-impersonate test-impersonate run-impersonate \
-        install-impersonate ci-impersonate
+        install-impersonate ci-impersonate \
+        linux-deps linux tarball deb dist dist-clean-deb
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make \033[36m<target>\033[0m\n\nTargets:\n"} \
@@ -122,6 +123,47 @@ clean-all: clean ## clean + remove generated rustdoc and stray artefacts
 
 distclean: clean-all ## clean-all + drop Cargo.lock (rarely needed)
 	rm -f Cargo.lock
+
+# ---------- linux cross-build / debian packaging ----------
+# Cross-compiles the DEFAULT recon build (includes ssh) from macOS to Linux
+# via cargo-zigbuild, then packages .deb via cargo-deb. No impersonate variant.
+# `bundled-sqlite` vendors sqlite (zig's Linux sysroot has no libsqlite3).
+# Requires zig, cargo-zigbuild, cargo-deb, and the two rustup targets
+# (run `make linux-deps`). See README "Building Debian packages".
+
+DIST        := dist
+LINUX_AMD64 := x86_64-unknown-linux-gnu
+LINUX_ARM64 := aarch64-unknown-linux-gnu
+GLIBC       := 2.28
+VERSION     := $(shell grep -m1 '^version' Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')
+
+linux-deps: ## Check Linux cross-build prerequisites; print install hints if missing
+	@command -v zig >/dev/null 2>&1 || { echo "missing: zig            — brew install zig"; exit 1; }
+	@command -v cargo-zigbuild >/dev/null 2>&1 || { echo "missing: cargo-zigbuild — cargo install cargo-zigbuild"; exit 1; }
+	@command -v cargo-deb >/dev/null 2>&1 || { echo "missing: cargo-deb      — cargo install cargo-deb"; exit 1; }
+	@rustup target list --installed | grep -q '^$(LINUX_AMD64)$$' || { echo "missing rustup target: $(LINUX_AMD64) — rustup target add $(LINUX_AMD64)"; exit 1; }
+	@rustup target list --installed | grep -q '^$(LINUX_ARM64)$$' || { echo "missing rustup target: $(LINUX_ARM64) — rustup target add $(LINUX_ARM64)"; exit 1; }
+	@echo "linux cross-build prerequisites OK"
+
+linux: linux-deps ## Cross-build the release binary for amd64 + arm64 (default + bundled sqlite)
+	$(CARGO) zigbuild --release --features bundled-sqlite --target $(LINUX_AMD64).$(GLIBC)
+	$(CARGO) zigbuild --release --features bundled-sqlite --target $(LINUX_ARM64).$(GLIBC)
+
+tarball: linux ## Package each Linux binary + LICENSE + README into dist/*.tar.gz
+	mkdir -p $(DIST)
+	tar -czf $(DIST)/recon-$(VERSION)-x86_64-linux.tar.gz  -C target/$(LINUX_AMD64)/release recon -C $(CURDIR) LICENSE README.md
+	tar -czf $(DIST)/recon-$(VERSION)-aarch64-linux.tar.gz -C target/$(LINUX_ARM64)/release recon -C $(CURDIR) LICENSE README.md
+
+deb: linux ## Build .deb packages for amd64 + arm64 into dist/
+	mkdir -p $(DIST)
+	$(CARGO) deb --no-build --no-strip --target $(LINUX_AMD64) --output $(DIST)/
+	$(CARGO) deb --no-build --no-strip --target $(LINUX_ARM64) --output $(DIST)/
+
+dist: linux tarball deb ## Build all Linux artifacts (binaries, tarballs, .debs) into dist/
+	@echo "── dist/ ──"; ls -1 $(DIST)
+
+dist-clean-deb: ## Remove the dist/ directory
+	rm -rf $(DIST)
 
 # ---------- diagnostics ----------
 
