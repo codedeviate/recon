@@ -21,7 +21,7 @@ FEATURES     ?=
 .DEFAULT_GOAL := help
 
 .PHONY: help build release all check test test-quiet fmt fmt-check clippy lint \
-        doc run install uninstall clean clean-all distclean size pdf \
+        doc run install uninstall trim clean clean-all distclean size pdf \
         flags examples bump-check ci \
         build-impersonate release-impersonate all-impersonate \
         check-impersonate test-impersonate run-impersonate \
@@ -37,16 +37,18 @@ help: ## Show this help
 build: ## Debug build
 	$(CARGO) build $(FEATURES)
 
-release: ## Release build (optimized)
+release: ## Release build (optimized); auto-trims stale artifacts afterward
 	$(CARGO) build --release $(FEATURES)
+	@$(MAKE) --no-print-directory trim
 
 all: build release ## Build both debug and release (per project convention)
 
 build-impersonate: ## Debug build with TLS browser-fingerprint impersonation (BoringSSL; first build is slow)
 	$(CARGO) build $(IMPERSONATE)
 
-release-impersonate: ## Release build with TLS browser-fingerprint impersonation
+release-impersonate: ## Release build with TLS browser-fingerprint impersonation; auto-trims afterward
 	$(CARGO) build --release $(IMPERSONATE)
+	@$(MAKE) --no-print-directory trim
 
 all-impersonate: build-impersonate release-impersonate ## Both builds with --features impersonate
 
@@ -114,6 +116,21 @@ examples: release ## Print recon --examples
 	$(RELEASE_BIN) --examples
 
 # ---------- cleaning ----------
+
+# Number of most-recent recon binary copies to keep in each profile's deps/.
+# Override per-invocation: `make trim KEEP=1`.
+KEEP ?= 2
+
+trim: ## Prune stale build artifacts (keep newest KEEP=2 recon binaries; drop old-toolchain cruft) — incremental-safe
+	@$(CARGO) sweep --installed >/dev/null 2>&1 || true
+	@for prof in release debug; do \
+	    dir="target/$$prof/deps"; \
+	    [ -d "$$dir" ] || continue; \
+	    ls -t "$$dir"/$(BIN)-* 2>/dev/null | grep -v '\.d$$' \
+	        | tail -n +$$(($(KEEP)+1)) \
+	        | while read -r f; do rm -f "$$f" "$$f.d"; done; \
+	done
+	@echo "trim: kept newest $(KEEP) $(BIN) binary copies per profile; swept old-toolchain artifacts"
 
 clean: ## Remove the entire target/ directory (use this to reclaim disk)
 	$(CARGO) clean
