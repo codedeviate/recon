@@ -39,6 +39,9 @@ companion doc/example/test changes.
 ### Added
 - `--render-no-links` toggle for HTML→text rendering (`--html-to-text`, `--render`, and the `html_to_text()` script binding). In plain output it suppresses the `[N]` footnote markers and the trailing URL reference list (anchor text stays inline); in coloured output it drops the inline link styling. Default keeps links (footnotes on, as before). Available in scripts as the `no_links` opts key on `html_to_text()` and as `render_no_links` on `http()`.
 
+### Fixed
+- Removed two unused public wrappers (`system_candidates`, `user_path`) in `config_resolver` that triggered dead-code warnings; the parameterised `system_candidates_for` / `user_path_with_home` they delegated to are the real (and only) call sites. Both build variants are now warning-free.
+
 ## [0.97.0] - 2026-06-16
 
 ### Added

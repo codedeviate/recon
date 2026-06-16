@@ -79,13 +79,6 @@ pub fn global() -> LayerOpts {
     GLOBAL_OPTS.get().cloned().unwrap_or_default()
 }
 
-/// Return the candidate paths for the system layer in priority order
-/// (first match wins). Uses real env vars; for tests, see
-/// `system_candidates_with_env`.
-pub fn system_candidates() -> Vec<PathBuf> {
-    system_candidates_for("config.toml")
-}
-
 fn system_candidates_for(name: &str) -> Vec<PathBuf> {
     let brew_prefix = std::env::var("HOMEBREW_PREFIX").ok();
     system_candidates_with_env(name, brew_prefix.as_deref())
@@ -111,12 +104,6 @@ fn system_candidates_with_env(name: &str, brew_prefix: Option<&str>) -> Vec<Path
     }
 
     out
-}
-
-/// Return the user-layer path for `config.toml` (no existence check). Returns
-/// None when $HOME is unset.
-pub fn user_path() -> Option<PathBuf> {
-    user_path_with_home(std::env::var("HOME").ok().as_deref(), "config.toml")
 }
 
 fn user_path_with_home(home: Option<&str>, name: &str) -> Option<PathBuf> {
