@@ -95,22 +95,21 @@ rather than this file.
   HTTPS / H2 services. Revisit if a real H3-fingerprinting target
   appears and an h3-side impersonation crate becomes available.
 
-### `--pinnedpubkey` and `--curves` (require use_preconfigured_tls migration)
+### TLS pinning / curves — remaining gaps (shipped in 0.99.0)
 
-- **`--pinnedpubkey` and `--curves`** — both require migrating recon's
-  HTTP TLS plumbing from reqwest's high-level setters (`add_root_certificate`,
-  `tls_built_in_root_certs`, `min_tls_version`, `max_tls_version`,
-  `danger_accept_invalid_certs`, `identity`) onto a custom
-  `rustls::ClientConfig` passed via `use_preconfigured_tls`. The migration
-  is tractable (~80–120 LOC for a `build_rustls_client_config(args)`
-  helper) but is its own focused effort separate from a single-flag
-  plumb-through. When the migration happens, both flags ship together —
-  `--pinnedpubkey` via a custom `ServerCertVerifier` that delegates to
-  `WebPkiServerVerifier` and then checks SHA-256 of `ParsedCertificate::
-  subject_public_key_info()`; `--curves` by overriding `kx_groups` on a
-  cloned `CryptoProvider`. Note: P-521 (`secp521r1`) is unavailable under
-  the ring backend; the implementation must error gracefully on that
-  curve name when `rustls` features include only `ring`.
+`--pinnedpubkey` and `--curves` shipped functional in 0.99.0 via a custom
+`rustls::ClientConfig` (`src/tls_config.rs`) handed to reqwest through
+`use_preconfigured_tls` (opt-in: only built when either flag is set). Two
+narrower pieces remain deferred:
+
+- **`--pinnedpubkey` public-key file form** — curl also accepts a path to a
+  DER/PEM public-key file (not just `sha256//<base64>` hashes). recon errors
+  clearly on the file-path form for now; add it if a concrete need appears
+  (parse the key file, hash its SPKI, compare the same way).
+- **`--pinnedpubkey` / `--curves` with `--client-cert` / `--client-key`** —
+  the custom-rustls path doesn't build a client-auth resolver yet, so the
+  combination errors. Ships when someone needs mTLS *and* pinning/curves in
+  one request (add `.with_client_auth_cert(chain, key)` to the custom config).
 
 ### curl flags — internal trade-offs, no upstream block
 
@@ -426,9 +425,10 @@ Remaining:
 - **TLS tuning**: `--ciphers`, `--tls13-ciphers` — rustls 0.23 has no
   public cipher-list API; upstream-blocked.
 
-(`--pinnedpubkey` and `--curves` also live here in spirit, but the
-remaining work is the `use_preconfigured_tls` migration inside recon
-rather than an upstream block — tracked under Deferred.)
+(`--pinnedpubkey` and `--curves` shipped in 0.99.0 via the
+`use_preconfigured_tls` path — see "TLS pinning / curves" above for the
+two narrower pieces still deferred. The proxy variants
+`--proxy-pinnedpubkey` etc. remain upstream-blocked on per-proxy TLS.)
 
 ### Document conversions
 

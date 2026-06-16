@@ -34,6 +34,19 @@ companion doc/example/test changes.
 
 ## [Unreleased]
 
+## [0.99.0] - 2026-06-16
+
+### Added
+- `--curves <LIST>` now restricts TLS key-exchange groups (colon-separated, preference order, curl/OpenSSL names: `X25519`, `P-256`/`prime256v1`, `P-384`/`secp384r1`). P-521 errors (unavailable under the ring backend). Previously parsed-and-ignored.
+- `--pinnedpubkey <HASHES>` now enforces HTTP public-key pinning (curl's `sha256//<base64>` form, `;`-separated for multiple pins; SHA-256 of the leaf cert's SubjectPublicKeyInfo). The connection is rejected unless the server key matches a pin, enforced even under `--insecure`. The public-key file-path form is not supported.
+- Both flags route through a new custom `rustls::ClientConfig` (`src/tls_config.rs`) handed to reqwest via `use_preconfigured_tls`, which also reproduces `--cacert`/`--capath`/`--ca-native`/`--crlfile`/`--tlsv1.x`/`--tls-max`/`--insecure` on that path. Available in scripts via the existing `pinnedpubkey` / `curves` `http()` opts keys.
+
+### Fixed
+- `--pinnedpubkey` was previously parsed but **never enforced** — a silent no-op that gave a false sense of security. It now actually pins (or fails closed).
+
+### Changed
+- `--pinnedpubkey` / `--curves` cannot be combined with `--client-cert`/`--client-key` (mutual auth) on the custom-rustls path; recon errors clearly rather than silently dropping a flag. Public-key pin mismatches surface as a clear "Public-key pin mismatch" message.
+
 ## [0.98.0] - 2026-06-16
 
 ### Added

@@ -43,6 +43,8 @@ static TOPIC_HTTP: Topic = Topic {
         FlagHelp { flags: "--capath <DIR>", description: "Directory of .pem/.crt/.cer root certificates. Each file is loaded\nand added as a trust root (mirrors --cacert for a directory)." },
         FlagHelp { flags: "--ca-native", description: "Disable built-in webpki roots and use the OS native trust store only.\nUseful when the system certificate bundle is managed centrally." },
         FlagHelp { flags: "--crlfile <PATH>", description: "PEM file with X.509 CRLs. Server certs in any loaded\nCRL are rejected during TLS handshake. Multi-CRL bundles\nsupported via from_pem_bundle." },
+        FlagHelp { flags: "--pinnedpubkey <HASHES>", description: "Pin the server's public key: curl `sha256//<base64>` form,\n';'-separated for multiple. SHA-256 of the leaf cert's\nSubjectPublicKeyInfo. Enforced even under -k. File-path\nform unsupported. Incompatible with --client-cert/--client-key." },
+        FlagHelp { flags: "--curves <LIST>", description: "Restrict TLS key-exchange groups, colon-separated in\npreference order (X25519:P-256:P-384; OpenSSL aliases ok).\nP-521 errors (unavailable under ring). Incompatible with\n--client-cert/--client-key." },
         FlagHelp { flags: "--proxy-capath <DIR>", description: "Directory of .pem/.crt/.cer CA files for proxy TLS\nverification. Mirrors --capath." },
         FlagHelp { flags: "--proxy-ca-native", description: "Disable built-in webpki roots; use OS native roots only.\nMirrors --ca-native (same global toggle, separate flag\nfor curl-parity)." },
         FlagHelp { flags: "--interface <IP>", description: "Bind outgoing sockets to a local IP (IPv4 or IPv6 literal).\nInterface names (eth0, en0) not yet resolved; pass the address directly." },

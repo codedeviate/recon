@@ -53,61 +53,16 @@ pub(crate) fn snapshot_response_for_impersonate(
     snapshot_response(metrics, args, response);
 }
 
-pub fn execute(args: &Args) -> Result<(Response, RequestMetrics)> {
-    // --impersonate / --ja3 / --ja4 / --http2-fingerprint dispatch.
-    // Behind the `impersonate` Cargo feature; without it, the flags are
-    // accepted by clap but error out with a clear rebuild hint.
-    #[cfg(feature = "impersonate")]
-    {
-        if crate::impersonate::is_active(args) {
-            return crate::impersonate::execute(args);
-        }
-    }
-    #[cfg(not(feature = "impersonate"))]
-    {
-        if args.impersonate.is_some()
-            || args.ja3.is_some()
-            || args.ja4.is_some()
-            || args.http2_fingerprint.is_some()
-        {
-            anyhow::bail!(
-                "--impersonate / --ja3 / --ja4 / --http2-fingerprint require a build \
-                 with --features impersonate. \
-                 Rebuild with `cargo build --features impersonate` or download the \
-                 `recon-impersonate` artifact from the release page."
-            );
-        }
-    }
-
-    // --request-target: reqwest's blocking client doesn't expose the
-    // request-target directly. Accepted at parse time but errors here
-    // until we bypass reqwest for a direct hyper path.
-    if args.request_target.is_some() {
-        anyhow::bail!(
-            "--request-target: not yet supported (reqwest 0.12 has no hook for \
-             the request-line target; would require direct hyper). Use --url \
-             with the desired path for now."
-        );
-    }
-
-    // --disallow-username-in-url: security hardening. Reject URLs
-    // that carry userinfo in command-line args.
-    if args.disallow_username_in_url {
-        let url_str = args.target_url();
-        if let Ok(url) = reqwest::Url::parse(url_str) {
-            if !url.username().is_empty() || url.password().is_some() {
-                anyhow::bail!(
-                    "--disallow-username-in-url: URL contains a user/pass component — \
-                     pass credentials via `-u user:pass` instead"
-                );
-            }
-        }
-    }
-
-    let mut builder = Client::builder()
+/// Apply recon's reqwest-native TLS configuration — the default path used
+/// when neither `--pinnedpubkey` nor `--curves` is set. The custom-rustls
+/// path (`tls_config::build_client_config`) reproduces the same flags.
+fn configure_native_tls(
+    mut builder: reqwest::blocking::ClientBuilder,
+    args: &Args,
+) -> Result<reqwest::blocking::ClientBuilder> {
+    builder = builder
         .use_rustls_tls()
-        .danger_accept_invalid_certs(args.insecure)
-        .connect_timeout(Duration::from_secs(args.timeout));
+        .danger_accept_invalid_certs(args.insecure);
 
     // --tlsv1.2 / --tlsv1.3: pin a minimum TLS version. If both are set,
     // tlsv1.3 wins (higher minimum).
@@ -193,6 +148,72 @@ pub fn execute(args: &Args) -> Result<(Response, RequestMetrics)> {
             other => anyhow::bail!("--tls-max: unknown version '{other}' (expected 1.2 or 1.3)"),
         };
         builder = builder.max_tls_version(v);
+    }
+
+    Ok(builder)
+}
+
+pub fn execute(args: &Args) -> Result<(Response, RequestMetrics)> {
+    // --impersonate / --ja3 / --ja4 / --http2-fingerprint dispatch.
+    // Behind the `impersonate` Cargo feature; without it, the flags are
+    // accepted by clap but error out with a clear rebuild hint.
+    #[cfg(feature = "impersonate")]
+    {
+        if crate::impersonate::is_active(args) {
+            return crate::impersonate::execute(args);
+        }
+    }
+    #[cfg(not(feature = "impersonate"))]
+    {
+        if args.impersonate.is_some()
+            || args.ja3.is_some()
+            || args.ja4.is_some()
+            || args.http2_fingerprint.is_some()
+        {
+            anyhow::bail!(
+                "--impersonate / --ja3 / --ja4 / --http2-fingerprint require a build \
+                 with --features impersonate. \
+                 Rebuild with `cargo build --features impersonate` or download the \
+                 `recon-impersonate` artifact from the release page."
+            );
+        }
+    }
+
+    // --request-target: reqwest's blocking client doesn't expose the
+    // request-target directly. Accepted at parse time but errors here
+    // until we bypass reqwest for a direct hyper path.
+    if args.request_target.is_some() {
+        anyhow::bail!(
+            "--request-target: not yet supported (reqwest 0.12 has no hook for \
+             the request-line target; would require direct hyper). Use --url \
+             with the desired path for now."
+        );
+    }
+
+    // --disallow-username-in-url: security hardening. Reject URLs
+    // that carry userinfo in command-line args.
+    if args.disallow_username_in_url {
+        let url_str = args.target_url();
+        if let Ok(url) = reqwest::Url::parse(url_str) {
+            if !url.username().is_empty() || url.password().is_some() {
+                anyhow::bail!(
+                    "--disallow-username-in-url: URL contains a user/pass component — \
+                     pass credentials via `-u user:pass` instead"
+                );
+            }
+        }
+    }
+
+    let mut builder = Client::builder().connect_timeout(Duration::from_secs(args.timeout));
+
+    // --pinnedpubkey / --curves have no reqwest setter, so when either is set
+    // we hand reqwest a fully-built rustls::ClientConfig (which also reproduces
+    // the other TLS-affecting flags). use_preconfigured_tls REPLACES reqwest's
+    // TLS config, so the native-TLS setters are skipped on that path.
+    if crate::tls_config::needs_custom_tls(args) {
+        builder = builder.use_preconfigured_tls(crate::tls_config::build_client_config(args)?);
+    } else {
+        builder = configure_native_tls(builder, args)?;
     }
 
     // --http1.1 / --http2-prior-knowledge (HTTP version pinning).

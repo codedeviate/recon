@@ -52,6 +52,44 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 88. `--pinnedpubkey` + `--curves` via use_preconfigured_tls (0.99.0)
+
+Both flags had been parsed-and-ignored since their introduction —
+`--pinnedpubkey` especially was a silent no-op, giving a false sense of
+security. reqwest exposes no setter for public-key pinning or
+key-exchange-group selection, so closing the gap required building a
+`rustls::ClientConfig` by hand and handing it to reqwest via
+`use_preconfigured_tls`.
+
+**Opt-in, not a full migration.** `use_preconfigured_tls` *replaces*
+reqwest's entire TLS config, so the builder can't also use
+`add_root_certificate` / `min_tls_version` / `identity`. Rather than rewrite
+the TLS path for every request, the custom `rustls::ClientConfig` is built
+**only when `--pinnedpubkey` or `--curves` is set** (`tls_config::
+needs_custom_tls`); the common path keeps reqwest's high-level setters,
+extracted into `client::configure_native_tls`. The custom path reproduces
+the other TLS-affecting flags (roots, version bounds, `--insecure`,
+`--crlfile`) so behaviour matches; mTLS (`--client-cert`/`--client-key`) is
+the one combination it doesn't reproduce yet, so that combo errors clearly
+rather than silently dropping the client cert.
+
+**Pinning** wraps the chosen base verifier (webpki, or accept-all under
+`-k`) in a `PinnedKeyVerifier` that checks SHA-256 of the leaf cert's
+SubjectPublicKeyInfo (via the existing `x509-parser` dep) against curl's
+`sha256//<base64>` pins — enforced independently of chain validation, so
+`-k --pinnedpubkey` still pins. **Curves** overrides `kx_groups` on a cloned
+ring `CryptoProvider`; P-521 errors because ring doesn't implement it.
+
+**Gotcha re-encountered:** `main.rs::friendly_message` rewrites any error
+mentioning "TLS"/"certificate" to a generic placeholder, so the combine
+error and the pin-mismatch surface had to be worded around it (and a
+`pinnedpubkey` root-cause branch added) — the same trap the impersonate
+module documents.
+
+**Rejected:** building an `EmulationProvider`-style config with only
+`http2_config`/verifier set — its fields are `pub(crate)`, and the simplest
+correct seam is the public verifier + provider builders.
+
 ### 87. `--http2-fingerprint` — Akamai H2 fingerprint override (0.97.0)
 
 0.77.0 reserved three raw-fingerprint flags (`--ja3`, `--ja4`,

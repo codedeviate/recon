@@ -4,6 +4,7 @@ mod cert;
 mod cli;
 mod client;
 mod client_cert;
+mod tls_config;
 #[cfg(feature = "impersonate")]
 mod impersonate;
 mod clipboard;
@@ -1637,9 +1638,20 @@ fn friendly_message(err: &anyhow::Error) -> String {
         || msg.starts_with("mqtt URL missing host")
         || msg.contains("browser fingerprint impersonation")
         || msg.contains("impersonate profile")
+        || msg.starts_with("--pinnedpubkey")
+        || msg.starts_with("--curves")
         || msg == "interrupted"
     {
         return msg;
+    }
+
+    // Public-key pin mismatch surfaces as a rustls error wrapped in the
+    // generic "Request to ... failed". Catch it before the certificate
+    // catch-all below so the user learns *why* the connection was refused.
+    if root.contains("pinnedpubkey") {
+        return "Public-key pin mismatch: the server's key does not match any \
+                --pinnedpubkey value"
+            .to_string();
     }
 
     if msg.contains("dns error") || root.contains("dns error") || root.contains("failed to lookup")

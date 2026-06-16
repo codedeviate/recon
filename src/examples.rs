@@ -1109,13 +1109,23 @@ recon --rekey \
         "recon -K main.cfg https://target/",
     ]);
 
+    example("Public-key pinning + key-exchange-group selection", &[
+        "# Reject the connection unless the server's leaf key matches the pin:",
+        "recon --pinnedpubkey 'sha256//BASE64HASH' https://example.com/",
+        "# Multiple pins (primary + backup), ';'-separated:",
+        "recon --pinnedpubkey 'sha256//AAA...;sha256//BBB...' https://example.com/",
+        "# Restrict key-exchange groups (preference order):",
+        "recon --curves X25519:P-256 https://example.com/",
+    ]);
+
+    note("--pinnedpubkey takes curl's sha256//<base64> form (SHA-256 of the leaf cert's SubjectPublicKeyInfo); the pin is enforced even under --insecure. --curves accepts OpenSSL names (X25519, P-256/prime256v1, P-384/secp384r1); P-521 is unavailable under the ring backend. Both build a custom rustls config and cannot be combined with --client-cert / --client-key.");
+
     example("Proxy + TLS tuning (accepted; some plumb-through deferred)", &[
         "recon --ciphers 'TLS_AES_256_GCM_SHA384' https://example.com/   # accepted, not yet wired",
-        "recon --pinnedpubkey 'sha256//BASE64HASH' https://example.com/  # accepted",
         "recon --preproxy http://proxy1 --proxy http://proxy2 https://example.com/",
     ]);
 
-    note("0.66.0 ships -K/--config fully wired (config-file expansion before clap parses, with @include support, # comments, key=value or --flag value forms, cycle detection). The proxy + TLS-tuning flags are accepted at the CLI but most need rustls/reqwest primitives that aren't stable yet — they'll start taking effect when the plumbing lands, transparently to users already calling them.");
+    note("0.66.0 ships -K/--config fully wired (config-file expansion before clap parses, with @include support, # comments, key=value or --flag value forms, cycle detection). The remaining proxy + cipher-list flags are accepted at the CLI but need rustls/reqwest primitives that aren't stable yet — they'll start taking effect when the plumbing lands, transparently to users already calling them. (--pinnedpubkey and --curves became functional in 0.99.0.)");
 
     section("PER-PROTOCOL KNOBS (0.65.0)");
 

@@ -1443,9 +1443,12 @@ pub struct Args {
     #[arg(long = "tls13-ciphers", value_name = "LIST", help_heading = "Auth & TLS")]
     pub tls13_ciphers: Option<String>,
 
-    /// Allowed ECDH curves / key-exchange groups. Accepted; rustls
-    /// 0.23 exposes `kx_groups` selection but the curve-name mapping
-    /// isn't wired yet.
+    /// Restrict TLS key-exchange groups (curl/OpenSSL names).
+    ///
+    /// Colon-separated, in preference order, e.g. `X25519:P-256:P-384`.
+    /// Accepts OpenSSL aliases (prime256v1, secp384r1). P-521 is
+    /// unavailable under the ring backend and errors. Builds a custom
+    /// rustls config (incompatible with --client-cert / --client-key).
     #[arg(long = "curves", value_name = "LIST", help_heading = "Auth & TLS")]
     pub curves: Option<String>,
 
@@ -1453,8 +1456,13 @@ pub struct Args {
     #[arg(long = "crlfile", value_name = "PATH", help_heading = "Auth & TLS")]
     pub crlfile: Option<std::path::PathBuf>,
 
-    /// Pin the server's public-key hash (sha256 base64 or file path).
-    /// Accepted; a full custom ServerCertVerifier is a follow-up.
+    /// Pin the server public key (curl `sha256//<base64>`).
+    ///
+    /// One or more `sha256//<base64>` digests of the leaf cert's
+    /// SubjectPublicKeyInfo, `;`-separated. The connection is rejected
+    /// unless the server key matches one. Enforced even with --insecure.
+    /// Public-key file paths are not supported. Incompatible with
+    /// --client-cert / --client-key.
     #[arg(long = "pinnedpubkey", value_name = "HASHES", help_heading = "Auth & TLS")]
     pub pinnedpubkey: Option<String>,
 

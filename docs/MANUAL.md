@@ -2,7 +2,7 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.98.0</div>
+<div class="version">Version 0.99.0</div>
 <div class="date">2026-06-16</div>
 <div class="meta">
 Repository · https://github.com/codedeviate/recon<br>
@@ -426,6 +426,8 @@ recon https://api.example.com/ -w '\n%{http_code} in %{time_total}s (%{size_down
 | `--capath <DIR>` | Directory of `.pem`/`.crt`/`.cer` root certificates; each file is added as a trust root. |
 | `--ca-native` | Disable built-in webpki roots; use the OS native trust store only. |
 | `--crlfile <PATH>` | PEM file of X.509 CRLs. Server certs in any loaded CRL are rejected at handshake. Multi-CRL bundles supported. |
+| `--pinnedpubkey <HASHES>` | Pin the server public key (curl `sha256//<base64>` form, `;`-separated for multiple). SHA-256 of the leaf cert's SubjectPublicKeyInfo; the connection is rejected unless the key matches one. Enforced even under `-k`. Public-key file paths are not supported. Builds a custom rustls config — incompatible with `--client-cert`/`--client-key`. |
+| `--curves <LIST>` | Restrict TLS key-exchange groups, colon-separated in preference order (`X25519:P-256:P-384`; OpenSSL aliases like `prime256v1` accepted). P-521 is unavailable under the ring backend and errors. Incompatible with `--client-cert`/`--client-key`. |
 | `--interface <IP\|NAME>` | Bind outgoing socket to a specific local IP **or** interface name (eth0, en0 on Linux/macOS via getifaddrs; Windows accepts IP literals only). |
 | `--limit-rate <RATE>` | Throttle download. Suffixes: K, M, G. |
 | `--speed-limit <BYTES>` | Minimum bytes-per-second (fails if rate drops). |
@@ -441,8 +443,19 @@ recon --cacert /etc/corp-root.pem https://internal.corp/
 recon --capath /etc/pki/ca-trust/source/ https://internal.corp/
 recon --ca-native https://example.com/              # OS trust store only
 recon --crlfile /etc/pki/tls/crls/all.pem https://example.com/  # reject revoked certs
+recon --pinnedpubkey 'sha256//BASE64HASH' https://example.com/  # public-key pinning
+recon --pinnedpubkey 'sha256//AAA...;sha256//BBB...' https://example.com/  # primary + backup pin
+recon --curves X25519:P-256 https://example.com/    # restrict key-exchange groups
 recon --interface 10.0.0.5 https://example.com/     # use a specific source IP
 ```
+
+> **`--pinnedpubkey` / `--curves` build a custom rustls config** (reqwest has
+> no setter for either), routed via `use_preconfigured_tls`. That path also
+> honours `--cacert`/`--capath`/`--ca-native`/`--crlfile`/`--tlsv1.x`/`--tls-max`
+> and `-k`, but **cannot be combined with `--client-cert`/`--client-key`**
+> (mutual auth) in this release — recon errors clearly if you try. The pin is
+> SHA-256 of the leaf certificate's SubjectPublicKeyInfo and is enforced even
+> under `-k`. P-521 is unavailable under the ring crypto backend.
 
 ## Client certificates (mTLS)
 
