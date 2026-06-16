@@ -313,6 +313,12 @@ pub fn print() {
     ]);
     note("tls.peet.ws echoes back the JA3/JA4/H2 fingerprint observed from the server side — useful for confirming the impersonation actually changed what hits the wire.");
 
+    example("Override the HTTP/2 fingerprint (Akamai format)", &[
+        "recon --http2-fingerprint '1:65536,3:1000,4:6291456,6:262144|15663105|0|m,a,s,p' https://example.com/",
+        "recon --impersonate chrome_131 --http2-fingerprint '1:65536,4:6291456|0|0|m,a,s,p' https://example.com/",
+    ]);
+    note("Akamai format SETTINGS|WINDOW_UPDATE|PRIORITY|PSEUDO_HEADER_ORDER. Independent of the TLS layer: combine with --impersonate to keep a profile's TLS fingerprint while overriding H2, or use standalone (default TLS + custom H2). --ja3 / --ja4 stay deferred (lossy / non-invertible). Requires --features impersonate.");
+
     example("Use from a script via the http() opts map", &[
         "recon --script script/impersonate.rhai chrome_131 https://example.com/",
     ]);

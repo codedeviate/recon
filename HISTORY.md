@@ -52,6 +52,41 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 87. `--http2-fingerprint` — Akamai H2 fingerprint override (0.97.0)
+
+0.77.0 reserved three raw-fingerprint flags (`--ja3`, `--ja4`,
+`--http2-fingerprint`) but shipped them as runtime errors: `wreq` is a
+low-level toolkit, not a "set this JA3 string" library, and the TLS-layer
+fingerprints are lossy (JA3 drops sigalgs / extension order) or
+non-invertible (JA4's SHA-256 hashes). 0.97.0 ships the one piece that
+*is* reconstructable: the HTTP/2 layer.
+
+**Why H2 but not JA3/JA4:** `wreq::Http2Config` exposes every field the
+Akamai HTTP/2 fingerprint encodes — SETTINGS params + their order
+(`settings_order`), the connection-level WINDOW_UPDATE, PRIORITY frames,
+and pseudo-header order. The H2 frame layer is fully introspectable, so a
+round-trip from the string to the wire is exact, unlike the TLS layer.
+JA3/JA4 stay deferred with a reworded (honest) error.
+
+**Shape:** a pure parser module `src/impersonate/h2_fingerprint.rs`
+(`impersonate.rs` became `impersonate/mod.rs` to host it). `parse(&str) ->
+H2Fingerprint` validates the four `|`-separated fields with field-specific
+errors and keeps SETTINGS as ordered `(id, value)` pairs so the parser is
+free of wreq types and unit-testable in isolation. The wire→builder mapping
+lives in `apply_fingerprint`, which mirrors wreq's internal
+`apply_http2_config` and is layered via `ClientBuilder::http2(closure)`
+*after* `.emulation(profile)` — both mutate the same H2 builder, so the
+fingerprint wins per-field while the profile's TLS is preserved.
+
+**Composition:** the flag is independent of the TLS layer. Combine with
+`--impersonate` (profile TLS + custom H2) or use standalone (default wreq
+TLS + custom H2). The standalone path relaxes the previous
+"called without --impersonate is a bug" guard.
+
+**Rejected:** building an `EmulationProvider` with only `http2_config` set —
+its fields are `pub(crate)`, and passing it to `.emulation()` would wipe the
+profile's TLS config. The `.http2(closure)` layering avoids that.
+
 ### 86. HTML → text rendering — a text-browser view (0.96.0)
 
 recon could fetch any URL but had no way to read the result: its only

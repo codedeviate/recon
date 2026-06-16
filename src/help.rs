@@ -2784,10 +2784,13 @@ static TOPIC_IMPERSONATE: Topic = Topic {
                   immediate error with a hint to rebuild with `--features impersonate`\n\
                   or to download the `recon-impersonate` release artifact.\n\
                   \n\
-                  V1 SCOPE: only --impersonate is implemented. The --ja3, --ja4,\n\
-                  and --http2-fingerprint flags are reserved in the CLI for\n\
-                  forward-compatibility but error at runtime as not-yet-implemented.\n\
-                  Use --impersonate for now. See OUT-OF-SCOPE.md for the rationale.\n\
+                  SCOPE: --impersonate (named profiles) and --http2-fingerprint\n\
+                  (raw Akamai H2 fingerprint) are implemented. --ja3 / --ja4 stay\n\
+                  deferred and error at runtime: JA3 strings drop sigalgs and\n\
+                  extension order, and JA4's cipher/extension hashes are\n\
+                  non-invertible, so both reconstruct only a lossy TLS fingerprint.\n\
+                  The H2 layer, by contrast, is fully introspectable. See\n\
+                  OUT-OF-SCOPE.md for the rationale.\n\
                   \n\
                   PROFILES\n\
                   Named profiles are forwarded to wreq_util::Emulation. The format\n\
@@ -2843,10 +2846,16 @@ static TOPIC_IMPERSONATE: Topic = Topic {
         },
         FlagHelp {
             flags: "--http2-fingerprint <STRING>",
-            description: "Provide a raw HTTP/2 SETTINGS fingerprint string.\n\
-                          DEFERRED -- currently errors at runtime with a\n\
-                          'not yet implemented' message. Parsed and reserved in the\n\
-                          CLI for forward-compatibility only. Use --impersonate instead.",
+            description: "Override the HTTP/2 fingerprint with an Akamai-format string:\n\
+                          SETTINGS|WINDOW_UPDATE|PRIORITY|PSEUDO_HEADER_ORDER, e.g.\n\
+                          1:65536,3:1000,4:6291456,6:262144|15663105|0|m,a,s,p.\n\
+                          SETTINGS ids: 1 header-table-size, 2 enable-push,\n\
+                          3 max-concurrent-streams, 4 initial-window-size,\n\
+                          5 max-frame-size, 6 max-header-list-size, 8/9 vendor.\n\
+                          Independent of the TLS layer: combine with --impersonate to\n\
+                          keep a profile's TLS fingerprint while overriding H2, or use\n\
+                          standalone (default TLS + custom H2). Requires the binary to\n\
+                          be built with `--features impersonate`.",
         },
     ],
     related: &["--user-agent", "--ciphers", "--tls13-ciphers", "--tlsv1.2", "--tlsv1.3"],

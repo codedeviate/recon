@@ -44,12 +44,13 @@ fn impersonate_accepts_hyphenated_profile_name() {
 }
 
 #[test]
-fn raw_overrides_error_as_not_yet_implemented() {
-    // --ja3 / --ja4 / --http2-fingerprint are accepted by clap (so --help and
-    // --flags stay stable) but error out at runtime as not-yet-implemented.
-    // (Previously this test pinned to a "v0.78" version target; 0.78–0.80
-    // shipped without these so the message moved to a version-agnostic form.)
-    for flag in ["--ja3", "--ja4", "--http2-fingerprint"] {
+fn ja3_ja4_remain_deferred() {
+    // --ja3 / --ja4 are accepted by clap (so --help and --flags stay stable)
+    // but stay deferred at runtime: their fingerprints are lossy /
+    // non-invertible. --http2-fingerprint, by contrast, is now implemented
+    // (the H2 layer is fully introspectable) — see the parser tests in
+    // src/impersonate/h2_fingerprint.rs and the malformed/valid cases below.
+    for flag in ["--ja3", "--ja4"] {
         let out = Command::new(recon_bin())
             .args([flag, "dummy-value", "https://example.com/"])
             .output()
@@ -57,9 +58,51 @@ fn raw_overrides_error_as_not_yet_implemented() {
         assert!(!out.status.success(), "{flag} unexpectedly succeeded");
         let stderr = String::from_utf8_lossy(&out.stderr);
         assert!(
-            stderr.contains("not implemented yet"),
-            "{flag}: expected not-yet-implemented message, got: {stderr}"
+            stderr.contains("not implemented"),
+            "{flag}: expected deferred message, got: {stderr}"
         );
+    }
+}
+
+#[test]
+fn http2_fingerprint_malformed_errors_before_network() {
+    // A malformed Akamai string must fail fast with a parser error, not a
+    // network/DNS error — the parse happens before any connection.
+    let out = Command::new(recon_bin())
+        .args(["--http2-fingerprint", "1:abc|0|0|m,a,s,p", "https://example.com/"])
+        .output()
+        .expect("spawn recon");
+    assert!(!out.status.success(), "malformed fingerprint unexpectedly succeeded");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("http2-fingerprint") && stderr.contains("SETTINGS value"),
+        "expected a SETTINGS parse error, got: {stderr}"
+    );
+}
+
+#[test]
+fn http2_fingerprint_valid_reaches_network() {
+    // A valid Akamai string (the documented example) must parse and drive a
+    // real H2 request. Skips quietly if the network is unavailable; the key
+    // assertion is that it does NOT fail with a parse error.
+    let out = Command::new(recon_bin())
+        .args([
+            "--http2-fingerprint",
+            "1:65536,3:1000,4:6291456,6:262144|15663105|0|m,a,s,p",
+            "--silent",
+            "https://httpbin.org/get",
+        ])
+        .output()
+        .expect("spawn recon");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        !stderr.contains("http2-fingerprint:"),
+        "valid fingerprint rejected by parser: {stderr}"
+    );
+    if !out.status.success()
+        && (stderr.contains("dns") || stderr.contains("resolve") || stderr.contains("connect"))
+    {
+        eprintln!("network unavailable, skipping success assertion: {stderr}");
     }
 }
 

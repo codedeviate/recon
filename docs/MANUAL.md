@@ -2,7 +2,7 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.96.2</div>
+<div class="version">Version 0.97.0</div>
 <div class="date">2026-06-16</div>
 <div class="meta">
 Repository · https://github.com/codedeviate/recon<br>
@@ -507,9 +507,9 @@ download the `recon-impersonate` release artifact.
 | Flag | Description |
 |------|-------------|
 | `--impersonate <PROFILE>` | Forwards to `wreq_util::Emulation`. Examples: `chrome_131`, `firefox_128`, `safari_17.5`, `edge_131`, `okhttp_5`, `chrome_android_131`, `safari_ios_17.4.1`. Hyphens accepted as a convenience (`chrome-131` ≡ `chrome_131`). See `recon --help impersonate` for the full list of supported profiles. |
-| `--ja3 <STRING>` | **Deferred.** Reserved in the CLI for forward-compatibility; errors at runtime as not-yet-implemented. Use `--impersonate` for now. See OUT-OF-SCOPE.md for the upstream-blockers rationale. |
-| `--ja4 <STRING>` | **Deferred.** Same. |
-| `--http2-fingerprint <STRING>` | **Deferred.** Same. |
+| `--ja3 <STRING>` | **Deferred.** Reserved in the CLI; errors at runtime. JA3 strings drop sigalgs and extension order, so reconstruction is lossy. Use `--impersonate`. See OUT-OF-SCOPE.md. |
+| `--ja4 <STRING>` | **Deferred.** Same — JA4's cipher/extension hashes are non-invertible SHA-256 truncations. |
+| `--http2-fingerprint <STRING>` | Override the HTTP/2 fingerprint with an Akamai-format string `SETTINGS\|WINDOW_UPDATE\|PRIORITY\|PSEUDO_HEADER_ORDER` (e.g. `1:65536,3:1000,4:6291456,6:262144\|15663105\|0\|m,a,s,p`). SETTINGS ids: 1 header-table-size, 2 enable-push, 3 max-concurrent-streams, 4 initial-window-size, 5 max-frame-size, 6 max-header-list-size, 8/9 vendor. Independent of the TLS layer — combine with `--impersonate` to keep a profile's TLS fingerprint while overriding H2, or use standalone (default TLS + custom H2). |
 
 V1 incompatibility list — these flags cannot combine with `--impersonate`:
 `--ciphers`, `--tls13-ciphers`, `--tlsv1.2`, `--tlsv1.3`, `--client-cert`,
@@ -536,9 +536,15 @@ recon --impersonate firefox_128 https://tls.peet.ws/api/all
 recon --impersonate chrome_android_131 https://example.com/
 recon --impersonate safari_ios_17.4.1 https://example.com/
 recon --impersonate okhttp_5 https://example.com/
+
+# Override just the HTTP/2 fingerprint (Akamai format), standalone…
+recon --http2-fingerprint '1:65536,3:1000,4:6291456,6:262144|15663105|0|m,a,s,p' https://example.com/
+
+# …or layered on a profile (profile TLS kept, H2 overridden)
+recon --impersonate chrome_131 --http2-fingerprint '1:65536,4:6291456|0|0|m,a,s,p' https://example.com/
 ```
 
-The default (rustls-only) build rejects the four flags with a clear
+The default (rustls-only) build rejects these flags with a clear
 "rebuild with --features impersonate" hint pointing at the
 `recon-impersonate` release artifact.
 

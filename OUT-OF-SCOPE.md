@@ -52,28 +52,25 @@ rather than this file.
 
 ### Raw fingerprint overrides for `--impersonate` (since 0.77.0)
 
-- **`--ja3 <STRING>`, `--ja4 <STRING>`, `--http2-fingerprint <STRING>`** —
+- **`--ja3 <STRING>`, `--ja4 <STRING>`** —
   reserved in the CLI of 0.77.0 for forward-compatibility but error at
-  runtime with a "not yet implemented" message. The original 0.77.0 plan
-  promised raw fingerprint overrides alongside named profiles, but
-  `wreq` (formerly `rquest`) turned out to be a lower-level toolkit (`TlsConfig`
-  builders for cipher list / sigalgs / curves / extension order) rather
-  than a turnkey "set this JA3 string" library. JA3 strings don't capture
-  sigalgs or extension order, so reconstructing a `TlsConfig` from a JA3
-  is lossy and partial. JA4's cipher and extension components are
-  SHA-256 truncations, fundamentally non-invertible. Each parser would
-  be 100–200 lines of brittle TLS plumbing producing partial fingerprints.
-  Path forward when this becomes a priority: build a JA3-prefix →
-  known-profile lookup table (covers the common "this Chrome version
-  was captured" case), ship `--http2-fingerprint` as a real Akamai-format
-  parser into `wreq::Http2Config` (the H2 layer is fully introspectable),
-  and document `--ja3` / `--ja4` as best-effort with explicit limitations.
-  Named `--impersonate <profile>` covers the captcha-testing use case
-  in v1; revisit when a real captured-fingerprint case lands that named
-  profiles can't reproduce. (The original 0.77.0 spec targeted v0.78 for
-  this; 0.78–0.80 shipped without it because no concrete fingerprint
-  case turned up — moving the target date out of the heading rather than
-  letting it drift release by release.)
+  runtime. The original 0.77.0 plan promised raw fingerprint overrides
+  alongside named profiles, but `wreq` (formerly `rquest`) turned out to
+  be a lower-level toolkit (`TlsConfig` builders for cipher list / sigalgs
+  / curves / extension order) rather than a turnkey "set this JA3 string"
+  library. JA3 strings don't capture sigalgs or extension order, so
+  reconstructing a `TlsConfig` from a JA3 is lossy and partial. JA4's
+  cipher and extension components are SHA-256 truncations, fundamentally
+  non-invertible. Each parser would be 100–200 lines of brittle TLS
+  plumbing producing partial fingerprints. Path forward when this becomes
+  a priority: build a JA3-prefix → known-profile lookup table (covers the
+  common "this Chrome version was captured" case) and document `--ja3` /
+  `--ja4` as best-effort with explicit limitations. Named `--impersonate
+  <profile>` covers the captcha-testing use case; revisit when a real
+  captured-fingerprint case lands that named profiles can't reproduce.
+  (`--http2-fingerprint` shipped in 0.97.0 as a real Akamai-format parser
+  into `wreq::Http2Config` — the H2 layer is fully introspectable, unlike
+  the lossy TLS-layer JA3/JA4.)
 
 ### Client cert / custom CA bundle through `--impersonate` (0.77.0)
 

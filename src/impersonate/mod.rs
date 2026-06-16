@@ -8,13 +8,17 @@
 
 #![cfg(feature = "impersonate")]
 
+pub mod h2_fingerprint;
+
 use std::time::Instant;
 
 use anyhow::{anyhow, Context, Result};
 use reqwest::blocking::Response as ReqwestResponse;
+use wreq::{Http2Builder, Priority, StreamDependency, StreamId};
 
 use crate::cli::Args;
 use crate::metrics::RequestMetrics;
+use h2_fingerprint::H2Fingerprint;
 
 /// True if any flag in this module's surface is set on `args`.
 pub fn is_active(args: &Args) -> bool {
@@ -109,22 +113,44 @@ async fn convert_response(resp: wreq::Response) -> Result<ReqwestResponse> {
 pub fn execute(args: &Args) -> Result<(ReqwestResponse, RequestMetrics)> {
     validate_combination(args)?;
 
-    // Raw-fingerprint flags are reserved at the CLI but not implemented.
-    // Fail fast so the user sees a clear "not yet implemented" rather than
-    // a silent no-op. Rationale lives in OUT-OF-SCOPE.md under
-    // "Raw fingerprint overrides for --impersonate (since 0.77.0)".
-    if args.ja3.is_some() || args.ja4.is_some() || args.http2_fingerprint.is_some() {
+    // JA3 / JA4 raw overrides stay deferred: JA3 strings don't capture
+    // sigalgs or extension order, and JA4's cipher/extension components are
+    // non-invertible SHA-256 truncations — both reconstruct a partial,
+    // lossy TLS fingerprint. The HTTP/2 layer, by contrast, is fully
+    // introspectable, so --http2-fingerprint IS implemented below.
+    // Rationale in OUT-OF-SCOPE.md under "Raw fingerprint overrides".
+    // NOTE: keep the words "TLS" and "certificate" out of this string —
+    // main.rs::friendly_message rewrites any error containing them to a
+    // generic "TLS/certificate error" placeholder, which would hide this
+    // message from the user (see validate_combination above).
+    if args.ja3.is_some() || args.ja4.is_some() {
         return Err(anyhow!(
-            "--ja3 / --ja4 / --http2-fingerprint are not implemented yet. \
-             Use --impersonate <profile> for a named-profile fingerprint \
-             instead. See OUT-OF-SCOPE.md for the upstream-blockers rationale."
+            "--ja3 / --ja4 are not implemented (lossy / non-invertible browser \
+             fingerprints — see OUT-OF-SCOPE.md). Use --impersonate <profile> \
+             for a named browser fingerprint, or --http2-fingerprint for a raw \
+             Akamai HTTP/2 fingerprint."
         ));
     }
 
-    let profile_name = args.impersonate.as_deref().ok_or_else(|| {
-        anyhow!("impersonate::execute called without --impersonate (this is a bug)")
-    })?;
-    let emulation = parse_emulation(profile_name)?;
+    // Parse the H2 fingerprint up front so malformed input fails before we
+    // open a connection.
+    let fingerprint = match args.http2_fingerprint.as_deref() {
+        Some(s) => Some(h2_fingerprint::parse(s)?),
+        None => None,
+    };
+
+    // A profile is optional when a raw H2 fingerprint is supplied:
+    // fingerprint-only means default wreq TLS plus the custom H2 layer.
+    let emulation = match args.impersonate.as_deref() {
+        Some(name) => Some(parse_emulation(name)?),
+        None => None,
+    };
+    if emulation.is_none() && fingerprint.is_none() {
+        return Err(anyhow!(
+            "impersonate::execute called without --impersonate or \
+             --http2-fingerprint (this is a bug)"
+        ));
+    }
 
     let mut metrics = RequestMetrics::default();
     metrics.request_start = Some(Instant::now());
@@ -143,10 +169,20 @@ pub fn execute(args: &Args) -> Result<(ReqwestResponse, RequestMetrics)> {
     let insecure = args.insecure;
 
     let converted = runtime.block_on(async move {
-        let client = wreq::Client::builder()
-            .emulation(emulation)
+        let mut builder = wreq::Client::builder()
             .cert_verification(!insecure)
-            .connect_timeout(std::time::Duration::from_secs(timeout_secs))
+            .connect_timeout(std::time::Duration::from_secs(timeout_secs));
+        // Profile (if any) sets TLS + a baseline H2 config first...
+        if let Some(emulation) = emulation {
+            builder = builder.emulation(emulation);
+        }
+        // ...then the raw H2 fingerprint overrides the H2 layer per-field.
+        // Calling .http2() after .emulation() wins because both mutate the
+        // same underlying HTTP/2 builder.
+        if let Some(fp) = fingerprint {
+            builder = builder.http2(move |mut h2| apply_fingerprint(&mut h2, &fp));
+        }
+        let client = builder
             .build()
             .map_err(|e| anyhow!("wreq client build: {e}"))?;
 
@@ -174,4 +210,41 @@ pub fn execute(args: &Args) -> Result<(ReqwestResponse, RequestMetrics)> {
     metrics.url_effective = Some(args.target_url().to_string());
 
     Ok((converted, metrics))
+}
+
+/// Apply a parsed Akamai H2 fingerprint to wreq's `Http2Builder`. Mirrors
+/// wreq's internal `apply_http2_config` so a profile's baseline H2 settings
+/// are overridden per-field by the raw fingerprint.
+fn apply_fingerprint(h2: &mut Http2Builder<'_>, fp: &H2Fingerprint) {
+    for &(id, val) in &fp.settings {
+        match id {
+            1 => { h2.header_table_size(val); }
+            2 => { h2.enable_push(val != 0); }
+            3 => { h2.max_concurrent_streams(val); }
+            4 => { h2.initial_stream_window_size(val); }
+            5 => { h2.max_frame_size(val); }
+            6 => { h2.max_header_list_size(val); }
+            8 => { h2.unknown_setting8(val != 0); }
+            9 => { h2.unknown_setting9(val != 0); }
+            _ => {} // parse() already rejected unknown ids
+        }
+    }
+    h2.settings_order(Some(fp.settings_order()));
+    h2.headers_pseudo_order(Some(fp.pseudo_order));
+    if let Some(wu) = fp.window_update {
+        h2.initial_connection_window_size(wu);
+    }
+    if !fp.priorities.is_empty() {
+        let priorities: Vec<Priority> = fp
+            .priorities
+            .iter()
+            .map(|p| {
+                Priority::new(
+                    StreamId::from(p.stream_id),
+                    StreamDependency::new(StreamId::from(p.depends_on), p.weight, p.exclusive),
+                )
+            })
+            .collect();
+        h2.priority(Some(std::borrow::Cow::Owned(priorities)));
+    }
 }

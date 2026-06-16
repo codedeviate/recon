@@ -34,6 +34,14 @@ companion doc/example/test changes.
 
 ## [Unreleased]
 
+## [0.97.0] - 2026-06-16
+
+### Added
+- `--http2-fingerprint` is now implemented (impersonate builds). It accepts an Akamai-format HTTP/2 fingerprint `SETTINGS|WINDOW_UPDATE|PRIORITY|PSEUDO_HEADER_ORDER` (e.g. `1:65536,3:1000,4:6291456,6:262144|15663105|0|m,a,s,p`) and maps it onto wreq's `Http2Config` (SETTINGS params + order, connection WINDOW_UPDATE, PRIORITY frames, pseudo-header order). Independent of the TLS layer: combine with `--impersonate` to keep a profile's TLS fingerprint while overriding H2, or use standalone (default TLS + custom H2). Malformed input fails fast with a field-specific error before any connection. The `http2_fingerprint` opts key on the script `http()` binding routes through the same path.
+
+### Changed
+- `--ja3` / `--ja4` error message reworded: they remain deferred because JA3/JA4 reconstruct only a lossy, non-invertible TLS fingerprint (the H2 layer, by contrast, is fully introspectable, which is why `--http2-fingerprint` could ship). `src/impersonate.rs` became `src/impersonate/mod.rs` to host the new `h2_fingerprint` parser submodule.
+
 ## [0.96.2] - 2026-06-16
 
 ### Added
