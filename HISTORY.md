@@ -69,9 +69,11 @@ the TLS path for every request, the custom `rustls::ClientConfig` is built
 needs_custom_tls`); the common path keeps reqwest's high-level setters,
 extracted into `client::configure_native_tls`. The custom path reproduces
 the other TLS-affecting flags (roots, version bounds, `--insecure`,
-`--crlfile`) so behaviour matches; mTLS (`--client-cert`/`--client-key`) is
-the one combination it doesn't reproduce yet, so that combo errors clearly
-rather than silently dropping the client cert.
+`--crlfile`) so behaviour matches. mTLS (`--client-cert`/`--client-key`)
+initially errored-on-combine; the 0.100.0 follow-up closed that gap by
+extracting `client_cert::load_combined_client_pem` (shared by the reqwest
+`Identity` path and a new `build_rustls_client_auth`) so the custom config
+terminates with `.with_client_auth_cert` when a client identity is present.
 
 **Pinning** wraps the chosen base verifier (webpki, or accept-all under
 `-k`) in a `PinnedKeyVerifier` that checks SHA-256 of the leaf cert's

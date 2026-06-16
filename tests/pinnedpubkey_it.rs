@@ -64,8 +64,10 @@ fn malformed_pin_errors_before_network() {
 }
 
 #[test]
-fn pin_with_client_cert_errors() {
-    // Error-on-combine: the custom TLS path doesn't build client-auth yet.
+fn pin_with_client_cert_is_accepted() {
+    // The pin + client-cert combination is now supported (the custom TLS
+    // path builds client-auth). An empty cert file must therefore fail with
+    // a *cert-load* error, NOT the old "cannot be combined" error.
     let out = Command::new(recon_bin())
         .args([
             "--pinnedpubkey",
@@ -79,8 +81,12 @@ fn pin_with_client_cert_errors() {
     assert!(!out.status.success());
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(
-        stderr.contains("cannot be combined with --client-cert / --client-key"),
-        "expected combine error, got: {stderr}"
+        !stderr.contains("cannot be combined"),
+        "combine should now be allowed, got: {stderr}"
+    );
+    assert!(
+        stderr.contains("--cert") || stderr.contains("certificate") || stderr.contains("no certificate"),
+        "expected a cert-load error, got: {stderr}"
     );
 }
 

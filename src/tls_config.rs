@@ -34,20 +34,6 @@ pub fn needs_custom_tls(args: &Args) -> bool {
 /// Build a `rustls::ClientConfig` reproducing recon's TLS-affecting flags
 /// plus `--pinnedpubkey` / `--curves`. Only called when `needs_custom_tls`.
 pub fn build_client_config(args: &Args) -> Result<ClientConfig> {
-    // mTLS on the custom path is not supported yet: reqwest's Identity
-    // can't be applied to a use_preconfigured_tls config, and we don't
-    // build a rustls client-auth resolver here. Fail clearly rather than
-    // silently dropping the client cert.
-    // NB: keep "certificate"/"TLS" out of this message — main.rs::
-    // friendly_message rewrites any error mentioning them to a generic
-    // placeholder (it inspects the root cause), which would hide this.
-    if args.client_cert.is_some() || args.client_key.is_some() {
-        bail!(
-            "--pinnedpubkey / --curves cannot be combined with --client-cert / \
-             --client-key (mutual auth) in this release. Use one or the other."
-        );
-    }
-
     // Crypto provider — ring default, with kx_groups overridden by --curves.
     let mut provider = ring::default_provider();
     if let Some(list) = &args.curves {
@@ -82,12 +68,20 @@ pub fn build_client_config(args: &Args) -> Result<ClientConfig> {
         None => base,
     };
 
-    let mut config = ClientConfig::builder_with_provider(provider)
+    let cfg_builder = ClientConfig::builder_with_provider(provider)
         .with_protocol_versions(&versions)
         .context("apply TLS protocol versions")?
         .dangerous()
-        .with_custom_certificate_verifier(verifier)
-        .with_no_client_auth();
+        .with_custom_certificate_verifier(verifier);
+
+    // mTLS: present a client certificate when --client-cert is set, reusing
+    // the same validated PEM bundle as the default reqwest path.
+    let mut config = match crate::client_cert::build_rustls_client_auth(args)? {
+        Some((certs, key)) => cfg_builder
+            .with_client_auth_cert(certs, key)
+            .context("--cert/--key: configure client authentication")?,
+        None => cfg_builder.with_no_client_auth(),
+    };
 
     // Match reqwest's ALPN so HTTP/2 still negotiates on the custom path.
     config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];

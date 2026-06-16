@@ -2,7 +2,7 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.99.0</div>
+<div class="version">Version 0.100.0</div>
 <div class="date">2026-06-16</div>
 <div class="meta">
 Repository · https://github.com/codedeviate/recon<br>
@@ -451,11 +451,10 @@ recon --interface 10.0.0.5 https://example.com/     # use a specific source IP
 
 > **`--pinnedpubkey` / `--curves` build a custom rustls config** (reqwest has
 > no setter for either), routed via `use_preconfigured_tls`. That path also
-> honours `--cacert`/`--capath`/`--ca-native`/`--crlfile`/`--tlsv1.x`/`--tls-max`
-> and `-k`, but **cannot be combined with `--client-cert`/`--client-key`**
-> (mutual auth) in this release — recon errors clearly if you try. The pin is
-> SHA-256 of the leaf certificate's SubjectPublicKeyInfo and is enforced even
-> under `-k`. P-521 is unavailable under the ring crypto backend.
+> honours `--cacert`/`--capath`/`--ca-native`/`--crlfile`/`--tlsv1.x`/`--tls-max`,
+> `-k`, and `--client-cert`/`--client-key` (mTLS composes with pinning/curves).
+> The pin is SHA-256 of the leaf certificate's SubjectPublicKeyInfo and is
+> enforced even under `-k`. P-521 is unavailable under the ring crypto backend.
 
 ## Client certificates (mTLS)
 

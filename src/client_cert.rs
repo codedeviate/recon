@@ -50,10 +50,12 @@ impl KeyFormat {
     }
 }
 
-/// Build a reqwest `Identity` from the flag cluster. Returns `None`
-/// when `--cert` isn't set. Validates formats even when no identity is
-/// produced so users see format errors early.
-pub fn build_identity(args: &Args) -> Result<Option<reqwest::Identity>> {
+/// Load and validate the client cert/key flag cluster into a single
+/// combined PEM bundle (cert chain + private key), the form both the
+/// reqwest `Identity` path and the rustls client-auth path consume.
+/// Returns `None` when `--cert` isn't set. Validates formats even when no
+/// bundle is produced so users see format errors early.
+fn load_combined_client_pem(args: &Args) -> Result<Option<Vec<u8>>> {
     let cert_path = match args.client_cert.as_ref() {
         Some(p) => p,
         None => {
@@ -133,9 +135,44 @@ pub fn build_identity(args: &Args) -> Result<Option<reqwest::Identity>> {
         }
     };
 
-    let identity = reqwest::Identity::from_pem(&combined)
-        .context("--cert/--key: failed to build TLS identity from PEM bundle")?;
-    Ok(Some(identity))
+    Ok(Some(combined))
+}
+
+/// Build a reqwest `Identity` from the flag cluster (used by the default
+/// reqwest TLS path). `None` when `--cert` isn't set.
+pub fn build_identity(args: &Args) -> Result<Option<reqwest::Identity>> {
+    match load_combined_client_pem(args)? {
+        Some(combined) => {
+            let identity = reqwest::Identity::from_pem(&combined)
+                .context("--cert/--key: failed to build TLS identity from PEM bundle")?;
+            Ok(Some(identity))
+        }
+        None => Ok(None),
+    }
+}
+
+/// Build rustls-typed client-auth material (cert chain + private key) from
+/// the same validated PEM bundle. Used by the custom `use_preconfigured_tls`
+/// path (`--pinnedpubkey` / `--curves`). `None` when `--cert` isn't set.
+pub fn build_rustls_client_auth(
+    args: &Args,
+) -> Result<Option<(Vec<rustls::pki_types::CertificateDer<'static>>, rustls::pki_types::PrivateKeyDer<'static>)>> {
+    let Some(combined) = load_combined_client_pem(args)? else {
+        return Ok(None);
+    };
+    let mut rd = std::io::BufReader::new(&combined[..]);
+    let mut certs = Vec::new();
+    for c in rustls_pemfile::certs(&mut rd) {
+        certs.push(c.context("--cert/--key: parse client certificate")?);
+    }
+    if certs.is_empty() {
+        bail!("--cert: no certificate found in the PEM bundle");
+    }
+    let mut rd = std::io::BufReader::new(&combined[..]);
+    let key = rustls_pemfile::private_key(&mut rd)
+        .context("--cert/--key: parse client private key")?
+        .ok_or_else(|| anyhow::anyhow!("--key: no private key found in the PEM bundle"))?;
+    Ok(Some((certs, key)))
 }
 
 fn has_encrypted_key(pem: &[u8]) -> bool {
@@ -157,10 +194,54 @@ mod tests {
         Args::try_parse_from(argv).expect("parse")
     }
 
+    // Throwaway self-signed EC (prime256v1) cert + key — fixture only.
+    const TEST_CERT: &str = "-----BEGIN CERTIFICATE-----\n\
+MIIBjjCCATOgAwIBAgIUXeuKOm49gEGOi2QqeJ1NPcvbUPYwCgYIKoZIzj0EAwIw\n\
+HDEaMBgGA1UEAwwRcmVjb24tdGVzdC1jbGllbnQwHhcNMjYwNjE2MTQ0MjI0WhcN\n\
+MzYwNjEzMTQ0MjI0WjAcMRowGAYDVQQDDBFyZWNvbi10ZXN0LWNsaWVudDBZMBMG\n\
+ByqGSM49AgEGCCqGSM49AwEHA0IABBQllnqzmnatHPoeW7sOdjZkRGAK089PbRiR\n\
+qBH/EhX29ry7hB73imZ7Rh1LCHEk/ER06f+hoN2tlrvJi954jrKjUzBRMB0GA1Ud\n\
+DgQWBBS8HPk21FVdm3JgF8NOj/PcLjFqRDAfBgNVHSMEGDAWgBS8HPk21FVdm3Jg\n\
+F8NOj/PcLjFqRDAPBgNVHRMBAf8EBTADAQH/MAoGCCqGSM49BAMCA0kAMEYCIQCC\n\
+nByqEvo5eTmz0WsuHgy4dyI+vn8FEaXpay//W8t+ggIhAPRqLo4R36MEy6TAJEuY\n\
+q1v7NMbBBkXqJoni4gJZ/qyT\n\
+-----END CERTIFICATE-----\n";
+    const TEST_KEY: &str = "-----BEGIN PRIVATE KEY-----\n\
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgBZj3Syynda/1e+C1\n\
+iH0YZ6ipaPkuLtOf8kO/ZpADD5OhRANCAAQUJZZ6s5p2rRz6Hlu7DnY2ZERgCtPP\n\
+T20YkagR/xIV9va8u4Qe94pme0YdSwhxJPxEdOn/oaDdrZa7yYveeI6y\n\
+-----END PRIVATE KEY-----\n";
+
     #[test]
     fn no_cert_returns_none() {
         let a = args_with(&[]);
         assert!(build_identity(&a).unwrap().is_none());
+        assert!(build_rustls_client_auth(&a).unwrap().is_none());
+    }
+
+    #[test]
+    fn rustls_client_auth_loads_split_pem() {
+        let mut cf = NamedTempFile::new().unwrap();
+        cf.write_all(TEST_CERT.as_bytes()).unwrap();
+        let mut kf = NamedTempFile::new().unwrap();
+        kf.write_all(TEST_KEY.as_bytes()).unwrap();
+        let a = args_with(&[
+            "--client-cert",
+            cf.path().to_str().unwrap(),
+            "--key",
+            kf.path().to_str().unwrap(),
+        ]);
+        let (certs, _key) = build_rustls_client_auth(&a).unwrap().expect("Some");
+        assert_eq!(certs.len(), 1, "expected one client cert");
+    }
+
+    #[test]
+    fn rustls_client_auth_loads_combined_pem() {
+        let mut cf = NamedTempFile::new().unwrap();
+        cf.write_all(format!("{TEST_CERT}{TEST_KEY}").as_bytes()).unwrap();
+        let a = args_with(&["--client-cert", cf.path().to_str().unwrap()]);
+        let (certs, _key) = build_rustls_client_auth(&a).unwrap().expect("Some");
+        assert_eq!(certs.len(), 1);
     }
 
     #[test]

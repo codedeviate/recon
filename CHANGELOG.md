@@ -34,6 +34,11 @@ companion doc/example/test changes.
 
 ## [Unreleased]
 
+## [0.100.0] - 2026-06-16
+
+### Changed
+- `--pinnedpubkey` / `--curves` now **compose with `--client-cert` / `--client-key`** (mutual TLS). The custom rustls path builds client-auth from the same validated PEM bundle as the default path (`client_cert::build_rustls_client_auth`), so pinning/curve-selection and mTLS work in one request. Previously the combination errored. PEM-only, same format support as the plain mTLS path (DER/ENG/encrypted keys keep their existing clear errors).
+
 ## [0.99.0] - 2026-06-16
 
 ### Added

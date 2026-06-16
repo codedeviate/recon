@@ -1118,7 +1118,7 @@ recon --rekey \
         "recon --curves X25519:P-256 https://example.com/",
     ]);
 
-    note("--pinnedpubkey takes curl's sha256//<base64> form (SHA-256 of the leaf cert's SubjectPublicKeyInfo); the pin is enforced even under --insecure. --curves accepts OpenSSL names (X25519, P-256/prime256v1, P-384/secp384r1); P-521 is unavailable under the ring backend. Both build a custom rustls config and cannot be combined with --client-cert / --client-key.");
+    note("--pinnedpubkey takes curl's sha256//<base64> form (SHA-256 of the leaf cert's SubjectPublicKeyInfo); the pin is enforced even under --insecure. --curves accepts OpenSSL names (X25519, P-256/prime256v1, P-384/secp384r1); P-521 is unavailable under the ring backend. Both build a custom rustls config that composes with --client-cert / --client-key (mTLS) and the other TLS flags.");
 
     example("Proxy + TLS tuning (accepted; some plumb-through deferred)", &[
         "recon --ciphers 'TLS_AES_256_GCM_SHA384' https://example.com/   # accepted, not yet wired",

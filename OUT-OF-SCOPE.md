@@ -106,10 +106,9 @@ narrower pieces remain deferred:
   DER/PEM public-key file (not just `sha256//<base64>` hashes). recon errors
   clearly on the file-path form for now; add it if a concrete need appears
   (parse the key file, hash its SPKI, compare the same way).
-- **`--pinnedpubkey` / `--curves` with `--client-cert` / `--client-key`** —
-  the custom-rustls path doesn't build a client-auth resolver yet, so the
-  combination errors. Ships when someone needs mTLS *and* pinning/curves in
-  one request (add `.with_client_auth_cert(chain, key)` to the custom config).
+
+  (mTLS combined with pinning/curves shipped in 0.100.0 — the custom-rustls
+  path now builds client-auth via `.with_client_auth_cert`.)
 
 ### curl flags — internal trade-offs, no upstream block
 
