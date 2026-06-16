@@ -49,6 +49,7 @@ impl AiBackend for CopilotBackend {
                 model: ctx.effective_model.clone(),
                 duration: r.duration,
                 exit_code: r.exit_code,
+                chars_in: payload.char_count(),
             }),
             Err(e) => Err(e.to_string()),
         }

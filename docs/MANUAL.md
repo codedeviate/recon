@@ -2,8 +2,8 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.96.1</div>
-<div class="date">2026-06-01</div>
+<div class="version">Version 0.96.2</div>
+<div class="date">2026-06-16</div>
 <div class="meta">
 Repository · https://github.com/codedeviate/recon<br>
 License · MIT
@@ -4155,6 +4155,21 @@ All `.send()` failures throw a Rhai script error prefixed `ai:`:
 | `ai: empty response from backend` | exit-zero but no stdout |
 | `ai: no user prompt — call .prompt()/.user() before .send()` | builder validation |
 | `ai: cannot append assistant turn — last turn is already assistant` | builder validation |
+
+### Telemetry (`-v` / `-vv`)
+
+Silent by default. When the script engine runs at verbosity 1 (`-v`),
+each **successful** `.send()` logs one line to stderr:
+
+```
+* ai: backend=claude model=sonnet duration=2.3s exit=0 chars_in=842 chars_out=412
+```
+
+`chars_in` is the total payload (system + context + multi-turn preamble +
+prompt); `chars_out` is the reply length. At verbosity 2 (`-vv`) a second
+line is added with the preamble length and the first 80 characters of
+stdout (newlines collapsed to spaces). Failed sends emit their own `ai:`
+error instead — no telemetry line. The reply on stdout is never affected.
 
 ---
 

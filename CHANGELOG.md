@@ -34,6 +34,11 @@ companion doc/example/test changes.
 
 ## [Unreleased]
 
+## [0.96.2] - 2026-06-16
+
+### Added
+- `ai::*` script bindings now emit per-`.send()` telemetry under the script engine's verbose flag. With `-v`, each successful `.send()` logs one line to stderr (`* ai: backend=.. model=.. duration=..s exit=.. chars_in=.. chars_out=..`); with `-vv` a second line adds the preamble length and the first 80 chars of stdout. Silent by default. Completes the telemetry promised in the 0.79.0 AI-bindings spec (previously deferred because `register` didn't thread verbosity through).
+
 ## [0.96.1] - 2026-06-01
 
 ### Added

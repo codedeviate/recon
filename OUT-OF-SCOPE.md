@@ -49,10 +49,6 @@ rather than this file.
   enforcement; same architectural cost.
 - **`recon --ai PROMPT` CLI surface** — script-only in v1. Adds
   4–5 CLI flags and corresponding exposure-policy work.
-- **Verbose logging per `.send()`** — the spec promised a `-v` log
-  line per call (`* ai: backend=... model=... duration=...`). v1
-  ships without it because the `register` fn doesn't currently
-  thread `ScriptDefaults` through. Follow-up release adds it.
 
 ### Raw fingerprint overrides for `--impersonate` (since 0.77.0)
 

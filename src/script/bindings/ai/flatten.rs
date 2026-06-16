@@ -27,6 +27,18 @@ pub struct FlatPayload {
     pub body: String,
 }
 
+impl FlatPayload {
+    /// Total character count of the conceptual payload — body plus the
+    /// system prompt when present. Independent of `SystemDelivery`: only
+    /// the `"System: "` inline wrapper differs between modes and it is
+    /// deliberately not counted here, so `chars_in` is stable across
+    /// backends. Used for the `-v` `.send()` telemetry line.
+    pub fn char_count(&self) -> usize {
+        self.body.chars().count()
+            + self.system.as_ref().map_or(0, |s| s.chars().count())
+    }
+}
+
 pub fn flatten_for_subprocess(req: &Request, delivery: SystemDelivery) -> FlatPayload {
     let body = build_body(req);
     match delivery {
@@ -103,6 +115,19 @@ mod tests {
         let p = flatten_for_subprocess(&r, SystemDelivery::Flag);
         assert_eq!(p.system.as_deref(), Some("you are helpful"));
         assert_eq!(p.body, "hello");
+    }
+
+    #[test]
+    fn char_count_sums_body_and_system() {
+        // Flag mode keeps system separate; char_count includes both.
+        let mut r = req_with("hello"); // body "hello" = 5
+        r.set_system("hi"); // system "hi" = 2
+        let p = flatten_for_subprocess(&r, SystemDelivery::Flag);
+        assert_eq!(p.char_count(), 7);
+
+        // No system → just the body.
+        let p2 = flatten_for_subprocess(&req_with("héllo"), SystemDelivery::Flag);
+        assert_eq!(p2.char_count(), 5); // chars, not bytes
     }
 
     #[test]

@@ -2922,6 +2922,13 @@ static TOPIC_AI: Topic = Topic {
                           returns a map with .text, .backend, .model, .duration_ms,\n\
                           .exit_code.",
         },
+        FlagHelp {
+            flags: "-v / -vv (telemetry)",
+            description: "With -v, each successful .send() logs one line to stderr:\n\
+                          `* ai: backend=.. model=.. duration=..s exit=.. chars_in=..\n\
+                          chars_out=..`. With -vv it also logs the preamble length\n\
+                          and the first 80 chars of stdout. Silent by default.",
+        },
     ],
     related: &["script", "configuration"],
     examples: &[

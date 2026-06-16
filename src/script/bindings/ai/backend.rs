@@ -23,6 +23,10 @@ pub struct Response {
     pub model: Option<String>,
     pub duration: Duration,
     pub exit_code: i32,
+    /// Total characters sent on the conceptual payload (body + system).
+    /// Populated by each backend from its `FlatPayload`; surfaced only in
+    /// the `-v` `.send()` telemetry line, not in the `send_full()` map.
+    pub chars_in: usize,
 }
 
 /// A backend dispatches a `Request` to an underlying CLI / API and
@@ -97,6 +101,7 @@ mod tests {
                 model: None,
                 duration: Duration::from_millis(1),
                 exit_code: 0,
+                chars_in: 0,
             })
         }
     }

@@ -39,6 +39,7 @@ pub fn invoke(
         ));
     }
     let payload = flatten_for_subprocess(req, SystemDelivery::Flag);
+    let chars_in = payload.char_count(); // capture before `payload.body` is moved below
     let argv = build_argv(cfg, ctx.effective_model.as_deref(), payload.system.as_deref());
 
     // For the cmd backend, the system prompt may need inlining if the
@@ -60,6 +61,7 @@ pub fn invoke(
             model: ctx.effective_model.clone(),
             duration: r.duration,
             exit_code: r.exit_code,
+            chars_in,
         }),
         Err(e) => Err(e.to_string()),
     }

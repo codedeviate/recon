@@ -29,6 +29,7 @@ impl AiBackend for MockBackend {
             model: None,
             duration: Duration::from_millis(1),
             exit_code: 0,
+            chars_in: 0,
         })
     }
 }
@@ -39,7 +40,7 @@ fn engine_with_mock(canned: &str) -> rhai::Engine {
     let mut engine = rhai::Engine::new();
     let mut cfg = AiConfig::default();
     cfg.default_backend = Some("mock".into());
-    register_with_registry(&mut engine, registry, cfg);
+    register_with_registry(&mut engine, registry, cfg, 0);
     engine
 }
 

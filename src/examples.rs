@@ -2398,6 +2398,14 @@ recon --script /tmp/decode.rhai"#,
         "let a2 = req.send();",
     ]);
 
+    example("Per-.send() telemetry with -v / -vv", &[
+        "recon -v  --script ask.rhai",
+        "# stderr: * ai: backend=claude model=sonnet duration=2.3s exit=0 chars_in=842 chars_out=412",
+        "recon -vv --script ask.rhai   # also logs preamble length + first 80 chars of stdout",
+    ]);
+
+    note("Each successful .send() logs one `* ai:` line to stderr under -v (two under -vv); silent by default. The reply on stdout is unaffected.");
+
     note("ai::* requires a backend (claude / codex / copilot / gemini, or a user-defined `cmd` entry in ~/.recon/config.toml under [ai.backends.<name>]). Select with .backend(), $RECON_AI_BACKEND, or [ai].default_backend. send() throws on failure — wrap in `try { ... } catch (e) { ... }` to recover.");
 
     section("INTERACTIVE REPL");
