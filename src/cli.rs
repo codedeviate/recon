@@ -1646,6 +1646,15 @@ pub struct Args {
     #[arg(long = "width", value_name = "N", help_heading = "Docs")]
     pub width: Option<usize>,
 
+    /// Drop link footnotes/styling in rendered HTML text.
+    ///
+    /// Applies to --html-to-text, --render, and html_to_text(). In plain
+    /// output, suppresses the `[N]` markers and the trailing URL reference
+    /// list (anchor text stays inline); in coloured output, drops the
+    /// inline link styling. Default keeps links (footnotes on).
+    #[arg(long = "render-no-links", help_heading = "Docs")]
+    pub render_no_links: bool,
+
     /// Inject a linkable table of contents at the top of the
     /// generated HTML (md-to-html and md-to-pdf only).
     #[arg(long = "toc", help_heading = "Docs")]

@@ -17,6 +17,10 @@ pub struct RenderOpts {
     pub width: Option<usize>,
     /// When to emit ANSI styling.
     pub color: ColorWhen,
+    /// Suppress link surfacing: in plain mode drop the `[N]` footnote
+    /// markers and the trailing URL reference list (anchor text stays
+    /// inline); in coloured mode drop the inline link styling.
+    pub no_links: bool,
 }
 
 /// Resolve the wrap width: explicit override, else terminal columns on a
@@ -54,23 +58,25 @@ pub fn is_html(content_type: &str) -> bool {
 pub fn render_html(html: &str, opts: &RenderOpts) -> Result<String> {
     let width = resolve_width(opts);
     if use_color(opts) {
-        render_coloured(html, width)
+        render_coloured(html, width, opts.no_links)
     } else {
-        render_plain(html, width)
+        render_plain(html, width, opts.no_links)
     }
 }
 
-fn render_plain(html: &str, width: usize) -> Result<String> {
+fn render_plain(html: &str, width: usize, no_links: bool) -> Result<String> {
+    // link_footnotes(false) keeps anchor text inline but drops both the
+    // `[N]` markers and the trailing URL reference list.
     html2text::config::plain()
-        .link_footnotes(true)
+        .link_footnotes(!no_links)
         .string_from_read(html.as_bytes(), width)
         .map_err(|e| anyhow::anyhow!("html render: {e}"))
 }
 
-fn render_coloured(html: &str, width: usize) -> Result<String> {
+fn render_coloured(html: &str, width: usize, no_links: bool) -> Result<String> {
     use html2text::render::RichAnnotation;
 
-    html2text::from_read_coloured(html.as_bytes(), width, |anns: &[RichAnnotation], text: &str| {
+    html2text::from_read_coloured(html.as_bytes(), width, move |anns: &[RichAnnotation], text: &str| {
         let mut prefix = String::new();
         for ann in anns {
             match ann {
@@ -78,7 +84,8 @@ fn render_coloured(html: &str, width: usize) -> Result<String> {
                 RichAnnotation::Emphasis => prefix.push_str("\u{1b}[3m"),
                 RichAnnotation::Strikeout => prefix.push_str("\u{1b}[9m"),
                 RichAnnotation::Code | RichAnnotation::Preformat(_) => prefix.push_str("\u{1b}[2m"),
-                RichAnnotation::Link(_) => prefix.push_str("\u{1b}[4;34m"),
+                // Skip link styling when --render-no-links is set.
+                RichAnnotation::Link(_) if !no_links => prefix.push_str("\u{1b}[4;34m"),
                 _ => {}
             }
         }
@@ -109,7 +116,7 @@ pub fn run_html_to_text(args: &Args) -> Result<()> {
     let bytes = crate::source::read_all(&call_args)?;
 
     let html = String::from_utf8_lossy(&bytes);
-    let opts = RenderOpts { width: args.width, color: args.render_color };
+    let opts = RenderOpts { width: args.width, color: args.render_color, no_links: args.render_no_links };
     let text = render_html(&html, &opts)?;
 
     match args.output.as_ref() {
@@ -128,7 +135,11 @@ mod tests {
     use super::*;
 
     fn plain(html: &str) -> String {
-        render_html(html, &RenderOpts { width: Some(60), color: ColorWhen::Never }).unwrap()
+        render_html(html, &RenderOpts { width: Some(60), color: ColorWhen::Never, no_links: false }).unwrap()
+    }
+
+    fn plain_no_links(html: &str) -> String {
+        render_html(html, &RenderOpts { width: Some(60), color: ColorWhen::Never, no_links: true }).unwrap()
     }
 
     #[test]
@@ -182,12 +193,12 @@ mod tests {
 
     #[test]
     fn explicit_width_overrides() {
-        assert_eq!(resolve_width(&RenderOpts { width: Some(42), color: ColorWhen::Never }), 42);
+        assert_eq!(resolve_width(&RenderOpts { width: Some(42), color: ColorWhen::Never, no_links: false }), 42);
     }
 
     #[test]
     fn zero_width_is_floored() {
-        assert_eq!(resolve_width(&RenderOpts { width: Some(0), color: ColorWhen::Never }), 20);
+        assert_eq!(resolve_width(&RenderOpts { width: Some(0), color: ColorWhen::Never, no_links: false }), 20);
     }
 
     #[test]
@@ -213,12 +224,16 @@ mod tests {
 
     #[test]
     fn color_always_and_never_are_literal() {
-        assert!(use_color(&RenderOpts { width: None, color: ColorWhen::Always }));
-        assert!(!use_color(&RenderOpts { width: None, color: ColorWhen::Never }));
+        assert!(use_color(&RenderOpts { width: None, color: ColorWhen::Always, no_links: false }));
+        assert!(!use_color(&RenderOpts { width: None, color: ColorWhen::Never, no_links: false }));
     }
 
     fn coloured(html: &str) -> String {
-        render_html(html, &RenderOpts { width: Some(60), color: ColorWhen::Always }).unwrap()
+        render_html(html, &RenderOpts { width: Some(60), color: ColorWhen::Always, no_links: false }).unwrap()
+    }
+
+    fn coloured_no_links(html: &str) -> String {
+        render_html(html, &RenderOpts { width: Some(60), color: ColorWhen::Always, no_links: true }).unwrap()
     }
 
     #[test]
@@ -232,5 +247,31 @@ mod tests {
     fn plain_mode_emits_no_ansi() {
         let out = plain("<p><strong>bold</strong></p>");
         assert!(!out.contains('\u{1b}'), "unexpected ANSI escapes: {out:?}");
+    }
+
+    #[test]
+    fn no_links_drops_footnote_list_but_keeps_anchor_text() {
+        let html = r#"<p>See <a href="https://example.com/x">the site</a>.</p>"#;
+        let out = plain_no_links(html);
+        assert!(out.contains("the site"), "anchor text should remain: {out:?}");
+        assert!(!out.contains("https://example.com/x"), "URL should be gone: {out:?}");
+        assert!(!out.contains("[1]"), "footnote marker should be gone: {out:?}");
+    }
+
+    #[test]
+    fn default_plain_keeps_url_footnotes() {
+        // Regression guard: without --render-no-links the URL list stays.
+        let out = plain(r#"<p>See <a href="https://example.com/x">the site</a>.</p>"#);
+        assert!(out.contains("https://example.com/x"), "URL footnote expected: {out:?}");
+    }
+
+    #[test]
+    fn no_links_coloured_drops_link_styling() {
+        let html = r#"<p><a href="https://example.com/">link</a></p>"#;
+        let styled = coloured(html);
+        let unstyled = coloured_no_links(html);
+        assert!(styled.contains("\u{1b}[4;34m"), "default should style links: {styled:?}");
+        assert!(!unstyled.contains("\u{1b}[4;34m"), "no_links should drop link ANSI: {unstyled:?}");
+        assert!(unstyled.contains("link"), "link text should remain: {unstyled:?}");
     }
 }

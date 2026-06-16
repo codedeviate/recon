@@ -122,6 +122,7 @@ fn do_request(
         let ropts = crate::render::RenderOpts {
             width: args.width,
             color: args.render_color,
+            no_links: args.render_no_links,
         };
         crate::render::render_html(&decoded, &ropts).map_err(anyhow_to_rhai)?
     } else {
@@ -607,6 +608,9 @@ pub(crate) fn build_args(
                 "auto" => crate::cli::ColorWhen::Auto,
                 _ => crate::cli::ColorWhen::Never,
             };
+        }
+        if let Some(b) = opts_get_bool(o, "render_no_links") {
+            args.render_no_links = b;
         }
     }
     Ok(args)

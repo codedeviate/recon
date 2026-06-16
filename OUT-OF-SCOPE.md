@@ -228,9 +228,6 @@ reference.
 - **Custom page sizes / margins / orientations** — agent-browser's
   `pdf` subcommand's flag surface dictates what's feasible. Punt
   until real demand shapes the knobs.
-- **`--render-no-links` toggle** — suppress the footnote reference
-  list in rendered HTML. Footnotes are always on for 0.96.0 since the
-  URLs are usually the point.
 
 ### Script engine
 

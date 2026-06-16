@@ -109,6 +109,7 @@ pub fn register(engine: &mut Engine) {
             let opts = crate::render::RenderOpts {
                 width: None,
                 color: crate::cli::ColorWhen::Never,
+                no_links: false,
             };
             crate::render::render_html(html, &opts).map_err(|e| err(e.to_string()))
         },
@@ -131,7 +132,11 @@ pub fn register(engine: &mut Engine) {
                 Some("auto") => crate::cli::ColorWhen::Auto,
                 _ => crate::cli::ColorWhen::Never,
             };
-            let ropts = crate::render::RenderOpts { width, color };
+            let no_links = opts
+                .get("no_links")
+                .and_then(|v| v.as_bool().ok())
+                .unwrap_or(false);
+            let ropts = crate::render::RenderOpts { width, color, no_links };
             crate::render::render_html(html, &ropts).map_err(|e| err(e.to_string()))
         },
     );

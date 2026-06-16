@@ -114,8 +114,8 @@ plain text; interactive output is ANSI-styled.
 default and the impersonate variant — the impersonate build, which gave up
 scp/sftp/ssh per issue #1, gains HTML rendering.
 
-**Deferred:** JavaScript/CSS/images (use `--html-to-pdf`), a `--render-no-links`
-toggle, and image-mode controls.
+**Deferred:** JavaScript/CSS/images (use `--html-to-pdf`) and image-mode
+controls. (The `--render-no-links` toggle shipped in 0.98.0.)
 
 ### 85. `ssh` feature gate — fixing the impersonate link collision (0.95.0)
 

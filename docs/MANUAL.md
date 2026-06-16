@@ -2,7 +2,7 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.97.0</div>
+<div class="version">Version 0.98.0</div>
 <div class="date">2026-06-16</div>
 <div class="meta">
 Repository · https://github.com/codedeviate/recon<br>
@@ -1103,6 +1103,7 @@ recon --compare a.json b.json --compare-context 5
 | `--html-to-text <SRC>` | HTML → readable wrapped text (file / URL / stdin); lynx/w3m-style view. |
 | `--render` | Render `text/html` HTTP responses as text inline; non-HTML passes through. |
 | `--render-color <auto\|always\|never>` | ANSI styling of rendered text (auto-on when stdout is a TTY). |
+| `--render-no-links` | Drop link surfacing in rendered text: in plain output, the `[N]` markers and the trailing URL reference list (anchor text stays inline); in coloured output, the inline link styling. Default keeps links. |
 | `--width <N>` | Wrap column for rendered output (default: terminal width on a TTY, else 80). |
 | `--toc` | Inject a linkable TOC. |
 | `--toc-depth <N>` | Include headings up to H`N` (default 3). |
@@ -1149,12 +1150,18 @@ recon --render https://example.com
 
 # Convert a local file, wrap to 60 columns
 recon --html-to-text page.html --width 60 -o page.txt
+
+# Drop the URL footnote list — keep just the anchor text
+recon --render --render-no-links https://example.com
 ```
 
 `--render` only transforms `text/html` responses; other content types pass
 through unchanged. `<a href>` links become `[N]` footnotes with a reference
 list (plain mode); in colour mode on a TTY, links are styled inline. ANSI
-styling auto-enables on a TTY — control it with `--render-color`.
+styling auto-enables on a TTY — control it with `--render-color`. Pass
+`--render-no-links` to drop the footnote list (plain) or the inline link
+styling (coloured) — the anchor text stays either way. The same toggle is
+available as the `no_links` opts key on the `html_to_text()` script binding.
 
 ### Cover pages
 
@@ -3991,7 +3998,7 @@ print(`total: ${count}`);
 | `md_to_html(md)` / `md_to_html(md, opts)` | Markdown (string or Blob) → HTML string. |
 | `md_to_pdf(md, dest)` / `md_to_pdf(md, dest, opts)` | Markdown → PDF at `dest`. Needs agent-browser. |
 | `html_to_pdf(html, dest)` | HTML → PDF at `dest`. Needs agent-browser. |
-| `html_to_text(html)` / `html_to_text(html, #{width, color})` | Render an HTML string to text. `color` is `"auto"`/`"always"`/`"never"` (default `"never"` in scripts). |
+| `html_to_text(html)` / `html_to_text(html, #{width, color, no_links})` | Render an HTML string to text. `color` is `"auto"`/`"always"`/`"never"` (default `"never"` in scripts). `no_links: true` drops the link footnote list (plain) / inline link styling (coloured). |
 
 ### Opts map
 

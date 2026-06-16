@@ -633,6 +633,7 @@ pub fn write_processed_body(
             let opts = crate::render::RenderOpts {
                 width: args.width,
                 color: args.render_color,
+                no_links: args.render_no_links,
             };
             crate::render::render_html(&decoded, &opts)?.into_bytes()
         } else {

@@ -1373,8 +1373,12 @@ recon --rekey \
         "Pipe HTML in and wrap to 60 columns",
         &["cat page.html | recon --html-to-text - --width 60"],
     );
+    example(
+        "Read a page without the URL footnote clutter",
+        &["recon --render --render-no-links https://example.com"],
+    );
     note("--render only transforms text/html responses; JSON/text/binary bodies pass through unchanged, so it is safe to leave on.");
-    note("ANSI styling is auto-on when stdout is a terminal; force it with --render-color always|never. Links become [N] footnotes with a reference list.");
+    note("ANSI styling is auto-on when stdout is a terminal; force it with --render-color always|never. Links become [N] footnotes with a reference list — pass --render-no-links to drop the footnotes (plain) or link styling (coloured) and keep just the anchor text.");
 
     section("PDF PAGE EXPORT");
 

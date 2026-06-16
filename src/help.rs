@@ -1452,11 +1452,16 @@ static TOPIC_RENDER: Topic = Topic {
                   binary) pass through unchanged, so it is safe to leave\n\
                   on. ANSI styling is auto-on when stdout is a TTY\n\
                   (override with --render-color always|auto|never).\n\
-                  Wrap width is the terminal width, or --width N.",
+                  Wrap width is the terminal width, or --width N.\n\
+                  \n\
+                  --render-no-links drops link surfacing: in plain output\n\
+                  the [N] markers and the URL reference list (anchor text\n\
+                  stays); in coloured output the inline link styling.",
     flags: &[
         FlagHelp { flags: "--html-to-text <SRC>", description: "Render HTML → plain text. SRC = path / URL / `-`.\nOutput via -o <PATH> or stdout." },
         FlagHelp { flags: "--render", description: "Render text/html responses as text. Non-HTML\nbodies pass through unchanged." },
         FlagHelp { flags: "--render-color <WHEN>", description: "ANSI styling: auto (TTY only), always, or never.\nDefault auto." },
+        FlagHelp { flags: "--render-no-links", description: "Drop link footnotes (plain) / link styling\n(coloured). Default keeps links." },
         FlagHelp { flags: "--width <N>", description: "Wrap column. Default: terminal width on a TTY,\nelse 80." },
     ],
     related: &["docs", "http"],
@@ -1464,6 +1469,7 @@ static TOPIC_RENDER: Topic = Topic {
         ExampleHelp { description: "Read a page as text", command: "recon --render https://example.com" },
         ExampleHelp { description: "Convert a local HTML file", command: "recon --html-to-text page.html -o page.txt" },
         ExampleHelp { description: "Pipe HTML in, narrow width", command: "cat page.html | recon --html-to-text - --width 60" },
+        ExampleHelp { description: "Drop the URL footnote list", command: "recon --html-to-text page.html --render-no-links" },
     ],
 };
 
