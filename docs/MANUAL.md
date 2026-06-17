@@ -2,8 +2,8 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.100.0</div>
-<div class="date">2026-06-16</div>
+<div class="version">Version 0.100.1</div>
+<div class="date">2026-06-17</div>
 <div class="meta">
 Repository · https://github.com/codedeviate/recon<br>
 License · MIT
@@ -1153,6 +1153,11 @@ recon --md-to-pdf report.md \
       -o report.pdf
 # pdfinfo report.pdf | grep -E '(Title|Author|Subject|Keywords)'
 ```
+
+Non-ASCII metadata is fully supported: `--doc-author 'Björk'`,
+`--doc-subject 'Café résumé'`, etc. are written as UTF-16BE PDF strings
+(BOM-prefixed) so conformant readers decode them correctly — ASCII values
+use the plain literal form.
 
 #### Rendering HTML as text
 

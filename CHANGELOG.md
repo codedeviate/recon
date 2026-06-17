@@ -34,6 +34,11 @@ companion doc/example/test changes.
 
 ## [Unreleased]
 
+## [0.100.1] - 2026-06-17
+
+### Fixed
+- PDF metadata (`--doc-author`, `--doc-subject`, `--doc-keywords`) no longer mangles non-ASCII characters. Values were written as raw UTF-8 into a literal PDF Info-dict string, which readers decode as PDFDocEncoding (Latin-1) — so `Björk` showed as `BjÃ¶rk`. Non-ASCII values are now emitted as a UTF-16BE hex string with a `FEFF` BOM (`<FEFF…>`), which conformant readers decode correctly; pure-ASCII values keep the literal `(…)` form (output byte-identical to before). Affected all three metadata flags.
+
 ## [0.100.0] - 2026-06-16
 
 ### Changed

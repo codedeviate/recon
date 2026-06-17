@@ -22,12 +22,34 @@ pub struct PdfMeta {
     pub keywords: Option<String>,
 }
 
-/// PDF-escape a string: backslash and parentheses need escaping inside
-/// literal PDF strings `(...)`.
-fn pdf_escape(s: &str) -> String {
-    s.replace('\\', "\\\\")
-        .replace('(', "\\(")
-        .replace(')', "\\)")
+/// Encode a string as a complete PDF string token for the Info dictionary.
+///
+/// PDF text strings in the Info dict are interpreted as PDFDocEncoding (a
+/// single-byte, Latin-1-like encoding) UNLESS they begin with a UTF-16BE
+/// byte-order mark (`FE FF`). Writing raw UTF-8 into a literal `(...)`
+/// string therefore mojibakes any non-ASCII character (e.g. `ö` →`Ã¶`).
+///
+/// So: pure-ASCII values use a literal `(...)` string (escaping `\ ( )`),
+/// which is valid PDFDocEncoding and keeps existing PDFs byte-identical.
+/// Any value with a non-ASCII character is emitted as a UTF-16BE hex
+/// string with the `FEFF` BOM (`<FEFF....>`), which every conformant PDF
+/// reader decodes correctly. The hex form is all-ASCII, so the byte
+/// accounting in `patch_pdf_info` (`injection.len()`) stays correct.
+fn pdf_string(s: &str) -> String {
+    if s.is_ascii() {
+        let escaped = s
+            .replace('\\', "\\\\")
+            .replace('(', "\\(")
+            .replace(')', "\\)");
+        format!("({escaped})")
+    } else {
+        let mut out = String::from("<FEFF");
+        for unit in s.encode_utf16() {
+            out.push_str(&format!("{unit:04X}"));
+        }
+        out.push('>');
+        out
+    }
 }
 
 /// Post-process a PDF file to add Author / Subject / Keywords into the
@@ -58,13 +80,13 @@ fn patch_pdf_info(path: &Path, meta: &PdfMeta) -> Result<()> {
     // ── 1. Build the injection string ────────────────────────────────
     let mut injection = String::new();
     if let Some(a) = &meta.author {
-        injection.push_str(&format!("/Author ({})\n", pdf_escape(a)));
+        injection.push_str(&format!("/Author {}\n", pdf_string(a)));
     }
     if let Some(s) = &meta.subject {
-        injection.push_str(&format!("/Subject ({})\n", pdf_escape(s)));
+        injection.push_str(&format!("/Subject {}\n", pdf_string(s)));
     }
     if let Some(k) = &meta.keywords {
-        injection.push_str(&format!("/Keywords ({})\n", pdf_escape(k)));
+        injection.push_str(&format!("/Keywords {}\n", pdf_string(k)));
     }
     let delta = injection.len(); // how many bytes we're inserting
 
@@ -250,4 +272,43 @@ pub fn render_html_to_pdf_with_meta(html: &[u8], output: &Path, meta: &PdfMeta) 
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ascii_uses_literal_string() {
+        assert_eq!(pdf_string("Alice Smith"), "(Alice Smith)");
+    }
+
+    #[test]
+    fn ascii_escapes_parens_and_backslash() {
+        // input: a (b) \ c  →  literal with \ ( ) escaped
+        assert_eq!(pdf_string("a (b) \\ c"), "(a \\(b\\) \\\\ c)");
+    }
+
+    #[test]
+    fn non_ascii_is_utf16be_hex_with_bom() {
+        // "Björk": B=0042 j=006A ö=00F6 r=0072 k=006B, prefixed FEFF.
+        assert_eq!(pdf_string("Björk"), "<FEFF0042006A00F60072006B>");
+    }
+
+    #[test]
+    fn non_ascii_never_emits_raw_utf8_bytes() {
+        // Regression guard for the double-encoding bug: the ö byte 0xF6
+        // must not appear as a raw UTF-8 byte (0xC3 0xB6) in the output.
+        let out = pdf_string("Café résumé");
+        assert!(out.starts_with("<FEFF") && out.ends_with('>'), "got: {out}");
+        assert!(!out.as_bytes().contains(&0xC3), "raw UTF-8 leaked: {out}");
+        // é = U+00E9 → 00E9 in the hex stream.
+        assert!(out.contains("00E9"), "got: {out}");
+    }
+
+    #[test]
+    fn astral_char_uses_surrogate_pair() {
+        // U+1F600 😀 → UTF-16 surrogate pair D83D DE00.
+        assert_eq!(pdf_string("😀"), "<FEFFD83DDE00>");
+    }
 }
