@@ -29,6 +29,7 @@ exclude = [
     "CLAUDE.md",
     "HISTORY.md",
     "OUT-OF-SCOPE.md",
+    "docs/reports/",
 ]
 
 [[bin]]
