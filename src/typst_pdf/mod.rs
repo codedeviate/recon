@@ -5,22 +5,31 @@
 //! translator and CLI wiring arrive in later tasks.
 
 mod preamble;
+mod translate;
 mod world;
 
 use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
+use comrak::nodes::AstNode;
 use typst::layout::PagedDocument;
 use typst_pdf::PdfOptions;
 
+use crate::docs::DocOptions;
 use world::ReconWorld;
+
+/// Render a parsed Markdown document (comrak AST) to PDF bytes via typst.
+pub fn render_md_to_pdf<'a>(root: &'a AstNode<'a>, opts: &DocOptions) -> Result<Vec<u8>> {
+    let mut src = preamble::build_preamble(opts)?;
+    src.push_str(&translate::body(root, opts)?);
+    src.push('\n');
+    compile_to_pdf(src)
+}
 
 /// Compile a complete typst source string to PDF bytes.
 ///
 /// Both the compile and PDF-export diagnostics are collapsed into a single
 /// joined error message on failure.
-// `dead_code`: the CLI/translator that calls this lands in a later task.
-#[allow(dead_code)]
 pub fn compile_to_pdf(source: String) -> Result<Vec<u8>> {
     let world = ReconWorld::new(source, HashMap::new());
 

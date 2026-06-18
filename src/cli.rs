@@ -9,9 +9,10 @@ const HELP_STYLES: Styles = Styles::styled()
     .placeholder(AnsiColor::Green.on_default());
 
 /// PDF rendering engine for --md-to-pdf.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
 pub enum PdfEngine {
     /// Native typst renderer (A4, numbered TOC, no CSS).
+    #[default]
     Typst,
     /// Legacy agent-browser / Chrome path (Letter, CSS, HTML).
     Chrome,

@@ -1,8 +1,35 @@
 use anyhow::{bail, Result};
 
+use crate::docs::DocOptions;
+
+/// Quote a Rust string as a typst string literal.
+pub fn typ_str(s: &str) -> String {
+    format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
+}
+
+/// Build the typst preamble (`#set page`, `#set document`) for a document.
+pub fn build_preamble(opts: &DocOptions) -> Result<String> {
+    let mut p = String::new();
+    p.push_str(&format!("#set page({})\n", typst_page_arg(&opts.page_size)?));
+    let mut doc_args = Vec::new();
+    if let Some(t) = &opts.title {
+        doc_args.push(format!("title: {}", typ_str(t)));
+    }
+    if let Some(a) = &opts.author {
+        doc_args.push(format!("author: {}", typ_str(a)));
+    }
+    if let Some(k) = &opts.keywords {
+        let kws: Vec<String> = k.split(',').map(|s| typ_str(s.trim())).collect();
+        doc_args.push(format!("keywords: ({})", kws.join(", ")));
+    }
+    if !doc_args.is_empty() {
+        p.push_str(&format!("#set document({})\n", doc_args.join(", ")));
+    }
+    Ok(p)
+}
+
 /// Map a --page-size value to the inner args of typst `set page(...)`.
 /// Named papers map to typst paper ids; `WxH` (with units) -> width/height.
-#[allow(dead_code)]
 pub fn typst_page_arg(size: &str) -> Result<String> {
     let s = size.trim().to_ascii_lowercase();
     let named = match s.as_str() {

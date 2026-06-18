@@ -133,6 +133,8 @@ pub struct DocOptions {
     pub gfm: bool,
     pub unsafe_html: bool,
     pub page_break_on_h1: bool,
+    pub pdf_engine: crate::cli::PdfEngine,
+    pub page_size: String,
 }
 
 impl DocOptions {
@@ -157,6 +159,8 @@ impl DocOptions {
             gfm: args.gfm,
             unsafe_html: args.unsafe_html,
             page_break_on_h1: args.page_break_on_h1,
+            pdf_engine: args.pdf_engine,
+            page_size: args.page_size.clone(),
         })
     }
 }
@@ -434,14 +438,29 @@ pub fn run_md_to_pdf(args: &Args) -> Result<()> {
         .as_ref()
         .context("--md-to-pdf requires -o <PATH>")?;
     let opts = DocOptions::from_args(args)?;
-    let meta = crate::docs_pdf::PdfMeta {
-        author: args.doc_author.clone(),
-        subject: args.doc_subject.clone(),
-        keywords: args.doc_keywords.clone(),
-    };
     let bytes = load_source(args, src)?;
-    let html = markdown_to_html(&bytes, &opts)?;
-    crate::docs_pdf::render_html_to_pdf_with_meta(html.as_bytes(), output, &meta)
+
+    match opts.pdf_engine {
+        crate::cli::PdfEngine::Typst => {
+            let source = std::str::from_utf8(&bytes).context("markdown is not valid UTF-8")?;
+            let arena = Arena::new();
+            let comrak_opts = comrak_options(&opts);
+            let root = parse_document(&arena, source, &comrak_opts);
+            let pdf = crate::typst_pdf::render_md_to_pdf(root, &opts)
+                .context("typst: render markdown to PDF")?;
+            std::fs::write(output, &pdf)
+                .with_context(|| format!("write output '{}'", output.display()))
+        }
+        crate::cli::PdfEngine::Chrome => {
+            let meta = crate::docs_pdf::PdfMeta {
+                author: args.doc_author.clone(),
+                subject: args.doc_subject.clone(),
+                keywords: args.doc_keywords.clone(),
+            };
+            let html = markdown_to_html(&bytes, &opts)?;
+            crate::docs_pdf::render_html_to_pdf_with_meta(html.as_bytes(), output, &meta)
+        }
+    }
 }
 
 /// CLI entry point for `--html-to-pdf`.
