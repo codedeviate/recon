@@ -31,15 +31,39 @@ pub struct ReconWorld {
     files: HashMap<FileId, Bytes>,
 }
 
+/// Bundled IBM Plex Sans faces (OFL), the selectable proportional sans for
+/// `--font 'IBM Plex Sans'`. typst's own `typst_assets::fonts()` ships only a
+/// serif body (Libertinus Serif) and a monospace (DejaVu Sans Mono), so the
+/// engine has no proportional sans to switch to without this. The license is
+/// in `assets/fonts/LICENSE-IBMPlexSans.txt`.
+const BUNDLED_FONTS: &[&[u8]] = &[
+    include_bytes!("../../assets/fonts/IBMPlexSans-Regular.ttf"),
+    include_bytes!("../../assets/fonts/IBMPlexSans-Italic.ttf"),
+    include_bytes!("../../assets/fonts/IBMPlexSans-Bold.ttf"),
+    include_bytes!("../../assets/fonts/IBMPlexSans-BoldItalic.ttf"),
+];
+
 #[allow(dead_code)]
 impl ReconWorld {
     /// Build a world from a complete typst source string plus any auxiliary
     /// files. `files` is empty during the spike; later tasks populate it with
-    /// embedded image bytes.
-    pub fn new(main_src: String, files: HashMap<FileId, Bytes>) -> Self {
-        let fonts: Vec<Font> = typst_assets::fonts()
+    /// embedded image bytes. `font_dirs` are extra directories (`--font-path`)
+    /// scanned for fonts on top of typst's bundled set and recon's bundled
+    /// IBM Plex Sans.
+    pub fn new(main_src: String, files: HashMap<FileId, Bytes>, font_dirs: &[String]) -> Self {
+        let mut fonts: Vec<Font> = typst_assets::fonts()
             .flat_map(|data| Font::iter(Bytes::new(data)))
             .collect();
+        // recon's bundled proportional sans (selectable via `--font`).
+        for data in BUNDLED_FONTS {
+            fonts.extend(Font::iter(Bytes::new(*data)));
+        }
+        // User-supplied font directories (`--font-path`). Unreadable entries
+        // and non-font files are skipped silently; a missing directory is
+        // warned about by the CLI before rendering, not here.
+        for dir in font_dirs {
+            load_fonts_from_dir(std::path::Path::new(dir), &mut fonts);
+        }
         let book = FontBook::from_fonts(&fonts);
         let main = Source::detached(main_src);
         Self {
@@ -48,6 +72,37 @@ impl ReconWorld {
             fonts,
             main,
             files,
+        }
+    }
+}
+
+/// Recursively scan `dir` for font files and append every face to `fonts`.
+///
+/// Recognises `.ttf`, `.otf`, `.ttc`, and `.otc` (case-insensitive). A
+/// collection file (`.ttc`/`.otc`) yields multiple faces via `Font::iter`.
+/// Anything that fails to read or parse is skipped silently — a font
+/// directory is a best-effort escape hatch, not a hard dependency.
+fn load_fonts_from_dir(dir: &std::path::Path, fonts: &mut Vec<Font>) {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            load_fonts_from_dir(&path, fonts);
+            continue;
+        }
+        let is_font = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| matches!(e.to_ascii_lowercase().as_str(), "ttf" | "otf" | "ttc" | "otc"))
+            .unwrap_or(false);
+        if !is_font {
+            continue;
+        }
+        if let Ok(data) = std::fs::read(&path) {
+            fonts.extend(Font::iter(Bytes::new(data)));
         }
     }
 }

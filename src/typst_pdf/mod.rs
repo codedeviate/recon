@@ -59,7 +59,7 @@ pub fn render_md_to_pdf<'a>(
 
     let body = translate::body(root, opts, base_dir, http)?;
     let src = assemble(opts, &cover, &body)?;
-    compile_to_pdf(src)
+    compile_to_pdf(src, &opts.font_path)
 }
 
 /// Sentinel emitted by the translator wherever a `<!-- toc -->` directive
@@ -136,8 +136,8 @@ pub fn assemble(opts: &DocOptions, cover: &str, body: &str) -> Result<String> {
 ///
 /// Both the compile and PDF-export diagnostics are collapsed into a single
 /// joined error message on failure.
-pub fn compile_to_pdf(source: String) -> Result<Vec<u8>> {
-    let world = ReconWorld::new(source, HashMap::new());
+pub fn compile_to_pdf(source: String, font_dirs: &[String]) -> Result<Vec<u8>> {
+    let world = ReconWorld::new(source, HashMap::new(), font_dirs);
 
     // `typst::compile` is generic over the document type; the PDF backend
     // consumes a `PagedDocument`.
@@ -171,7 +171,7 @@ mod tests {
 
     #[test]
     fn compiles_minimal_document_to_pdf() {
-        let pdf = compile_to_pdf("#set page(paper: \"a4\")\n= Hello\n\nBody.".into()).unwrap();
+        let pdf = compile_to_pdf("#set page(paper: \"a4\")\n= Hello\n\nBody.".into(), &[]).unwrap();
         assert!(pdf.starts_with(b"%PDF-"), "not a PDF");
         assert!(pdf.len() > 500, "suspiciously small PDF");
     }

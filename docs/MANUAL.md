@@ -2,7 +2,7 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.101.1</div>
+<div class="version">Version 0.102.0</div>
 <div class="date">2026-06-18</div>
 <div class="meta">
 Repository · https://github.com/codedeviate/recon<br>
@@ -1127,6 +1127,8 @@ table of contents.
 | `--html-to-pdf <SRC>` | HTML → PDF (via agent-browser; always Chrome). |
 | `--pdf-engine <typst\|chrome>` | md→PDF engine. `typst` (default, Chrome-free) or `chrome` (legacy agent-browser; required for CSS / `--unsafe-html` / cover-HTML). md→pdf only; `--html-to-pdf` is always chrome. |
 | `--page-size <SIZE>` | Page size for typst: `a4` (default), `a3`, `a5`, `letter`, `legal`, or `WxH` (e.g. `420mmx594mm`). Errors on `--pdf-engine chrome`. |
+| `--font <NAME>` | Body text font for the typst engine. Defaults to the serif `Libertinus Serif`; the bundled proportional sans is `IBM Plex Sans`. Code stays on the monospace font (`DejaVu Sans Mono`) regardless. An unresolvable name falls back to the serif. Errors on `--pdf-engine chrome`. |
+| `--font-path <DIR>` | Add a font directory for the typst engine (repeatable; recurses) so `--font` can resolve user/system fonts beyond the bundled set. A non-directory path is warned about and skipped. Errors on `--pdf-engine chrome`. |
 | `--cover` | Generate a title page from `--doc-*` metadata (typst). |
 | `--cover-template <FILE>` | Custom typst cover snippet; metadata injected as `#let title/subtitle/author/version/date`. Implies a cover (typst). |
 | `--doc-subtitle <STR>` | Subtitle on the generated cover page (typst). |
@@ -1159,6 +1161,11 @@ recon --md-to-html README.md --toc --gfm -o README.html
 # typst is the default md→PDF engine: A4, numbered TOC, footer page numbers
 recon --md-to-pdf book.md -o book.pdf
 recon --md-to-pdf book.md --page-size letter -o book.pdf
+
+# Sans-serif body font (typst); code stays monospace
+recon --md-to-pdf book.md --font 'IBM Plex Sans' -o book.pdf
+# Resolve a system font via --font-path (typst)
+recon --md-to-pdf book.md --font-path ~/Library/Fonts --font 'Helvetica Neue' -o book.pdf
 
 # Auto cover page from metadata (typst)
 recon --md-to-pdf book.md --cover \
@@ -4067,6 +4074,8 @@ print(`total: ${count}`);
 | `css` | — | Additional CSS (appended after default). |
 | `no_default_css` | false | Skip bundled default CSS. |
 | `gfm` | false | GitHub-flavored extensions. |
+| `font` | — (serif) | Body text font (typst engine). Bundled sans is `"IBM Plex Sans"`; code stays monospace. |
+| `font_path` | — | Font directory, or array of directories, the typst engine scans so `font` can resolve user/system fonts. |
 
 ### Examples
 
@@ -4079,6 +4088,11 @@ file_write_all("/tmp/readme.html", html);
 
 // md → pdf
 md_to_pdf(md, "/tmp/readme.pdf", #{ toc: true, gfm: true, title: "README" });
+
+// md → pdf with a sans-serif body font (typst); code stays monospace
+md_to_pdf(md, "/tmp/sans.pdf", #{ font: "IBM Plex Sans", toc: true });
+// resolve a system font via font_path (string or array)
+md_to_pdf(md, "/tmp/sys.pdf", #{ font_path: "/Users/me/Library/Fonts", font: "Helvetica Neue" });
 
 // html → pdf
 let html = http("https://example.com/report.html").body.to_string();

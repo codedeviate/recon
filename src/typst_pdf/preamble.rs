@@ -89,6 +89,14 @@ pub fn build_preamble(opts: &DocOptions) -> Result<String> {
     if !doc_args.is_empty() {
         p.push_str(&format!("#set document({})\n", doc_args.join(", ")));
     }
+    // Body text font (`--font`). Unset keeps typst's default serif
+    // (Libertinus Serif). When set, the body switches to the named font and
+    // code is explicitly pinned to the bundled monospace so prose-font
+    // changes never bleed into code blocks / inline code.
+    if let Some(font) = &opts.font {
+        p.push_str(&format!("#set text(font: {})\n", typ_str(font)));
+        p.push_str("#show raw: set text(font: \"DejaVu Sans Mono\")\n");
+    }
     // Default code styling: a light-grey shaded background for block and
     // inline code, matching the chrome/CSS path so code-heavy documents
     // read clearly. Not configurable (a broader body-theme hook is the
@@ -177,6 +185,27 @@ mod tests {
         assert!(c.contains("#let title = \"how to git\""));
         assert!(c.contains("#let author = \"T\""));
         assert!(c.contains("#pagebreak()"));
+    }
+
+    #[test]
+    fn preamble_sets_body_font_and_pins_code_to_mono() {
+        let mut o = DocOptions::default();
+        o.page_size = "a4".into();
+        o.font = Some("IBM Plex Sans".into());
+        let p = build_preamble(&o).unwrap();
+        assert!(p.contains("#set text(font: \"IBM Plex Sans\")"), "body font not set: {p}");
+        assert!(
+            p.contains("#show raw: set text(font: \"DejaVu Sans Mono\")"),
+            "code not pinned to mono: {p}"
+        );
+    }
+
+    #[test]
+    fn preamble_omits_body_font_when_unset() {
+        let mut o = DocOptions::default();
+        o.page_size = "a4".into();
+        let p = build_preamble(&o).unwrap();
+        assert!(!p.contains("#set text(font:"), "should not set a body font: {p}");
     }
 
     #[test]

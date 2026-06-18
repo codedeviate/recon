@@ -1351,6 +1351,15 @@ recon --rekey \
         "recon --md-to-pdf poster.md --page-size 420mmx594mm -o poster.pdf",
     ]);
 
+    example("Body font (typst only)", &[
+        "recon --md-to-pdf book.md --font 'IBM Plex Sans' -o book.pdf",
+        "recon --md-to-pdf book.md --font-path ~/Library/Fonts --font 'Helvetica Neue' -o book.pdf",
+    ]);
+    note("--font sets the prose font only; code stays on the monospace (DejaVu Sans Mono). \
+          Unset = the default serif (Libertinus Serif). The engine resolves bundled fonts \
+          (IBM Plex Sans + the serif/mono) plus anything under --font-path; an unresolvable \
+          name silently falls back to the serif. Both flags error on --pdf-engine chrome.");
+
     example("Cover page from metadata (typst)", &[
         "recon --md-to-pdf book.md --cover --doc-title 'My Book' --doc-subtitle 'A Manual' --doc-author 'Alice' -o book.pdf",
         "recon --md-to-pdf book.md --cover --doc-title Book --doc-version 1.2.0 --doc-date 2026-06-18 -o book.pdf",

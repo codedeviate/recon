@@ -1678,6 +1678,22 @@ pub struct Args {
           help_heading = "Docs")]
     pub page_size: String,
 
+    /// Set the body text font (typst engine).
+    ///
+    /// Names a bundled or --font-path font; defaults to the serif
+    /// Libertinus Serif when unset. The bundled proportional sans is
+    /// "IBM Plex Sans". Code stays on the monospace font regardless.
+    #[arg(long = "font", value_name = "NAME", help_heading = "Docs")]
+    pub font: Option<String>,
+
+    /// Add a font directory for the typst engine (repeatable).
+    ///
+    /// Each DIR is scanned for .ttf/.otf/.ttc fonts so --font can resolve
+    /// user/system fonts beyond the bundled set. Has no effect on the
+    /// chrome engine.
+    #[arg(long = "font-path", value_name = "DIR", help_heading = "Docs")]
+    pub font_path: Vec<String>,
+
     /// Drop link footnotes/styling in rendered HTML text.
     ///
     /// Applies to --html-to-text, --render, and html_to_text(). In plain

@@ -110,6 +110,23 @@ fn opts_from_map(m: &Map) -> Result<DocOptions, Box<EvalAltResult>> {
             opts.page_numbers = false;
         }
     }
+    if let Some(v) = m.get("font") {
+        if let Ok(s) = v.clone().into_string() {
+            opts.font = Some(s);
+        }
+    }
+    if let Some(v) = m.get("font_path") {
+        // Accept either a single directory string or an array of strings.
+        if let Ok(s) = v.clone().into_string() {
+            opts.font_path.push(s);
+        } else if let Some(arr) = v.clone().try_cast::<rhai::Array>() {
+            for item in arr {
+                if let Ok(s) = item.into_string() {
+                    opts.font_path.push(s);
+                }
+            }
+        }
+    }
     Ok(opts)
 }
 

@@ -34,6 +34,14 @@ companion doc/example/test changes.
 
 ## [Unreleased]
 
+## [0.102.0] - 2026-06-18
+
+### Added
+- `--font <NAME>` — set the body text font for the **typst** engine. Defaults to the existing serif (Libertinus Serif) when unset, so nothing changes for documents that don't set it. Code stays on the monospace font (DejaVu Sans Mono) regardless. Errors under `--pdf-engine chrome` (which styles fonts via CSS). Requested by the howtogit books for on-screen reading.
+- Bundled **IBM Plex Sans** (SIL OFL 1.1) — a clean proportional sans, the recommended on-screen body font: `--font 'IBM Plex Sans'`. typst's own bundled set ships only a serif and a monospace, so the engine previously had no proportional sans to switch to. License at `assets/fonts/LICENSE-IBMPlexSans.txt`.
+- `--font-path <DIR>` — add a font directory for the typst engine (repeatable; recurses). Lets `--font` resolve user/system fonts (e.g. `--font-path ~/Library/Fonts`) beyond the bundled set. A path that is not a directory is warned about and skipped; unreadable/non-font files are skipped silently. Errors under `--pdf-engine chrome`.
+- Script binding `md_to_pdf(...)` gained `font` and `font_path` opts-map keys (`font_path` accepts a string or an array of strings).
+
 ## [0.101.1] - 2026-06-18
 
 ### Changed

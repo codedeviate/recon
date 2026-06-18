@@ -130,6 +130,26 @@ inline → tinted `box`). This established the pattern for typst body styling vi
 preamble `#show` rules; a general overridable `--typst-template`/theme hook is
 deferred to OUT-OF-SCOPE.
 
+**0.102.0 coda — selectable body font (`--font` + bundled IBM Plex Sans):** the
+same downstream (read on screens far more than on paper) asked for a sans-serif
+body font. Two facts forced a recon-side fix: `typst_assets::fonts()` ships only
+a serif (Libertinus Serif) and a monospace (DejaVu Sans Mono), so the engine had
+*no* proportional sans to switch to; and the embedded engine resolves only fonts
+its `World` serves — it can't see macOS/system fonts — so a bare `#set
+text(font: "DejaVu Sans")` in a cover template silently fell back to the serif.
+The fix bundles **IBM Plex Sans** (SIL OFL 1.1, four static faces ≈ 0.8 MB,
+`include_bytes!` into `ReconWorld` alongside the QR-code DejaVu mono already in
+`assets/fonts/`) and adds `--font <NAME>`, which emits `#set text(font: ..)` in
+the preamble — defaulting to *unset* so existing serif documents are byte-for-byte
+unchanged. Two design points: code is explicitly re-pinned to the monospace
+(`#show raw: set text(font: "DejaVu Sans Mono")`) whenever `--font` is set, so a
+prose-font change can never bleed into code blocks (the brief's hard requirement);
+and `--font-path <DIR>` (repeatable, recursive) lets the `World` load user/system
+fonts at startup, turning the bundled-only resolver into a general escape hatch.
+IBM Plex Sans was chosen over Inter/DejaVu Sans/Liberation Sans for on-screen
+legibility at a modest file size. A `--mono-font` and a full `--typst-template`
+theme hook remain deferred.
+
 ### 88. `--pinnedpubkey` + `--curves` via use_preconfigured_tls (0.99.0)
 
 Both flags had been parsed-and-ignored since their introduction —

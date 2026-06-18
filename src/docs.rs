@@ -141,6 +141,12 @@ pub struct DocOptions {
     pub version: Option<String>,
     pub date: Option<String>,
     pub page_numbers: bool,
+    /// Body text font (typst engine). `None` keeps the default serif
+    /// (Libertinus Serif). Must name a bundled or `--font-path` font.
+    pub font: Option<String>,
+    /// Extra font directories the typst engine scans (`--font-path`),
+    /// so `--font` can resolve user/system fonts. Empty = bundled only.
+    pub font_path: Vec<String>,
 }
 
 impl DocOptions {
@@ -173,6 +179,8 @@ impl DocOptions {
             version: args.doc_version.clone(),
             date: args.doc_date.clone(),
             page_numbers: !args.no_page_numbers,
+            font: args.font.clone(),
+            font_path: args.font_path.clone(),
         })
     }
 }
@@ -487,6 +495,18 @@ pub fn run_md_to_pdf(args: &Args) -> Result<()> {
                      US Letter. Drop --page-size or use the typst engine."
                 );
             }
+            if opts.font.is_some() {
+                anyhow::bail!(
+                    "--font is only supported by the typst engine; the chrome engine styles fonts \
+                     via CSS (--doc-css). Drop --font or use the typst engine."
+                );
+            }
+            if !opts.font_path.is_empty() {
+                anyhow::bail!(
+                    "--font-path is only supported by the typst engine. Drop --font-path or use \
+                     the typst engine."
+                );
+            }
         }
     }
 
@@ -499,6 +519,13 @@ pub fn run_md_to_pdf(args: &Args) -> Result<()> {
                     "recon: warning: --doc-subject is not supported by the typst engine; \
                      use --pdf-engine chrome for a Subject field"
                 );
+            }
+            for dir in &opts.font_path {
+                if !std::path::Path::new(dir).is_dir() {
+                    eprintln!(
+                        "recon: warning: --font-path '{dir}' is not a directory; ignoring"
+                    );
+                }
             }
             let source = std::str::from_utf8(&bytes).context("markdown is not valid UTF-8")?;
             let arena = Arena::new();

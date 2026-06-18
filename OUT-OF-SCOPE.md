@@ -249,13 +249,16 @@ reference.
   `--pdf-engine chrome` if a Subject field is required.
 
 - **`--typst-template` / body-theme hook** — typst-engine body styling
-  (fonts, heading style, code style, accent colors) is currently built-in
-  with no override; the only user hook is `--cover-template` (cover only).
-  0.101.1 shipped a sensible default code-block/inline-code shading, which
-  covered the one concrete downstream need (howtogit). A general
-  body-theme/`--typst-template` option (a user typst preamble injected
-  document-wide) is the right long-term home for overridable fonts/heading
-  /code styling — defer until there's demand beyond the built-in defaults.
+  (heading style, code style, accent colors) is largely built-in with no
+  override; the user hooks are `--cover-template` (cover only) and, since
+  0.102.0, `--font` / `--font-path` (body text font). 0.101.1 shipped a
+  sensible default code-block/inline-code shading; 0.102.0 added the
+  selectable body font (bundled IBM Plex Sans + arbitrary fonts via
+  `--font-path`), which covered the two concrete downstream needs
+  (howtogit). A general body-theme/`--typst-template` option (a user typst
+  preamble injected document-wide) remains the right long-term home for
+  overridable heading/code styling and a `--mono-font` — defer until there's
+  demand beyond the built-in defaults plus the font flags.
 
 ### Script engine
 

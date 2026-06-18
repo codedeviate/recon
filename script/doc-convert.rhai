@@ -33,6 +33,17 @@ try {
 //     doc_title: "My Book", doc_subtitle: "A subtitle", doc_version: "1.0",
 //     doc_date: "2026-06-18", toc: true });
 
+// Typst engine with a sans-serif body font (bundled IBM Plex Sans). Code
+// stays on the monospace font. `font_path` (string or array) adds extra
+// font directories so `font` can resolve user/system fonts.
+let sans_out = "/tmp/recon-doc-sans.pdf";
+try {
+    md_to_pdf(md, sans_out, #{ font: "IBM Plex Sans", toc: true, gfm: true });
+    print(`md → pdf (sans body font): wrote ${sans_out}`);
+} catch(e) {
+    print(`md → pdf (sans): skipped (${e})`);
+}
+
 // 3. One-shot md → pdf with a different destination. Insert `-2`
 // before the `.pdf` extension so the file still opens with a normal
 // PDF viewer (writing `.pdf.2` confuses macOS / Finder).
