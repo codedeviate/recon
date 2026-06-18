@@ -13,6 +13,7 @@ mod compression;
 mod decode;
 mod docs;
 mod docs_pdf;
+mod typst_pdf;
 mod flaglist;
 mod config;
 mod config_file;

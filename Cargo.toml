@@ -139,6 +139,10 @@ dotenvy = "0.15"
 wreq = { version = "5.3", optional = true, features = ["json", "multipart", "gzip", "deflate", "brotli", "zstd", "socks"] }
 wreq-util = { version = "2.2", optional = true, default-features = false, features = ["emulation", "emulation-serde"] }
 http = "1"
+typst = "=0.13.1"
+typst-pdf = "=0.13.1"
+typst-assets = { version = "=0.13.1", features = ["fonts"] }
+comemo = "0.4"
 
 [features]
 default = ["ssh"]
