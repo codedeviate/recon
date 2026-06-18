@@ -4,6 +4,7 @@
 //! to PDF bytes in-process via a minimal [`ReconWorld`]. The Markdown→typst
 //! translator and CLI wiring arrive in later tasks.
 
+mod preamble;
 mod world;
 
 use std::collections::HashMap;
