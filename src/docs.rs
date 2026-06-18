@@ -450,10 +450,56 @@ pub fn run_md_to_pdf(args: &Args) -> Result<()> {
         .as_ref()
         .context("--md-to-pdf requires -o <PATH>")?;
     let opts = DocOptions::from_args(args)?;
+
+    // Engine-specific flag validation, before any rendering work.
+    match opts.pdf_engine {
+        crate::cli::PdfEngine::Typst => {
+            // The typst engine uses its own styling; the CSS/raw-HTML flags only
+            // apply to the chrome (HTML) path. (Raw-HTML-in-markdown is rejected
+            // separately by the typst translator.)
+            if opts.custom_css.is_some() {
+                anyhow::bail!(
+                    "--doc-css is not supported by the typst engine (it uses its own styling). \
+                     Re-run with --pdf-engine chrome."
+                );
+            }
+            if opts.no_default_css {
+                anyhow::bail!(
+                    "--no-default-css is not supported by the typst engine (it uses its own \
+                     styling). Re-run with --pdf-engine chrome."
+                );
+            }
+            if opts.unsafe_html {
+                anyhow::bail!(
+                    "--unsafe-html is not supported by the typst engine (it uses its own \
+                     styling). Re-run with --pdf-engine chrome."
+                );
+            }
+        }
+        crate::cli::PdfEngine::Chrome => {
+            // --page-size defaults to "a4" via clap, so we cannot distinguish an
+            // explicit `--page-size a4` from the unset default. The pragmatic rule
+            // is to reject only a non-"a4" value, which is unambiguously user-set;
+            // a bare "a4" is silently accepted (the chrome engine renders Letter).
+            if opts.page_size.to_ascii_lowercase() != "a4" {
+                anyhow::bail!(
+                    "--page-size is only supported by the typst engine; the chrome engine renders \
+                     US Letter. Drop --page-size or use the typst engine."
+                );
+            }
+        }
+    }
+
     let bytes = load_source(args, src)?;
 
     match opts.pdf_engine {
         crate::cli::PdfEngine::Typst => {
+            if opts.subject.is_some() {
+                eprintln!(
+                    "recon: warning: --doc-subject is not supported by the typst engine; \
+                     use --pdf-engine chrome for a Subject field"
+                );
+            }
             let source = std::str::from_utf8(&bytes).context("markdown is not valid UTF-8")?;
             let arena = Arena::new();
             let comrak_opts = comrak_options(&opts);
@@ -494,7 +540,23 @@ pub fn run_md_to_pdf(args: &Args) -> Result<()> {
                 subject: args.doc_subject.clone(),
                 keywords: args.doc_keywords.clone(),
             };
-            let html = markdown_to_html(&bytes, &opts)?;
+            // Translate the HTML-free `<!-- page-break -->` directive into the
+            // chrome path's existing `<div class="page-break">` mechanism so it
+            // works on both engines without requiring --unsafe-html. comrak drops
+            // raw HTML comments (and bare divs without --unsafe-html), so we swap
+            // the comment for a sentinel token *before* comrak — the token survives
+            // as paragraph text — then replace the rendered `<p>TOKEN</p>` with the
+            // page-break div in the output HTML.
+            const PB_TOKEN: &str = "RECONxPAGExBREAKxSENTINEL";
+            let src_str = std::str::from_utf8(&bytes).context("markdown is not valid UTF-8")?;
+            let preprocessed = src_str.replace("<!-- page-break -->", PB_TOKEN);
+            let mut html = markdown_to_html(preprocessed.as_bytes(), &opts)?;
+            html = html
+                .replace(
+                    &format!("<p>{PB_TOKEN}</p>"),
+                    "<div class=\"page-break\"></div>",
+                )
+                .replace(PB_TOKEN, "<div class=\"page-break\"></div>");
             crate::docs_pdf::render_html_to_pdf_with_meta(html.as_bytes(), output, &meta)
         }
     }

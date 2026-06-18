@@ -172,3 +172,89 @@ fn typst_cover_template_renders_title() {
     let text = String::from_utf8_lossy(&txt.stdout);
     assert!(text.contains("MyCoverTitle"), "cover title missing: {text}");
 }
+
+#[test]
+fn typst_rejects_doc_css() {
+    let dir = std::env::temp_dir();
+    let md = dir.join("g1.md");
+    std::fs::write(&md, "# H\n").unwrap();
+    let css = dir.join("g1_x.css");
+    std::fs::write(&css, "body{}").unwrap();
+    let out = Command::new(recon())
+        .args([
+            "--md-to-pdf",
+            md.to_str().unwrap(),
+            "--doc-css",
+            css.to_str().unwrap(),
+            "-o",
+            dir.join("g1.pdf").to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("--pdf-engine chrome"));
+}
+
+#[test]
+fn typst_rejects_unsafe_html_flag() {
+    let dir = std::env::temp_dir();
+    let md = dir.join("g2.md");
+    std::fs::write(&md, "# H\n").unwrap();
+    let out = Command::new(recon())
+        .args([
+            "--md-to-pdf",
+            md.to_str().unwrap(),
+            "--unsafe-html",
+            "-o",
+            dir.join("g2.pdf").to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("--pdf-engine chrome"));
+}
+
+#[test]
+fn chrome_rejects_page_size() {
+    let dir = std::env::temp_dir();
+    let md = dir.join("g3.md");
+    std::fs::write(&md, "# H\n").unwrap();
+    let out = Command::new(recon())
+        .args([
+            "--md-to-pdf",
+            md.to_str().unwrap(),
+            "--pdf-engine",
+            "chrome",
+            "--page-size",
+            "a3",
+            "-o",
+            dir.join("g3.pdf").to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("typst engine"));
+}
+
+#[test]
+fn typst_subject_warns_but_succeeds() {
+    let dir = std::env::temp_dir();
+    let md = dir.join("g4.md");
+    let pdf = dir.join("g4.pdf");
+    std::fs::write(&md, "# H\n\nBody.\n").unwrap();
+    let out = Command::new(recon())
+        .args([
+            "--md-to-pdf",
+            md.to_str().unwrap(),
+            "--doc-subject",
+            "S",
+            "-o",
+            pdf.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "stderr: {}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("not supported by the typst engine")
+    );
+}
