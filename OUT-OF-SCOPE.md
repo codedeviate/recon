@@ -223,6 +223,31 @@ reference.
   WxH). Margin and orientation knobs are not yet exposed; punt until
   real demand shapes them.
 
+- **Upgrade embedded typst 0.13.1 → 0.15.x (tagged / PDF-A export)** —
+  the engine pins `typst = "=0.13.1"` deliberately (settled `World` API).
+  typst 0.15 adds genuinely useful PDF features — **tagged PDFs**
+  (accessibility), **multiple/PDF-A standards output**, spot colors,
+  WebP images, `--pretty` — none of which are limitations we have today.
+  The blocker is cost, not capability: 0.14 raised MSRV to 1.88 and 0.15
+  to **1.92**, but recon advertises **MSRV 1.85** (`Cargo.toml`
+  `rust-version` + the README badge), so adopting 0.15 forces an
+  MSRV bump that drops older-toolchain users — a deliberate decision in
+  its own right. There's also API churn (`Library::default` removed →
+  `LibraryExt`; `PdfOptions.tagged`; `typst-kit`/`World` rework).
+  Crucially, 0.15 does **not** close either current typst-path gap:
+  `set document()` still has no Subject field (so `--doc-subject` stays
+  unsupported), and there's no raw-image-bytes API change (the
+  inline-bytes embedding stays). Revisit when tagged/PDF-A output is
+  actually wanted, and bundle the MSRV bump as its explicit price.
+
+- **`--doc-subject` on the typst engine** — typst's `set document()`
+  exposes title/author/keywords/date but no Subject/description field,
+  and typst PDFs use cross-reference *streams* (so the Chrome-path
+  Info-dict patcher in `docs_pdf` can't reach them). recon warns and
+  drops `--doc-subject` on the typst path today. Fixable via a
+  typst-PDF-specific Info-dict/XMP patch; niche, so deferred. Workaround:
+  `--pdf-engine chrome` if a Subject field is required.
+
 ### Script engine
 
 - **ICMP raw-socket send/recv primitives** — `ping()` already covers
