@@ -28,6 +28,11 @@ try {
     print(`html → pdf: skipped (${e})`);
 }
 
+// Typst engine with cover page and metadata (requires no agent-browser):
+// md_to_pdf(md, pdf_out, #{ pdf_engine: "typst", page_size: "a4", cover: true,
+//     doc_title: "My Book", doc_subtitle: "A subtitle", doc_version: "1.0",
+//     doc_date: "2026-06-18", toc: true });
+
 // 3. One-shot md → pdf with a different destination. Insert `-2`
 // before the `.pdf` extension so the file still opens with a normal
 // PDF viewer (writing `.pdf.2` confuses macOS / Finder).

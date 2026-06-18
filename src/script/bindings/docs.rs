@@ -15,6 +15,8 @@ fn opts_from_map(m: &Map) -> Result<DocOptions, Box<EvalAltResult>> {
     let mut opts = DocOptions {
         toc_depth: 3,
         toc_title: "Contents".into(),
+        page_size: "a4".into(),
+        page_numbers: true,
         ..DocOptions::default()
     };
     if let Some(v) = m.get("toc") {
@@ -67,7 +69,75 @@ fn opts_from_map(m: &Map) -> Result<DocOptions, Box<EvalAltResult>> {
     if let Some(v) = m.get("page_break_on_h1") {
         opts.page_break_on_h1 = v.as_bool().unwrap_or(false);
     }
+    if let Some(v) = m.get("pdf_engine") {
+        if let Ok(s) = v.clone().into_string() {
+            opts.pdf_engine = match s.to_ascii_lowercase().as_str() {
+                "chrome" => crate::cli::PdfEngine::Chrome,
+                _ => crate::cli::PdfEngine::Typst,
+            };
+        }
+    }
+    if let Some(v) = m.get("page_size") {
+        if let Ok(s) = v.clone().into_string() {
+            opts.page_size = s;
+        }
+    }
+    if let Some(v) = m.get("cover") {
+        opts.cover = v.as_bool().unwrap_or(false);
+    }
+    if let Some(v) = m.get("cover_template") {
+        if let Ok(s) = v.clone().into_string() {
+            opts.cover_template = Some(std::path::PathBuf::from(s));
+        }
+    }
+    if let Some(v) = m.get("doc_subtitle") {
+        if let Ok(s) = v.clone().into_string() {
+            opts.subtitle = Some(s);
+        }
+    }
+    if let Some(v) = m.get("doc_version") {
+        if let Ok(s) = v.clone().into_string() {
+            opts.version = Some(s);
+        }
+    }
+    if let Some(v) = m.get("doc_date") {
+        if let Ok(s) = v.clone().into_string() {
+            opts.date = Some(s);
+        }
+    }
+    if let Some(v) = m.get("no_page_numbers") {
+        if v.as_bool().unwrap_or(false) {
+            opts.page_numbers = false;
+        }
+    }
     Ok(opts)
+}
+
+/// Dispatch markdown bytes → PDF using the engine chosen in `opts`.
+///
+/// Typst path: parse the AST in-process and call the native renderer.
+/// Chrome path: convert to HTML first, then hand off to agent-browser.
+fn render_md_bytes_to_pdf(md: &[u8], dest: &str, opts: &DocOptions) -> Result<(), Box<EvalAltResult>> {
+    match opts.pdf_engine {
+        crate::cli::PdfEngine::Typst => {
+            use comrak::{parse_document, Arena};
+            use crate::docs::comrak_options;
+            let source = std::str::from_utf8(md).map_err(|e| err(e.to_string()))?;
+            let arena = Arena::new();
+            let comrak_opts = comrak_options(opts);
+            let root = parse_document(&arena, source, &comrak_opts);
+            let base_dir = std::env::current_dir().map_err(|e| err(e.to_string()))?;
+            let http = reqwest::blocking::Client::new();
+            let pdf_bytes = crate::typst_pdf::render_md_to_pdf(root, opts, &base_dir, &http)
+                .map_err(|e| err(e.to_string()))?;
+            std::fs::write(dest, &pdf_bytes).map_err(|e| err(e.to_string()))
+        }
+        crate::cli::PdfEngine::Chrome => {
+            let html = markdown_to_html(md, opts).map_err(|e| err(e.to_string()))?;
+            crate::docs_pdf::render_html_to_pdf(html.as_bytes(), &PathBuf::from(dest))
+                .map_err(|e| err(e.to_string()))
+        }
+    }
 }
 
 pub fn register(engine: &mut Engine) {
@@ -161,28 +231,28 @@ pub fn register(engine: &mut Engine) {
     engine.register_fn(
         "md_to_pdf",
         |md: &str, dest: &str| -> Result<(), Box<EvalAltResult>> {
-            let html = markdown_to_html(md.as_bytes(), &DocOptions::default())
-                .map_err(|e| err(e.to_string()))?;
-            crate::docs_pdf::render_html_to_pdf(html.as_bytes(), &PathBuf::from(dest))
-                .map_err(|e| err(e.to_string()))
+            let opts = DocOptions {
+                toc_depth: 3,
+                toc_title: "Contents".into(),
+                page_size: "a4".into(),
+                page_numbers: true,
+                ..DocOptions::default()
+            };
+            render_md_bytes_to_pdf(md.as_bytes(), dest, &opts)
         },
     );
     engine.register_fn(
         "md_to_pdf",
         |md: &str, dest: &str, opts: Map| -> Result<(), Box<EvalAltResult>> {
             let opts = opts_from_map(&opts)?;
-            let html = markdown_to_html(md.as_bytes(), &opts).map_err(|e| err(e.to_string()))?;
-            crate::docs_pdf::render_html_to_pdf(html.as_bytes(), &PathBuf::from(dest))
-                .map_err(|e| err(e.to_string()))
+            render_md_bytes_to_pdf(md.as_bytes(), dest, &opts)
         },
     );
     engine.register_fn(
         "md_to_pdf",
         |md: Blob, dest: &str, opts: Map| -> Result<(), Box<EvalAltResult>> {
             let opts = opts_from_map(&opts)?;
-            let html = markdown_to_html(&md, &opts).map_err(|e| err(e.to_string()))?;
-            crate::docs_pdf::render_html_to_pdf(html.as_bytes(), &PathBuf::from(dest))
-                .map_err(|e| err(e.to_string()))
+            render_md_bytes_to_pdf(&md, dest, &opts)
         },
     );
 }
