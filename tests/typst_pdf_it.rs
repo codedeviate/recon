@@ -63,3 +63,48 @@ fn typst_embeds_data_uri_png_image() {
         "expected image PDF ({img_len} bytes) larger than baseline ({base_len} bytes) — image not embedded"
     );
 }
+
+#[test]
+fn full_gfm_roundtrip_preserves_literal_angle_brackets() {
+    let dir = std::env::temp_dir();
+    let md = dir.join("t_gfm.md");
+    let pdf = dir.join("t_gfm.pdf");
+    let src = "\
+# Guide
+
+A paragraph with **bold**, *italic*, ~~struck~~, and a [link](https://example.com).
+
+| Command | Effect |
+|---------|--------|
+| init    | start  |
+| commit  | save   |
+
+```sh
+git log <branch>
+git commit <pathspec>
+```
+
+- top
+  - nested
+- [ ] todo
+- [x] done
+
+A footnote ref.[^n]
+
+[^n]: the note text.
+";
+    std::fs::write(&md, src).unwrap();
+    let out = std::process::Command::new(recon())
+        .args(["--md-to-pdf", md.to_str().unwrap(), "-o", pdf.to_str().unwrap()])
+        .output().unwrap();
+    assert!(out.status.success(), "compile failed: {}", String::from_utf8_lossy(&out.stderr));
+
+    let txt = std::process::Command::new("pdftotext").arg(&pdf).arg("-").output().unwrap();
+    let text = String::from_utf8_lossy(&txt.stdout);
+    // literal <branch>/<pathspec> survive verbatim (R5)
+    assert!(text.contains("<branch>"), "literal <branch> missing: {text}");
+    assert!(text.contains("<pathspec>"), "literal <pathspec> missing: {text}");
+    // table + footnote content present
+    assert!(text.contains("commit") && text.contains("save"), "table text missing: {text}");
+    assert!(text.contains("the note text"), "footnote text missing: {text}");
+}
