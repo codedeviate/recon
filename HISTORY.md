@@ -75,9 +75,9 @@ walk it into a typst source string — headings, lists, code blocks, tables,
 links, emphasis, blockquotes, task lists, footnotes. The compiler is driven
 through a small `World` implementation (`ReconWorld`) that serves the bundled
 fonts and the generated source. typst gives us A4 by default, a numbered
-`#outline`, and footer page numbering (front matter roman/unnumbered, body
+`#outline`, and footer page numbering (front matter unnumbered, body
 arabic) for free — features that previously required hand-rolled CSS under the
-Chrome path.
+Chrome path. (Roman front-matter numbering was a deferred nice-to-have, not v1.)
 
 **Inline-bytes image embedding (detached-source constraint):** because the
 typst source we hand the compiler is synthesized in memory, there is no source
@@ -102,6 +102,33 @@ on a CSS `<div class="cover">` and `--unsafe-html`, so its documented
 `--md-to-pdf` command is pinned to `--pdf-engine chrome` — a concrete example
 of when the opt-out is the right call, and the howtogit-style driver that
 shaped the cover-template surface.
+
+**typst pinned at `=0.13.1`, not 0.15 (rejected for now):** 0.15 was the latest
+release but was deliberately passed over. It does not close either gap the engine
+has (`set document()` still lacks a Subject field; no raw-image-bytes API change),
+and it raises the MSRV to 1.92 — recon advertises MSRV 1.85 — plus `Library`/
+`World`/`PdfOptions` API churn. Its real wins (tagged PDFs, PDF/A, spot colors)
+are unrelated to current needs, so the upgrade is tracked in OUT-OF-SCOPE as a
+deliberate future call whose price is the MSRV bump.
+
+**Escaping discipline (final-review lesson):** because markdown content becomes
+typst *source*, every user-controlled string crosses the typst parser boundary
+and must be escaped — a class of bug the per-construct unit tests missed but the
+final code review caught. Three Critical fixes landed before merge: `escape_typst`
+had to include `[`/`]` (a lone `]` in ordinary prose broke compilation), link URLs
+had to be quoted via `typ_str` (a `"`/`\` in a URL broke out of the string), and
+inline/fenced code had to use the `#raw(..)` function form rather than fixed-length
+backticks (content containing backticks escaped the raw block). The takeaway:
+treat md→typst exactly like any source-generation/injection surface — escape at
+the boundary, and test the adversarial inputs (`]`, `"`, `` ` ``, `\`), not just
+the happy path.
+
+**0.101.1 coda — code shading:** the howtogit books reported code blocks reading
+flat (no background) vs the old chrome/CSS look. Fixed as a built-in default by
+emitting two `#show raw.where(..)` rules in the preamble (block → shaded `block`,
+inline → tinted `box`). This established the pattern for typst body styling via
+preamble `#show` rules; a general overridable `--typst-template`/theme hook is
+deferred to OUT-OF-SCOPE.
 
 ### 88. `--pinnedpubkey` + `--curves` via use_preconfigured_tls (0.99.0)
 
