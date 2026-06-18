@@ -7,6 +7,70 @@ pub fn typ_str(s: &str) -> String {
     format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
+/// Build an automatic centered title page from document metadata.
+///
+/// Emits a vertically-centered block: large title, smaller subtitle, a
+/// horizontal divider, then version / date / author lines. Content is
+/// escaped for typst markup context. Ends with its own `#pagebreak()`.
+pub fn auto_cover(
+    title: &str,
+    subtitle: Option<&str>,
+    author: Option<&str>,
+    version: Option<&str>,
+    date: Option<&str>,
+) -> String {
+    use super::translate::escape_typst;
+
+    let mut c = String::new();
+    c.push_str("#align(center + horizon)[\n");
+    c.push_str(&format!("  #text(32pt, weight: \"bold\")[{}]\n", escape_typst(title)));
+    if let Some(sub) = subtitle {
+        c.push_str("  #v(0.6em)\n");
+        c.push_str(&format!("  #text(18pt, fill: rgb(\"#555555\"))[{}]\n", escape_typst(sub)));
+    }
+    c.push_str("  #v(1.2em)\n");
+    c.push_str("  #line(length: 40%)\n");
+    c.push_str("  #v(1.2em)\n");
+    for (label, val) in [("", version), ("", date), ("", author)] {
+        if let Some(v) = val {
+            let _ = label;
+            c.push_str(&format!("  #text(12pt)[{}]\n", escape_typst(v)));
+            c.push_str("  #linebreak()\n");
+        }
+    }
+    c.push_str("]\n");
+    c.push_str("#pagebreak()\n");
+    c
+}
+
+/// Build a cover page from a user-supplied typst template body.
+///
+/// Prepends `#let` bindings for `title`, `subtitle`, `author`, `version`,
+/// and `date` (absent values become the empty string `""` so the template
+/// can always reference them), then the template body, then a
+/// `#pagebreak()`.
+pub fn cover_from_template(
+    template_body: &str,
+    title: &str,
+    subtitle: Option<&str>,
+    author: Option<&str>,
+    version: Option<&str>,
+    date: Option<&str>,
+) -> String {
+    let mut c = String::new();
+    c.push_str(&format!("#let title = {}\n", typ_str(title)));
+    c.push_str(&format!("#let subtitle = {}\n", typ_str(subtitle.unwrap_or(""))));
+    c.push_str(&format!("#let author = {}\n", typ_str(author.unwrap_or(""))));
+    c.push_str(&format!("#let version = {}\n", typ_str(version.unwrap_or(""))));
+    c.push_str(&format!("#let date = {}\n", typ_str(date.unwrap_or(""))));
+    c.push_str(template_body);
+    if !c.ends_with('\n') {
+        c.push('\n');
+    }
+    c.push_str("#pagebreak()\n");
+    c
+}
+
 /// Build the typst preamble (`#set page`, `#set document`) for a document.
 pub fn build_preamble(opts: &DocOptions) -> Result<String> {
     let mut p = String::new();
@@ -88,5 +152,19 @@ mod tests {
     fn page_size_unknown_errors() {
         assert!(typst_page_arg("banana").is_err());
         assert!(typst_page_arg("210x").is_err());
+    }
+
+    #[test]
+    fn auto_cover_from_metadata() {
+        let c = auto_cover("how to git", Some("subtitle"), Some("Thomas"), Some("2026.1"), Some("2026"));
+        assert!(c.contains("how to git") && c.contains("#pagebreak()"));
+    }
+
+    #[test]
+    fn cover_template_injects_lets() {
+        let c = cover_from_template("#title", "how to git", None, Some("T"), None, None);
+        assert!(c.contains("#let title = \"how to git\""));
+        assert!(c.contains("#let author = \"T\""));
+        assert!(c.contains("#pagebreak()"));
     }
 }

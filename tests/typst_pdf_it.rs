@@ -108,3 +108,67 @@ A footnote ref.[^n]
     assert!(text.contains("commit") && text.contains("save"), "table text missing: {text}");
     assert!(text.contains("the note text"), "footnote text missing: {text}");
 }
+
+#[test]
+fn typst_cover_and_toc_produces_multipage_pdf() {
+    let dir = std::env::temp_dir();
+    let md = dir.join("t_cover.md");
+    let pdf = dir.join("t_cover.pdf");
+    std::fs::write(
+        &md,
+        "# Chapter One\n\nBody one.\n\n# Chapter Two\n\nBody two.\n",
+    )
+    .unwrap();
+    let out = Command::new(recon())
+        .args([
+            "--md-to-pdf",
+            md.to_str().unwrap(),
+            "--cover",
+            "--toc",
+            "--doc-title",
+            "T",
+            "-o",
+            pdf.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "stderr: {}", String::from_utf8_lossy(&out.stderr));
+
+    let info = Command::new("pdfinfo").arg(&pdf).output().unwrap();
+    assert!(info.status.success(), "pdfinfo failed");
+    let s = String::from_utf8_lossy(&info.stdout);
+    let pages: usize = s
+        .lines()
+        .find_map(|l| l.strip_prefix("Pages:"))
+        .and_then(|n| n.trim().parse().ok())
+        .unwrap_or(0);
+    assert!(pages >= 2, "expected >=2 pages (cover + toc + body), got {pages}: {s}");
+}
+
+#[test]
+fn typst_cover_template_renders_title() {
+    let dir = std::env::temp_dir();
+    let md = dir.join("t_covtpl.md");
+    let pdf = dir.join("t_covtpl.pdf");
+    let tpl = dir.join("t_cov_template.typ");
+    std::fs::write(&md, "# Body Head\n\nSome content.\n").unwrap();
+    std::fs::write(&tpl, "#align(center, text(20pt)[#title])\n").unwrap();
+    let out = Command::new(recon())
+        .args([
+            "--md-to-pdf",
+            md.to_str().unwrap(),
+            "--cover-template",
+            tpl.to_str().unwrap(),
+            "--doc-title",
+            "MyCoverTitle",
+            "-o",
+            pdf.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "stderr: {}", String::from_utf8_lossy(&out.stderr));
+
+    let txt = Command::new("pdftotext").arg(&pdf).arg("-").output().unwrap();
+    let text = String::from_utf8_lossy(&txt.stdout);
+    assert!(text.contains("MyCoverTitle"), "cover title missing: {text}");
+}

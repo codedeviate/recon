@@ -135,6 +135,12 @@ pub struct DocOptions {
     pub page_break_on_h1: bool,
     pub pdf_engine: crate::cli::PdfEngine,
     pub page_size: String,
+    pub cover: bool,
+    pub cover_template: Option<std::path::PathBuf>,
+    pub subtitle: Option<String>,
+    pub version: Option<String>,
+    pub date: Option<String>,
+    pub page_numbers: bool,
 }
 
 impl DocOptions {
@@ -161,6 +167,12 @@ impl DocOptions {
             page_break_on_h1: args.page_break_on_h1,
             pdf_engine: args.pdf_engine,
             page_size: args.page_size.clone(),
+            cover: args.cover || args.cover_template.is_some(),
+            cover_template: args.cover_template.clone(),
+            subtitle: args.doc_subtitle.clone(),
+            version: args.doc_version.clone(),
+            date: args.doc_date.clone(),
+            page_numbers: !args.no_page_numbers,
         })
     }
 }

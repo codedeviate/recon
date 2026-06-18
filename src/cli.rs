@@ -1748,6 +1748,38 @@ pub struct Args {
     #[arg(long = "page-break-on-h1", help_heading = "Docs")]
     pub page_break_on_h1: bool,
 
+    /// Prepend an auto title page (typst engine).
+    ///
+    /// Builds a centered cover from --doc-title / --doc-subtitle /
+    /// --doc-version / --doc-date / --doc-author, then the ToC, then the
+    /// body. Override the layout with --cover-template.
+    #[arg(long = "cover", help_heading = "Docs")]
+    pub cover: bool,
+
+    /// Typst template file for the cover page.
+    ///
+    /// The file is a typst fragment; recon prepends `#let` bindings for
+    /// `title`, `subtitle`, `author`, `version`, `date` (empty string when
+    /// unset). Implies --cover. Used by the typst engine only.
+    #[arg(long = "cover-template", value_name = "FILE", help_heading = "Docs")]
+    pub cover_template: Option<PathBuf>,
+
+    /// Subtitle shown under the title on the cover page.
+    #[arg(long = "doc-subtitle", value_name = "STR", help_heading = "Docs")]
+    pub doc_subtitle: Option<String>,
+
+    /// Version string shown on the cover page.
+    #[arg(long = "doc-version", value_name = "STR", help_heading = "Docs")]
+    pub doc_version: Option<String>,
+
+    /// Date string shown on the cover page.
+    #[arg(long = "doc-date", value_name = "STR", help_heading = "Docs")]
+    pub doc_date: Option<String>,
+
+    /// Omit page-number footer (typst engine).
+    #[arg(long = "no-page-numbers", help_heading = "Docs")]
+    pub no_page_numbers: bool,
+
     // ── PDF page export ──────────────────────────────────────────────────────
 
     /// Export a single page of a PDF as an image.
