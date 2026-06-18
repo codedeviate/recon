@@ -121,12 +121,19 @@ examples: release ## Print recon --examples
 # Override per-invocation: `make trim KEEP=1`.
 KEEP ?= 2
 
+# The $(BIN)-* glob matches more than the binary copies: per-CGU object files
+# ($(BIN)-<hash>.<crate>-<hash>...-cgu.N.rcgu.o), .rmeta, and .d all share the
+# prefix. The pipeline below anchors on /$(BIN)-[0-9a-f]+$ to keep ONLY the
+# executables (hex hash, no extension), so trim never deletes codegen objects
+# the linker still needs mid-build (the historical .rcgu.o "no such file"
+# link failure). Do not relax that anchor to a bare `grep -v '\.d$'`.
 trim: ## Prune stale build artifacts (keep newest KEEP=2 recon binaries; drop old-toolchain cruft) — incremental-safe
 	@$(CARGO) sweep --installed >/dev/null 2>&1 || true
 	@for prof in release debug; do \
 	    dir="target/$$prof/deps"; \
 	    [ -d "$$dir" ] || continue; \
-	    ls -t "$$dir"/$(BIN)-* 2>/dev/null | grep -v '\.d$$' \
+	    ls -t "$$dir"/$(BIN)-* 2>/dev/null \
+	        | grep -E "/$(BIN)-[0-9a-f]+$$" \
 	        | tail -n +$$(($(KEEP)+1)) \
 	        | while read -r f; do rm -f "$$f" "$$f.d"; done; \
 	done
