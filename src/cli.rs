@@ -8,6 +8,15 @@ const HELP_STYLES: Styles = Styles::styled()
     .literal(AnsiColor::Cyan.on_default())
     .placeholder(AnsiColor::Green.on_default());
 
+/// PDF rendering engine for --md-to-pdf.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub enum PdfEngine {
+    /// Native typst renderer (A4, numbered TOC, no CSS).
+    Typst,
+    /// Legacy agent-browser / Chrome path (Letter, CSS, HTML).
+    Chrome,
+}
+
 /// When to emit ANSI styling for rendered HTML text.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
 pub enum ColorWhen {
@@ -1652,6 +1661,21 @@ pub struct Args {
     /// width on a TTY, else 80.
     #[arg(long = "width", value_name = "N", help_heading = "Docs")]
     pub width: Option<usize>,
+
+    /// PDF engine for --md-to-pdf: typst (default) or chrome.
+    ///
+    /// typst renders natively (A4 default, page numbers, numbered TOC,
+    /// no CSS). chrome uses the legacy agent-browser path (Letter, CSS,
+    /// raw HTML). Applies to --md-to-pdf only; --html-to-pdf is always chrome.
+    #[arg(long = "pdf-engine", value_name = "ENGINE", value_enum,
+          default_value_t = PdfEngine::Typst, help_heading = "Docs")]
+    pub pdf_engine: PdfEngine,
+
+    /// PDF page size (typst engine). a4 (default), a3, a5,
+    /// letter, legal, or custom WxH like 210mmx297mm.
+    #[arg(long = "page-size", value_name = "SIZE", default_value = "a4",
+          help_heading = "Docs")]
+    pub page_size: String,
 
     /// Drop link footnotes/styling in rendered HTML text.
     ///
