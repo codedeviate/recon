@@ -2,8 +2,8 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.100.1</div>
-<div class="date">2026-06-17</div>
+<div class="version">Version 0.101.0</div>
+<div class="date">2026-06-18</div>
 <div class="meta">
 Repository · https://github.com/codedeviate/recon<br>
 License · MIT
@@ -1107,11 +1107,32 @@ recon --compare a.json b.json --compare-context 5
 
 0.58.0 shipped markdown / HTML / PDF. See also [`--help docs`](#document-conversions).
 
+Since 0.101.0, the default md→PDF engine is **embedded typst** — a
+Chrome-free, pure-Rust renderer. It gives A4 page size, a numbered TOC
+(`#outline`), footer page numbers (front matter unnumbered, body arabic),
+native UTF-8 metadata, and full GFM, with no external dependency. It does
+**not** support CSS or raw HTML: `--doc-css`, `--no-default-css`,
+`--unsafe-html`, and raw HTML in the source all error under typst with a
+message pointing to `--pdf-engine chrome`. Use `--pdf-engine chrome` to opt
+back into the legacy agent-browser path for CSS-styled output, `--unsafe-html`
+passthrough, or an HTML cover page. `--doc-subject` warns under typst (typst
+has no PDF Subject field). `--html-to-pdf` is always chrome. The
+`<!-- page-break -->` marker works on both engines; `<!-- toc -->` places the
+table of contents.
+
 | Flag | Description |
 |------|-------------|
 | `--md-to-html <SRC>` | Markdown → HTML via comrak. Output `-o PATH` or stdout. |
-| `--md-to-pdf <SRC>` | Markdown → PDF (via agent-browser). `-o PATH` required. |
-| `--html-to-pdf <SRC>` | HTML → PDF (via agent-browser). |
+| `--md-to-pdf <SRC>` | Markdown → PDF. `-o PATH` required. Default engine: embedded typst (Chrome-free). |
+| `--html-to-pdf <SRC>` | HTML → PDF (via agent-browser; always Chrome). |
+| `--pdf-engine <typst\|chrome>` | md→PDF engine. `typst` (default, Chrome-free) or `chrome` (legacy agent-browser; required for CSS / `--unsafe-html` / cover-HTML). md→pdf only; `--html-to-pdf` is always chrome. |
+| `--page-size <SIZE>` | Page size for typst: `a4` (default), `a3`, `a5`, `letter`, `legal`, or `WxH` (e.g. `420mmx594mm`). Errors on `--pdf-engine chrome`. |
+| `--cover` | Generate a title page from `--doc-*` metadata (typst). |
+| `--cover-template <FILE>` | Custom typst cover snippet; metadata injected as `#let title/subtitle/author/version/date`. Implies a cover (typst). |
+| `--doc-subtitle <STR>` | Subtitle on the generated cover page (typst). |
+| `--doc-version <STR>` | Version string on the generated cover page (typst). |
+| `--doc-date <STR>` | Date string on the generated cover page (typst). |
+| `--no-page-numbers` | Disable footer page numbers (typst; on by default — front matter unnumbered, body arabic). |
 | `--html-to-text <SRC>` | HTML → readable wrapped text (file / URL / stdin); lynx/w3m-style view. |
 | `--render` | Render `text/html` HTTP responses as text inline; non-HTML passes through. |
 | `--render-color <auto\|always\|never>` | ANSI styling of rendered text (auto-on when stdout is a TTY). |
@@ -1124,8 +1145,8 @@ recon --compare a.json b.json --compare-context 5
 | `--doc-author <STR>` | Author field in PDF document properties. |
 | `--doc-subject <STR>` | Subject field in PDF document properties. |
 | `--doc-keywords <STR>` | Keywords field in PDF document properties (comma-separated). |
-| `--doc-css <PATH>` | Inline a custom stylesheet. |
-| `--no-default-css` | Skip bundled default CSS. |
+| `--doc-css <PATH>` | Inline a custom stylesheet. Requires `--pdf-engine chrome` (errors on typst). |
+| `--no-default-css` | Skip bundled default CSS. Requires `--pdf-engine chrome` (errors on typst). |
 | `--gfm` | Enable GitHub-flavored extensions (tables, task lists, strikethrough, autolinks, footnotes, tagfilter). |
 | `--unsafe-html` | Allow raw HTML passthrough (comrak's `unsafe_` flag). Needed for cover pages and explicit `<div class="page-break">` markers. Off by default; assume the markdown is trusted when on. |
 | `--page-break-on-h1` | Start a new PDF page before every top-level `#` heading except the first. No visible effect in HTML output (Chrome's printToPDF honours the `break-before: page` rule). |
@@ -1134,14 +1155,29 @@ recon --compare a.json b.json --compare-context 5
 
 ```sh
 recon --md-to-html README.md --toc --gfm -o README.html
+
+# typst is the default md→PDF engine: A4, numbered TOC, footer page numbers
+recon --md-to-pdf book.md -o book.pdf
+recon --md-to-pdf book.md --page-size letter -o book.pdf
+
+# Auto cover page from metadata (typst)
+recon --md-to-pdf book.md --cover \
+      --doc-title 'My Book' --doc-subtitle 'A Manual' \
+      --doc-author 'Alice' --doc-version 1.2.0 --doc-date 2026-06-18 -o book.pdf
+
+# Custom typst cover template (receives #let title/subtitle/author/version/date)
+recon --md-to-pdf book.md --cover --cover-template cover.typ --doc-title Book -o book.pdf
+
 recon --md-to-pdf CHANGELOG.md --toc --gfm --doc-title 'recon release notes' -o changelog.pdf
 recon --html-to-pdf report.html -o report.pdf
 curl -s https://example.com/doc.md | recon --md-to-html - --toc -o doc.html
-recon --md-to-pdf notes.md --toc --doc-css print.css -o notes.pdf
-recon --md-to-pdf notes.md --no-default-css --doc-css corp.css -o notes.pdf
 
-# Book-style: cover page + chapter breaks
-recon --md-to-pdf book.md --toc --gfm --unsafe-html --page-break-on-h1 \
+# Legacy Chrome engine — required for CSS / --unsafe-html / cover-HTML
+recon --md-to-pdf notes.md --pdf-engine chrome --doc-css print.css -o notes.pdf
+recon --md-to-pdf notes.md --pdf-engine chrome --no-default-css --doc-css corp.css -o notes.pdf
+
+# Book-style cover page + chapter breaks (Chrome engine)
+recon --md-to-pdf book.md --pdf-engine chrome --toc --gfm --unsafe-html --page-break-on-h1 \
       --doc-title 'My Book' -o book.pdf
 
 # Full PDF metadata — verifiable via pdfinfo
@@ -1227,11 +1263,14 @@ Two routes:
 
    anywhere in the markdown. The CSS `break-after: page` kicks in.
 
-Chrome's printToPDF is the renderer for both `--md-to-pdf` and
-`--html-to-pdf`, so any CSS that speaks `break-before`, `break-after`,
-or `page-break-*` works. `@page` rules for size and margins (defined in
-the bundled default CSS) are honored too — override via `--doc-css` or
-inline `<style>` with `--unsafe-html`.
+The CSS cover block and `page-break-*` CSS described above apply to the
+**Chrome engine** (`--pdf-engine chrome`). Under the default typst engine,
+use `--cover` / `--cover-template` for the title page and the
+`<!-- page-break -->` marker for breaks. With `--pdf-engine chrome`, Chrome's
+printToPDF renders both `--md-to-pdf` and `--html-to-pdf`, so any CSS that
+speaks `break-before`, `break-after`, or `page-break-*` works; `@page` rules
+for size and margins (in the bundled default CSS) are honored too — override
+via `--doc-css` or inline `<style>` with `--unsafe-html`.
 
 ### PDF page export
 

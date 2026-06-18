@@ -218,14 +218,10 @@ reference.
 
 ### Document conversions
 
-- **typst-based md→PDF alternative** — Chrome-free path for
-  markdown → PDF via a hand-rolled md→typst translator + the
-  `typst` crate embedded. Would add ~15–25 MB to the release binary
-  and require non-trivial translator logic. Revisit if users
-  explicitly ask for Chrome-free PDF generation.
-- **Custom page sizes / margins / orientations** — agent-browser's
-  `pdf` subcommand's flag surface dictates what's feasible. Punt
-  until real demand shapes the knobs.
+- **Custom margins / orientations** — the typst engine (0.101.0)
+  added page-size selection via `--page-size` (a4/a3/a5/letter/legal/
+  WxH). Margin and orientation knobs are not yet exposed; punt until
+  real demand shapes them.
 
 ### Script engine
 
@@ -437,10 +433,12 @@ two narrower pieces still deferred. The proxy variants
   crate appears.
   (PDF metadata beyond title — author, subject, keywords — shipped in 0.74.0.)
 - **Pure-Rust HTML+CSS → PDF renderer** — `servo`/`blitz` exist but
-  aren't packaged as an embeddable crate yet. `typst` is pure-Rust
-  and has `#outline()` for linkable TOC, but does NOT accept HTML
-  as input (its HTML support is output-only). Revisit if either
-  path matures.
+  aren't packaged as an embeddable crate yet. (`typst` is now embedded
+  as the default md→PDF engine since 0.101.0 — numbered TOC via
+  `#outline`, footer page numbers — but it does NOT accept HTML as
+  input, so it doesn't cover the HTML→PDF case; `--html-to-pdf` and
+  `--pdf-engine chrome` stay on agent-browser.) Revisit a pure-Rust
+  HTML+CSS path if `servo`/`blitz` matures.
 
 ### MQTT
 

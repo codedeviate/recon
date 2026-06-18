@@ -1339,9 +1339,31 @@ recon --rekey \
         "curl -s https://example.com/doc.md | recon --md-to-html - > doc.html",
     ]);
 
-    example("Markdown → PDF (via agent-browser)", &[
+    example("Markdown → PDF (typst default: A4, numbered TOC, page numbers)", &[
+        "recon --md-to-pdf book.md -o book.pdf",
         "recon --md-to-pdf CHANGELOG.md --toc --gfm --doc-title 'recon notes' -o changelog.pdf",
         "recon --md-to-pdf docs.md --toc --toc-depth 4 -o docs.pdf",
+    ]);
+
+    example("Page size (typst only)", &[
+        "recon --md-to-pdf book.md --page-size letter -o book.pdf",
+        "recon --md-to-pdf book.md --page-size a5 -o book.pdf",
+        "recon --md-to-pdf poster.md --page-size 420mmx594mm -o poster.pdf",
+    ]);
+
+    example("Cover page from metadata (typst)", &[
+        "recon --md-to-pdf book.md --cover --doc-title 'My Book' --doc-subtitle 'A Manual' --doc-author 'Alice' -o book.pdf",
+        "recon --md-to-pdf book.md --cover --doc-title Book --doc-version 1.2.0 --doc-date 2026-06-18 -o book.pdf",
+    ]);
+
+    example("Custom typst cover template", &[
+        "recon --md-to-pdf book.md --cover --cover-template cover.typ --doc-title Book -o book.pdf",
+        "# cover.typ receives #let title/subtitle/author/version/date injected from --doc-* flags",
+    ]);
+
+    example("Legacy Chrome engine — CSS / cover-HTML path", &[
+        "recon --md-to-pdf notes.md --pdf-engine chrome --doc-css print.css -o notes.pdf",
+        "recon --md-to-pdf book.md --pdf-engine chrome --unsafe-html --page-break-on-h1 -o book.pdf",
     ]);
 
     example("PDF document metadata (author / subject / keywords)", &[
@@ -1368,7 +1390,7 @@ recon --rekey \
         "recon --md-to-pdf tmp.md --unsafe-html -o tmp.pdf",
     ]);
 
-    note("HTML backend is `comrak` (CommonMark + GFM, pure Rust). PDF backend is `agent-browser pdf` (wraps Chrome's printToPDF, preserving anchor links so the TOC stays clickable). --md-to-html is pure-Rust / no external deps. --md-to-pdf and --html-to-pdf require agent-browser on PATH (`brew install agent-browser`). URL sources flow through the normal request pipeline and honor every HTTP flag.");
+    note("HTML backend is `comrak` (CommonMark + GFM, pure Rust). The default md→PDF engine is embedded `typst` (Chrome-free): A4 page size, numbered TOC, footer page numbers, native UTF-8 metadata, full GFM — no external deps and no CSS. For CSS / `--unsafe-html` / cover-HTML, pass `--pdf-engine chrome` (the legacy agent-browser path; `brew install agent-browser`). `--page-size`, `--cover`, `--cover-template`, `--doc-subtitle/version/date`, and `--no-page-numbers` are typst-only and error on chrome. `--html-to-pdf` is always chrome. `<!-- page-break -->` works on both engines; `<!-- toc -->` places the ToC. URL sources flow through the normal request pipeline and honor every HTTP flag.");
 
     section("RENDERING HTML AS TEXT (0.96.0)");
     example(

@@ -34,6 +34,21 @@ companion doc/example/test changes.
 
 ## [Unreleased]
 
+## [0.101.0] - 2026-06-18
+
+### Added
+- Embedded **typst** md→PDF engine — a Chrome-free, pure-Rust renderer, now the default for `--md-to-pdf`. Produces A4 output, a numbered TOC (`#outline`), footer page numbers (front matter unnumbered, body arabic), native UTF-8 PDF metadata, and full GFM, with no external dependency.
+- `--pdf-engine <typst|chrome>` — select the md→PDF engine (default `typst`). `chrome` opts back into the legacy agent-browser path. md→pdf only; `--html-to-pdf` is always chrome.
+- `--page-size <a4|a3|a5|letter|legal|WxH>` — page size for the typst engine (default `a4`). Errors under `--pdf-engine chrome`.
+- `--cover` — generate a title page from `--doc-*` metadata (typst).
+- `--cover-template <FILE>` — supply a custom typst cover snippet; metadata is injected as `#let title/subtitle/author/version/date`.
+- `--doc-subtitle <STR>`, `--doc-version <STR>`, `--doc-date <STR>` — cover-page metadata.
+- `--no-page-numbers` — disable typst footer page numbers (on by default).
+- `<!-- toc -->` marker places the table of contents; `<!-- page-break -->` works on both engines.
+
+### Changed
+- typst is now the **default** md→PDF engine. CSS / cover-HTML flags (`--doc-css`, `--no-default-css`, `--unsafe-html`) and raw HTML in the source error under typst with a message pointing to `--pdf-engine chrome`; pass `--pdf-engine chrome` for the legacy CSS-styled / `--unsafe-html` / HTML-cover path. `--doc-subject` warns under typst (typst has no PDF Subject field).
+
 ## [0.100.1] - 2026-06-17
 
 ### Fixed

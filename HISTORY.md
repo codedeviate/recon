@@ -52,6 +52,57 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 89. Embedded typst md→PDF engine — Chrome-free by default (0.101.0)
+
+Since 0.58.0, `--md-to-pdf` shunted markdown through comrak to HTML and then
+shelled out to `agent-browser pdf` (Chrome's printToPDF). That dependency on
+an external Chrome was the single biggest friction point for PDF generation:
+no agent-browser on PATH meant no PDF. 0.101.0 embeds a pure-Rust renderer and
+makes it the default.
+
+**Crates chosen:** the `typst` compiler crate plus `typst-pdf` (PDF export)
+and `typst-assets` (bundled fonts so output is deterministic without relying
+on system font discovery). Together they add roughly 15–25 MB to the release
+binary — the cost we explicitly flagged as the reason this sat in
+OUT-OF-SCOPE. It moved in-scope because the Chrome-free path is worth the size,
+and typst is the only production-ready pure-Rust crate that offers a real
+typesetting engine with `#outline()` for a linkable, numbered TOC.
+
+**Translator design (`ReconWorld` + comrak-AST→typst):** typst does not accept
+HTML as input (its HTML support is output-only), so we could not reuse the
+existing comrak→HTML stage. Instead we parse the markdown to a comrak AST and
+walk it into a typst source string — headings, lists, code blocks, tables,
+links, emphasis, blockquotes, task lists, footnotes. The compiler is driven
+through a small `World` implementation (`ReconWorld`) that serves the bundled
+fonts and the generated source. typst gives us A4 by default, a numbered
+`#outline`, and footer page numbering (front matter roman/unnumbered, body
+arabic) for free — features that previously required hand-rolled CSS under the
+Chrome path.
+
+**Inline-bytes image embedding (detached-source constraint):** because the
+typst source we hand the compiler is synthesized in memory, there is no source
+*directory* on disk for relative image paths to resolve against. Rather than
+fabricate a virtual filesystem, images are read by recon and embedded as inline
+bytes in the generated typst source (`image(bytes(..))`). This sidesteps
+typst's path-resolution entirely and keeps the document self-contained.
+
+**Why typst-default:** the common case — "turn this README/CHANGELOG into a
+PDF" — wants zero external dependencies and sensible defaults, which typst
+delivers. The cases that genuinely need CSS, raw-HTML passthrough, or an HTML
+cover page are the minority and now opt in via `--pdf-engine chrome`. CSS /
+cover-HTML flags (`--doc-css`, `--no-default-css`, `--unsafe-html`) and raw
+HTML error under typst with a message pointing at the chrome engine, so the
+fallback is discoverable rather than silent. `--html-to-pdf` stays chrome-only
+(typst can't ingest HTML). New typst-only knobs: `--page-size`, `--cover`,
+`--cover-template` (a typst snippet receiving `#let title/subtitle/author/
+version/date`), `--doc-subtitle/version/date`, and `--no-page-numbers`.
+
+**Downstream driver:** the recon manual's own regen (`docs/MANUAL.md`) relies
+on a CSS `<div class="cover">` and `--unsafe-html`, so its documented
+`--md-to-pdf` command is pinned to `--pdf-engine chrome` — a concrete example
+of when the opt-out is the right call, and the howtogit-style driver that
+shaped the cover-template surface.
+
 ### 88. `--pinnedpubkey` + `--curves` via use_preconfigured_tls (0.99.0)
 
 Both flags had been parsed-and-ignored since their introduction —

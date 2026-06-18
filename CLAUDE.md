@@ -349,6 +349,7 @@ After updating the markdown, **regenerate the PDF**:
 
 ```sh
 ./target/release/recon --md-to-pdf docs/MANUAL.md \
+    --pdf-engine chrome \
     --toc --toc-depth 3 --gfm \
     --unsafe-html --page-break-on-h1 \
     --doc-title 'recon User Manual' \
@@ -358,6 +359,12 @@ After updating the markdown, **regenerate the PDF**:
 The `--unsafe-html` flag is required because the manual uses a styled
 `<div class="cover">` block for its title page. `--page-break-on-h1`
 gives every top-level `#` heading its own PDF page.
+
+`--pdf-engine chrome` is **mandatory** here: since 0.101.0 the default
+md→PDF engine is embedded typst, which does not accept CSS or raw HTML
+and would reject the manual's `<div class="cover">` / `--unsafe-html`.
+Pinning the regen to the chrome (agent-browser) engine keeps the CSS
+cover working — do not drop this flag.
 
 Requires `agent-browser` on PATH. The PDF is committed alongside the
 markdown — both files are checked in.
@@ -499,6 +506,7 @@ in a quick patch commit:
 
 ```sh
 ./target/release/recon --md-to-pdf docs/MANUAL.md \
+    --pdf-engine chrome \
     --toc --toc-depth 3 --gfm \
     --unsafe-html --page-break-on-h1 \
     --doc-title 'recon User Manual' \

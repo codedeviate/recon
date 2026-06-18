@@ -1396,18 +1396,31 @@ static TOPIC_DOCS: Topic = Topic {
                   stdin. URL sources honor every HTTP flag (-H, -u,\n\
                   -L, -k, cookies, proxy, HSTS).\n\
                   \n\
-                  HTML backend is `comrak` (CommonMark + GFM). PDF\n\
-                  backend is `agent-browser pdf`, which wraps Chrome's\n\
-                  printToPDF — preserves anchor links, @page CSS, and\n\
-                  produces a clickable TOC in the PDF.\n\
+                  HTML backend is `comrak` (CommonMark + GFM). The\n\
+                  default md→PDF engine is embedded `typst` (Chrome-free):\n\
+                  A4, numbered TOC, footer page numbers, native UTF-8\n\
+                  metadata, full GFM. CSS / cover-HTML flags\n\
+                  (--doc-css, --no-default-css, --unsafe-html, raw HTML)\n\
+                  are not supported by typst — use --pdf-engine chrome\n\
+                  for those (the legacy `agent-browser pdf` path that\n\
+                  wraps Chrome's printToPDF). --html-to-pdf is always\n\
+                  chrome.\n\
                   \n\
                   TOC generation: comrak emits `id=\"slug\"` on each\n\
                   heading; recon adds a `<nav class=\"toc\">` block\n\
                   with anchor-linked entries up to `--toc-depth`.",
     flags: &[
         FlagHelp { flags: "--md-to-html <SRC>", description: "Render markdown → HTML. Output via -o <PATH> or stdout." },
-        FlagHelp { flags: "--md-to-pdf <SRC>", description: "Render markdown → PDF. Requires -o <PATH> and agent-browser." },
+        FlagHelp { flags: "--md-to-pdf <SRC>", description: "Render markdown → PDF. Requires -o <PATH>. Default engine: typst." },
         FlagHelp { flags: "--html-to-pdf <SRC>", description: "Render HTML → PDF. Requires -o <PATH> and agent-browser." },
+        FlagHelp { flags: "--pdf-engine <typst|chrome>", description: "md→PDF engine. typst (default, Chrome-free) or chrome\n(legacy agent-browser; needed for CSS / cover-HTML)." },
+        FlagHelp { flags: "--page-size <SIZE>", description: "Page size for typst: a4 (default), a3, a5, letter,\nlegal, or WxH. Errors on --pdf-engine chrome." },
+        FlagHelp { flags: "--cover", description: "Generate a title page from --doc-* metadata (typst)." },
+        FlagHelp { flags: "--cover-template <FILE>", description: "Custom typst cover snippet. Metadata injected as\n#let title/subtitle/author/version/date." },
+        FlagHelp { flags: "--doc-subtitle <STR>", description: "Subtitle on the generated cover page." },
+        FlagHelp { flags: "--doc-version <STR>", description: "Version string on the generated cover page." },
+        FlagHelp { flags: "--doc-date <STR>", description: "Date string on the generated cover page." },
+        FlagHelp { flags: "--no-page-numbers", description: "Disable footer page numbers (typst; on by default)." },
         FlagHelp { flags: "--toc", description: "Inject a linkable table of contents at the top of the\ngenerated HTML." },
         FlagHelp { flags: "--toc-depth <N>", description: "Include headings up to H<N> in the TOC. Default 3." },
         FlagHelp { flags: "--toc-title <STR>", description: "Heading text for the injected TOC. Default \"Contents\"." },
@@ -1428,6 +1441,11 @@ static TOPIC_DOCS: Topic = Topic {
     examples: &[
         ExampleHelp { description: "Markdown → HTML with TOC + GFM", command: "recon --md-to-html README.md --toc --gfm -o README.html" },
         ExampleHelp { description: "Fetch live markdown over HTTP, render local", command: "recon --md-to-html https://example.com/doc.md --toc -o doc.html" },
+        ExampleHelp { description: "Markdown → PDF (typst default: A4, numbered TOC, page numbers)", command: "recon --md-to-pdf book.md -o book.pdf" },
+        ExampleHelp { description: "Letter page size (typst only)", command: "recon --md-to-pdf book.md --page-size letter -o book.pdf" },
+        ExampleHelp { description: "Auto cover page from metadata (typst)", command: "recon --md-to-pdf book.md --cover --doc-title 'My Book' --doc-subtitle 'A Manual' -o book.pdf" },
+        ExampleHelp { description: "Custom typst cover template", command: "recon --md-to-pdf book.md --cover --cover-template cover.typ --doc-title Book -o book.pdf" },
+        ExampleHelp { description: "Legacy Chrome engine (needed for CSS / cover-HTML)", command: "recon --md-to-pdf notes.md --pdf-engine chrome --doc-css print.css -o notes.pdf" },
         ExampleHelp { description: "Markdown → PDF with linkable TOC", command: "recon --md-to-pdf CHANGELOG.md --toc --gfm --doc-title 'recon release notes' -o changelog.pdf" },
         ExampleHelp { description: "PDF with full metadata (verifiable via pdfinfo)", command: "recon --md-to-pdf doc.md --doc-title 'My Report' --doc-author 'Alice' --doc-subject 'Q1 results' --doc-keywords 'finance, Q1' -o report.pdf" },
         ExampleHelp { description: "HTML → PDF", command: "recon --html-to-pdf report.html -o report.pdf" },
