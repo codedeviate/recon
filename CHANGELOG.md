@@ -34,6 +34,11 @@ companion doc/example/test changes.
 
 ## [Unreleased]
 
+## [0.101.1] - 2026-06-18
+
+### Changed
+- typst engine: code now renders with a light-grey shaded background (`luma(245)`) — fenced **block code** in a padded, rounded `block`, and **inline code** in a tinted `box` — matching the chrome/CSS path so code-heavy documents read clearly. Built-in default on the typst engine (no flag); the chrome path already shaded via CSS. Reported by the howtogit books.
+
 ## [0.101.0] - 2026-06-18
 
 ### Added

@@ -89,6 +89,18 @@ pub fn build_preamble(opts: &DocOptions) -> Result<String> {
     if !doc_args.is_empty() {
         p.push_str(&format!("#set document({})\n", doc_args.join(", ")));
     }
+    // Default code styling: a light-grey shaded background for block and
+    // inline code, matching the chrome/CSS path so code-heavy documents
+    // read clearly. Not configurable (a broader body-theme hook is the
+    // place for that — see OUT-OF-SCOPE).
+    p.push_str(
+        "#show raw.where(block: true): it => block(\
+         fill: luma(245), inset: 8pt, radius: 3pt, width: 100%)[#it]\n",
+    );
+    p.push_str(
+        "#show raw.where(block: false): it => box(\
+         fill: luma(245), inset: (x: 3pt), outset: (y: 2pt), radius: 2pt)[#it]\n",
+    );
     Ok(p)
 }
 
@@ -165,5 +177,15 @@ mod tests {
         assert!(c.contains("#let title = \"how to git\""));
         assert!(c.contains("#let author = \"T\""));
         assert!(c.contains("#pagebreak()"));
+    }
+
+    #[test]
+    fn preamble_shades_block_and_inline_code() {
+        let mut o = DocOptions::default();
+        o.page_size = "a4".into();
+        let p = build_preamble(&o).unwrap();
+        assert!(p.contains("#show raw.where(block: true):"), "missing block-code rule: {p}");
+        assert!(p.contains("#show raw.where(block: false):"), "missing inline-code rule: {p}");
+        assert!(p.contains("luma(245)"), "missing shaded fill: {p}");
     }
 }

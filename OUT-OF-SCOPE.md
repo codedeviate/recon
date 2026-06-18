@@ -248,6 +248,15 @@ reference.
   typst-PDF-specific Info-dict/XMP patch; niche, so deferred. Workaround:
   `--pdf-engine chrome` if a Subject field is required.
 
+- **`--typst-template` / body-theme hook** — typst-engine body styling
+  (fonts, heading style, code style, accent colors) is currently built-in
+  with no override; the only user hook is `--cover-template` (cover only).
+  0.101.1 shipped a sensible default code-block/inline-code shading, which
+  covered the one concrete downstream need (howtogit). A general
+  body-theme/`--typst-template` option (a user typst preamble injected
+  document-wide) is the right long-term home for overridable fonts/heading
+  /code styling — defer until there's demand beyond the built-in defaults.
+
 ### Script engine
 
 - **ICMP raw-socket send/recv primitives** — `ping()` already covers
