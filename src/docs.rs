@@ -446,7 +446,32 @@ pub fn run_md_to_pdf(args: &Args) -> Result<()> {
             let arena = Arena::new();
             let comrak_opts = comrak_options(&opts);
             let root = parse_document(&arena, source, &comrak_opts);
-            let pdf = crate::typst_pdf::render_md_to_pdf(root, &opts)
+
+            // Base directory for resolving relative local image paths: the
+            // markdown file's parent, or the current directory for stdin (`-`)
+            // and remote/non-path sources.
+            let base_dir = if src == "-" {
+                std::env::current_dir().context("resolve current directory for stdin base")?
+            } else {
+                let p = std::path::Path::new(src);
+                match p.parent() {
+                    Some(parent) if !parent.as_os_str().is_empty() => parent.to_path_buf(),
+                    _ => std::env::current_dir()
+                        .context("resolve current directory for image base")?,
+                }
+            };
+
+            // HTTP client for remote (`http(s)`) image fetches: honour
+            // `--insecure` and the connect timeout. A build failure here is
+            // non-fatal per image (resolve returns Err → alt-text fallback),
+            // but the client itself must construct.
+            let http = reqwest::blocking::Client::builder()
+                .danger_accept_invalid_certs(args.insecure)
+                .connect_timeout(std::time::Duration::from_secs(args.timeout))
+                .build()
+                .unwrap_or_default();
+
+            let pdf = crate::typst_pdf::render_md_to_pdf(root, &opts, &base_dir, &http)
                 .context("typst: render markdown to PDF")?;
             std::fs::write(output, &pdf)
                 .with_context(|| format!("write output '{}'", output.display()))

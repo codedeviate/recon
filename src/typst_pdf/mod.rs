@@ -4,11 +4,13 @@
 //! to PDF bytes in-process via a minimal [`ReconWorld`]. The Markdown→typst
 //! translator and CLI wiring arrive in later tasks.
 
+mod images;
 mod preamble;
 mod translate;
 mod world;
 
 use std::collections::HashMap;
+use std::path::Path;
 
 use anyhow::{anyhow, Result};
 use comrak::nodes::AstNode;
@@ -19,9 +21,19 @@ use crate::docs::DocOptions;
 use world::ReconWorld;
 
 /// Render a parsed Markdown document (comrak AST) to PDF bytes via typst.
-pub fn render_md_to_pdf<'a>(root: &'a AstNode<'a>, opts: &DocOptions) -> Result<Vec<u8>> {
+///
+/// `base_dir` resolves relative local image paths (the markdown file's parent,
+/// or the current directory for stdin); `http` fetches remote images. Image
+/// bytes are inlined directly into the generated typst source, so the world's
+/// file map stays empty.
+pub fn render_md_to_pdf<'a>(
+    root: &'a AstNode<'a>,
+    opts: &DocOptions,
+    base_dir: &Path,
+    http: &reqwest::blocking::Client,
+) -> Result<Vec<u8>> {
     let mut src = preamble::build_preamble(opts)?;
-    src.push_str(&translate::body(root, opts)?);
+    src.push_str(&translate::body(root, opts, base_dir, http)?);
     src.push('\n');
     compile_to_pdf(src)
 }

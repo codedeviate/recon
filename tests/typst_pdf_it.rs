@@ -24,3 +24,42 @@ fn typst_default_produces_a4_pdf() {
     // A4 = 595.276 x 841.89 pts; pdfinfo labels it "(A4)".
     assert!(s.contains("595") && s.contains("841"), "expected A4, got: {s}");
 }
+
+/// A markdown image whose source is an inline `data:` PNG URI must embed in the
+/// PDF — no network needed. We prove embedding by checking the image-bearing
+/// PDF is larger than an otherwise-identical baseline with no image.
+#[test]
+fn typst_embeds_data_uri_png_image() {
+    // A minimal valid 1x1 PNG (the same bytes the unit tests decode).
+    const PNG_B64: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC";
+
+    let dir = std::env::temp_dir();
+
+    // Baseline: same text, no image.
+    let base_md = dir.join("t_img_base.md");
+    let base_pdf = dir.join("t_img_base.pdf");
+    std::fs::write(&base_md, "# Pic\n\nSome text here.\n").unwrap();
+    let out = Command::new(recon())
+        .args(["--md-to-pdf", base_md.to_str().unwrap(), "-o", base_pdf.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "baseline stderr: {}", String::from_utf8_lossy(&out.stderr));
+
+    // With an embedded data-URI PNG image.
+    let img_md = dir.join("t_img_data.md");
+    let img_pdf = dir.join("t_img_data.pdf");
+    let md = format!("# Pic\n\nSome text here.\n\n![a dot](data:image/png;base64,{PNG_B64})\n");
+    std::fs::write(&img_md, md).unwrap();
+    let out = Command::new(recon())
+        .args(["--md-to-pdf", img_md.to_str().unwrap(), "-o", img_pdf.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "image stderr: {}", String::from_utf8_lossy(&out.stderr));
+
+    let base_len = std::fs::metadata(&base_pdf).unwrap().len();
+    let img_len = std::fs::metadata(&img_pdf).unwrap().len();
+    assert!(
+        img_len > base_len,
+        "expected image PDF ({img_len} bytes) larger than baseline ({base_len} bytes) — image not embedded"
+    );
+}
