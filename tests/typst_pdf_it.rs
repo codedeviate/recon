@@ -237,6 +237,61 @@ fn chrome_rejects_page_size() {
 }
 
 #[test]
+fn howtogit_acceptance() {
+    let dir = std::env::temp_dir();
+    let md = dir.join("htg.md");
+    let tpl = dir.join("htg_cover.typ");
+    let pdf = dir.join("htg.pdf");
+    // a terminal-prompt-style cover template using the injected metadata vars,
+    // a coloured word + a box "cursor" (proves R7 styled cover is reproducible)
+    std::fs::write(&tpl, "#align(center + horizon)[\n  #text(28pt, font: \"DejaVu Sans Mono\")[\\$ how to #text(fill: rgb(\"#F05033\"))[git]#box(fill: rgb(\"#F05033\"), width: 0.5em, height: 0.9em)]\n  #v(1em)\n  #text(16pt)[#subtitle]\n  #v(2em)\n  #text(12pt)[#version #h(1em) #author]\n]\n").unwrap();
+    let src = "\
+# Chapter One
+
+Intro paragraph.
+
+| Command | Effect |
+|---------|--------|
+| init    | start  |
+
+```sh
+git log <branch>
+```
+
+# Chapter Two
+
+More.
+";
+    std::fs::write(&md, src).unwrap();
+    let out = std::process::Command::new(recon())
+        .args([
+            "--md-to-pdf", md.to_str().unwrap(),
+            "--cover-template", tpl.to_str().unwrap(),
+            "--toc", "--toc-depth", "2",
+            "--page-size", "a4",
+            "--doc-title", "How To Git",
+            "--doc-subtitle", "The git Best-Practices Book",
+            "--doc-author", "Thomas Björk",
+            "--page-break-on-h1",
+            "-o", pdf.to_str().unwrap(),
+        ])
+        .output().unwrap();
+    assert!(out.status.success(), "build failed: {}", String::from_utf8_lossy(&out.stderr));
+    let info_out = std::process::Command::new("pdfinfo").arg(&pdf).output().unwrap();
+    let info = String::from_utf8_lossy(&info_out.stdout);
+    assert!(info.contains("595") && info.contains("841"), "expected A4: {info}");
+    assert!(info.contains("Björk"), "author UTF-8 wrong: {info}");      // native typst UTF-8
+    // ≥ 3 pages (cover + toc + chapters, h1 breaks)
+    let pages: u32 = info.lines().find(|l| l.starts_with("Pages:"))
+        .and_then(|l| l.split_whitespace().last()).and_then(|n| n.parse().ok()).unwrap_or(0);
+    assert!(pages >= 3, "expected >=3 pages, got {pages}: {info}");
+    let txt_out = std::process::Command::new("pdftotext").arg(&pdf).arg("-").output().unwrap();
+    let txt = String::from_utf8_lossy(&txt_out.stdout);
+    assert!(txt.contains("<branch>"), "literal <branch> missing: {txt}");
+    assert!(txt.contains("init") && txt.contains("start"), "table missing");
+}
+
+#[test]
 fn typst_subject_warns_but_succeeds() {
     let dir = std::env::temp_dir();
     let md = dir.join("g4.md");
