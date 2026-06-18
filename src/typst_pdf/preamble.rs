@@ -118,7 +118,6 @@ pub fn typst_page_arg(size: &str) -> Result<String> {
     )
 }
 
-#[allow(dead_code)]
 fn is_typst_len(s: &str) -> bool {
     let units = ["mm", "cm", "in", "pt"];
     units.iter().any(|u| {

@@ -12,6 +12,7 @@ use std::path::Path;
 use comrak::nodes::{AstNode, ListType, NodeValue};
 
 use super::images;
+use super::preamble::typ_str;
 
 /// Sentinel emitted for the `<!-- toc -->` directive; consumed downstream.
 const TOC_SENTINEL: &str = "%RECON_TOC%";
@@ -28,7 +29,7 @@ pub(crate) struct ImgCtx<'c> {
 pub fn escape_typst(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for c in s.chars() {
-        if matches!(c, '#' | '$' | '*' | '_' | '`' | '<' | '@' | '\\') {
+        if matches!(c, '#' | '$' | '*' | '_' | '`' | '<' | '@' | '\\' | '[' | ']') {
             out.push('\\');
         }
         out.push(c);
@@ -148,15 +149,18 @@ fn walk<'a>(
             out.push(']');
         }
         NodeValue::Code(code) => {
-            // Inline raw — content is verbatim, never escaped.
-            out.push('`');
-            out.push_str(&code.literal);
-            out.push('`');
+            // Inline raw via #raw(...) — verbatim content carried as a typst
+            // string literal, so backticks/quotes/backslashes can't break out.
+            out.push_str("#raw(");
+            out.push_str(&typ_str(&code.literal));
+            out.push(')');
         }
         NodeValue::Link(link) => {
-            out.push_str("#link(\"");
-            out.push_str(&link.url);
-            out.push_str("\")[");
+            // Escape the URL via typ_str so a `"` or trailing `\` can't break
+            // the string literal. (typ_str returns the value WITH quotes.)
+            out.push_str("#link(");
+            out.push_str(&typ_str(&link.url));
+            out.push_str(")[");
             for c in node.children() {
                 walk(c, out, depth, footnotes, ctx)?;
             }
@@ -183,13 +187,19 @@ fn walk<'a>(
             out.push_str("#line(length: 100%)\n\n");
         }
         NodeValue::CodeBlock(cb) => {
-            // Block raw — verbatim content with optional language token.
+            // Block raw via #raw(block: true, ...) — verbatim content carried
+            // as a typst string literal, so a literal fence line can't break
+            // out and the language token is always safe.
             let lang = cb.info.split_whitespace().next().unwrap_or("");
-            out.push_str("```");
-            out.push_str(lang);
-            out.push('\n');
-            out.push_str(cb.literal.trim_end_matches('\n'));
-            out.push_str("\n```\n\n");
+            let literal = cb.literal.trim_end_matches('\n');
+            out.push_str("#raw(block: true, ");
+            if !lang.is_empty() {
+                out.push_str("lang: ");
+                out.push_str(&typ_str(lang));
+                out.push_str(", ");
+            }
+            out.push_str(&typ_str(literal));
+            out.push_str(")\n\n");
         }
 
         // ---- Lists ----
@@ -458,7 +468,19 @@ mod tests {
 
     #[test]
     fn inline_code_verbatim() {
-        assert_eq!(t("`git log <branch>`"), "`git log <branch>`");
+        // Inline code now uses #raw(...) so verbatim content (incl. `<branch>`,
+        // quotes, backslashes) survives without breaking out of typst source.
+        assert_eq!(t("`git log <branch>`"), "#raw(\"git log <branch>\")");
+    }
+
+    #[test]
+    fn inline_code_with_backtick_preserved() {
+        // A backtick inside inline code cannot be wrapped with single
+        // backticks. The #raw(...) form keeps the literal verbatim.
+        let out = t("``a`b``");
+        assert_eq!(out, "#raw(\"a`b\")");
+        // No bare single-backtick wrapping that would break the source.
+        assert!(!out.starts_with('`'));
     }
 
     #[test]
@@ -467,13 +489,45 @@ mod tests {
     }
 
     #[test]
+    fn strikethrough_bracket_escaped() {
+        // A `]` inside #strike[..] must be escaped or it closes the block.
+        let out = t("~~a]b~~");
+        assert_eq!(out, "#strike[a\\]b]");
+        assert!(out.contains("\\]"));
+    }
+
+    #[test]
     fn link() {
         assert_eq!(t("[a](http://x)"), "#link(\"http://x\")[a]");
     }
 
     #[test]
+    fn link_url_quote_escaped() {
+        // A `"` inside the URL must be escaped via typ_str or it closes the
+        // string literal early.
+        let out = t("[x](http://e/\"q)");
+        assert!(out.contains("\\\""), "url quote not escaped: {out}");
+        // The escaped quote must appear inside the #link("...") string, before
+        // the closing `)[`.
+        assert!(out.starts_with("#link(\"http://e/\\\"q\")["), "got: {out}");
+    }
+
+    #[test]
     fn bare_text_escaped() {
         assert_eq!(t("a #b *c*"), "a \\#b _c_");
+    }
+
+    #[test]
+    fn bare_bracket_escaped() {
+        // A lone `]` in a top-level paragraph fails to compile unless escaped.
+        let out = t("a ] b");
+        assert!(out.contains("\\]"), "bracket not escaped: {out}");
+        assert_eq!(out, "a \\] b");
+    }
+
+    #[test]
+    fn bracket_open_escaped() {
+        assert_eq!(t("a [ b"), "a \\[ b");
     }
 
     // ---- Blocks ----
@@ -494,7 +548,33 @@ mod tests {
 
     #[test]
     fn code_block() {
-        assert_eq!(t("```sh\ngit log <b>\n```"), "```sh\ngit log <b>\n```");
+        // Block code now uses #raw(block: true, lang: ..., ...) so a literal
+        // containing a fence cannot break out and the language token is safe.
+        assert_eq!(
+            t("```sh\ngit log <b>\n```"),
+            "#raw(block: true, lang: \"sh\", \"git log <b>\")"
+        );
+    }
+
+    #[test]
+    fn code_block_no_lang() {
+        // No info string → omit lang:.
+        assert_eq!(
+            t("```\nplain\n```"),
+            "#raw(block: true, \"plain\")"
+        );
+    }
+
+    #[test]
+    fn code_block_with_fence_literal() {
+        // A tilde-fenced block whose literal contains a ``` line must not break
+        // out of the source — #raw() carries it verbatim.
+        let md = "~~~\nbefore\n```\nafter\n~~~";
+        let out = t(md);
+        // typ_str escapes only \ and ", so real newlines stay literal inside
+        // the typst string and the verbatim fence survives intact.
+        assert_eq!(out, "#raw(block: true, \"before\n```\nafter\")");
+        assert!(out.contains("```"));
     }
 
     // ---- Lists ----
@@ -530,10 +610,32 @@ mod tests {
         );
     }
 
+    #[test]
+    fn table_cell_bracket_escaped() {
+        // A `]` inside a table cell `[..]` closes the cell early unless escaped.
+        let out = t("| A | B |\n|---|---|\n| x]y | 2 |");
+        assert!(out.contains("[x\\]y]"), "table cell bracket not escaped: {out}");
+    }
+
     // ---- Footnotes ----
     #[test]
     fn footnote() {
         assert_eq!(t("x[^1]\n\n[^1]: note"), "x#footnote[note]");
+    }
+
+    #[test]
+    fn footnote_bracket_escaped() {
+        // A `]` inside #footnote[..] must be escaped.
+        let out = t("x[^1]\n\n[^1]: a]b");
+        assert!(out.contains("#footnote[a\\]b]"), "footnote bracket not escaped: {out}");
+    }
+
+    #[test]
+    fn quote_bracket_escaped() {
+        // A `]` inside #quote(block: true)[..] must be escaped.
+        let out = t("> a]b");
+        assert!(out.contains("\\]"), "quote bracket not escaped: {out}");
+        assert_eq!(out, "#quote(block: true)[a\\]b]");
     }
 
     // ---- Raw HTML + directives ----
