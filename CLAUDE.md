@@ -7,6 +7,43 @@ after wiring up CLI flags, after updating docs — create a git commit. Small,
 focused commits make it easy to revert a specific step without losing unrelated
 work. Don't batch everything into one commit at the end.
 
+## WISHLIST.md → OUT-OF-SCOPE.md (idle task)
+
+`WISHLIST.md` (repo root) is the user's low-friction inbox for backlog ideas:
+they jot raw notes there so they never have to hand-edit `OUT-OF-SCOPE.md`
+directly. **Whenever there's nothing else to do** (idle between tasks, or when
+explicitly asked), check `WISHLIST.md`; if it has any idea content below its
+`<!-- Write ideas below. -->` marker, migrate every item into
+`OUT-OF-SCOPE.md` and leave `WISHLIST.md` empty again (header + marker only).
+
+The migration is not a copy-paste — reshape each note into an `OUT-OF-SCOPE.md`
+entry that matches the house style:
+
+1. **Pick the right bucket** by the file's own definitions:
+   - **Deferred** — implementable, just put off (scope/complexity trade-off or
+     waiting on a concrete use case).
+   - **Not yet supported** — blocked by upstream / ecosystem maturity.
+   - **Out of scope** — can't be implemented, architecturally mismatched, or
+     declined by policy.
+   When a note is ambiguous, default to **Deferred** and state the open
+   question in the entry rather than guessing.
+2. **Place it under the right `### ` feature-area subheading** within that
+   bucket (e.g. "Document conversions", "AI bindings", "Script engine"). Create
+   a new `### ` subheading only if none fits.
+3. **Reformat to the established entry shape**: a bold-titled bullet
+   (`- **Title** — …`) with prose that captures the rationale, rough cost, and
+   any "ships when X" / "revisit when Y" condition. Expand terse notes into a
+   proper entry, but **don't invent scope** the user didn't intend — if detail
+   is missing, keep the entry faithful to the note and flag what's unspecified.
+4. **Empty `WISHLIST.md`** back to its header + marker once everything is moved.
+
+Commit the move as a docs/chore change (`docs:` or `chore:`). This is backlog
+housekeeping — it touches no code, flag, or behaviour, and both files are
+crate-excluded — so it gets **no version bump** and no other exposure-surface
+work (treat it like the HISTORY.md / build-tooling commits, not a release).
+If a wishlist note doesn't fit any of the three buckets, it belongs in the
+design notes, not `OUT-OF-SCOPE.md` — leave it in `WISHLIST.md` and ask.
+
 ## Building — release-only by default
 
 When building `recon`, build the **release** target only. Do **not**
