@@ -15,12 +15,16 @@ fn opts_from_map(m: &Map) -> Result<DocOptions, Box<EvalAltResult>> {
     let mut opts = DocOptions {
         toc_depth: 3,
         toc_title: "Contents".into(),
+        toc_plain: true,
         page_size: "a4".into(),
         page_numbers: true,
         ..DocOptions::default()
     };
     if let Some(v) = m.get("toc") {
         opts.toc = v.as_bool().unwrap_or(false);
+    }
+    if let Some(v) = m.get("toc_plain") {
+        opts.toc_plain = v.as_bool().unwrap_or(true);
     }
     if let Some(v) = m.get("toc_depth") {
         if let Ok(n) = v.as_int() {
@@ -251,6 +255,7 @@ pub fn register(engine: &mut Engine) {
             let opts = DocOptions {
                 toc_depth: 3,
                 toc_title: "Contents".into(),
+                toc_plain: true,
                 page_size: "a4".into(),
                 page_numbers: true,
                 ..DocOptions::default()

@@ -2,8 +2,8 @@
 <h1>recon</h1>
 <div class="subtitle">User Manual</div>
 <hr>
-<div class="version">Version 0.102.0</div>
-<div class="date">2026-06-18</div>
+<div class="version">Version 0.103.0</div>
+<div class="date">2026-06-27</div>
 <div class="meta">
 Repository · https://github.com/codedeviate/recon<br>
 License · MIT
@@ -1143,6 +1143,8 @@ table of contents.
 | `--toc` | Inject a linkable TOC. |
 | `--toc-depth <N>` | Include headings up to H`N` (default 3). |
 | `--toc-title <STR>` | TOC heading (default "Contents"). |
+| `--toc-plain` | Strip inline code/bold/italic from TOC entries (typst). On by default; the HTML / chrome path is always plain. |
+| `--no-toc-plain` | Keep inline formatting in the typst TOC outline (pre-0.103 behaviour). |
 | `--doc-title <STR>` | `<title>` + PDF metadata title. |
 | `--doc-author <STR>` | Author field in PDF document properties. |
 | `--doc-subject <STR>` | Subject field in PDF document properties. |
@@ -1176,6 +1178,10 @@ recon --md-to-pdf book.md --cover \
 recon --md-to-pdf book.md --cover --cover-template cover.typ --doc-title Book -o book.pdf
 
 recon --md-to-pdf CHANGELOG.md --toc --gfm --doc-title 'recon release notes' -o changelog.pdf
+
+# TOC entries are plain text by default on typst; keep heading formatting in the outline:
+recon --md-to-pdf manual.md --toc --no-toc-plain -o manual.pdf
+
 recon --html-to-pdf report.html -o report.pdf
 curl -s https://example.com/doc.md | recon --md-to-html - --toc -o doc.html
 

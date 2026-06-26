@@ -1716,6 +1716,20 @@ pub struct Args {
     #[arg(long = "toc-title", value_name = "STR", default_value = "Contents", help_heading = "Docs")]
     pub toc_title: String,
 
+    /// Strip inline code/bold/italic from TOC entries.
+    /// On by default for the typst PDF engine; the HTML / chrome
+    /// path is always plain. Use --no-toc-plain to keep heading
+    /// formatting in the typst outline.
+    #[arg(long = "toc-plain", help_heading = "Docs", overrides_with = "no_toc_plain")]
+    pub toc_plain: bool,
+
+    /// Keep inline formatting in TOC entries (typst outline).
+    /// The opposite of --toc-plain; restores the pre-0.103
+    /// behaviour where headings render with code/bold/italic in
+    /// the table of contents.
+    #[arg(long = "no-toc-plain", help_heading = "Docs", overrides_with = "toc_plain")]
+    pub no_toc_plain: bool,
+
     /// Sets <title> (HTML) + PDF metadata title. Default: basename of
     /// SRC with extension stripped.
     #[arg(long = "doc-title", value_name = "STR", help_heading = "Docs")]

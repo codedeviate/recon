@@ -34,6 +34,14 @@ companion doc/example/test changes.
 
 ## [Unreleased]
 
+## [0.103.0] - 2026-06-27
+
+### Added
+- `--toc-plain` / `--no-toc-plain` — control whether the table-of-contents entries render as plain text. On the **typst** PDF engine the outline previously mirrored heading formatting (inline `code` came out monospaced, `**bold**` bold, etc.); `--toc-plain` flattens TOC entries to plain text while the body heading keeps its formatting. It is implemented by wrapping the typst `#outline` in scoped show-rules that unwrap `raw`/`strong`/`emph`/`strike`. Also exposed as the `toc_plain` opts-map key on the `md_to_pdf` / `md_to_html` script bindings.
+
+### Changed
+- TOC entries are now **plain text by default** on the typst engine (`--toc-plain` is on unless `--no-toc-plain` is passed). The HTML / `--pdf-engine chrome` path was already plain, so this only changes typst output. Pass `--no-toc-plain` to restore the pre-0.103 formatted outline.
+
 ## [0.102.0] - 2026-06-18
 
 ### Added

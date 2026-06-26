@@ -92,11 +92,23 @@ pub fn assemble(opts: &DocOptions, cover: &str, body: &str) -> Result<String> {
     src.push_str("#set page(numbering: none)\n");
 
     let outline = if toc_enabled {
-        format!(
-            "#outline(title: {}, depth: {})\n#pagebreak()\n",
-            typ_str(toc_title),
-            toc_depth
-        )
+        let call = format!("#outline(title: {}, depth: {})", typ_str(toc_title), toc_depth);
+        if opts.toc_plain {
+            // Scope show-rules to the outline so its entries render as
+            // plain text while body headings keep their formatting:
+            // `raw` → its source string, emphasis wrappers → their body.
+            format!(
+                "#[\n\
+                 #show raw: it => it.text\n\
+                 #show strong: it => it.body\n\
+                 #show emph: it => it.body\n\
+                 #show strike: it => it.body\n\
+                 {call}\n\
+                 ]\n#pagebreak()\n"
+            )
+        } else {
+            format!("{call}\n#pagebreak()\n")
+        }
     } else {
         String::new()
     };
@@ -225,6 +237,52 @@ mod tests {
         let src = assemble(&opts, "", "A\n\n%RECON_TOC%\n\nB\n").unwrap();
         assert!(!src.contains("%RECON_TOC%"));
         assert!(!src.contains("#outline("));
+    }
+
+    #[test]
+    fn assemble_plain_toc_wraps_outline_in_show_rules() {
+        let mut opts = DocOptions::default();
+        opts.page_size = "a4".into();
+        opts.toc = true;
+        opts.toc_plain = true;
+        let src = assemble(&opts, "", "Body\n").unwrap();
+        assert!(src.contains("#outline("), "outline still emitted");
+        assert!(
+            src.contains("#show raw: it => it.text"),
+            "plain outline strips raw formatting: {src}"
+        );
+        assert!(src.contains("#show strong: it => it.body"));
+        assert!(src.contains("#show emph: it => it.body"));
+    }
+
+    #[test]
+    fn assemble_formatted_toc_has_no_show_rules() {
+        let mut opts = DocOptions::default();
+        opts.page_size = "a4".into();
+        opts.toc = true;
+        opts.toc_plain = false;
+        let src = assemble(&opts, "", "Body\n").unwrap();
+        assert!(src.contains("#outline("), "outline still emitted");
+        assert!(
+            !src.contains("#show raw:"),
+            "formatted outline keeps heading styling: {src}"
+        );
+    }
+
+    #[test]
+    fn plain_toc_with_formatted_heading_compiles() {
+        // A heading carrying inline code + bold must still compile when
+        // the outline is wrapped in the plain-text show-rules.
+        let mut opts = DocOptions::default();
+        opts.page_size = "a4".into();
+        opts.toc = true;
+        opts.toc_plain = true;
+        opts.page_numbers = true;
+        let body = "= Using #raw(\"git\") and *bold*\n\nContent.\n";
+        let src = assemble(&opts, "", body).unwrap();
+        let pdf = compile_to_pdf(src, &[]).unwrap();
+        assert!(pdf.starts_with(b"%PDF-"), "not a PDF");
+        assert!(pdf.len() > 500, "suspiciously small PDF");
     }
 
     #[test]

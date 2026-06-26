@@ -1345,6 +1345,16 @@ recon --rekey \
         "recon --md-to-pdf docs.md --toc --toc-depth 4 -o docs.pdf",
     ]);
 
+    example("Plain-text TOC entries (typst)", &[
+        "recon --md-to-pdf manual.md --toc -o manual.pdf",
+        "recon --md-to-pdf manual.md --toc --no-toc-plain -o manual.pdf",
+    ]);
+    note("TOC entries are plain text by default on the typst engine: inline `code`, **bold**, \
+          and *italic* in a heading are flattened to plain text in the outline, while the body \
+          heading keeps its formatting. Pass --no-toc-plain to mirror the heading formatting in \
+          the outline instead. The HTML / --pdf-engine chrome path is always plain, so the flag \
+          is a no-op there.");
+
     example("Page size (typst only)", &[
         "recon --md-to-pdf book.md --page-size letter -o book.pdf",
         "recon --md-to-pdf book.md --page-size a5 -o book.pdf",

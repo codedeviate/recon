@@ -52,6 +52,36 @@ Used throughout for clean, chainable error propagation without custom error type
 
 ## Feature Additions (Chronological)
 
+### 90. Plain-text TOC entries on the typst engine — `--toc-plain` (0.103.0)
+
+The embedded typst engine (#89) generates its TOC with the built-in
+`#outline()`, which by design renders each entry from the *real* heading
+content. The translator (#89) faithfully preserves inline formatting in
+headings — inline code becomes `#raw(...)`, `**bold**` becomes `*...*` — so
+the outline inherited that formatting too: a heading like ``## The `--toc`
+flag`` showed a monospace box in the table of contents. The HTML / chrome
+path never had this problem because its `collect_text` already flattens
+headings to plain text for both the slug and the `<nav class="toc">` entry.
+
+**Approach considered and rejected:** stripping inline formatting from the
+heading markup itself when emitting typst. That would flatten the outline,
+but it would also flatten the *body* heading — losing the monospace/bold the
+author wanted in the document. Unacceptable side effect.
+
+**Approach taken:** wrap *only* the `#outline()` call in a scoped content
+block carrying show-rules that unwrap the inline elements —
+`#show raw: it => it.text`, `#show strong: it => it.body`,
+`#show emph: it => it.body`, `#show strike: it => it.body`. Typst applies
+the active show-rules when it realizes the outline entries, so the entries
+render as plain text while body headings, realized outside the block, keep
+their formatting. This is the idiomatic typst way to restyle outline entries
+and needs no change to the heading translator.
+
+Made the default (`--toc-plain` on) because a formatted TOC is rarely what
+anyone wants; `--no-toc-plain` restores the pre-0.103 behaviour. The control
+is also surfaced as the `toc_plain` opts-map key on the `md_to_pdf` /
+`md_to_html` script bindings, defaulting to plain to match the CLI.
+
 ### 89. Embedded typst md→PDF engine — Chrome-free by default (0.101.0)
 
 Since 0.58.0, `--md-to-pdf` shunted markdown through comrak to HTML and then

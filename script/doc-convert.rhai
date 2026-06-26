@@ -44,6 +44,18 @@ try {
     print(`md → pdf (sans): skipped (${e})`);
 }
 
+// Typst TOC entries are plain text by default (inline code/bold/italic in
+// a heading is flattened in the outline, while the body heading keeps its
+// formatting). Set `toc_plain: false` to mirror heading formatting in the
+// outline instead — matches the CLI's `--no-toc-plain`.
+let formatted_toc_out = "/tmp/recon-doc-formatted-toc.pdf";
+try {
+    md_to_pdf(md, formatted_toc_out, #{ toc: true, gfm: true, toc_plain: false });
+    print(`md → pdf (formatted TOC): wrote ${formatted_toc_out}`);
+} catch(e) {
+    print(`md → pdf (formatted TOC): skipped (${e})`);
+}
+
 // 3. One-shot md → pdf with a different destination. Insert `-2`
 // before the `.pdf` extension so the file still opens with a normal
 // PDF viewer (writing `.pdf.2` confuses macOS / Finder).

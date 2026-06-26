@@ -124,6 +124,10 @@ pub struct DocOptions {
     pub toc: bool,
     pub toc_depth: u8,
     pub toc_title: String,
+    /// Strip inline formatting (code/bold/italic) from TOC entries.
+    /// The HTML / chrome path is always plain; this only changes the
+    /// typst outline, which otherwise mirrors heading formatting.
+    pub toc_plain: bool,
     pub title: Option<String>,
     pub author: Option<String>,
     pub subject: Option<String>,
@@ -162,6 +166,10 @@ impl DocOptions {
             toc: args.toc,
             toc_depth: if args.toc_depth == 0 { 3 } else { args.toc_depth },
             toc_title: args.toc_title.clone(),
+            // Plain by default; --no-toc-plain opts back into formatted
+            // outline entries. `overrides_with` makes the last of
+            // --toc-plain / --no-toc-plain on the command line win.
+            toc_plain: !args.no_toc_plain,
             title: args.doc_title.clone(),
             author: args.doc_author.clone(),
             subject: args.doc_subject.clone(),

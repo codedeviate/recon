@@ -1408,7 +1408,11 @@ static TOPIC_DOCS: Topic = Topic {
                   \n\
                   TOC generation: comrak emits `id=\"slug\"` on each\n\
                   heading; recon adds a `<nav class=\"toc\">` block\n\
-                  with anchor-linked entries up to `--toc-depth`.",
+                  with anchor-linked entries up to `--toc-depth`. The\n\
+                  typst outline mirrors heading formatting by default,\n\
+                  but recon strips inline code/bold/italic from its\n\
+                  entries (`--toc-plain`, on by default; HTML is always\n\
+                  plain) — pass `--no-toc-plain` to keep the formatting.",
     flags: &[
         FlagHelp { flags: "--md-to-html <SRC>", description: "Render markdown → HTML. Output via -o <PATH> or stdout." },
         FlagHelp { flags: "--md-to-pdf <SRC>", description: "Render markdown → PDF. Requires -o <PATH>. Default engine: typst." },
@@ -1426,6 +1430,8 @@ static TOPIC_DOCS: Topic = Topic {
         FlagHelp { flags: "--toc", description: "Inject a linkable table of contents at the top of the\ngenerated HTML." },
         FlagHelp { flags: "--toc-depth <N>", description: "Include headings up to H<N> in the TOC. Default 3." },
         FlagHelp { flags: "--toc-title <STR>", description: "Heading text for the injected TOC. Default \"Contents\"." },
+        FlagHelp { flags: "--toc-plain", description: "Strip inline code/bold/italic from TOC entries (typst).\nOn by default; the HTML path is always plain." },
+        FlagHelp { flags: "--no-toc-plain", description: "Keep inline formatting in the typst TOC outline\n(pre-0.103 behaviour)." },
         FlagHelp { flags: "--doc-title <STR>", description: "Sets <title> in the HTML + PDF metadata title." },
         FlagHelp { flags: "--doc-author <STR>", description: "Author field in PDF document properties." },
         FlagHelp { flags: "--doc-subject <STR>", description: "Subject field in PDF document properties." },
@@ -1451,6 +1457,7 @@ static TOPIC_DOCS: Topic = Topic {
         ExampleHelp { description: "Custom typst cover template", command: "recon --md-to-pdf book.md --cover --cover-template cover.typ --doc-title Book -o book.pdf" },
         ExampleHelp { description: "Legacy Chrome engine (needed for CSS / cover-HTML)", command: "recon --md-to-pdf notes.md --pdf-engine chrome --doc-css print.css -o notes.pdf" },
         ExampleHelp { description: "Markdown → PDF with linkable TOC", command: "recon --md-to-pdf CHANGELOG.md --toc --gfm --doc-title 'recon release notes' -o changelog.pdf" },
+        ExampleHelp { description: "Keep code/bold formatting in the typst TOC", command: "recon --md-to-pdf manual.md --toc --no-toc-plain -o manual.pdf" },
         ExampleHelp { description: "PDF with full metadata (verifiable via pdfinfo)", command: "recon --md-to-pdf doc.md --doc-title 'My Report' --doc-author 'Alice' --doc-subject 'Q1 results' --doc-keywords 'finance, Q1' -o report.pdf" },
         ExampleHelp { description: "HTML → PDF", command: "recon --html-to-pdf report.html -o report.pdf" },
         ExampleHelp { description: "Inject custom CSS", command: "recon --md-to-pdf notes.md --toc --doc-css print.css -o notes.pdf" },
